@@ -42,6 +42,8 @@ public class SecurityConfig {
                 // C1: the chat socket. A browser `WebSocket` cannot send a header, so the handshake reads its token
                 // from `?token=` (or the header when the client can) and refuses 401/403 itself — `ChatHandshake`.
                 .requestMatchers("/ws/chat").permitAll()
+                // B3 (D5): the one `/me` area a parent shares — her own notifications, resolved from her principal.
+                .requestMatchers("/me/notifications", "/me/notifications/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "PARENT")
                 .requestMatchers("/me", "/me/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR")
                 // §6 screens 19–20: "my own school", with no school id in the path. Dashboard roles only; which of
                 // them may read what is the `@PreAuthorize` on each route, as everywhere else.

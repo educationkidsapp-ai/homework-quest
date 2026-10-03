@@ -54,12 +54,27 @@ public class NotificationService {
     public static final int CHAT_BODY_MAX = 120;
     private static final int DEFAULT_LIMIT = 20, MAX_LIMIT = 100;
 
+    /** B3 (V30): a parent's rows carry `parent:<parentId>` as the recipient, an id no dashboard user can have. */
+    public static final String PARENT_PREFIX = "parent:";
+
     private final NotificationRepository rows; private final UserRepository users; private final ChatBus bus;
     private final Json json; private final Clock clock; private final NotificationRows upserts;
+    private final quest.server.children.ChildRepository children;
 
     public NotificationService(NotificationRepository rows, UserRepository users, ChatBus bus, Json json, Clock clock,
-                              NotificationRows upserts) {
+                              NotificationRows upserts, quest.server.children.ChildRepository children) {
         this.rows = rows; this.users = users; this.bus = bus; this.json = json; this.clock = clock; this.upserts = upserts;
+        this.children = children;
+    }
+
+    /** The recipient key of a parent's rows. */
+    public static String parentRecipient(String parentId) { return PARENT_PREFIX + parentId; }
+
+    /** Whose bell a request reads: the dashboard user's, or — B3 — the signed-in parent's. */
+    public static String recipient(Principals.User user, Principals.Parent parent) {
+        if (user != null) return user.userId();
+        if (parent != null) return parentRecipient(parent.parentId());
+        throw ApiException.forbidden("Sign in to read notifications.");
     }
 
     // ---------------------------------------------------------------- writing
@@ -100,14 +115,14 @@ public class NotificationService {
             case LESSON_NEEDS_SKILLS -> "Skills to confirm";
             case LESSON_READY -> "Questions ready";
             case LESSON_FAILED -> "Generation stopped";
-            case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
+            case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         String name = lesson.getTitle() == null || lesson.getTitle().isBlank() ? "Your lesson" : lesson.getTitle().trim();
         String body = switch (kind) {
             case LESSON_NEEDS_SKILLS -> name + " has been analysed. Confirm the skills to start writing the questions.";
             case LESSON_READY -> name + " is ready to review.";
             case LESSON_FAILED -> lesson.getErrorMessage() == null || lesson.getErrorMessage().isBlank() ? name + " stopped before it finished." : lesson.getErrorMessage();
-            case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
+            case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         try {
             notify(lesson.getSchoolId(), recipient, kind, title, body, link(roleOf(recipient), lesson.getId()), lesson.getId());
@@ -139,10 +154,63 @@ public class NotificationService {
         String title = clip("Message from " + (from == null || from.isBlank() ? "your school" : from), TITLE_MAX);
         try {
             var row = upserts.upsertUnread(schoolId, userId, key(NotificationKind.CHAT_MESSAGE), threadId,
-                    title, clip(body, CHAT_BODY_MAX), messagesLink(roleOf(userId), threadId));
+                    title, clip(body, CHAT_BODY_MAX), messagesLink(roleOf(userId), threadId), null);
             publishAfterCommit(schoolId, userId, view(row));
         } catch (RuntimeException e) {
             log.warn("notifications: could not write chat.message for thread {}: {}", threadId, e.toString());
+        }
+    }
+
+    /**
+     * B3 (D5): a staff member wrote to a parent — T1's throttle and read-clear, on the parent's own rows. The row names
+     * the child, and `link` is the app's path to the thread (`/children/{childId}/chat/{staffId}`).
+     */
+    public void parentChatMessage(String schoolId, String parentId, String childId, String threadId, String staffId, String from, String body) {
+        if (parentId == null || threadId == null) return;
+        String title = clip("Message from " + (from == null || from.isBlank() ? "your school" : from), TITLE_MAX);
+        try {
+            var row = upserts.upsertUnread(schoolId, parentRecipient(parentId), key(NotificationKind.CHAT_MESSAGE), threadId,
+                    title, clip(body, CHAT_BODY_MAX), "/children/" + childId + "/chat/" + staffId, childId);
+            publishAfterCommit(schoolId, row.getUserId(), view(row));
+        } catch (RuntimeException e) {
+            log.warn("notifications: could not write a parent's chat.message for thread {}: {}", threadId, e.toString());
+        }
+    }
+
+    /**
+     * B3 (D5): one row for the parent of every child on the lesson's section — `exam.released` when an exam's results
+     * are released (by the teacher or by the close-of-window sweep), `homework.published` when a homework goes out. A
+     * parent is told once per lesson and child: a release withdrawn and given again, or a re-publish, writes nothing
+     * new. Never fails the release or the publish it rides on.
+     */
+    @Transactional
+    public int parentsOf(LessonEntity lesson, NotificationKind kind) {
+        if (lesson == null || lesson.getClassId() == null) return 0;
+        try {
+            String k = key(kind), name = lesson.getTitle() == null || lesson.getTitle().isBlank() ? "the lesson" : lesson.getTitle().trim();
+            var told = new java.util.HashSet<String>();
+            for (var row : rows.about(k, lesson.getId())) told.add(row.getUserId() + "|" + row.getChildId());
+            int written = 0;
+            for (var child : children.findByClassIdAndDeletedAtIsNullOrderByNameAsc(lesson.getClassId())) {
+                if (child.getParentId() == null || !told.add(parentRecipient(child.getParentId()) + "|" + child.getId())) continue;
+                var e = new NotificationEntity();
+                e.setId(UUID.randomUUID().toString()); e.setSchoolId(lesson.getSchoolId()); e.setUserId(parentRecipient(child.getParentId()));
+                e.setKind(k); e.setLessonId(lesson.getId()); e.setChildId(child.getId()); e.setCreatedAt(clock.instant());
+                if (kind == NotificationKind.EXAM_RELEASED) {
+                    e.setTitle(clip("Results ready: " + name, TITLE_MAX)); e.setBody(clip(child.getName() + "'s result for " + name + " is ready.", BODY_MAX));
+                    e.setLink("/children/" + child.getId() + "/progress");
+                } else {
+                    e.setTitle(clip("New homework: " + name, TITLE_MAX)); e.setBody(clip(child.getName() + " has new homework for " + lesson.getDate() + ".", BODY_MAX));
+                    e.setLink("/children/" + child.getId() + "/map");
+                }
+                rows.save(e);
+                publishAfterCommit(e.getSchoolId(), e.getUserId(), view(e));
+                written++;
+            }
+            return written;
+        } catch (RuntimeException e) {
+            log.warn("notifications: could not tell the parents of lesson {} ({}): {}", lesson.getId(), key(kind), e.toString());
+            return 0;
         }
     }
 
@@ -165,28 +233,28 @@ public class NotificationService {
     // ---------------------------------------------------------------- reading
 
     @Transactional(readOnly = true)
-    public List<NotificationView> list(Principals.User caller, Boolean unread, Integer limit) {
+    public List<NotificationView> list(String recipient, Boolean unread, Integer limit) {
         int n = limit == null ? DEFAULT_LIMIT : limit;
         if (n < 1 || n > MAX_LIMIT) throw ApiException.badRequest("limit must be 1–" + MAX_LIMIT + ".");
         var page = PageRequest.of(0, n);
-        var found = Boolean.TRUE.equals(unread) ? rows.newestUnread(caller.userId(), page) : rows.newest(caller.userId(), page);
+        var found = Boolean.TRUE.equals(unread) ? rows.newestUnread(recipient, page) : rows.newest(recipient, page);
         return found.stream().map(NotificationService::view).toList();
     }
 
     @Transactional(readOnly = true)
-    public UnreadCount unreadCount(Principals.User caller) { return new UnreadCount(rows.countUnread(caller.userId())); }
+    public UnreadCount unreadCount(String recipient) { return new UnreadCount(rows.countUnread(recipient)); }
 
     /** Marks one of the caller's own rows read; another user's id is 404, because the row is not hers to know about. */
     @Transactional
-    public NotificationView markRead(Principals.User caller, String id) {
-        var e = rows.findOwned(id, caller.userId()).orElseThrow(() -> ApiException.notFound("notification"));
+    public NotificationView markRead(String recipient, String id) {
+        var e = rows.findOwned(id, recipient).orElseThrow(() -> ApiException.notFound("notification"));
         if (e.getReadAt() == null) { e.setReadAt(clock.instant()); rows.save(e); }
         return view(e);
     }
 
     @Transactional
-    public UnreadCount markAllRead(Principals.User caller) {
-        rows.markAllRead(caller.userId(), clock.instant());
+    public UnreadCount markAllRead(String recipient) {
+        rows.markAllRead(recipient, clock.instant());
         return new UnreadCount(0);
     }
 
@@ -199,7 +267,8 @@ public class NotificationService {
      */
     private void publishAfterCommit(String schoolId, String userId, NotificationView view) {
         String frame = json.encodeShared(new ChatFrame.Notification(view), ChatFrame.Companion.serializer());
-        var event = ChatEvent.notification(schoolId, userId, frame);
+        var event = userId.startsWith(PARENT_PREFIX) ? ChatEvent.parentNotification(schoolId, userId.substring(PARENT_PREFIX.length()), frame)
+                : ChatEvent.notification(schoolId, userId, frame);
         if (!TransactionSynchronizationManager.isSynchronizationActive()) { bus.publish(event); return; }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override public void afterCommit() { bus.publish(event); }
@@ -264,6 +333,6 @@ public class NotificationService {
 
     static NotificationView view(NotificationEntity e) {
         return new NotificationView(e.getId(), kind(e.getKind()), e.getTitle(), e.getBody(), e.getLink(), e.getLessonId(),
-                e.getReadAt() == null ? null : e.getReadAt().toEpochMilli(), e.getCreatedAt().toEpochMilli());
+                e.getReadAt() == null ? null : e.getReadAt().toEpochMilli(), e.getCreatedAt().toEpochMilli(), e.getChildId());
     }
 }

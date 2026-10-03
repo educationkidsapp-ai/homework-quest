@@ -847,7 +847,7 @@ public class ChatService {
         messages.save(m);
         if (TEACHER.equals(role)) threads.bumpParentUnread(thread.getId(), m.getCreatedAt()); else threads.bumpTeacherUnread(thread.getId(), m.getCreatedAt());
         var dto = dto(m);
-        if (bell) bell(thread, role, senderId, body);
+        if (bell) bell(thread, parentId, role, senderId, body);
         publish(ChatEvent.message(thread.getSchoolId(), thread.getId(), thread.getChildId(), thread.getTeacherId(), parentId, thread.getPeerUserId(),
                 key(role, senderId), clientId, dto.getId(), json.encodeShared(dto, ChatMessage.Companion.serializer())));
         return dto;
@@ -861,10 +861,15 @@ public class ChatService {
      * `notification` frame.
      *
      * <p>The recipient is whoever is <em>not</em> the sender, when she is a dashboard user: the staff peer when a
-     * parent wrote, the second staff member on a staff thread, and <strong>nobody</strong> when a staff member wrote
-     * to a parent — parents have no bell, they have the app.
+     * parent wrote, the second staff member on a staff thread, and — B3 (D5) — the child's parent when a staff member
+     * wrote to her, on her own rows (`parent:<id>`), which her app reads over the same `/me/notifications`.
      */
-    private void bell(ChatThreadEntity thread, String role, String senderId, String body) {
+    private void bell(ChatThreadEntity thread, String parentId, String role, String senderId, String body) {
+        if (TEACHER.equals(role) && thread.getPeerUserId() == null && parentId != null && thread.getChildId() != null) {
+            bells.parentChatMessage(thread.getSchoolId(), parentId, thread.getChildId(), thread.getId(), thread.getTeacherId(),
+                    users.findById(senderId).map(ChatService::name).orElse(null), body);
+            return;
+        }
         String recipient = PARENT.equals(role) || PEER.equals(role) ? thread.getTeacherId() : thread.getPeerUserId();
         if (recipient == null || recipient.equals(senderId)) return;
         String from = PARENT.equals(role) ? parents.findById(senderId).map(ChatService::name).orElse(null)
@@ -876,8 +881,8 @@ public class ChatService {
         Instant now = clock.instant();
         messages.markRead(thread.getId(), counterpart(thread, role), now);
         if (TEACHER.equals(role)) threads.clearTeacherUnread(thread.getId()); else threads.clearParentUnread(thread.getId());
-        // T1: she has read the thread, so its bell entry is read too — a parent has none to clear.
-        if (!PARENT.equals(role)) bells.markThreadRead(readerId, thread.getId());
+        // T1: she has read the thread, so its bell entry is read too — B3: a parent's as well, on her own rows.
+        bells.markThreadRead(PARENT.equals(role) ? quest.server.notifications.NotificationService.parentRecipient(readerId) : readerId, thread.getId());
         publish(ChatEvent.read(thread.getSchoolId(), thread.getId(), thread.getChildId(), thread.getTeacherId(), parentId, thread.getPeerUserId(),
                 key(role, readerId), role, now.toEpochMilli()));
         return new ChatReadReceipt(thread.getId(), sender(role), now.toEpochMilli());

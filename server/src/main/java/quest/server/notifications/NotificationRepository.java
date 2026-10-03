@@ -66,6 +66,10 @@ public interface NotificationRepository extends JpaRepository<Entities.Notificat
      * query here that does not start from a `userId`, because the thing being withdrawn is the *subject* of the
      * notification rather than anyone's bell; the `school` filter still applies, as it does to every read above.
      */
+    /** B3: who already has a row of this kind about this entity — a released exam is announced to a parent once. */
+    @Query("select n from NotificationEntity n where n.kind = :kind and n.lessonId = :entityId")
+    List<Entities.NotificationEntity> about(@Param("kind") String kind, @Param("entityId") String entityId);
+
     @Modifying @Transactional
     @Query("delete from NotificationEntity n where n.lessonId = :entityId")
     int deleteByEntity(@Param("entityId") String entityId);

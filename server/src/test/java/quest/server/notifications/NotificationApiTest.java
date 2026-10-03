@@ -93,12 +93,18 @@ class NotificationApiTest extends GradingTestSupport {
         assertThat(count(other)).as("read-all is hers alone").isEqualTo(1);
     }
 
-    /** Every dashboard role has a bell — `notifications.read` is ADMIN, TEACHER and MANAGERIAL, and a parent has none. */
-    @Test void a_managerial_user_has_a_bell_and_a_parent_has_none() throws Exception {
+    /**
+     * Every dashboard role has a bell, and since B3 a parent has her own rows on the same routes — never a staff
+     * member's: her recipient key is `parent:<id>`, so a staff row's id is a 404 to her.
+     */
+    @Test void a_managerial_user_has_a_bell_and_a_parent_reads_only_her_own() throws Exception {
         var head = teacher("nt-head", SCHOOL, "Head");
         head.setRole("MANAGERIAL"); users.save(head);
         assertThat(list(token("nt-head", "MANAGERIAL", SCHOOL), "")).isEmpty();
-        mvc.perform(get("/me/notifications").header("Authorization", PARENT)).andExpect(status().isForbidden());
+        var staffRow = write("nt-head", NotificationKind.LESSON_READY, "Questions ready");
+        assertThat(parentGet("/me/notifications")).isEmpty();
+        assertThat(parentGet("/me/notifications/unread-count").get("count").asInt()).isZero();
+        mvc.perform(post("/me/notifications/" + staffRow.getId() + "/read").header("Authorization", PARENT)).andExpect(status().isNotFound());
     }
 
     // ---------------------------------------------------------------- helpers

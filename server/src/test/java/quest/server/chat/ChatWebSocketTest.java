@@ -151,7 +151,9 @@ class ChatWebSocketTest extends ChatTestSupport {
         // the teacher answers through the same socket, and a REST send is announced on the socket too
         String threadId = ack.get("message").get("threadId").asText();
         open.get(0).sendMessage(new TextMessage("{\"type\":\"message\",\"childId\":\"" + maya + "\",\"body\":\"Hello back\",\"clientId\":\"d-1\"}"));
-        assertThat(parent.next().get("message").get("body").asText()).isEqualTo("Hello back");
+        // B3 (D5): the teacher's message is a `chat.message` notification for the parent too, and it arrives first
+        assertThat(frameOfType(parent, "notification").get("notification").get("childId").asText()).isEqualTo(maya);
+        assertThat(frameOfType(parent, "message").get("message").get("body").asText()).isEqualTo("Hello back");
         assertThat(teacher.next().get("clientId").asText()).isEqualTo("d-1");
         parentPost("/children/" + maya + "/chat/threads/" + SARA + "/messages", send("and via REST", "r-1"));
         assertThat(frameOfType(teacher, "message").get("message").get("body").asText()).isEqualTo("and via REST");

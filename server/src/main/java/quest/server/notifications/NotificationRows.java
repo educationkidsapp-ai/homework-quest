@@ -39,14 +39,14 @@ public class NotificationRows {
 
     /** The unread row for that thread, refreshed or freshly written; never two, whoever else is writing at the time. */
     public NotificationEntity upsertUnread(String schoolId, String userId, String kind, String entityId,
-                                           String title, String body, String link) {
+                                           String title, String body, String link, String childId) {
         Instant now = clock.instant();
         var refreshed = own.execute(status -> rows.refreshUnread(userId, kind, entityId, title, body, now) > 0
                 ? unread(userId, kind, entityId) : null);
         if (refreshed != null) return refreshed;
         var fresh = new NotificationEntity();
         fresh.setId(UUID.randomUUID().toString()); fresh.setSchoolId(schoolId); fresh.setUserId(userId); fresh.setKind(kind);
-        fresh.setTitle(title); fresh.setBody(body); fresh.setLink(link); fresh.setLessonId(entityId); fresh.setCreatedAt(now);
+        fresh.setTitle(title); fresh.setBody(body); fresh.setLink(link); fresh.setLessonId(entityId); fresh.setChildId(childId); fresh.setCreatedAt(now);
         try { return own.execute(status -> rows.saveAndFlush(fresh)); }
         catch (DataIntegrityViolationException raced) {
             var winner = own.execute(status -> {

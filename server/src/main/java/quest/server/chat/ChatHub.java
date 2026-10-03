@@ -49,7 +49,9 @@ public class ChatHub {
                 for (String key : keys) if (!key.equals(e.senderKey())) sessions.sendDroppable(key, frame);
             }
             // E2: not a thread at all — one dashboard user's bell, already encoded, and only on her school's sessions.
-            case ChatEvent.NOTIFICATION -> sessions.sendToSchool(ChatService.key(ChatService.USER, e.userId()), e.schoolId(), e.notificationJson());
+            // B3: a parent's carries `parentId` instead; her sessions have no school, so `sendToSchool` lets it through.
+            case ChatEvent.NOTIFICATION -> sessions.sendToSchool(e.parentId() != null ? ChatService.key(ChatService.PARENT, e.parentId())
+                    : ChatService.key(ChatService.USER, e.userId()), e.schoolId(), e.notificationJson());
             // T1: not a thread either — one person came online or went offline, and the people she shares a thread
             // with are told. Which people that is depends on this instance's sockets, so the hub delegates.
             case ChatEvent.PRESENCE -> presence.heard(e);

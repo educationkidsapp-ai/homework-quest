@@ -38,11 +38,12 @@ public class ExamReleaseSweep {
     private static final Logger log = LoggerFactory.getLogger(ExamReleaseSweep.class);
 
     private final ExamSettingsRepository settings; private final LessonRepository lessons;
-    private final Clock clock; private final boolean enabled;
+    private final Clock clock; private final boolean enabled; private final quest.server.notifications.NotificationService notifications;
 
     public ExamReleaseSweep(ExamSettingsRepository settings, LessonRepository lessons, Clock clock,
-                            @Value("${quest.exams.release-sweep.enabled:true}") boolean enabled) {
-        this.settings = settings; this.lessons = lessons; this.clock = clock; this.enabled = enabled;
+                            @Value("${quest.exams.release-sweep.enabled:true}") boolean enabled,
+                            quest.server.notifications.NotificationService notifications) {
+        this.settings = settings; this.lessons = lessons; this.clock = clock; this.enabled = enabled; this.notifications = notifications;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -67,6 +68,7 @@ public class ExamReleaseSweep {
             lesson.setReleasedAt(now);
             lesson.setUpdatedAt(now);
             lessons.save(lesson);
+            notifications.parentsOf(lesson, quest.api.dto.NotificationKind.EXAM_RELEASED);      // B3 (D5)
             released++;
             log.info("exam {} released automatically: its window closed at {}", lesson.getId(), exam.getClosesAt());
         }

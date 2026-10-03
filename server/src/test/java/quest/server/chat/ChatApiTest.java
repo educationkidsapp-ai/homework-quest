@@ -188,6 +188,27 @@ class ChatApiTest extends ChatTestSupport {
         assertThat(messageRows.findById(sent.get("id").asText())).isEmpty();
     }
 
+    /** B3 (D5): a staff member's message is a notification for the parent too — one unread per thread, read with it. */
+    @Test void a_teachers_messages_reach_the_parents_notifications_once_per_thread_until_she_reads_it() throws Exception {
+        mvc.perform(as(post("/teacher/chat/threads/" + maya + "/messages"), sara).contentType(MediaType.APPLICATION_JSON).content(send("Hello!"))).andExpect(status().isCreated());
+        mvc.perform(as(post("/teacher/chat/threads/" + maya + "/messages"), sara).contentType(MediaType.APPLICATION_JSON).content(send("Bring a ruler."))).andExpect(status().isCreated());
+
+        var rows = parentGet("/me/notifications");
+        assertThat(rows).as("one row for the thread, not one per message").hasSize(1);
+        assertThat(rows.get(0).get("kind").asText()).isEqualTo("chat.message");
+        assertThat(rows.get(0).get("childId").asText()).isEqualTo(maya);
+        assertThat(rows.get(0).get("body").asText()).isEqualTo("Bring a ruler.");
+        assertThat(rows.get(0).get("link").asText()).isEqualTo("/children/" + maya + "/chat/" + SARA);
+        assertThat(parentGet("/me/notifications/unread-count").get("count").asInt()).isEqualTo(1);
+        assertThat(json(mvc.perform(as(get("/me/notifications"), sara)).andExpect(status().isOk()).andReturn()))
+                .as("the teacher's own bell never carries the parent's row").noneMatch(r -> maya.equals(r.path("childId").asText(null)));
+
+        parentPost("/children/" + maya + "/chat/threads/" + SARA + "/read", "");
+        assertThat(parentGet("/me/notifications/unread-count").get("count").asInt()).as("reading the thread reads its row").isZero();
+        parentPost("/children/" + maya + "/chat/threads/" + SARA + "/messages", send("Will do", "c-9"));
+        assertThat(parentGet("/me/notifications/unread-count").get("count").asInt()).as("her own message is not news to her").isZero();
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private MockHttpServletRequestBuilder parent(MockHttpServletRequestBuilder b) { return b.header("Authorization", PARENT); }

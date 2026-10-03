@@ -51,6 +51,10 @@ public record ChatEvent(String kind, String schoolId, String threadId, String ch
     public static ChatEvent notification(String schoolId, String userId, String frameJson) {
         return new ChatEvent(NOTIFICATION, schoolId, null, null, null, null, null, null, null, null, null, null, userId, frameJson, null, null, null);
     }
+    /** B3: one parent's notification — the same frame, addressed by {@code parentId} so it reaches her `parent:` sockets. */
+    public static ChatEvent parentNotification(String schoolId, String parentId, String frameJson) {
+        return new ChatEvent(NOTIFICATION, schoolId, null, null, null, parentId, null, null, null, null, null, null, null, frameJson, null, null, null);
+    }
     /** R4: the staff side moved a thread between `open` and `resolved`; both parties are told. */
     public static ChatEvent status(String schoolId, String threadId, String childId, String teacherId, String parentId, String peerUserId, String status, long at) {
         return new ChatEvent(STATUS, schoolId, threadId, childId, teacherId, parentId, null, null, null, null, null, at, null, null, peerUserId, status, null);

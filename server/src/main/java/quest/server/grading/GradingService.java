@@ -70,16 +70,18 @@ public class GradingService {
     private final AttemptRepository attempts; private final TeacherMarkRepository marks; private final ChildMediaRepository media;
     private final quest.server.tenancy.ClassRepository classes; private final String publicUrl;
     private final quest.server.exams.ExamSettingsRepository examSettings; private final quest.server.content.SkillRepository skills;
+    private final quest.server.notifications.NotificationService notifications;
 
     public GradingService(TeacherScope scope, LessonRepository lessons, PlayRepository plays, LessonStore store,
                           ChildRepository children, ChildService childService, AttemptRepository attempts,
                           TeacherMarkRepository marks, ChildMediaRepository media,
                           quest.server.tenancy.ClassRepository classes, QuestProperties props,
-                          quest.server.exams.ExamSettingsRepository examSettings, quest.server.content.SkillRepository skills) {
+                          quest.server.exams.ExamSettingsRepository examSettings, quest.server.content.SkillRepository skills,
+                          quest.server.notifications.NotificationService notifications) {
         this.scope = scope; this.lessons = lessons; this.plays = plays; this.store = store; this.children = children;
         this.childService = childService; this.attempts = attempts; this.marks = marks; this.media = media;
         this.classes = classes; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl();
-        this.examSettings = examSettings; this.skills = skills;
+        this.examSettings = examSettings; this.skills = skills; this.notifications = notifications;
     }
 
     // ---------------------------------------------------------------- results (§7, step 9)
@@ -108,7 +110,7 @@ public class GradingService {
                 stopById.put(stop.getId(), stop);
                 if (seen.add(stop.getId()))
                     columns.add(new GradingDto.ResultStop(stop.getId(), stop.getTitle(), stop.getType(), level,
-                            stop.getCategory() == quest.api.dto.StopCategory.OPEN));
+                            Scoring.isOpen(stop, quest.server.exams.ExamPlays.isExam(lesson))));
             }
 
         var rows = new ArrayList<GradingDto.ChildResult>(roster.size());
@@ -533,6 +535,7 @@ public class GradingService {
         lesson.setReleasedAt(Instant.now());
         lesson.setUpdatedAt(Instant.now());
         lessons.save(lesson);
+        notifications.parentsOf(lesson, quest.api.dto.NotificationKind.HOMEWORK_PUBLISHED);   // B3 (D5)
     }
 
     @Transactional
@@ -545,6 +548,8 @@ public class GradingService {
         lesson.setReleaseWithdrawn(!released);                                  // remembered, so a re-publish respects it
         lesson.setUpdatedAt(Instant.now());
         lessons.save(lesson);
+        if (released && quest.server.exams.ExamPlays.isExam(lesson))
+            notifications.parentsOf(lesson, quest.api.dto.NotificationKind.EXAM_RELEASED);      // B3 (D5)
         int roster = lesson.getClassId() == null ? 0
                 : children.findByClassIdAndDeletedAtIsNullOrderByNameAsc(lesson.getClassId()).size();
         return new GradingDto.LessonRelease(lesson.getId(), released,

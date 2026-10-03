@@ -1228,6 +1228,17 @@ curl -X POST "$API/teacher/classes/$CLASS/exams" -H "Authorization: Bearer $TEAC
 curl -X POST "$API/teacher/exams/$EXAM/publish" -H "Authorization: Bearer $TEACHER"
 ```
 
+**The server grades, and the result is sealed until release (B3).** An exam answer's `correct`, `stars`,
+`attemptNumber` and `mistakes` from the app are ignored: `AnswerKey` grades the uploaded answer (the player's own
+format — an option id, picked ids joined by `,`, `left=right` pairs, the placed order) against the stop of the paper
+the server derives, three stars or none. A retell, an open answer, free writing or a tracing has no key and is stored
+unscored, waiting for the teacher's mark (`openStopMarking`, as for homework); a second answer to a question already
+answered and an answer to a stop not on the paper are dropped (not counted in `accepted`). Homework keeps the app's
+values; a single-answer one whose answer disagrees with the key is logged as `attempt … the app reports correct=…`.
+Until `released_at` is set, nothing derived from an exam's answers reaches a parent or child route: the island on
+`GET /children/{id}/map` is `done` but has no `starsEarned` / `starsTotal`, its skill contributes no first tries to
+`/progress` (`attempts` 0, no band, no review island), and `results` omits it. Releasing shows all of it at once.
+
 **One sitting, resumable.** There is no "start the exam" call — the first answer upload creates the `exam_attempts`
 row, later ones land on the same row, and the sitting is handed in when every stop of the paper has an answer. A
 child who comes back mid-exam carries on; one who has handed it in gets `409 exam_already_taken`. The teacher's way
@@ -1613,7 +1624,7 @@ websocat "wss://${API#https://}/ws/chat?token=$TEACHER" <<< '{"type":"ping"}'
 ### Notifications (E2, D26)
 
 The dashboard bell is server-side: a row in `notifications` (V17) plus a `notification` frame on the socket above.
-Parents have none. The contract types are `shared-api/src/commonMain/kotlin/quest/api/dto/Notifications.kt`
+Parents have their own rows since B3 (below). The contract types are `shared-api/src/commonMain/kotlin/quest/api/dto/Notifications.kt`
 (`NotificationView`, `NotificationKind`, `UnreadCount`) and the frame is in `ChatFrame.schema.json` beside the
 chat ones.
 
@@ -1623,6 +1634,18 @@ chat ones.
 | `GET /me/notifications/unread-count` | `notifications.read` | `{"count": 3}` — the badge on its own. |
 | `POST /me/notifications/{id}/read` | `notifications.write` | Marks one row read (idempotent); **404** for another user's id, not 403. |
 | `POST /me/notifications/read-all` | `notifications.write` | Marks every unread row of the caller read; answers `{"count": 0}`. |
+
+**Parents (B3).** The same four routes answer a parent's Firebase token with *her* rows (recipient
+`parent:<parentId>`, V30; a staff row's id is a 404 to her) — `child_id` names the child, `link` is an app path:
+
+| `kind` | When | `link` |
+|---|---|---|
+| `chat.message` | a teacher, coordinator, manager or Admin wrote in her child's thread — one unread row per thread, read when she calls `…/chat/threads/{staffId}/read` | `/children/{childId}/chat/{staffId}` |
+| `exam.released` | the teacher released an exam (by hand or by the close-of-window sweep), one row per child of the section, once | `/children/{childId}/progress` |
+| `homework.published` | a homework was published to the child's section (its results are released with it), once | `/children/{childId}/map` |
+
+Broadcasts stay on `GET /children/{id}/broadcasts`. The `notification` frame reaches her sockets as well (her socket
+is admitted while one of her children's schools has `chat` on).
 
 Two keys rather than one because the dashboard derives "what a read-only View-as session must hide" from the
 methods behind a key (`pnpm gen:permissions`): a single key covering the GETs and the POSTs would make the whole
