@@ -337,7 +337,7 @@ fun FormalStudentScreen(
                                     island = island,
                                     card = examCard(
                                         island, state.now, TimeZone.currentSystemDefault(), if (strings.isRtl) LessonStrings.ar else LessonStrings.en, strings.months, shortMonths = !strings.isRtl,
-                                        result = state.results[island.lessonId]?.takeIf { examsEnabled }, started = island.lessonId in state.startedExams,
+                                        marked = state.marked[island.lessonId]?.takeIf { examsEnabled }, started = island.lessonId in state.startedExams,
                                     ),
                                     strings = strings,
                                     onOpen = { dispatch(Intent.TapIsland(island.id)) },

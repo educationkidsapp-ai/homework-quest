@@ -11,6 +11,7 @@ import quest.core.mvi.MviViewModel
 import quest.core.platform.Today
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.content.domain.JourneyRepository
+import quest.feature.content.domain.ChildResultsUseCase
 import quest.feature.content.domain.LessonRepository
 import quest.feature.journey.presentation.isExam
 import quest.feature.content.domain.MapRepository
@@ -29,6 +30,8 @@ class MapViewModel(
     private val lessons: LessonRepository,
     private val now: () -> Long = Today::epochMillis,
     private val publishToday: PublishTodayUseCase? = null,
+    /** M4 (D4): the released results, score already dropped. */
+    private val childResults: ChildResultsUseCase? = null,
 ) : MviViewModel<State, Intent, Effect>(State()) {
 
     override suspend fun handle(intent: Intent) {
@@ -52,8 +55,8 @@ class MapViewModel(
         val exams = map.islands.filter { it.lessonId != null && (it.examWindow != null || runCatching { lessons.cached(it.lessonId!!) }.getOrNull()?.isExam == true) }.mapNotNull { it.lessonId }.toSet()
         val started = exams.filterTo(mutableSetOf()) { id -> answeredAny(child.id, id) }
         // M4 (D4): released results, for the exams on this page only. Offline keeps what the page already showed.
-        val results = journey.progressReport(child.id)?.results?.filter { it.lessonId in exams }?.associateBy { it.lessonId } ?: current.results
-        reduce { copy(loading = false, child = child, islands = map.islands, streakDays = streak.currentDays, exams = exams, now = now(), results = results, startedExams = started) }
+        val marked = childResults?.invoke(child.id)?.filter { it.lessonId in exams }?.associateBy { it.lessonId } ?: current.marked
+        reduce { copy(loading = false, child = child, islands = map.islands, streakDays = streak.currentDays, exams = exams, now = now(), marked = marked, startedExams = started) }
         // M3: the home-screen widget shows what this page has just shown.
         val strings = copy.strings()
         publishToday?.invoke(child, map.islands, exams, current.now, strings.today, rtl = strings === LessonStrings.ar)
@@ -72,7 +75,7 @@ class MapViewModel(
             // §8: an exam the server put on the map with a window is open — the device clock has no say. Handed in, or
             // known only from the cache, it stays shut and says why.
             val t = copy.strings()
-            when (examStatus(island, loadedAt = current.now, released = island.lessonId in current.results)) {
+            when (examStatus(island, loadedAt = current.now, released = island.lessonId in current.marked)) {
                 ExamStatus.OPEN, ExamStatus.REOPENED -> effect(Effect.OpenLesson(island.lessonId ?: return, 1, 0))
                 ExamStatus.RELEASED -> effect(Effect.OpenResult(island.lessonId ?: return))
                 ExamStatus.SUBMITTED -> effect(Effect.Speak(t.examAlreadyTaken))

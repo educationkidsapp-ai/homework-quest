@@ -1,5 +1,7 @@
 package quest.feature.parent.presentation
 
+import quest.feature.notifications.domain.ParentBadges
+import org.koin.compose.koinInject
 import androidx.compose.ui.platform.testTag
 import quest.ui.design.TestTags
 import quest.feature.parent.domain.UndeliveredExamAnswersUseCase
@@ -133,6 +135,8 @@ fun ParentHomeRoute(
 ) {
     val vm: ParentHomeViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
+    // M4 (D5): the same unread-messages count the bottom bar carries, on the Messages button too.
+    val unreadMessages by koinInject<ParentBadges>().counts.collectAsStateWithLifecycle()
     LaunchedEffect(vm) {
         vm.dispatch(ParentHomeContract.Intent.Load)
         vm.effects.collect {
@@ -156,7 +160,7 @@ fun ParentHomeRoute(
     ) { s ->
         ParentHomeScreen(
             state, s, vm::dispatch, onCalendar,
-            onProgress, onSettings, onLessonPanel, onMessages, onBroadcasts, onWeeklyPlan,
+            onProgress, onSettings, onLessonPanel, onMessages, onBroadcasts, onWeeklyPlan, unreadMessages = unreadMessages.messages,
         )
     }
 }
@@ -173,6 +177,7 @@ fun ParentHomeScreen(
     onMessages: () -> Unit = {},
     onBroadcasts: () -> Unit = {},
     onWeeklyPlan: () -> Unit = {},
+    unreadMessages: Int = 0,
 ) {
     Column(
         Modifier
@@ -299,7 +304,7 @@ fun ParentHomeScreen(
             Spacer(Modifier.height(10.dp))
         }
         FeatureGate(Flags.CHAT) {
-            ParentButton(s.messages, onMessages, primary = false, icon = "💬")
+            ParentButton(badged(s.messages, unreadMessages), onMessages, primary = false, icon = "💬")
             Spacer(Modifier.height(10.dp))
         }
         ParentButton(s.settings, onSettings, primary = false, icon = "⚙️")
