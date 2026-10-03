@@ -4,6 +4,11 @@
   display: block;
 }
 
+hq-card {
+  display: block;
+  margin-block-end: 20px;
+}
+
 .busy-text {
   margin-block-start: calc(var(--hq-space-8) * -1);
   color: var(--hq-color-ink-soft);

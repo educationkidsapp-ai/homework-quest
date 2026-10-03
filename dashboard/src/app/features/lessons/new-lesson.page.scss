@@ -113,6 +113,11 @@
   margin-block-start: calc(var(--hq-space-4) * -1);
 }
 
+hq-card {
+  display: block;
+  margin-block-end: 20px;
+}
+
 .chooser,
 .lesson-fields {
   display: grid;
@@ -125,6 +130,18 @@
 .lesson-fields__day {
   grid-column: 1 / -1;
   max-inline-size: var(--hq-size-content-max-width);
+}
+
+.lesson-fields__row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--hq-space-16);
+  align-items: start;
+
+  @include m.below(m.$compact-breakpoint) {
+    grid-template-columns: 1fr;
+  }
 }
 
 .sources {

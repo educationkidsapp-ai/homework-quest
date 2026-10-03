@@ -188,7 +188,7 @@
       <hq-card [flush]="true">
         <div class="attendance__roster">
           @for (student of students(); track student.childId) {
-            <div class="attendance__row" [class.attendance__row--absent]="student.status === 'ABSENT'">
+            <div class="attendance__row">
               <div class="attendance__student">
                 <span
                   class="attendance__avatar"

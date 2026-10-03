@@ -248,6 +248,43 @@ type Panel = 'received' | 'posted' | 'plans';
     .bc__error {
       color: var(--hq-accent);
     }
+
+    hq-tabs {
+      display: block;
+      margin-block-end: 20px;
+    }
+
+    hq-card {
+      display: block;
+      margin-block-end: 20px;
+    }
+
+    :host ::ng-deep {
+      .tabs--underline {
+        border-block-end: none;
+        gap: var(--hq-space-8);
+      }
+
+      .tabs--underline .tabs__tab {
+        padding: 8px 16px;
+        border-radius: var(--hq-radius-control, 10px);
+        border-block-end: none;
+        margin-block-end: 0;
+        min-block-size: auto;
+        transition: all 0.15s ease;
+
+        &[aria-selected='true'] {
+          background: var(--hq-gradient-brand-fill);
+          color: #ffffff !important;
+          box-shadow: 0 4px 12px -2px color-mix(in srgb, var(--hq-color-brand-500) 35%, transparent);
+
+          .tabs__badge {
+            background: rgba(255, 255, 255, 0.25);
+            color: #ffffff;
+          }
+        }
+      }
+    }
   `,
 })
 export class AnnouncementsPage {

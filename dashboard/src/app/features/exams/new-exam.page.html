@@ -3,6 +3,20 @@
   [subtitle]="'exams.create.subtitle' | transloco: { class: className() }"
   [breadcrumbs]="breadcrumbs()"
 >
+  @if (classId()) {
+    <hq-button
+      page-actions
+      variant="primary"
+      data-hq-create-exam
+      [disabled]="!ready()"
+      [reason]="reason()"
+      [loading]="busy() !== null"
+      (pressed)="create()"
+    >
+      {{ 'exams.create.create' | transloco }}
+    </hq-button>
+  }
+
   @if (!classId()) {
     <hq-empty-state [message]="'exams.create.noClass' | transloco" />
   } @else {
@@ -161,21 +175,5 @@
         }
       }
     </hq-card>
-  }
-
-  @if (classId()) {
-    <div page-footer class="footer">
-      <p class="footer__note hq-muted">{{ reason() ?? ('exams.create.footerReady' | transloco) }}</p>
-      <hq-button
-        variant="primary"
-        data-hq-create-exam
-        [disabled]="!ready()"
-        [reason]="reason()"
-        [loading]="busy() !== null"
-        (pressed)="create()"
-      >
-        {{ 'exams.create.create' | transloco }}
-      </hq-button>
-    </div>
   }
 </hq-page>

@@ -156,6 +156,8 @@ export interface Tab<T extends string = string> {
       flex-wrap: nowrap;
       overflow-x: auto;
       scrollbar-width: thin;
+      min-inline-size: 0;
+      max-inline-size: 100%;
       padding: var(--hq-space-4);
       margin: calc(var(--hq-space-4) * -1);
 

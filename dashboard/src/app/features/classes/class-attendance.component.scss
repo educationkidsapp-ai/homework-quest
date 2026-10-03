@@ -16,6 +16,7 @@
   background: var(--hq-color-surface-raised, #ffffff);
   border-radius: var(--hq-radius-card, 16px);
   border: 1px solid var(--hq-color-rule, #e2e8f0);
+  margin-block-end: 20px;
 }
 
 // The read-only range view: 20 px between the count-and-export row and the table under it.
@@ -27,6 +28,12 @@
   display: flex;
   align-items: center;
   gap: var(--hq-space-8);
+
+  :host ::ng-deep & .btn__label,
+  ::ng-deep & .btn__label {
+    font-size: 25px;
+    line-height: 1;
+  }
 }
 
 .attendance__date-display {
@@ -69,6 +76,7 @@
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: var(--hq-space-12);
+  margin-block-end: 20px;
 
   @include m.below(m.$drawer-breakpoint) {
     grid-template-columns: repeat(3, 1fr);
@@ -137,14 +145,11 @@
   gap: var(--hq-space-16);
   padding: var(--hq-space-16) var(--hq-space-20);
   border-block-end: 1px solid var(--hq-color-rule, #f1f5f9);
+  margin-inline: 12px;
   transition: background-color 0.15s ease;
 
   &:hover {
     background-color: var(--hq-color-surface-sunken, #f8fafc);
-  }
-
-  &--absent {
-    background-color: rgba(239, 68, 68, 0.02);
   }
 
   @include m.below(m.$drawer-breakpoint) {
@@ -243,6 +248,8 @@
   resize: vertical;
   // A textarea does not inherit the page's face on its own.
   font-family: inherit;
+  margin-block: 15px;
+  margin-bottom: 7px;
   padding: 8px 12px;
   border-radius: 8px;
   border: 1px solid var(--hq-color-rule, #cbd5e1);

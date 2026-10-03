@@ -194,6 +194,9 @@
 
 // 3. Quick Actions
 .em-quick-actions-grid {
+  width: 100%;
+  inline-size: 100%;
+  box-sizing: border-box;
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 14px;
@@ -554,6 +557,7 @@
   text-decoration: none;
   cursor: pointer;
   flex: 1;
+  white-space: nowrap;
 
   &--ghost {
     background: var(--hq-color-surface, #ffffff);

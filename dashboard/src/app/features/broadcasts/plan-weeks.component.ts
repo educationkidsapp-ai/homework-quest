@@ -111,6 +111,7 @@ import { PlanPdfComponent } from './plan-pdf.component';
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
       gap: var(--hq-space-3);
+      margin-top: 15px;
     }
 
     .pw__open {

@@ -1,4 +1,16 @@
 <hq-page [title]="'lessons.new.title' | transloco" [subtitle]="'lessons.new.subtitle' | transloco">
+  @if (!pickSchool()) {
+    <hq-button
+      page-actions
+      variant="primary"
+      [disabled]="!ready()"
+      [reason]="ready() ? null : primaryReason()"
+      (pressed)="create()"
+    >
+      {{ primaryLabel() }}
+    </hq-button>
+  }
+
   @if (pickSchool()) {
     <hq-empty-state [message]="'lessons.new.pickSchool' | transloco" />
   } @else {
@@ -114,20 +126,22 @@
             [disabled]="busy() !== null"
             [(value)]="date"
           />
-          <hq-input
-            [label]="'lessons.new.titleField' | transloco"
-            [value]="title()"
-            [placeholder]="'lessons.new.titlePlaceholder' | transloco"
-            [disabled]="busy() !== null"
-            (valueChange)="title.set($event)"
-          />
-          <hq-select
-            [label]="'lessons.new.practiceLength' | transloco"
-            [options]="practiceLengthOptions()"
-            [value]="practiceLengthValue()"
-            [disabled]="busy() !== null"
-            (valueChange)="onPracticeLengthChange($event)"
-          />
+          <div class="lesson-fields__row">
+            <hq-input
+              [label]="'lessons.new.titleField' | transloco"
+              [value]="title()"
+              [placeholder]="'lessons.new.titlePlaceholder' | transloco"
+              [disabled]="busy() !== null"
+              (valueChange)="title.set($event)"
+            />
+            <hq-select
+              [label]="'lessons.new.practiceLength' | transloco"
+              [options]="practiceLengthOptions()"
+              [value]="practiceLengthValue()"
+              [disabled]="busy() !== null"
+              (valueChange)="onPracticeLengthChange($event)"
+            />
+          </div>
         </div>
       </hq-card>
 
@@ -219,19 +233,5 @@
         }
       </hq-card>
     }
-  }
-
-  @if (!pickSchool()) {
-    <div page-footer class="footer">
-      <p class="footer__note">{{ primaryReason() }}</p>
-      <hq-button
-        variant="primary"
-        [disabled]="!ready()"
-        [reason]="ready() ? null : primaryReason()"
-        (pressed)="create()"
-      >
-        {{ primaryLabel() }}
-      </hq-button>
-    </div>
   }
 </hq-page>

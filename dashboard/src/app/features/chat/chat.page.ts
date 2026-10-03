@@ -773,6 +773,10 @@ interface ChatPreview {
 
     .chat-sidebar__tabs {
       padding: 12px 16px 0;
+      min-inline-size: 0;
+      max-inline-size: 100%;
+      overflow-x: auto;
+      scrollbar-width: thin;
     }
 
     .search-box {

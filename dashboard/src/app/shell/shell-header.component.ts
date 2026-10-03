@@ -595,6 +595,15 @@ import { NotificationsService, bodyKeyOf, titleKeyOf } from '../core/notificatio
       &::placeholder {
         color: var(--hq-color-ink-soft, #94a3b8);
       }
+
+      &::-webkit-search-decoration,
+      &::-webkit-search-cancel-button,
+      &::-webkit-search-results-button,
+      &::-webkit-search-results-decoration {
+        -webkit-appearance: none;
+        appearance: none;
+        display: none;
+      }
     }
 
     // Inside the pill, on the inline-end edge: emptying the box is one click, not eight
