@@ -1,5 +1,7 @@
 package quest.core.platform
 
+import quest.feature.today.domain.ExamSittingPresenter
+import quest.feature.today.domain.TodaySnapshotStore
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.native.NativeSqliteDriver
 import org.koin.core.module.Module
@@ -35,5 +37,7 @@ class IosSpeaker : Speaker {
 actual fun platformModule(): Module = module {
     single { DriverFactory() }
     single<Speaker> { IosSpeaker() }
+    single<TodaySnapshotStore> { IosTodaySnapshotStore() }
+    single<ExamSittingPresenter> { IosExamSittingPresenter() }
 }
 

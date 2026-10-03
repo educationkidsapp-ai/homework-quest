@@ -1,5 +1,9 @@
 package quest.feature.journey.presentation
 
+import quest.feature.today.domain.NoExamSittingPresenter
+import quest.feature.today.domain.ExamWindows
+import quest.feature.today.domain.ExamSittingPresenter
+import quest.feature.today.domain.ExamSitting
 import kotlinx.coroutines.delay
 import quest.api.ContentApi
 import quest.api.UploadFile
@@ -75,6 +79,8 @@ class JourneyViewModel(
 class StopPlayerViewModel(
     private val lessonId: String, private val level: Int, private val variant: Int, private val startIndex: Int,
     private val lessons: LessonRepository, private val journey: JourneyRepository, private val children: ChildrenRepository, private val media: ContentApi, private val copy: LessonCopy,
+    /** M3: the sitting as the system shows it outside the app (Live Activity / ongoing notification). */
+    private val sitting: ExamSittingPresenter = NoExamSittingPresenter, private val windows: ExamWindows = ExamWindows(), private val now: () -> Long = { 0L },
 ) : MviViewModel<PlayerContract.State, PlayerContract.Intent, PlayerContract.Effect>(PlayerContract.State(index = startIndex)) {
 
     private var childId = ""
@@ -111,6 +117,7 @@ class StopPlayerViewModel(
         val index = if (exam) play.stops.indexOfFirst { it.id !in progress.stops } else startIndex
         reduce { copy(phase = PlayerContract.Phase.STOP, lesson = lesson, play = play, index = index.coerceAtLeast(0), stopStars = progress.stops, childName = child.name, exam = exam) }
         if (exam && index < 0) { finish(); return }
+        if (exam) showSitting()
         current.stop?.let { effect(PlayerContract.Effect.Speak(it.speak)) }
     }
 
@@ -167,14 +174,27 @@ class StopPlayerViewModel(
      */
     private suspend fun acknowledge() {
         reduce { copy(phase = PlayerContract.Phase.STEP_DONE) }
+        showSitting()
         effect(PlayerContract.Effect.Speak(copy.strings().answerSaved))
         when (val outcome = journey.submit(childId, lessonId)) {
-            SubmitOutcome.ALREADY_TAKEN -> reduce { copy(phase = PlayerContract.Phase.REFUSED, refusal = outcome) }
+            SubmitOutcome.ALREADY_TAKEN -> { sitting.end(); reduce { copy(phase = PlayerContract.Phase.REFUSED, refusal = outcome) } }
             // The window shut during the sitting: it ends here, on the submitted screen, which says the exam closed
             // and how many answers (this one at least) did not reach the teacher. They stay queued for a re-opening.
-            SubmitOutcome.CLOSED -> { reduce { copy(phase = PlayerContract.Phase.DONE, refusal = outcome) }; effect(PlayerContract.Effect.Finished(lessonId, level, variant)) }
+            SubmitOutcome.CLOSED -> { sitting.end(); reduce { copy(phase = PlayerContract.Phase.DONE, refusal = outcome) }; effect(PlayerContract.Effect.Finished(lessonId, level, variant)) }
             SubmitOutcome.SENT, SubmitOutcome.QUEUED -> launch { delay(EXAM_ACKNOWLEDGE_MILLIS); dispatch(PlayerContract.Intent.Advance) }
         }
+    }
+
+    /** Title, student, how many are answered — never how — and, when the window's end is known, the time it closes. */
+    private fun showSitting() {
+        val lesson = current.lesson ?: return
+        sitting.show(ExamSitting(childId, lessonId, lesson.title, current.childName, windows.closesAt(lessonId, now()), current.doneCount, current.total, copy.strings().examWindowEnded))
+    }
+
+    /** Leaving the exam screen takes the sitting down: it is shown while the student is in the paper, not after. */
+    override fun onCleared() {
+        if (current.exam) sitting.end()
+        super.onCleared()
     }
 
     /**
@@ -189,8 +209,8 @@ class StopPlayerViewModel(
             reduce { copy(phase = PlayerContract.Phase.DONE) }
             when (val outcome = journey.submit(childId, lessonId)) {
                 SubmitOutcome.QUEUED -> { reduce { copy(phase = PlayerContract.Phase.SENDING) }; return }
-                SubmitOutcome.CLOSED -> { reduce { copy(refusal = outcome) }; effect(PlayerContract.Effect.Finished(lessonId, level, variant)); return }
-                SubmitOutcome.SENT, SubmitOutcome.ALREADY_TAKEN -> Unit
+                SubmitOutcome.CLOSED -> { sitting.end(); reduce { copy(refusal = outcome) }; effect(PlayerContract.Effect.Finished(lessonId, level, variant)); return }
+                SubmitOutcome.SENT, SubmitOutcome.ALREADY_TAKEN -> sitting.end()
             }
         }
         journey.completeLevel(childId, current.lesson!!, play)

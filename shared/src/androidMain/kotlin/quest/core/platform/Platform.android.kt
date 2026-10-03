@@ -1,5 +1,7 @@
 package quest.core.platform
 
+import quest.feature.today.domain.ExamSittingPresenter
+import quest.feature.today.domain.TodaySnapshotStore
 import android.content.Context
 import android.speech.tts.TextToSpeech
 import app.cash.sqldelight.db.SqlDriver
@@ -54,4 +56,6 @@ class AndroidSpeaker(context: Context) : Speaker {
 actual fun platformModule(): Module = module {
     single { DriverFactory(androidContext().also { initMediaFiles(it) }) }
     single<Speaker> { AndroidSpeaker(androidContext()) }
+    single<TodaySnapshotStore> { AndroidTodaySnapshotStore(androidContext()) }
+    single<ExamSittingPresenter> { AndroidExamSittingPresenter(androidContext(), get()) }
 }

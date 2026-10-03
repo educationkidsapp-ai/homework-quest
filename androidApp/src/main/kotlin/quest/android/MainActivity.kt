@@ -1,12 +1,15 @@
 package quest.android
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import org.koin.android.ext.android.get
 import quest.App
+import quest.core.platform.AndroidTodaySnapshotStore
 import quest.core.platform.BiometricHost
+import quest.feature.today.domain.TodayLinks
 import quest.core.platform.applyNightMode
 import quest.feature.parent.domain.Appearance
 import quest.feature.parent.domain.ParentRepository
@@ -27,8 +30,18 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         BiometricHost.attach(this)
+        followWidgetTap(intent)
         setContent { App() }
     }
+
+    /** A tap on the "Today" widget while the app is already open arrives here (`singleTop`). */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        followWidgetTap(intent)
+    }
+
+    /** M3: hands the tap to the shared UI, which follows it underneath the biometric lock — never around it. */
+    private fun followWidgetTap(intent: Intent?) = TodayLinks.open(intent?.getStringExtra(AndroidTodaySnapshotStore.EXTRA_LINK))
 
     override fun onDestroy() {
         BiometricHost.detach(this)

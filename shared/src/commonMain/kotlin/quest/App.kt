@@ -1,5 +1,7 @@
 package quest
 
+import quest.feature.today.domain.TodayLinks
+import quest.feature.today.domain.TodayLink
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import quest.feature.lock.presentation.AppLockHost
@@ -68,6 +70,19 @@ fun App() {
 fun QuestNavHost(nav: NavHostController, start: Any) {
     val lock: AppLock = koinInject()
     val scope = rememberCoroutineScope()   // outlives the sign-in screen, which is popped the moment it succeeds
+    // M3: a tap on the home-screen widget. The navigation happens underneath the lock's cover, so a locked app still
+    // asks for the biometric first and then shows where the tap pointed. Signed out, the tap just opens the app.
+    val link by TodayLinks.pending.collectAsState()
+    val auth: AuthProvider = koinInject()
+    LaunchedEffect(link) {
+        val target = link ?: return@LaunchedEffect
+        TodayLinks.consumed()
+        if (auth.state.value !is AuthState.SignedIn) return@LaunchedEffect
+        when (target) {
+            TodayLink.HOME -> nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } }
+            TodayLink.MESSAGES -> nav.navigate(Routes.ParentPin())      // messages are the parent's: her gate comes first
+        }
+    }
     NavHost(navController = nav, startDestination = start) {
         // After sign-in the parent sees every child the school linked to the account, and picks whose home to open.
         composable<Routes.SignIn> {
