@@ -855,6 +855,12 @@
       "status": "Status",
       "school": "School"
     },
+    "columns": {
+      "title": "Lesson",
+      "class": "Class",
+      "date": "Date",
+      "status": "Status"
+    },
     "classLabel": "{{curriculum}} · Grade {{grade}} · {{subject}}",
     "untitled": "Untitled lesson",
     "loading": "Loading lessons",

@@ -309,6 +309,11 @@
     text-align: center;
     white-space: nowrap;
   }
+
+  tbody tr th,
+  tbody tr td {
+    padding-block: var(--hq-space-16);
+  }
 }
 
 .attendance__matrix-corner,

@@ -855,6 +855,12 @@
       "status": "الحالة",
       "school": "المدرسة"
     },
+    "columns": {
+      "title": "الدرس",
+      "class": "الفصل",
+      "date": "التاريخ",
+      "status": "الحالة"
+    },
     "classLabel": "{{curriculum}} · الصف {{grade}} · {{subject}}",
     "untitled": "درس بلا عنوان",
     "loading": "جارٍ تحميل الدروس",

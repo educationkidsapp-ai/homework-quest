@@ -154,6 +154,14 @@ import { scopeLabel } from './coordinator.labels';
       min-block-size: var(--hq-size-touch-target);
       border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-divider);
     }
+
+    .hq-linkbutton {
+      margin: 25px auto 0;
+      justify-content: center;
+      align-items: center;
+      display: flex;
+      width: 200px;
+    }
   `,
 })
 export class CoordinatorHomePage {

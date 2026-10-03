@@ -106,6 +106,10 @@ interface GlanceCard {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <hq-page [title]="'nav.weeklyPlans' | transloco" [subtitle]="'plans.subtitle' | transloco">
+      <hq-button page-actions *hqCan="'management.broadcast'" (pressed)="add(null)">
+        {{ 'plans.add' | transloco }}
+      </hq-button>
+
       @if (!enabled()) {
         <hq-empty-state
           [message]="'broadcasts.notEnabled' | transloco"
@@ -126,6 +130,17 @@ interface GlanceCard {
         }
 
         <hq-card [title]="'plans.thisWeek' | transloco">
+          @if (singleCard(); as card) {
+            <hq-button
+              card-actions
+              *hqCan="'management.broadcast'"
+              variant="secondary"
+              (pressed)="add(card)"
+            >
+              {{ (card.plan ? 'plans.replace' : 'plans.add') | transloco }}
+            </hq-button>
+          }
+
           <p class="hq-muted">{{ weekLabel(thisWeek()) }}</p>
           <!-- Until this week's own read has landed, no card may say "no plan yet": that sentence
                with a button beside it is an offer to replace a plan nobody has seen. -->
@@ -139,32 +154,40 @@ interface GlanceCard {
             <div class="wp__glance">
               @for (card of glance(); track card.grade) {
                 <div class="wp__card">
-                  <p class="wp__grade">{{ card.label }}</p>
+                  <div class="wp__card-header">
+                    <p class="wp__grade">{{ card.label }}</p>
+                    @if (glance().length > 1) {
+                      <hq-button *hqCan="'management.broadcast'" variant="secondary" (pressed)="add(card)">
+                        {{ (card.plan ? 'plans.replace' : 'plans.add') | transloco }}
+                      </hq-button>
+                    }
+                  </div>
                   @if (card.plan; as plan) {
                     <!-- Eager: these few are above the fold and are the Sunday-morning question.
                          The archive below them loads a row when it is scrolled to. -->
-                    @if (plan.pdf) {
-                      <hq-plan-pdf
-                        [attachmentId]="plan.attachmentId"
-                        [name]="plan.attachmentName"
-                        [label]="altOf(plan)"
-                      />
-                    } @else {
-                      <img
-                        class="wp__thumb"
-                        [eager]="true"
-                        [hqAttachmentImage]="plan.attachmentId"
-                        [alt]="altOf(plan)"
-                      />
-                    }
-                    <hq-button *hqCan="'management.broadcast'" variant="secondary" (pressed)="add(card)">
-                      {{ 'plans.replace' | transloco }}
-                    </hq-button>
+                    <div class="wp__preview">
+                      @if (plan.pdf) {
+                        <hq-plan-pdf
+                          [attachmentId]="plan.attachmentId"
+                          [name]="plan.attachmentName"
+                          [label]="altOf(plan)"
+                        />
+                      } @else {
+                        <img
+                          class="wp__thumb"
+                          [eager]="true"
+                          [hqAttachmentImage]="plan.attachmentId"
+                          [alt]="altOf(plan)"
+                        />
+                      }
+                    </div>
                   } @else {
-                    <p class="hq-muted">{{ 'plans.none' | transloco }}</p>
-                    <hq-button *hqCan="'management.broadcast'" variant="secondary" (pressed)="add(card)">
-                      {{ 'plans.add' | transloco }}
-                    </hq-button>
+                    <div class="wp__empty-slot">
+                      <svg class="wp__empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="28" height="28" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                      </svg>
+                      <p class="hq-muted">{{ 'plans.none' | transloco }}</p>
+                    </div>
                   }
                 </div>
               }
@@ -173,8 +196,18 @@ interface GlanceCard {
         </hq-card>
 
         <hq-card [title]="'plans.archive' | transloco">
+          <hq-button
+            card-actions
+            variant="secondary"
+            [disabled]="weeks().length === 0"
+            (pressed)="exportCsv()"
+          >
+            {{ 'plans.export' | transloco }}
+          </hq-button>
+
           <div class="mg-filters">
             <hq-select
+              class="wp-grade-filter"
               [label]="'plans.gradeFilter' | transloco"
               [options]="gradeFilters()"
               [value]="gradeChoice()"
@@ -192,9 +225,6 @@ interface GlanceCard {
               [value]="to()"
               (valueChange)="to.set($event)"
             />
-            <hq-button variant="secondary" [disabled]="weeks().length === 0" (pressed)="exportCsv()">
-              {{ 'plans.export' | transloco }}
-            </hq-button>
           </div>
 
           @if (backwards()) {
@@ -209,14 +239,6 @@ interface GlanceCard {
             <hq-plan-weeks [weeks]="weeks()" [open]="openPlan()" />
           }
         </hq-card>
-
-        <!-- The screen's one primary action. It opens the sheet with this week filled in and the
-             grade left to her, which is the only difference from pressing a card. -->
-        <div page-footer>
-          <hq-button *hqCan="'management.broadcast'" (pressed)="add(null)">
-            {{ 'plans.add' | transloco }}
-          </hq-button>
-        </div>
 
         <hq-plan-compose
           [(open)]="composing"
@@ -239,29 +261,107 @@ interface GlanceCard {
     </hq-page>
   `,
   styles: `
+    hq-card {
+      display: block;
+      margin-block-end: 20px;
+    }
+
+    .mg-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--hq-space-16);
+      align-items: flex-end;
+      margin-block-end: var(--hq-space-16);
+    }
+
+    .wp-grade-filter,
+    .mg-filters hq-select {
+      display: block;
+      margin-block-end: 20px;
+    }
+
     .wp__glance {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: var(--hq-space-3);
+      grid-template-columns: repeat(auto-fill, minmax(280px, 420px));
+      gap: var(--hq-space-16);
+      margin-block-start: var(--hq-space-8);
     }
 
     .wp__card {
       display: flex;
       flex-direction: column;
-      gap: var(--hq-space-2);
-      padding: var(--hq-space-3);
-      border: var(--hq-rule) solid var(--hq-ink);
+      gap: var(--hq-space-12);
+      padding: var(--hq-space-16);
+      background: var(--hq-color-surface);
+      border: var(--hq-size-rule-thin) solid var(--hq-color-divider);
+      border-radius: var(--hq-radius-card);
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
+      transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+
+      &:hover {
+        border-color: color-mix(in srgb, var(--hq-color-ink) 25%, var(--hq-color-divider));
+        box-shadow: 0 6px 16px -4px rgba(0, 0, 0, 0.08);
+      }
+    }
+
+    .wp__card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--hq-space-12);
     }
 
     .wp__grade {
       margin: 0;
-      font-weight: var(--hq-font-label-weight);
+      font-size: var(--hq-text-size-body);
+      font-weight: var(--hq-text-weight-semibold);
+      color: var(--hq-color-ink);
+    }
+
+    .wp__preview {
+      width: 100%;
+      border-radius: var(--hq-radius-control);
+      overflow: hidden;
+      background: var(--hq-color-surface-sunken);
+      border: var(--hq-size-rule-thin) solid var(--hq-color-divider);
     }
 
     .wp__thumb {
+      display: block;
       width: 100%;
-      aspect-ratio: 4 / 3;
-      object-fit: cover;
+      max-height: 240px;
+      aspect-ratio: 16 / 10;
+      object-fit: contain;
+      background: var(--hq-color-surface-sunken);
+      transition: transform 0.2s ease;
+    }
+
+    .wp__card:hover .wp__thumb {
+      transform: scale(1.02);
+    }
+
+    .wp__empty-slot {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--hq-space-8);
+      min-height: 180px;
+      padding: var(--hq-space-24);
+      background: var(--hq-color-surface-sunken);
+      border: 1.5px dashed var(--hq-color-divider);
+      border-radius: var(--hq-radius-control);
+      text-align: center;
+
+      p {
+        margin: 0;
+        font-size: var(--hq-text-size-sm);
+      }
+    }
+
+    .wp__empty-icon {
+      color: var(--hq-color-ink-soft);
+      opacity: 0.6;
     }
   `,
 })
@@ -406,6 +506,11 @@ export class WeeklyPlansPage {
       label: this.transloco.translate<string>('broadcasts.gradeN', { grade }),
       plan: posted.find((row) => row.grade === grade) ?? null,
     }));
+  });
+
+  protected readonly singleCard = computed<GlanceCard | null>(() => {
+    const list = this.glance();
+    return list.length === 1 ? (list[0] ?? null) : null;
   });
 
   /**

@@ -234,11 +234,11 @@ export class CoordinatorLessonsPage {
   protected readonly columns = computed<readonly TableColumn<LessonRow>[]>(() => {
     this.lang();
     return [
-      { key: 'title', header: this.t('lessons.columns.title'), width: '32%' },
-      { key: 'className', header: this.t('lessons.columns.class') },
+      { key: 'title', header: this.t('lessons.table.title'), width: '32%' },
+      { key: 'className', header: this.t('lessons.table.class') },
       { key: 'teacherName', header: this.t('coordinator.teachers.columns.name') },
-      { key: 'date', header: this.t('lessons.columns.date') },
-      { key: 'status', header: this.t('lessons.columns.status'), width: '16%' },
+      { key: 'date', header: this.t('lessons.table.date') },
+      { key: 'status', header: this.t('lessons.table.status'), width: '16%' },
     ];
   });
 

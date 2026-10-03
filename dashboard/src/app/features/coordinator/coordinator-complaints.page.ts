@@ -144,6 +144,12 @@ type StatusFilter = 'open' | 'resolved';
       </div>
     </hq-page>
   `,
+  styles: `
+    hq-tabs {
+      display: block;
+      margin-block-end: 20px;
+    }
+  `,
 })
 export class CoordinatorComplaintsPage {
   private readonly api = inject(CoordinatorChatApi);
