@@ -6,6 +6,7 @@ import quest.feature.push.domain.PushLinks
 import quest.feature.push.domain.PushRegistration
 import quest.feature.push.presentation.PushNavigator
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.filterNotNull
 import androidx.compose.runtime.rememberCoroutineScope
 import quest.feature.lock.presentation.AppLockHost
 import quest.feature.lock.domain.AppLock
@@ -97,22 +98,23 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
     // M5: a tapped push. Like the widget, it is followed underneath the lock; a parent-area destination also goes
     // through the parent gate, and only after it opens is the conversation (or Progress, or the feed) opened on top of
     // the parent home. A link that leads nowhere any more — her child unlinked, the thread gone — ends on that home.
-    val push by PushLinks.pending.collectAsState()
-    val afterGate by PushLinks.afterGate.collectAsState()
+    // Collected, not keyed: consuming the tap changes the flow, and a keyed effect would be cancelled mid-way by it.
     val pushes: PushNavigator = koinInject()
-    LaunchedEffect(push) {
-        val open = push ?: return@LaunchedEffect
-        PushLinks.consumed()
-        when (val route = pushes.beforeGate(open)) {
-            null -> Unit
-            Routes.WorldMap -> nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } }
-            else -> nav.navigate(route)
+    LaunchedEffect(Unit) {
+        PushLinks.pending.filterNotNull().collect { open ->
+            PushLinks.consumed()
+            when (val route = pushes.beforeGate(open)) {
+                null -> Unit
+                Routes.WorldMap -> nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } }
+                else -> nav.navigate(route)
+            }
         }
     }
-    LaunchedEffect(afterGate) {
-        val link = afterGate ?: return@LaunchedEffect
-        PushLinks.followed()
-        pushes.afterGate(link)?.let { nav.navigate(it) }
+    LaunchedEffect(Unit) {
+        PushLinks.afterGate.filterNotNull().collect { link ->
+            PushLinks.followed()
+            pushes.afterGate(link)?.let { nav.navigate(it) }
+        }
     }
     NavHost(navController = nav, startDestination = start) {
         // After sign-in the parent sees every child the school linked to the account, and picks whose home to open.

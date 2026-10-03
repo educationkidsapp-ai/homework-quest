@@ -118,7 +118,11 @@ class AndroidPushNotifier(
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val strings = PushStrings.forLanguage(language())
         createChannels(strings)
-        val open = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
+        // The launcher activity by component, under an action of its own: an intent equal to the task's root (MAIN /
+        // LAUNCHER) would only bring the old task forward, re-created from its first intent, and the tap's extras would
+        // never arrive.
+        val activity = context.packageManager.getLaunchIntentForPackage(context.packageName)?.component
+        val open = activity?.let { Intent(ACTION_OPEN).setComponent(it) }?.apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             putExtra(PushIntents.EXTRA_PUSH, true)
             notice.open.link?.let { putExtra(PushIntents.EXTRA_LINK, it) }
@@ -150,7 +154,10 @@ class AndroidPushNotifier(
         }
     }
 
-    private companion object { const val NOTIFICATION_ID = 4201 }
+    private companion object {
+        const val NOTIFICATION_ID = 4201
+        const val ACTION_OPEN = "quest.push.OPEN"
+    }
 }
 
 /** FCM's entry points: a new token, and a message. Both hand over to the shared rules at once. */
