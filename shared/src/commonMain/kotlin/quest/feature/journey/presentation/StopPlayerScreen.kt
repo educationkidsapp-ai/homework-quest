@@ -155,6 +155,7 @@ private fun StopView(state: State, dispatch: (Intent) -> Unit, onBack: () -> Uni
                     is StopEvent.Wrong -> dispatch(Intent.Wrong(e.attempt, e.hint, e.numberLine, e.answer))
                     is StopEvent.Completed -> dispatch(Intent.Completed(e.stars, e.answer, e.mistakes, e.recording, e.drawing, e.correct))
                     is StopEvent.Speak -> dispatch(Intent.Speak(e.text))
+                    is StopEvent.QuestionAnswered -> dispatch(Intent.QuestionAnswered(e.questionId, e.answer, e.correct, e.stars))
                 }
             }, childName = state.childName)
             Spacer(Modifier.height(Dimens.s32))
