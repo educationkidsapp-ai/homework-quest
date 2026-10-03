@@ -14,11 +14,14 @@ import quest.api.dto.SendChatMessageRequest
 import quest.feature.chat.domain.AttachmentUploader
 import quest.feature.chat.domain.ChatConnectionState
 import quest.feature.chat.domain.ChatRepository
+import quest.feature.chat.domain.StagedUpload
 
 class ChatRepositoryImpl(
     private val contentApi: ContentApi,
     private val socketClient: ChatSocketClient,
-    private val uploader: AttachmentUploader = AttachmentUploader { childId, file, _ -> contentApi.uploadChatAttachment(childId, file) },
+    private val uploader: AttachmentUploader = AttachmentUploader { childId, file, _ ->
+        contentApi.uploadChatAttachment(childId, UploadFile(file.name, file.contentType, file.readBytes()))
+    },
 ) : ChatRepository {
 
     override val connectionState: StateFlow<ChatConnectionState> = socketClient.connectionState
@@ -60,7 +63,7 @@ class ChatRepositoryImpl(
         return contentApi.sendChatMessage(childId, teacherId, request)
     }
 
-    override suspend fun uploadAttachment(childId: String, file: UploadFile, onProgress: (Float) -> Unit): AttachmentRef =
+    override suspend fun uploadAttachment(childId: String, file: StagedUpload, onProgress: (Float) -> Unit): AttachmentRef =
         uploader.upload(childId, file, onProgress)
 
     override suspend fun markRead(childId: String, teacherId: String) {

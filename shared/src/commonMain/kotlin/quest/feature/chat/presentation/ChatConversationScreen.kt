@@ -92,6 +92,10 @@ import io.github.vinceglb.filekit.compose.rememberFilePickerLauncher
 import io.github.vinceglb.filekit.core.PickerMode
 import io.github.vinceglb.filekit.core.PickerType
 import io.github.vinceglb.filekit.core.PlatformFile
+import kotlinx.io.buffered
+import kotlinx.io.files.Path
+import kotlinx.io.files.SystemFileSystem
+import kotlinx.io.readByteArray
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -105,6 +109,8 @@ import quest.feature.chat.domain.MAX_ATTACHMENTS
 import quest.feature.chat.domain.PHOTO_MAX_PX
 import quest.feature.chat.domain.PHOTO_QUALITY
 import quest.feature.chat.domain.PickedFile
+import quest.feature.chat.domain.StagedUpload
+import quest.feature.chat.domain.UploadStaging
 import quest.feature.chat.domain.TYPING_TIMEOUT_MS
 import quest.feature.chat.domain.asChatAttachment
 import quest.feature.chat.domain.contentTypeOf
@@ -223,6 +229,7 @@ object ChatConversationContract {
 class ChatConversationViewModel(
     private val peer: ChatPeer,
     private val chat: ChatRepository,
+    private val staging: UploadStaging,
 ) : MviViewModel<ChatConversationContract.State, ChatConversationContract.Intent, ChatConversationContract.Effect>(
     ChatConversationContract.State(
         childId = peer.childId, teacherId = peer.staffId, teacherName = peer.staffName,
@@ -242,8 +249,11 @@ class ChatConversationViewModel(
     private var typingJob: Job? = null
     private var lastTypingSentMillis: Long = 0L
 
-    /** M7: the bytes behind each draft, kept for its retry and dropped once the message is sent or the draft removed. */
-    private val pendingFiles = mutableMapOf<String, UploadFile>()
+    /**
+     * M7: each draft's file, staged in the cache (not held in memory) for its upload and its retry, and deleted as
+     * soon as the server has it, the draft is removed, or the screen goes away.
+     */
+    private val pendingFiles = mutableMapOf<String, StagedUpload>()
     private val uploadJobs = mutableMapOf<String, Job>()
 
     /** M7: thread ids a `typing` frame named that turned out not to be this conversation — asked about once each. */
@@ -289,8 +299,9 @@ class ChatConversationViewModel(
 
     /**
      * Each file is checked before a byte of it is read (type, size, room on the message), then read off the main
-     * thread — a photo the server would refuse as it is is re-encoded there — and checked again as it will go up.
-     * The last refusal is the one sentence the tray shows; the files that passed are added either way.
+     * thread — every photo is re-encoded there, bounded and without its metadata — checked again as it will go up,
+     * and written to the cache; the bytes do not outlive this loop. The last refusal is the one sentence the tray
+     * shows; the files that passed are added either way.
      */
     private suspend fun addFiles(files: List<PickedFile>) {
         var refusal: AttachmentRefusal? = null
@@ -301,10 +312,12 @@ class ChatConversationViewModel(
             if (upload == null || upload.bytes.isEmpty()) { refusal = AttachmentRefusal.UNREADABLE; continue }
             val late = refusalFor(upload.fileName, upload.bytes.size.toLong(), current.drafts.size)
             if (late != null) { refusal = late; continue }
+            val staged = staging.stage(upload)
+            if (staged == null) { refusal = AttachmentRefusal.UNREADABLE; continue }
             val localId = Ids.random()
-            pendingFiles[localId] = upload
+            pendingFiles[localId] = staged
             reduce {
-                copy(drafts = drafts + ChatConversationContract.Draft(localId, upload.fileName, upload.mimeType, upload.bytes.size.toLong()))
+                copy(drafts = drafts + ChatConversationContract.Draft(localId, staged.name, staged.contentType, staged.size))
             }
             startUpload(localId)
         }
@@ -319,11 +332,13 @@ class ChatConversationViewModel(
             try {
                 val ref = chat.uploadAttachment(childId, file) { sent -> updateDraft(localId) { it.copy(progress = sent) } }
                 updateDraft(localId) { it.copy(ref = ref, progress = 1f) }
+                // The server has it; the message names it by id from here on, so the staged copy goes now.
+                pendingFiles.remove(localId)?.let(staging::discard)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ApiException) {
                 // A refusal no retry can cure takes the file out of the tray and says why; anything else stays to retry.
-                val refusal = refusalForUpload(e.error.code, file.mimeType)
+                val refusal = refusalForUpload(e.error.code, file.contentType)
                 if (refusal == null) updateDraft(localId) { it.copy(failed = true) }
                 else { dropDraft(localId); reduce { copy(refusal = refusal) } }
             } catch (_: Throwable) {
@@ -342,7 +357,7 @@ class ChatConversationViewModel(
     }
 
     private fun dropDraft(localId: String) {
-        pendingFiles.remove(localId)
+        pendingFiles.remove(localId)?.let(staging::discard)
         uploadJobs.remove(localId)
         reduce { copy(drafts = drafts.filterNot { it.localId == localId }) }
     }
@@ -370,7 +385,7 @@ class ChatConversationViewModel(
             attachments = attachments,
         )
 
-        state.drafts.forEach { pendingFiles.remove(it.localId); uploadJobs.remove(it.localId) }
+        state.drafts.forEach { draft -> pendingFiles.remove(draft.localId)?.let(staging::discard); uploadJobs.remove(draft.localId) }
         reduce { copy(inputText = "", markAsComplaint = false, drafts = emptyList(), refusal = null, messages = messages + pendingMsg) }
         deliver(pendingMsg)
     }
@@ -524,6 +539,8 @@ class ChatConversationViewModel(
 
     override fun onCleared() {
         uploadJobs.values.forEach { it.cancel() }
+        pendingFiles.values.forEach(staging::discard)
+        pendingFiles.clear()
         super.onCleared()
     }
 
@@ -641,12 +658,29 @@ fun resolvedBanner(resolver: Resolver, strings: Strings): String = when (resolve
     Resolver.ADMIN -> strings.resolvedBannerAdmin
 }
 
-/** A file from FileKit's picker as the view model takes it: sized up front, read (and a photo prepared) on demand. */
-private fun PlatformFile.picked(photo: Boolean) = PickedFile(name, getSize() ?: 0L, photo) {
+/**
+ * A file from FileKit's picker as the view model takes it: sized up front (an unknown size is refused rather than
+ * read to find out), read only after [refusalFor] has passed it, and — a photo — re-encoded by [preparePhoto].
+ */
+private fun PlatformFile.picked(photo: Boolean) = PickedFile(name, getSize() ?: Long.MAX_VALUE, photo) {
     val bytes = readBytes()
-    if (photo) preparePhoto(name, bytes) { photoAsJpeg(it, PHOTO_MAX_PX, PHOTO_QUALITY) }
-    else contentTypeOf(name)?.let { UploadFile(name, it, bytes) }
+    if (photo) preparePhoto(name, bytes, ::reencode) else contentTypeOf(name)?.let { UploadFile(name, it, bytes) }
 }
+
+/** The camera's capture: sized from the disk, read and re-encoded off the main thread, and deleted once read. */
+private fun capturedPhoto(path: String): PickedFile {
+    val file = Path(path)
+    val size = runCatching { SystemFileSystem.metadataOrNull(file)?.size }.getOrNull() ?: Long.MAX_VALUE
+    return PickedFile("photo-${Today.epochMillis()}.jpg", size, photo = true) {
+        try {
+            preparePhoto("photo.jpg", SystemFileSystem.source(file).buffered().use { it.readByteArray() }, ::reencode)
+        } finally {
+            runCatching { SystemFileSystem.delete(file, mustExist = false) }
+        }
+    }
+}
+
+private fun reencode(bytes: ByteArray): ByteArray? = photoAsJpeg(bytes, PHOTO_MAX_PX, PHOTO_QUALITY)
 
 @Composable
 fun ChatConversationScreen(
@@ -674,12 +708,7 @@ fun ChatConversationScreen(
     val pdfPicker = rememberFilePickerLauncher(type = PickerType.File(listOf("pdf")), mode = PickerMode.Multiple(maxItems = room)) { files ->
         if (!files.isNullOrEmpty()) onPick(files.map { it.picked(photo = false) })
     }
-    val camera = rememberCameraCapture { bytes ->
-        if (bytes != null) {
-            val name = "photo-${Today.epochMillis()}.jpg"
-            onPick(listOf(PickedFile(name, bytes.size.toLong(), photo = true) { preparePhoto(name, bytes) { photoAsJpeg(it, PHOTO_MAX_PX, PHOTO_QUALITY) } }))
-        }
-    }
+    val camera = rememberCameraCapture { path -> if (path != null) onPick(listOf(capturedPhoto(path))) }
 
     val quickEmojis = remember {
         listOf(

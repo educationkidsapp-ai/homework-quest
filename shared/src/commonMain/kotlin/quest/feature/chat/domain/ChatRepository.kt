@@ -2,7 +2,6 @@ package quest.feature.chat.domain
 
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import quest.api.UploadFile
 import quest.api.dto.AttachmentRef
 import quest.api.dto.ChatFrame
 import quest.api.dto.ChatMessage
@@ -56,8 +55,8 @@ interface ChatRepository {
         attachmentIds: List<String> = emptyList(),
     ): ChatMessage
 
-    /** M7 (B5): one photo or PDF for a message about [childId]; [onProgress] runs 0..1 while the bytes go up. */
-    suspend fun uploadAttachment(childId: String, file: UploadFile, onProgress: (Float) -> Unit = {}): AttachmentRef
+    /** M7 (B5): one staged photo or PDF for a message about [childId]; [onProgress] runs 0..1 while the bytes go up. */
+    suspend fun uploadAttachment(childId: String, file: StagedUpload, onProgress: (Float) -> Unit = {}): AttachmentRef
     suspend fun markRead(childId: String, teacherId: String)
     suspend fun sendTyping(childId: String, teacherId: String)
     fun connect()

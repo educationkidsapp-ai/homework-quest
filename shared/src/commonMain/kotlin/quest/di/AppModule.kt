@@ -22,7 +22,12 @@ import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 import quest.feature.chat.data.ChatRepositoryImpl
 import quest.feature.chat.data.ChatSocketClient
+import quest.api.UploadFile
 import quest.feature.chat.domain.AttachmentUploader
+import quest.feature.chat.domain.UploadStaging
+import quest.feature.chat.data.FileUploadStaging
+import quest.feature.chat.data.readBytes
+import quest.feature.chat.data.source
 import quest.feature.chat.domain.ChatPeer
 import quest.feature.chat.domain.ChatRepository
 import quest.feature.chat.presentation.ChatConversationViewModel
@@ -144,14 +149,22 @@ fun apiModule(config: ApiConfig): Module = module {
             }
             single<ContentApi> { get<FakeContentApi>() }
             single<SchoolApi> { get<FakeContentApi>() }
-            single { AttachmentUploader { childId, file, onProgress -> get<FakeContentApi>().uploadChatAttachment(childId, file).also { onProgress(1f) } } }
+            single {
+                AttachmentUploader { childId, file, onProgress ->
+                    get<FakeContentApi>().uploadChatAttachment(childId, UploadFile(file.name, file.contentType, file.readBytes())).also { onProgress(1f) }
+                }
+            }
         }
         is ApiConfig.Server -> {
             single { RemoteContentApi(config.baseUrl, get(), get()) }
             single<ContentApi> { get<RemoteContentApi>() }
             single<SchoolApi> { get<RemoteContentApi>() }
             // M7: the server's upload reports progress; the fake's (below) answers in one step.
-            single { AttachmentUploader { childId, file, onProgress -> get<RemoteContentApi>().uploadChatAttachment(childId, file, onProgress) } }
+            single {
+                AttachmentUploader { childId, file, onProgress ->
+                    get<RemoteContentApi>().uploadChatAttachment(childId, file.name, file.contentType, file.size, { file.source() }, onProgress)
+                }
+            }
         }
     }
 
@@ -165,6 +178,8 @@ fun apiModule(config: ApiConfig): Module = module {
     // M1: a PDF is streamed into the document cache (10 MB cap), the directory the system viewer may read.
     single<AttachmentDocuments> { AttachmentDocumentStore(chatBaseUrl, get(), get(), directory = { DocumentViewer.directory() }) }
     single<ChatRepository> { ChatRepositoryImpl(get(), get(), get()) }
+    // M7 (review): picked files wait in the document cache — which sign-out empties — not in memory.
+    single<UploadStaging> { FileUploadStaging(directory = { DocumentViewer.directory() }) }
 }
 
 val coreModule = module {
@@ -236,7 +251,7 @@ val parentModule = module {
 val chatModule = module {
     viewModel { ChatThreadsViewModel(get(), get()) }
     viewModel { CoordinatorPickerViewModel(get(), get()) }
-    viewModel { (peer: ChatPeer) -> ChatConversationViewModel(peer, get()) }
+    viewModel { (peer: ChatPeer) -> ChatConversationViewModel(peer, get(), get()) }
 }
 
 /** RM4: the parent's broadcasts feed. Its own module — the feed is not chat, and it is read behind its own flag. */

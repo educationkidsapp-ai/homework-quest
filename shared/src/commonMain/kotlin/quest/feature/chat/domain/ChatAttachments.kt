@@ -48,13 +48,19 @@ fun refusalForUpload(code: String, contentType: String): AttachmentRefusal? = wh
 }
 
 /**
+ * The largest photo the app will read at all (M7 review). Every photo is re-encoded before it goes up, so its own
+ * size is not the 5 MB cap — but nothing past this is ever loaded into memory to find that out.
+ */
+const val MAX_PHOTO_SOURCE_BYTES: Long = 25L * 1024 * 1024
+
+/**
  * The check made before a byte is read: room on the message ([already] files picked), the type, and the size. A
- * [photo] from the gallery or the camera is let through on type and size alike, because [preparePhoto] re-encodes
- * what the server would refuse; the bytes it produces are checked again with `photo = false`.
+ * [photo] from the gallery or the camera is held only to [MAX_PHOTO_SOURCE_BYTES], because [preparePhoto] re-encodes
+ * every one; the JPEG it produces is checked again with `photo = false`.
  */
 fun refusalFor(fileName: String, size: Long, already: Int, photo: Boolean = false): AttachmentRefusal? {
     if (already >= MAX_ATTACHMENTS) return AttachmentRefusal.TOO_MANY
-    if (photo) return null
+    if (photo) return if (size > MAX_PHOTO_SOURCE_BYTES) AttachmentRefusal.PHOTO_TOO_LARGE else null
     val type = contentTypeOf(fileName) ?: return AttachmentRefusal.WRONG_TYPE
     return when {
         isPdf(type) && size > MAX_PDF_BYTES -> AttachmentRefusal.PDF_TOO_LARGE
@@ -63,17 +69,17 @@ fun refusalFor(fileName: String, size: Long, already: Int, photo: Boolean = fals
     }
 }
 
-/** The longest edge and the JPEG quality a photo is re-encoded to when the server would refuse it as it is. */
+/** The longest edge and the JPEG quality every photo is re-encoded to before it goes up. */
 const val PHOTO_MAX_PX = 2560
 const val PHOTO_QUALITY = 85
 
 /**
- * A gallery or camera photo as it will be uploaded: unchanged when the server takes it (JPEG, PNG or WebP within
- * 5 MB), else re-encoded by [toJpeg] — an iPhone's HEIC, or a camera photo over the cap. Null when it cannot be read.
+ * A gallery or camera photo as it will be uploaded: **always** re-encoded by [toJpeg] — at most [PHOTO_MAX_PX] on its
+ * longer edge, the orientation applied to the pixels, and **no metadata at all**. Sending the original bytes would
+ * send its EXIF with it, and a phone's photo carries where it was taken; the server does not strip it either. It also
+ * turns an iPhone's HEIC into a JPEG the server takes. Null when the bytes cannot be read as an image.
  */
 fun preparePhoto(name: String, bytes: ByteArray, toJpeg: (ByteArray) -> ByteArray?): UploadFile? {
-    val type = contentTypeOf(name)
-    if (type != null && !isPdf(type) && bytes.size <= MAX_PHOTO_BYTES) return UploadFile(name, type, bytes)
     val jpeg = toJpeg(bytes)?.takeIf { it.isNotEmpty() } ?: return null
     return UploadFile(name.substringBeforeLast('.') + ".jpg", "image/jpeg", jpeg)
 }
@@ -81,12 +87,26 @@ fun preparePhoto(name: String, bytes: ByteArray, toJpeg: (ByteArray) -> ByteArra
 /** A file the parent picked; [read] answers it as it will be uploaded, and runs only once it has passed [refusalFor]. */
 class PickedFile(val name: String, val size: Long, val photo: Boolean, val read: suspend () -> UploadFile?)
 
+/** A file on its way up, kept in the app's cache rather than in memory until the server has it. */
+data class StagedUpload(val path: String, val name: String, val contentType: String, val size: Long)
+
 /**
- * B5's upload for a chat message (`POST /children/{id}/chat/attachments`), reporting progress in 0..1. Two implementations: the server's (Ktor's
- * upload progress) and the fake's, which answers in one step — the screen reads both the same way.
+ * Where picked files wait between the picker and the server (M7 review): a file in the cache, written off the main
+ * thread, deleted once uploaded or removed — and with the rest of the cache on sign-out.
+ */
+interface UploadStaging {
+    /** Writes [file] to the cache; null when it could not be written. */
+    suspend fun stage(file: UploadFile): StagedUpload?
+    fun discard(staged: StagedUpload)
+}
+
+/**
+ * B5's upload for a chat message (`POST /children/{id}/chat/attachments`), streamed from the staged file with its
+ * length, and reporting progress in 0..1. Two implementations: the server's (Ktor's upload progress) and the fake's,
+ * which answers in one step — the screen reads both the same way.
  */
 fun interface AttachmentUploader {
-    suspend fun upload(childId: String, file: UploadFile, onProgress: (Float) -> Unit): AttachmentRef
+    suspend fun upload(childId: String, file: StagedUpload, onProgress: (Float) -> Unit): AttachmentRef
 }
 
 /** What the server answered for an upload, as the message will carry it once sent. */
