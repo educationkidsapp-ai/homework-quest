@@ -1788,8 +1788,9 @@ them too).
 
 **What is pushed, and when.** **Every staff → parent event is a `/me/notifications` row and a push** — the parent rows
 in [Notifications](#notifications-e2-d26) above. The push leaves after the row's transaction **commits** (`ParentPush`,
-`@TransactionalEventListener(AFTER_COMMIT)`; her phones are read there, the sending runs on the task executor), so a push
-never goes out for work that rolled back and never slows or fails the request that caused it:
+`@TransactionalEventListener(AFTER_COMMIT)`), so a push never goes out for work that rolled back and never slows or
+fails the request that caused it. A fan-out (a broadcast, a release) is **one** event and **one** read of all its
+parents' phones (`findByParentIdIn`); the sends then run on the push pool's own threads:
 
 | `kind` | From | `collapseKey` |
 |---|---|---|
@@ -1816,8 +1817,15 @@ the row itself is always English. A force-stopped app receives nothing
 until it is opened again — Android's rule, not ours.
 
 **Failures.** FCM's `UNREGISTERED`, `INVALID_ARGUMENT` and `SENDER_ID_MISMATCH` delete the token. `UNAVAILABLE`,
-`INTERNAL` and `QUOTA_EXCEEDED` are retried — three attempts, 1 s then 4 s apart (`quest.push.max-attempts`,
-`quest.push.backoff-millis`) — and then dropped; the row is still in `/me/notifications`. Nothing is logged at INFO but
+`INTERNAL` and `QUOTA_EXCEEDED` are retried — three attempts, 1 s then 4 s apart, each ±50 % jitter so a quota error does
+not bring a whole broadcast back at once (`quest.push.max-attempts`, `quest.push.backoff-millis`); a retry is
+rescheduled, never slept on — and then dropped; the row is still in `/me/notifications`.
+
+**Bounded.** At most `quest.push.concurrency` (8, capped at 16) sends run at once, on platform threads of their own —
+not the virtual-thread `applicationTaskExecutor`, which has no limit — and at most `quest.push.queue-capacity` (2000)
+wait, retries included. A fan-out that meets a full queue drops what does not fit and logs `push: queue full … N push(es)
+dropped`; the rows are written regardless. On shutdown the sends already running finish (10 s at most) and the ones still
+waiting are dropped with `push: shutting down — N waiting send(s) dropped`. Nothing is logged at INFO but
 "a dead device token was removed": never a token, never a title or body. A row that could not be written is logged
 and never fails the post, the message or the release.
 

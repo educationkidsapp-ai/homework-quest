@@ -80,7 +80,7 @@ class TeacherQuestionTest extends TeacherTestSupport {
     /** B4: sending tells the parent of every child it is put to — a row and a push — and nobody else. */
     @Test void a_sent_question_is_a_row_and_a_push_for_the_childs_parent() throws Exception {
         String phone = quest.server.push.PushProbe.token("tq-phone");
-        quest.server.push.PushProbe.register(mvc, PARENT, phone, null);
+        quest.server.push.PushProbe.register(mvc, PARENT, phone, "ar");
         String id = sendQuestion("Counting check", CLASS_A1, LocalDate.now(), LocalDate.now().plusDays(3));
 
         var rows = parentGet("/me/notifications");
@@ -92,6 +92,8 @@ class TeacherQuestionTest extends TeacherTestSupport {
         assertThat(quest.server.push.PushProbe.await(pushes, phone, 1)).singleElement().satisfies(p -> {
             assertThat(p.message().getKind()).isEqualTo(quest.api.dto.NotificationKind.QUESTION_SENT);
             assertThat(p.message().getCollapseKey()).isEqualTo("question:" + id);
+            assertThat(p.message().getTitle()).as("her phone is Arabic").isEqualTo("سؤال جديد من Ms Sara");
+            assertThat(p.message().getBody()).isEqualTo("لدى Maya سؤال للإجابة عنه: Counting check.");
         });
         devices.deleteByTokenValue(phone);
     }

@@ -125,7 +125,9 @@ quest:
     # (`RecordingPushSender`); on in `qa` and `prod`, where the Firebase app runs on the runtime service account.
     enabled: ${QUEST_PUSH_ENABLED:false}
     max-attempts: 3                         # transient FCM failures (unavailable, internal, quota), then it is dropped
-    backoff-millis: 1000                    # 1 s, then 4 s
+    backoff-millis: 1000                    # 1 s, then 4 s, each ±50 % jitter
+    concurrency: 8                          # sends at once, on the push pool's own threads (at most 16)
+    queue-capacity: 2000                    # sends that may wait, retries included; a fan-out's overflow is dropped and logged
   chat:
     # C1: parent ↔ teacher chat. The socket fans out across Cloud Run instances over PostgreSQL LISTEN/NOTIFY when the
     # datasource is PostgreSQL and over an in-process bus otherwise (H2); `bus` forces one (`auto` | `postgres` | `memory`).

@@ -31,6 +31,7 @@ class DeviceApiTest extends ApiTestSupport {
     @Autowired ParentPush push;
     @Autowired PushSender sender;
     @Autowired AdminJwtService jwt;
+    @Autowired jakarta.persistence.EntityManagerFactory emf;
 
     @AfterEach void clean() { tokens.forEach(devices::deleteByTokenValue); }
 
@@ -120,6 +121,37 @@ class DeviceApiTest extends ApiTestSupport {
             assertThat(s.message().getTitle()).isEqualTo("Hello");
             assertThat(s.platform()).isEqualTo(DevicePlatform.IOS);
         });
+    }
+
+    /** One fan-out is one read of its parents' phones, however many parents it reaches (no read per parent). */
+    @Test void a_fan_out_reads_every_parents_phones_in_one_statement() throws Exception {
+        var deliveries = new ArrayList<ParentPush.Delivery>();
+        for (int i = 0; i < 5; i++) {
+            String bearer = "Bearer fake-token-parent-fan-" + java.util.UUID.randomUUID().toString().substring(0, 8);
+            String phone = token("dv-fan");
+            register(bearer, phone, "ANDROID", null);
+            deliveries.add(new ParentPush.Delivery(parentId(bearer), message("Fan " + i), null));
+        }
+        var stats = emf.unwrap(org.hibernate.SessionFactory.class).getStatistics();
+        stats.setStatisticsEnabled(true); stats.clear();
+        push.toParents(deliveries.subList(0, 1));
+        long one = stats.getPrepareStatementCount();
+        stats.clear();
+        push.toParents(deliveries);
+        assertThat(stats.getPrepareStatementCount()).as("five parents cost what one does").isEqualTo(one).isEqualTo(1);
+        for (String t : tokens.subList(tokens.size() - 5, tokens.size())) assertThat(PushProbe.await(sender, t, 1)).isNotEmpty();
+    }
+
+    /** The retry pause grows fourfold and is jittered ±50 %, so one burst's retries do not return together. */
+    @Test void the_backoff_grows_and_is_jittered() throws Exception {
+        var standalone = new ParentPush(null, devices, sender, new PushProperties(false, 3, 1000L, 2, 10));
+        try {
+            for (int i = 0; i < 50; i++) {
+                assertThat(standalone.backoff(1)).isBetween(500L, 1500L);
+                assertThat(standalone.backoff(2)).isBetween(2000L, 6000L);
+            }
+            assertThat(java.util.stream.IntStream.range(0, 50).mapToObj(i -> standalone.backoff(2)).distinct().count()).as("jittered").isGreaterThan(1);
+        } finally { standalone.destroy(); }
     }
 
     private void register(String bearer, String token, String platform, String locale) throws Exception {

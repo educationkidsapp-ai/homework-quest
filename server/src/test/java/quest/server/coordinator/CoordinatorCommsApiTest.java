@@ -200,7 +200,9 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
         var pushed = quest.server.push.PushProbe.await(pushes, phone, 2);
         assertThat(pushed).extracting(p -> p.message().getKind())
                 .containsExactly(quest.api.dto.NotificationKind.CHAT_MESSAGE, quest.api.dto.NotificationKind.COMPLAINT_STATUS);
-        assertThat(pushed.get(1).message().getTitle()).as("her phone is Arabic").isEqualTo("تم حل الشكوى");
+        assertThat(pushed.get(0).message().getTitle()).as("her phone is Arabic").startsWith("رسالة من ");
+        assertThat(pushed.get(1).message().getTitle()).isEqualTo("تم حل الشكوى");
+        assertThat(pushed.get(1).message().getBody()).as("the body too, not the English").endsWith("بعد حلها.");
         assertThat(pushed.get(1).message().getCollapseKey()).isEqualTo("chat:" + threadId);
         var status = rowWith(parentJson(BRITISH_A_PARENT, "/me/notifications"), "kind", "complaint.status");
         assertThat(status.get("title").asText()).isEqualTo("Complaint resolved");

@@ -221,8 +221,9 @@ class ChatApiTest extends ChatTestSupport {
      * Reading the thread re-arms it, and a push that fails fails nothing: the message is sent and the row written.
      */
     @Test void a_teachers_messages_push_the_parent_once_per_unread_row() throws Exception {
-        String phone = PushProbe.token("ch-phone"), others = PushProbe.token("ch-other-phone");
+        String phone = PushProbe.token("ch-phone"), arabic = PushProbe.token("ch-ar-phone"), others = PushProbe.token("ch-other-phone");
         PushProbe.register(mvc, PARENT, phone, "en");
+        PushProbe.register(mvc, PARENT, arabic, "ar");
         PushProbe.register(mvc, OTHER_PARENT, others, null);
         var sent = json(mvc.perform(as(post("/teacher/chat/threads/" + maya + "/messages"), sara).contentType(MediaType.APPLICATION_JSON).content(send("Hello!")))
                 .andExpect(status().isCreated()).andReturn());
@@ -240,6 +241,10 @@ class ChatApiTest extends ChatTestSupport {
         assertThat(push.getBody()).as("the row as it was when it was new").isEqualTo("Hello!");
         assertThat(push.getCollapseKey()).isEqualTo("chat:" + sent.get("threadId").asText());
         assertThat(PushProbe.sentTo(pushes, others)).as("another parent hears nothing").isEmpty();
+        assertThat(PushProbe.await(pushes, arabic, 1)).singleElement().satisfies(p -> {
+            assertThat(p.message().getTitle()).as("her Arabic phone").isEqualTo("رسالة من Ms Sara");
+            assertThat(p.message().getBody()).as("the teacher's own words, as written").isEqualTo("Hello!");
+        });
 
         parentPost("/children/" + maya + "/chat/threads/" + SARA + "/read", "");
         PushProbe.script(pushes, phone, PushSender.Outcome.FAILED);
@@ -250,7 +255,7 @@ class ChatApiTest extends ChatTestSupport {
         parentPost("/children/" + maya + "/chat/threads/" + SARA + "/read", "");
         mvc.perform(as(post("/teacher/chat/threads/" + maya + "/messages"), sara).contentType(MediaType.APPLICATION_JSON).content(send("Bye!"))).andExpect(status().isCreated());
         assertThat(PushProbe.await(pushes, phone, 2)).as("read, then a new message: a new push").hasSize(2);
-        devices.deleteByTokenValue(phone); devices.deleteByTokenValue(others);
+        devices.deleteByTokenValue(phone); devices.deleteByTokenValue(arabic); devices.deleteByTokenValue(others);
     }
 
     // ---------------------------------------------------------------- helpers

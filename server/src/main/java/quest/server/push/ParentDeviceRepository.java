@@ -17,6 +17,9 @@ public interface ParentDeviceRepository extends JpaRepository<ParentDeviceEntity
     /** Her phones, the one seen most recently first — what a push goes to, and what the cap keeps. */
     List<ParentDeviceEntity> findByParentIdOrderByLastSeenAtDescIdAsc(String parentId);
 
+    /** Every phone of a fan-out's parents in one statement — what one broadcast or one release pushes to. */
+    List<ParentDeviceEntity> findByParentIdIn(java.util.Collection<String> parentIds);
+
     @Transactional @Modifying
     @Query("delete from ParentDeviceEntity d where d.token = :token and d.parentId = :parentId")
     int deleteOwned(@Param("token") String token, @Param("parentId") String parentId);
