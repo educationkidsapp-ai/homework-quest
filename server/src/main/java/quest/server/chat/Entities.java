@@ -89,6 +89,8 @@ public final class Entities {
         @Column(name = "read_at") private Instant readAt;
         /** V33 (B5): the message's `ChatAttachment` list as JSON, written once at send; null when it has none. */
         @Column private String attachments;
+        /** V35 (B5b): the sender's `clientId`, so a retried send answers this row instead of writing a second one. */
+        @Column(name = "client_id") private String clientId;
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
         public String getThreadId() { return threadId; } public void setThreadId(String v) { threadId = v; }
@@ -98,6 +100,7 @@ public final class Entities {
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
         public Instant getReadAt() { return readAt; } public void setReadAt(Instant v) { readAt = v; }
         public String getAttachments() { return attachments; } public void setAttachments(String v) { attachments = v; }
+        public String getClientId() { return clientId; } public void setClientId(String v) { clientId = v; }
     }
 
     /**

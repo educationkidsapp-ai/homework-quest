@@ -1686,11 +1686,20 @@ the sender's browser-local id, never an `attachments` row). From B5 a message ca
    past it — the application's own multipart limits are the lesson pipeline's 25 MB / 120 MB, and
    `spring.servlet.multipart.resolve-lazily` means no body is parsed before a handler asks for it); the type is sniffed from the first bytes and the per-type size checked before the file is read into
    memory; an image past 8192 px on a side or 40 megapixels is `400 image_too_large`; and the stored name loses line
-   breaks and every bidi/format character (`Cf`), so no RTL override can disguise it.
+   breaks and every bidi/format character (`Cf`), so no RTL override can disguise it. **B5b: a chat image is stored
+   without its metadata**, whatever the client did (`ImageMetadata`, lossless — nothing is re-encoded): a JPEG loses
+   every EXIF/XMP (APP1), IPTC (APP13) and other APPn segment, its comments and anything appended after the image (a
+   phone's second picture), keeping JFIF, the ICC profile and Adobe's colour segment — and a photo stored on its side
+   gets a new EXIF holding the orientation and nothing else, so it stays upright everywhere; a PNG loses `eXIf`, `tEXt`,
+   `zTXt`, `iTXt` and `tIME`; a WebP loses `EXIF` and `XMP `. A file whose containers cannot be walked is `400`.
 2. **Send** — `attachmentIds: [id…]` (at most 5) on any `POST …/messages` body or the socket's `message` command. Each must
    be the sender's own `chat` upload in the thread's school — anything else, a broadcast's upload included, is one `400` —
    and not sent before: `409 attachment_already_sent`. The bind is one conditional `UPDATE … WHERE message_id IS NULL`
-   whose row count must match, so two sends racing for one file cannot both have it; the loser writes no message. With a file the text may be empty (`body: ""`). The file is bound to that message
+   whose row count must match, so two sends racing for one file cannot both have it; the loser writes no message.
+   **B5b: a retry is the same message.** A send with the `clientId` this sender already used in this thread (≤ 64
+   characters; V35 `chat_messages.client_id`) answers the message stored the first time — `201`, same id, files and all —
+   and its `message` frame goes again to the sender's own sessions only, as the ack she missed; nothing new is written or
+   announced. So a send retried after a lost response is never a second message and never `409`. With a file the text may be empty (`body: ""`). The file is bound to that message
    (`attachments.message_id`, V33) and its description written onto the message row (`chat_messages.attachments`), so
    every `ChatMessage` — REST history, `lastMessage`, the `message` frame — carries
    `attachments: [{id, contentType, name, size, width?, height?}]` (the key is absent when there are none). A chat upload

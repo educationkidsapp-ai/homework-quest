@@ -29,6 +29,10 @@ public interface ChatMessageRepository extends JpaRepository<Entities.ChatMessag
     @Query("select m from ChatMessageEntity m where m.threadId in :threadIds and m.createdAt = (select max(n.createdAt) from ChatMessageEntity n where n.threadId = m.threadId)")
     List<Entities.ChatMessageEntity> lastOf(@Param("threadIds") List<String> threadIds);
 
+    /** B5b: what this sender already wrote into this thread under this `clientId` — the retry's answer. */
+    @Query("select m from ChatMessageEntity m where m.threadId = :threadId and m.senderId = :senderId and m.clientId = :clientId order by m.createdAt")
+    List<Entities.ChatMessageEntity> sentAs(@Param("threadId") String threadId, @Param("senderId") String senderId, @Param("clientId") String clientId);
+
     @Query("select m from ChatMessageEntity m where m.id = :id")
     Optional<Entities.ChatMessageEntity> findOneById(@Param("id") String id);
 

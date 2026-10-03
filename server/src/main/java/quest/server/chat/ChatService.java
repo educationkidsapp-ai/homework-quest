@@ -67,7 +67,7 @@ import quest.server.tenancy.TenantContext;
  */
 @Service
 public class ChatService {
-    static final int MAX_BODY = 2000; static final int DEFAULT_PAGE = 50; static final int MAX_PAGE = 200;
+    static final int MAX_BODY = 2000; static final int MAX_CLIENT_ID = 64; static final int DEFAULT_PAGE = 50; static final int MAX_PAGE = 200;
     /**
      * `chat_messages.sender_role`. `peer` is R4's third name: on a coordinator-to-manager thread both sides are
      * staff, and a read receipt has to know whose messages it is marking.
@@ -825,6 +825,19 @@ public class ChatService {
      * access, because a complaint's messages are written through it too ({@link ComplaintService}).
      */
     ChatMessage send(ChatThreadEntity thread, String parentId, String role, String senderId, String rawBody, List<String> files, String clientId, boolean bell) {
+        // B5b: a retry after a lost response — same sender, same thread, same `clientId` — is the message already stored.
+        // It is answered as it was, and its echo is sent again to the sender's own sessions only (the other party has
+        // it), so a client waiting for the socket ack gets one. A `clientId` longer than any client writes is not kept.
+        String dedupe = clientId == null || clientId.isBlank() || clientId.length() > MAX_CLIENT_ID ? null : clientId;
+        if (dedupe != null) {
+            var prior = messages.sentAs(thread.getId(), senderId, dedupe);
+            if (!prior.isEmpty()) {
+                var dto = dto(prior.getFirst());
+                publish(ChatEvent.echo(thread.getSchoolId(), thread.getId(), key(role, senderId), clientId, dto.getId(),
+                        json.encodeShared(dto, ChatMessage.Companion.serializer())));
+                return dto;
+            }
+        }
         boolean withFiles = files != null && files.stream().anyMatch(id -> id != null && !id.isBlank());
         String body = withFiles ? cleanOptional(rawBody) : clean(rawBody);
         limiter.record(key(role, senderId));
@@ -832,7 +845,7 @@ public class ChatService {
         m.setId(UUID.randomUUID().toString()); m.setSchoolId(thread.getSchoolId()); m.setThreadId(thread.getId());
         var attached = attachments.claim(thread, senderId, m.getId(), files);
         m.setSenderRole(role); m.setSenderId(senderId); m.setBody(body); m.setCreatedAt(clock.instant());
-        m.setAttachments(ChatAttachments.encode(attached));
+        m.setAttachments(ChatAttachments.encode(attached)); m.setClientId(dedupe);
         messages.save(m);
         if (TEACHER.equals(role)) threads.bumpParentUnread(thread.getId(), m.getCreatedAt()); else threads.bumpTeacherUnread(thread.getId(), m.getCreatedAt());
         var dto = dto(m);

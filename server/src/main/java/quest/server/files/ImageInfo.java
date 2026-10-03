@@ -120,7 +120,7 @@ public final class ImageInfo {
     private static Size turned(int w, int h, int orientation) { return orientation >= 5 ? new Size(h, w) : new Size(w, h); }
 
     /** The EXIF orientation (1–8) of a JPEG, 1 when there is none: APP1 `Exif`, then the TIFF IFD0 tag 0x0112. */
-    static int orientation(byte[] b) {
+    public static int orientation(byte[] b) {
         if (b.length < 4 || (b[0] & 0xFF) != 0xFF || (b[1] & 0xFF) != 0xD8) return 1;
         int i = 2;
         while (i + 4 <= b.length && (b[i] & 0xFF) == 0xFF) {

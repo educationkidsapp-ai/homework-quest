@@ -36,6 +36,8 @@ public record ChatEvent(String kind, String schoolId, String threadId, String ch
                         String senderKey, String clientId, String messageId, String messageJson, String sender, Long at,
                         String userId, String notificationJson, String peerUserId, String status, Boolean online) {
     public static final String MESSAGE = "message", READ = "read", TYPING = "typing", NOTIFICATION = "notification", STATUS = "status", PRESENCE = "presence", SIGN_OUT = "signout";
+    /** B5b: a retried send's original message, for the sender's own sessions only — the ack she missed, nothing new. */
+    public static final String ECHO = "echo";
 
     public static ChatEvent message(String schoolId, String threadId, String childId, String teacherId, String parentId, String peerUserId,
                                     String senderKey, String clientId, String messageId, String messageJson) {
@@ -46,6 +48,10 @@ public record ChatEvent(String kind, String schoolId, String threadId, String ch
     }
     public static ChatEvent typing(String schoolId, String threadId, String childId, String teacherId, String parentId, String peerUserId, String senderKey, String from) {
         return new ChatEvent(TYPING, schoolId, threadId, childId, teacherId, parentId, senderKey, null, null, null, from, null, null, null, peerUserId, null, null);
+    }
+    /** B5b: the message {@code messageId}, again, to {@code senderKey}'s sessions with her {@code clientId}. */
+    public static ChatEvent echo(String schoolId, String threadId, String senderKey, String clientId, String messageId, String messageJson) {
+        return new ChatEvent(ECHO, schoolId, threadId, null, null, null, senderKey, clientId, messageId, messageJson, null, null, null, null, null, null, null);
     }
     /** E2: one dashboard user's bell. `frameJson` is the encoded `ChatFrame.Notification`; `schoolId` is the row's. */
     public static ChatEvent notification(String schoolId, String userId, String frameJson) {

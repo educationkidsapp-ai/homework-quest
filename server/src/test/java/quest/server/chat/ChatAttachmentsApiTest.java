@@ -277,6 +277,35 @@ class ChatAttachmentsApiTest extends ChatTestSupport {
         assertThat(parentGet("/children/" + maya + "/chat/threads/" + SARA + "/messages")).as("the refused send wrote nothing").hasSize(2);
     }
 
+    /** B5b: what the camera wrote — the GPS of her home above all — is not stored, and the photo is still upright. */
+    @Test void a_phone_photo_is_stored_without_its_location_and_stays_upright() throws Exception {
+        var row = json(mvc.perform(parent(parentUpload(maya, quest.server.files.ImageMetadataTest.phonePhoto(6), "IMG_0001.jpg")))
+                .andExpect(status().isCreated()).andReturn());
+        assertThat(row.get("width").asInt()).isEqualTo(300);
+        assertThat(row.get("height").asInt()).isEqualTo(400);
+        byte[] stored = fileStore.get(attachmentRows.findById(row.get("id").asText()).orElseThrow().getStoragePath()).orElseThrow().bytes();
+        String text = new String(stored, java.nio.charset.StandardCharsets.ISO_8859_1);
+        assertThat(text).doesNotContain("GPS", "Pixel 9", "xap/1.0", "Photoshop", "a private comment", "SECOND-PICTURE");
+        assertThat(quest.server.files.ImageInfo.orientation(stored)).isEqualTo(6);
+        assertThat(row.get("sizeBytes").asLong()).isEqualTo(stored.length);
+    }
+
+    /** B5b: a send retried after its response was lost is answered with the message it already wrote — never a 409, never a second. */
+    @Test void a_retried_send_is_the_message_already_sent() throws Exception {
+        String id = json(mvc.perform(parent(parentUpload(maya, png(4, 4), "again.png"))).andExpect(status().isCreated()).andReturn()).get("id").asText();
+        String path = "/children/" + maya + "/chat/threads/" + SARA + "/messages", body = "{\"attachmentIds\":[\"" + id + "\"],\"clientId\":\"retry-1\"}";
+        var first = parentPost(path, body);
+        var again = json(mvc.perform(parent(post(path)).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isCreated()).andReturn());
+        assertThat(again.get("id").asText()).isEqualTo(first.get("id").asText());
+        assertThat(again.get("attachments").get(0).get("id").asText()).isEqualTo(id);
+        parentPost(path, send("Hello", "retry-2")); parentPost(path, send("Hello", "retry-2"));
+        assertThat(parentGet(path)).as("one message per clientId").hasSize(2);
+        // another sender's clientId is hers alone: the teacher's "retry-1" is a message of its own
+        mvc.perform(as(post("/teacher/chat/threads/" + maya + "/messages"), sara).contentType(MediaType.APPLICATION_JSON).content(send("Hi", "retry-1")))
+                .andExpect(status().isCreated());
+        assertThat(parentGet(path)).hasSize(3);
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private MockHttpServletRequestBuilder parent(MockHttpServletRequestBuilder b) { return b.header("Authorization", PARENT); }

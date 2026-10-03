@@ -35,6 +35,11 @@ public class ChatHub {
                     sessions.send(key, encode(new ChatFrame.Message(message, own ? e.clientId() : null)));
                 }
             }
+            // B5b: a retried send — the original message, to the sender's own sessions and nobody else's.
+            case ChatEvent.ECHO -> {
+                ChatMessage message = message(e);
+                if (message != null) sessions.send(e.senderKey(), encode(new ChatFrame.Message(message, e.clientId())));
+            }
             case ChatEvent.READ -> {
                 String frame = encode(new ChatFrame.Read(e.threadId(), ChatService.sender(e.sender()), e.at()));
                 for (String key : keys) sessions.send(key, frame);
