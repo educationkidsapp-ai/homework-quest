@@ -105,20 +105,34 @@ public class MediaController {
                                              @RequestParam(value = "w", required = false) Integer w) {
         var row = attachments.findOneById(id).orElseThrow(() -> ApiException.notFound("media"));
         access.requireAttachment(row, parent, user);
-        var blob = files.get(row.getStoragePath()).orElseThrow(() -> ApiException.notFound("media file"));
-        byte[] bytes = blob.bytes(); String type = blob.mimeType();
-        // B5: `?w=` — a chat bubble's copy, a JPEG at most that wide and turned upright. A PDF, a WebP, or an image
-        // already that narrow answers the original, so the parameter is always safe to send.
-        if (w != null) {
-            var small = ImageInfo.downscale(bytes, type, Math.clamp(w, ImageInfo.MIN_THUMB, ImageInfo.MAX_THUMB));
-            if (small != null) { bytes = small; type = MediaType.IMAGE_JPEG_VALUE; }
-        }
-        return ResponseEntity.ok().cacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePrivate())
+        var blob = w == null ? null : copy(row, w);
+        if (blob == null) blob = files.get(row.getStoragePath()).orElseThrow(() -> ApiException.notFound("media file"));
+        // An id names one file for ever, so a reader may keep it as long as she likes — in her own cache only.
+        return ResponseEntity.ok().cacheControl(CacheControl.maxAge(365, TimeUnit.DAYS).cachePrivate().immutable())
                 // `nosniff` and an explicit `inline` disposition: only the sniffed types — three images and, S1, a
                 // PDF — can ever be the content type, so a browser shows the plan rather than guessing at it.
                 .header("X-Content-Type-Options", "nosniff")
                 .header("Content-Disposition", "inline; filename=\"" + downloadName(row) + "\"")
-                .contentType(MediaType.parseMediaType(type)).body(bytes);
+                .contentType(MediaType.parseMediaType(blob.mimeType())).body(blob.bytes());
+    }
+
+    /**
+     * B5: `?w=` — a chat bubble's copy, a JPEG turned upright, at the fixed width {@code asked} rounds up to
+     * ({@link ImageInfo#WIDTHS}). Made once and stored beside the original, so a width is decoded once per image
+     * however often it is asked for; null — answer the original — for a PDF, a WebP, or an image already that narrow.
+     */
+    private FileStore.Blob copy(Entities.AttachmentEntity row, int asked) {
+        if (!row.getMimeType().startsWith("image/") || "image/webp".equals(row.getMimeType())) return null;
+        int width = ImageInfo.width(asked);
+        if (row.getWidth() != null && row.getWidth() <= width) return null;
+        String path = ImageInfo.copyPath(row.getStoragePath(), width);
+        var kept = files.get(path);
+        if (kept.isPresent()) return kept.get();
+        var original = files.get(row.getStoragePath()).orElseThrow(() -> ApiException.notFound("media file"));
+        byte[] small = ImageInfo.downscale(original.bytes(), original.mimeType(), width);
+        if (small == null) return null;
+        files.put(path, small, MediaType.IMAGE_JPEG_VALUE);
+        return new FileStore.Blob(small, MediaType.IMAGE_JPEG_VALUE);
     }
 
     @PreAuthorize("@permit.has('media.page.read')")

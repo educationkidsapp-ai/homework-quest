@@ -382,6 +382,7 @@ public class BroadcastService {
         if (rows.countByAttachment(attachmentId) > 0) return;
         attachments.findOneById(attachmentId).ifPresent(file -> {
             files.delete(file.getStoragePath());
+            quest.server.files.ImageInfo.copyPaths(file.getStoragePath()).forEach(files::delete);   // B5: its `?w=` copies
             attachments.delete(file);
         });
     }

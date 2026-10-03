@@ -58,11 +58,20 @@ public class AttachmentService {
         if (file == null || file.isEmpty()) throw ApiException.badRequest("Send the image or the PDF as `file`.");
         if (file.getSize() > MAX_PDF_BYTES)
             throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "too_large", "A PDF must be under 10 MB and an image under 5 MB.");
+        // B5 review: the type is sniffed from the first bytes of the stream and the limit for that type checked against
+        // the part's size before anything is read into the heap, so a 10 MB "image" is refused without being loaded.
+        String mime;
+        try (var in = file.getInputStream()) { mime = sniff(in.readNBytes(16)); }
+        catch (java.io.IOException e) { throw ApiException.badRequest("That file could not be read."); }
+        if (!PDF.equals(mime) && file.getSize() > MAX_BYTES)
+            throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "too_large", "An image must be under 5 MB.");
         byte[] bytes;
         try { bytes = file.getBytes(); } catch (java.io.IOException e) { throw ApiException.badRequest("That file could not be read."); }
-        String mime = sniff(bytes);
-        if (!PDF.equals(mime) && bytes.length > MAX_BYTES)
-            throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "too_large", "An image must be under 5 MB.");
+        var size = ImageInfo.size(bytes, mime);
+        // B5 review: what `?w=` would have to decode is bounded here, once — a 300 KB PNG can still be 10 000 px square.
+        if (size != null && ImageInfo.tooLarge(size))
+            throw new ApiException(HttpStatus.BAD_REQUEST, "image_too_large", "An image may be at most " + ImageInfo.MAX_SIDE + " pixels on a side and "
+                    + ImageInfo.MAX_PIXELS / 1_000_000 + " megapixels.");
         String id = UUID.randomUUID().toString();
         var stored = files.put("attachments/" + schoolId + "/" + id, bytes, mime);
         var row = new Entities.AttachmentEntity();
@@ -70,7 +79,6 @@ public class AttachmentService {
         row.setName(name(file.getOriginalFilename(), mime)); row.setMimeType(mime);
         row.setSizeBytes(stored.size()); row.setStoragePath(stored.path()); row.setCreatedAt(clock.instant());
         row.setPurpose(purpose);
-        var size = ImageInfo.size(bytes, mime);
         if (size != null) { row.setWidth(size.width()); row.setHeight(size.height()); }
         return rows.save(row);
     }
@@ -101,7 +109,9 @@ public class AttachmentService {
     /** The file name as a label, safe to print: the caller's own if it has one, else the type's own extension. */
     private static String name(String original, String mime) {
         String cleaned = original == null ? "" : original.replace('\\', '/');
-        cleaned = cleaned.substring(cleaned.lastIndexOf('/') + 1).trim();
+        // B5 review: bidi overrides and every other format character (`Cf`: U+200E/F, U+202A–202E, U+2066–2069, …) go
+        // too — "photo", U+202E, "gnp.exe" would otherwise read as an image in a right-to-left chat bubble.
+        cleaned = cleaned.substring(cleaned.lastIndexOf('/') + 1).replaceAll("\\p{Cf}", "").trim();
         String safe = SafeText.plainText(cleaned, "name", 200);
         return safe == null || safe.isBlank() ? defaultName(mime) : safe.toLowerCase(Locale.ROOT);
     }

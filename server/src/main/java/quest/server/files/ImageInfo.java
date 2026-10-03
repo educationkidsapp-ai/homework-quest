@@ -23,13 +23,35 @@ import javax.imageio.stream.ImageInputStream;
  * <p>WebP is measured from its own header (no `ImageIO` reader ships with the JDK) and is never downscaled: the
  * original is answered instead, which is what a caller that asks for a size the server cannot make gets anyway.
  */
-final class ImageInfo {
+public final class ImageInfo {
     private ImageInfo() {}
 
-    /** The widest a downscaled copy is made; also the most `?w=` is clamped to. */
-    static final int MAX_THUMB = 1600, MIN_THUMB = 64;
-    /** Past this many source pixels the server answers the original rather than decode it. */
-    private static final long MAX_PIXELS = 100_000_000L;
+    /**
+     * The widths a downscaled copy is made at. `?w=` is rounded up to one of them (and down to the last), so each image
+     * is decoded at most three times in its life — the copy is stored beside the original ({@link #copyPath}) and every
+     * later request for that width is a read.
+     */
+    static final int[] WIDTHS = {320, 640, 1280};
+    /** B5 review: the most an upload may be — on a side, and in all. A larger one is refused before it is stored. */
+    static final int MAX_SIDE = 8192;
+    static final long MAX_PIXELS = 40_000_000L;
+
+    /** The stored width {@code asked} is answered with. */
+    static int width(int asked) {
+        for (int w : WIDTHS) if (asked <= w) return w;
+        return WIDTHS[WIDTHS.length - 1];
+    }
+
+    /** Where the copy of {@code original} at {@code width} is kept: beside it, so deleting one deletes the family. */
+    static String copyPath(String original, int width) { return original + ".w" + width + ".jpg"; }
+
+    /** Every copy an original may have, for whoever deletes it. */
+    public static java.util.List<String> copyPaths(String original) {
+        return java.util.Arrays.stream(WIDTHS).mapToObj(w -> copyPath(original, w)).toList();
+    }
+
+    /** Whether an image of this size is past what an upload may be. */
+    static boolean tooLarge(Size s) { return s.width() > MAX_SIDE || s.height() > MAX_SIDE || (long) s.width() * s.height() > MAX_PIXELS; }
 
     record Size(int width, int height) {}
 
@@ -62,7 +84,7 @@ final class ImageInfo {
                 r.setInput(in, true, true);
                 int w = r.getWidth(0), h = r.getHeight(0);
                 var shown = turned(w, h, o);
-                if (shown.width() <= width || (long) w * h > MAX_PIXELS) return null;
+                if (shown.width() <= width || tooLarge(new Size(w, h))) return null;           // an upload older than the limit
                 var param = r.getDefaultReadParam();
                 int step = Math.max(1, shown.width() / (width * 2));
                 param.setSourceSubsampling(step, step, 0, 0);

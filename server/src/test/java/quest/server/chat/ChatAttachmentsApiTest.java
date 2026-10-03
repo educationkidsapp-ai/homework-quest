@@ -39,6 +39,7 @@ class ChatAttachmentsApiTest extends ChatTestSupport {
     @Autowired quest.server.notifications.NotificationRepository notificationRows;
     @Autowired PushSender pushes;
     @Autowired ParentDeviceRepository devices;
+    @Autowired quest.server.files.FileStore fileStore;
 
     private String maya, manager, coordinator;
 
@@ -101,7 +102,7 @@ class ChatAttachmentsApiTest extends ChatTestSupport {
 
         // a file goes with one message
         mvc.perform(parent(post("/children/" + maya + "/chat/threads/" + SARA + "/messages")).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"attachmentIds\":[\"" + id + "\"]}")).andExpect(status().isBadRequest());
+                .content("{\"attachmentIds\":[\"" + id + "\"]}")).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("attachment_already_sent"));
     }
 
     /** The push is what the parent sees on her lock screen: "📄 plan.pdf", and "📷 صورة" on an Arabic phone. */
@@ -205,15 +206,69 @@ class ChatAttachmentsApiTest extends ChatTestSupport {
     }
 
     /** `?w=` is a smaller JPEG for a chat bubble; asking for one of a PDF answers the PDF. */
-    @Test void a_downscaled_copy_is_a_jpeg_of_the_asked_width() throws Exception {
+    @Test void a_downscaled_copy_is_a_jpeg_of_a_fixed_width_made_once() throws Exception {
         String photo = staffUpload(sara, png(400, 300), "wide.png", null);
         mvc.perform(as(post("/teacher/chat/threads/" + maya + "/messages"), sara).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"body\":\"Look\",\"attachmentIds\":[\"" + photo + "\"]}")).andExpect(status().isCreated());
         var r = mvc.perform(parent(get("/media/attachments/" + photo).param("w", "100"))).andExpect(status().isOk())
-                .andExpect(header().string("Content-Type", "image/jpeg")).andReturn();
+                .andExpect(header().string("Content-Type", "image/jpeg"))
+                .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.allOf(org.hamcrest.Matchers.containsString("private"),
+                        org.hamcrest.Matchers.containsString("immutable")))).andReturn();
         var small = ImageIO.read(new ByteArrayInputStream(r.getResponse().getContentAsByteArray()));
-        assertThat(small.getWidth()).isEqualTo(100);
-        assertThat(small.getHeight()).isEqualTo(75);
+        assertThat(small.getWidth()).as("100 is asked, 320 is made").isEqualTo(320);
+        assertThat(small.getHeight()).isEqualTo(240);
+        // stored beside the original, and the next request for any width up to 320 is that very copy
+        String copy = attachmentRows.findById(photo).orElseThrow().getStoragePath() + ".w320.jpg";
+        assertThat(fileStore.get(copy)).isPresent();
+        var again = mvc.perform(parent(get("/media/attachments/" + photo).param("w", "300"))).andExpect(status().isOk()).andReturn();
+        assertThat(again.getResponse().getContentAsByteArray()).isEqualTo(fileStore.get(copy).orElseThrow().bytes());
+        // asking wider than the image is the original
+        mvc.perform(parent(get("/media/attachments/" + photo).param("w", "1280"))).andExpect(header().string("Content-Type", "image/png"));
+    }
+
+    /** What `?w=` might have to decode is bounded once, at upload: 8192 px on a side, 40 megapixels in all. */
+    @Test void an_image_too_large_to_shrink_is_refused_at_upload() throws Exception {
+        mvc.perform(parent(parentUpload(maya, binaryPng(9000, 1), "long.png"))).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("image_too_large"));
+        mvc.perform(parent(parentUpload(maya, binaryPng(6400, 6400), "huge.png"))).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("image_too_large"));
+        mvc.perform(parent(parentUpload(maya, binaryPng(8000, 5000), "big-but-fine.png"))).andExpect(status().isCreated());
+    }
+
+    /** A body larger than any chat file is refused from its `Content-Length`, before the multipart is parsed. */
+    @Test void a_body_too_large_or_of_unknown_length_is_refused_before_it_is_parsed() throws Exception {
+        mvc.perform(parent(parentUpload(maya, png(2, 2), "x.png")).with(r -> { r.setContent(new byte[11 * 1024 * 1024]); return r; }))
+                .andExpect(status().isPayloadTooLarge()).andExpect(jsonPath("$.code").value("too_large"));
+        mvc.perform(as(chatUpload(png(2, 2), "x.png"), sara).with(r -> { r.setContent(new byte[11 * 1024 * 1024]); return r; }))
+                .andExpect(status().isPayloadTooLarge());
+        mvc.perform(as(chatUpload(png(2, 2), "x.png"), sara).with(r -> { r.setContent(null); return r; }))
+                .andExpect(status().isLengthRequired());
+        assertThat(attachmentRows.findAll().stream().filter(a -> a.getSchoolId().startsWith(prefix()))).isEmpty();
+    }
+
+    /** A bidi override in a file name would make "photo" + U+202E + "gnp.exe" read as an image in a right-to-left bubble. */
+    @Test void format_characters_are_stripped_from_the_file_name() throws Exception {
+        var row = json(mvc.perform(parent(parentUpload(maya, png(2, 2), "photo\u202Egnp\u200F.png"))).andExpect(status().isCreated()).andReturn());
+        assertThat(row.get("name").asText()).isEqualTo("photognp.png");
+    }
+
+    /** Two sends racing for one file: one has it, the other is refused whole with `409` and writes no message. */
+    @Test void two_sends_racing_for_one_file_cannot_both_have_it() throws Exception {
+        String id = json(mvc.perform(parent(parentUpload(maya, png(4, 4), "race.png"))).andExpect(status().isCreated()).andReturn()).get("id").asText();
+        parentPost("/children/" + maya + "/chat/threads/" + SARA + "/messages", send("first, so the thread exists"));
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.Callable<Integer> send = () -> {
+            start.await();
+            return mvc.perform(parent(post("/children/" + maya + "/chat/threads/" + SARA + "/messages")).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"attachmentIds\":[\"" + id + "\"]}")).andReturn().getResponse().getStatus();
+        };
+        try {
+            var a = pool.submit(send); var b = pool.submit(send);
+            start.countDown();
+            assertThat(java.util.List.of(a.get(), b.get())).containsExactlyInAnyOrder(201, 409);
+        } finally { pool.shutdownNow(); }
+        assertThat(parentGet("/children/" + maya + "/chat/threads/" + SARA + "/messages")).as("the refused send wrote nothing").hasSize(2);
     }
 
     // ---------------------------------------------------------------- helpers
@@ -222,11 +277,29 @@ class ChatAttachmentsApiTest extends ChatTestSupport {
 
     /** MH1's broadcast upload, which a chat send refuses. */
     private static MockMultipartHttpServletRequestBuilder upload(byte[] bytes, String name) { return multipart("/media/attachments").file(file(bytes, name)); }
-    private static MockMultipartHttpServletRequestBuilder chatUpload(byte[] bytes, String name) { return multipart("/media/chat-attachments").file(file(bytes, name)); }
-    private static MockMultipartHttpServletRequestBuilder parentUpload(String childId, byte[] bytes, String name) {
-        return multipart("/children/" + childId + "/chat/attachments").file(file(bytes, name));
+    private static MockHttpServletRequestBuilder chatUpload(byte[] bytes, String name) { return multipart("/media/chat-attachments").file(file(bytes, name)).with(SIZED); }
+    private static MockHttpServletRequestBuilder parentUpload(String childId, byte[] bytes, String name) {
+        return multipart("/children/" + childId + "/chat/attachments").file(file(bytes, name)).with(SIZED);
     }
     private static MockMultipartFile file(byte[] bytes, String name) { return new MockMultipartFile("file", name, "application/octet-stream", bytes); }
+
+    /**
+     * A MockMvc multipart request has no body of its own, so no `Content-Length`; a real one always does, and
+     * {@code ChatUploadLimit} reads it. This gives the request one the size of its file and an envelope.
+     */
+    private static final org.springframework.test.web.servlet.request.RequestPostProcessor SIZED = r -> {
+        long n = 256;
+        if (r instanceof org.springframework.mock.web.MockMultipartHttpServletRequest m) for (var f : m.getFileMap().values()) n += f.getSize();
+        r.setContent(new byte[(int) n]);
+        return r;
+    };
+
+    /** A one-bit PNG: tiny on disk however many pixels it claims, which is the case the pixel limit is for. */
+    private static byte[] binaryPng(int w, int h) throws Exception {
+        var out = new ByteArrayOutputStream();
+        ImageIO.write(new BufferedImage(w, h, BufferedImage.TYPE_BYTE_BINARY), "png", out);
+        return out.toByteArray();
+    }
 
     private String staffUpload(String token, byte[] bytes, String name, String school) throws Exception {
         var request = as(chatUpload(bytes, name), token);

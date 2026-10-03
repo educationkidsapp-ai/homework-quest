@@ -75,8 +75,13 @@ public class ChatAttachments {
 
     /**
      * Binds the named uploads to message {@code messageId} and answers their descriptions in the order they were named.
-     * One refusal for every reason — not hers, another school's, a broadcast's, already sent, no such id — so a send
-     * cannot be used to learn whether somebody else's upload exists.
+     * One `400` for every reason an id is not hers to send — not hers, another school's, a broadcast's, no such id — so
+     * a send cannot be used to learn whether somebody else's upload exists; `409 attachment_already_sent` for her own
+     * upload that already went with another message.
+     *
+     * <p>The bind itself is one conditional `UPDATE … WHERE message_id IS NULL` ({@link AttachmentRepository#bind}) and
+     * its row count decides: two sends racing for one file both pass the read above, and only one of them updates the
+     * row — the other is refused whole, and the transaction takes its message back with it.
      */
     List<ChatAttachment> claim(ChatThreadEntity thread, String senderId, String messageId, List<String> ids) {
         if (ids == null || ids.isEmpty()) return List.of();
@@ -87,13 +92,17 @@ public class ChatAttachments {
         var out = new java.util.ArrayList<ChatAttachment>(wanted.size());
         for (String id : wanted) {
             var a = byId.get(id);
-            if (a == null || !a.isChat() || a.getMessageId() != null || !senderId.equals(a.getUploadedBy()) || !thread.getSchoolId().equals(a.getSchoolId()))
+            if (a == null || !a.isChat() || !senderId.equals(a.getUploadedBy()) || !thread.getSchoolId().equals(a.getSchoolId()))
                 throw new ApiException(HttpStatus.BAD_REQUEST, "bad_request", "Upload the file to the chat upload route first — that id is not one you can send.");
-            a.setMessageId(messageId);
+            if (a.getMessageId() != null) throw alreadySent();
             out.add(new ChatAttachment(a.getId(), a.getMimeType(), a.getName(), a.getSizeBytes(), a.getWidth(), a.getHeight()));
         }
-        files.saveAll(byId.values());
+        if (files.bind(wanted, messageId, senderId, thread.getSchoolId()) != wanted.size()) throw alreadySent();
         return out;
+    }
+
+    private static ApiException alreadySent() {
+        return ApiException.conflict("attachment_already_sent", "That file was already sent in another message — upload it again to send it twice.");
     }
 
     /** The `chat_messages.attachments` column: the list as JSON, or null when there is none. */

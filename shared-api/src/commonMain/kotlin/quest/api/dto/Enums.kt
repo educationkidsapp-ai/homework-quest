@@ -78,6 +78,10 @@ data class ApiError(val code: String, val message: String) {
         const val STOP_NOT_PLAYED = "stop_not_played"
         /** 409 (C1 chat): the child sits on no section yet, so she has no teachers to write to — ask the teacher to place her. */
         const val CHILD_NOT_PLACED = "child_not_placed"
+        /** 400 (B5): an image past 8192 px on a side or 40 megapixels — a client says so in the reader's language. */
+        const val IMAGE_TOO_LARGE = "image_too_large"
+        /** 409 (B5): a chat file already went with another message; upload it again to send it twice. */
+        const val ATTACHMENT_ALREADY_SENT = "attachment_already_sent"
         /** 429 (C1 chat): more than 30 messages in a minute from one sender. */
         const val RATE_LIMITED = "rate_limited"
         /** 409 (E5): a step of this lesson's pipeline is running, so nothing of it may be written over yet. */

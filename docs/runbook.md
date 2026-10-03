@@ -1641,10 +1641,16 @@ the sender's browser-local id, never an `attachments` row). From B5 a message ca
    too_large`). The row is filed under the caller's school — a parent's is the school of the child in the path (`404` for a
    child who is not hers) — and only while that school has `chat` on (`404` otherwise). The reply is MH1's
    `AttachmentRef {id, name, type, sizeBytes, width?, height?}`; an image's `width` and `height` are as the viewer sees it
-   (an EXIF-rotated phone photo is measured upright).
+   (an EXIF-rotated phone photo is measured upright). **Limits checked before anything is parsed or held:** a body
+   whose `Content-Length` passes 10.5 MB is `413 too_large` and one without a `Content-Length` is `411` (filter
+   `ChatUploadLimit`, ahead of the multipart parser — the application's own multipart limits are the lesson pipeline's
+   25 MB / 120 MB); the type is sniffed from the first bytes and the per-type size checked before the file is read into
+   memory; an image past 8192 px on a side or 40 megapixels is `400 image_too_large`; and the stored name loses line
+   breaks and every bidi/format character (`Cf`), so no RTL override can disguise it.
 2. **Send** — `attachmentIds: [id…]` (at most 5) on any `POST …/messages` body or the socket's `message` command. Each must
-   be the sender's own `chat` upload in the thread's school, not sent before — anything else, a broadcast's upload included,
-   is one `400`. With a file the text may be empty (`body: ""`). The file is bound to that message
+   be the sender's own `chat` upload in the thread's school — anything else, a broadcast's upload included, is one `400` —
+   and not sent before: `409 attachment_already_sent`. The bind is one conditional `UPDATE … WHERE message_id IS NULL`
+   whose row count must match, so two sends racing for one file cannot both have it; the loser writes no message. With a file the text may be empty (`body: ""`). The file is bound to that message
    (`attachments.message_id`, V33) and its description written onto the message row (`chat_messages.attachments`), so
    every `ChatMessage` — REST history, `lastMessage`, the `message` frame — carries
    `attachments: [{id, contentType, name, size, width?, height?}]` (the key is absent when there are none). A chat upload
@@ -1654,12 +1660,15 @@ the sender's browser-local id, never an `attachments` row). From B5 a message ca
    merely reads for support), and the parent of the child the thread is about; the uploader also reads her own file before
    it is sent. Everybody else — another parent, a teacher of the same child who is not on the thread, another school —
    gets the 404 an unknown id gets. `Content-Disposition: inline` with a sanitised file name, `X-Content-Type-Options:
-   nosniff`, `Cache-Control: private, max-age=2592000`. **`?w=<px>`** (64–1600) answers a JPEG at most that wide, turned
-   upright — the thumbnail for a bubble; a PDF, a WebP or an image already that narrow answers the original. `w` is left
+   nosniff`, `Cache-Control: private, max-age=31536000, immutable` (an id names one file for ever). **`?w=<px>`** is
+   rounded up to 320, 640 or 1280 (anything wider is 1280) and answers a JPEG that wide, turned upright — the thumbnail
+   for a bubble. Each width is made once and stored beside the original (`<path>.w320.jpg`), deleted with it; a PDF, a
+   WebP or an image already that narrow answers the original. `w` is left
    out of the OpenAPI document for the same reason as above, so a generated client appends it to the URL itself.
    Weekly-plan attachments keep MH1's rule.
 4. **Retention** — an upload never sent, or whose message has gone with its thread, is swept after 24 hours with MH1's
-   orphans (`UploadRetention`).
+   orphans (`UploadRetention`), with its `?w=` copies. The database picks the orphans 200 at a time (at most 50 pages an
+   hour), rather than the sweep loading every row.
 
 **Previews.** A message that is files alone has an empty body, so a one-line preview is written from `attachments`:
 "📷 Photo" (Arabic "📷 صورة") for an image, "📄 <name>" for a PDF. The server writes exactly that into the `chat.message`
