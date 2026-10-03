@@ -306,6 +306,44 @@ class ChatAttachmentsApiTest extends ChatTestSupport {
         assertThat(parentGet(path)).hasSize(3);
     }
 
+    /** Review: the same retry twice at once is still one message — both answers name it — files and all. */
+    @Test void two_identical_retries_at_once_are_one_message() throws Exception {
+        String id = json(mvc.perform(parent(parentUpload(maya, png(4, 4), "twice.png"))).andExpect(status().isCreated()).andReturn()).get("id").asText();
+        String path = "/children/" + maya + "/chat/threads/" + SARA + "/messages";
+        parentPost(path, send("first, so the thread exists"));
+        String body = "{\"body\":\"See attached\",\"attachmentIds\":[\"" + id + "\"],\"clientId\":\"race-1\"}";
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.Callable<org.springframework.mock.web.MockHttpServletResponse> retry = () -> {
+            start.await();
+            return mvc.perform(parent(post(path)).contentType(MediaType.APPLICATION_JSON).content(body)).andReturn().getResponse();
+        };
+        try {
+            var a = pool.submit(retry); var b = pool.submit(retry);
+            start.countDown();
+            var first = a.get(); var second = b.get();
+            assertThat(List.of(first.getStatus(), second.getStatus())).containsOnly(201);
+            assertThat(mapper.readTree(first.getContentAsString()).get("id").asText()).isEqualTo(mapper.readTree(second.getContentAsString()).get("id").asText());
+        } finally { pool.shutdownNow(); }
+        assertThat(parentGet(path)).as("one row for the clientId").hasSize(2);
+    }
+
+    /** Review: a clientId reused for something else is refused, never answered with a message that is not what was sent. */
+    @Test void a_client_id_reused_for_other_content_is_409() throws Exception {
+        String a = json(mvc.perform(parent(parentUpload(maya, png(4, 4), "a.png"))).andExpect(status().isCreated()).andReturn()).get("id").asText();
+        String b = json(mvc.perform(parent(parentUpload(maya, png(4, 4), "b.png"))).andExpect(status().isCreated()).andReturn()).get("id").asText();
+        String path = "/children/" + maya + "/chat/threads/" + SARA + "/messages";
+        parentPost(path, "{\"body\":\"Look\",\"attachmentIds\":[\"" + a + "\"],\"clientId\":\"same\"}");
+        for (String other : List.of("{\"body\":\"Look\",\"attachmentIds\":[\"" + b + "\"],\"clientId\":\"same\"}",
+                "{\"body\":\"Look again\",\"attachmentIds\":[\"" + a + "\"],\"clientId\":\"same\"}",
+                "{\"body\":\"Look\",\"clientId\":\"same\"}"))
+            mvc.perform(parent(post(path)).contentType(MediaType.APPLICATION_JSON).content(other))
+                    .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("client_id_reused"));
+        assertThat(parentGet(path)).hasSize(1);
+        mvc.perform(parent(get("/media/attachments/" + b))).andExpect(status().isOk());   // still hers, still unsent
+        assertThat(attachmentRows.findById(b).orElseThrow().getMessageId()).isNull();
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private MockHttpServletRequestBuilder parent(MockHttpServletRequestBuilder b) { return b.header("Authorization", PARENT); }

@@ -828,11 +828,18 @@ public class ChatService {
         // B5b: a retry after a lost response — same sender, same thread, same `clientId` — is the message already stored.
         // It is answered as it was, and its echo is sent again to the sender's own sessions only (the other party has
         // it), so a client waiting for the socket ack gets one. A `clientId` longer than any client writes is not kept.
+        // Review: the thread row is locked first, so two retries racing each other run in turn and the second finds the
+        // first's row (V35's unique index is the backstop); and a `clientId` reused for something else — another text or
+        // other files — is refused rather than answered with a message that is not what was sent.
         String dedupe = clientId == null || clientId.isBlank() || clientId.length() > MAX_CLIENT_ID ? null : clientId;
         if (dedupe != null) {
+            threads.lockById(thread.getId());
             var prior = messages.sentAs(thread.getId(), senderId, dedupe);
             if (!prior.isEmpty()) {
-                var dto = dto(prior.getFirst());
+                var original = prior.getFirst();
+                if (!sameSend(original, rawBody, files))
+                    throw ApiException.conflict("client_id_reused", "That clientId was already used for a different message — send this one with a new clientId.");
+                var dto = dto(original);
                 publish(ChatEvent.echo(thread.getSchoolId(), thread.getId(), key(role, senderId), clientId, dto.getId(),
                         json.encodeShared(dto, ChatMessage.Companion.serializer())));
                 return dto;
@@ -991,6 +998,16 @@ public class ChatService {
         String body = cleanOptional(raw);
         if (body.isEmpty()) throw ApiException.badRequest("Write something first.");
         return body;
+    }
+
+    /** B5b: whether a retry says what the stored message says — the same text, cleaned, and the same files in order. */
+    private static boolean sameSend(ChatMessageEntity original, String rawBody, List<String> files) {
+        String body = cleanOptional(rawBody);
+        var wanted = files == null ? List.<String>of()
+                : files.stream().filter(Objects::nonNull).map(String::trim).filter(id -> !id.isEmpty()).distinct().toList();
+        var sent = ChatAttachments.decode(original.getAttachments());
+        var had = sent == null ? List.<String>of() : sent.stream().map(quest.api.dto.ChatAttachment::getId).toList();
+        return body.equals(original.getBody()) && wanted.equals(had);
     }
 
     /** B5: as {@link #clean}, except that nothing at all is allowed — a message that is only files. */

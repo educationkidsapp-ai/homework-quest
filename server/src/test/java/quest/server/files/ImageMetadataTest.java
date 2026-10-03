@@ -61,6 +61,42 @@ public class ImageMetadataTest {
         assertThat(ImageMetadata.strip("%PDF-1.7".getBytes(), "application/pdf")).as("a PDF is not an image").isEqualTo("%PDF-1.7".getBytes());
     }
 
+    /**
+     * Review: everything a camera can hide a picture in — a JFIF thumbnail, a JFXX thumbnail, an EXIF thumbnail (in a
+     * little-endian EXIF), an MPF index and the secondary image it points at — goes; the colour profile stays.
+     */
+    @Test void a_camera_jpeg_loses_every_thumbnail_and_secondary_image() throws Exception {
+        byte[] photo = cameraPhoto();
+        String[] hidden = {"THUMBJFIF", "THUMBJFXX", "THUMBEXIF", "MPF\0", "SECONDARY", "GPS"};
+        assertThat(text(photo)).contains(hidden);
+
+        byte[] clean = ImageMetadata.strip(photo, "image/jpeg");
+
+        assertThat(text(clean)).doesNotContain(hidden).doesNotContain("JFXX").contains("ICC_PROFILE");
+        assertThat(ImageInfo.orientation(clean)).as("read from a little-endian EXIF, written back alone").isEqualTo(8);
+        assertThat(java.util.Arrays.copyOfRange(clean, 2, 20)).as("a JFIF header with a 0 x 0 thumbnail")
+                .containsExactly(0xFF - 256, 0xE0 - 256, 0, 16, 'J', 'F', 'I', 'F', 0, 1, 2, 1, 0, 72, 0, 72, 0, 0);
+        assertThat(ImageIO.read(new ByteArrayInputStream(clean)).getWidth()).isEqualTo(400);
+    }
+
+    /** Review: a PNG or a WebP whose chunk lengths lie, or that ends mid-chunk, is refused rather than stored as it came. */
+    @Test void a_png_or_webp_with_lying_or_truncated_chunks_is_refused() throws Exception {
+        var out = new ByteArrayOutputStream();
+        ImageIO.write(new BufferedImage(20, 10, BufferedImage.TYPE_INT_RGB), "png", out);
+        byte[] png = out.toByteArray();
+        byte[] lying = png.clone(); lying[33] = 0x7F;                                  // the chunk after IHDR claims 2 GB
+        byte[] truncated = java.util.Arrays.copyOf(png, png.length - 6);              // IEND cut short
+        byte[] noEnd = java.util.Arrays.copyOf(png, png.length - 12);                 // no IEND at all
+        for (byte[] bad : new byte[][] {lying, truncated, noEnd})
+            assertThatThrownBy(() -> ImageMetadata.strip(bad, "image/png")).isInstanceOf(ApiException.class);
+
+        byte[] webp = webp();
+        byte[] lyingWebp = webp.clone(); lyingWebp[34] = 0x7F;                       // the EXIF chunk claims more than there is
+        byte[] cutWebp = java.util.Arrays.copyOf(webp, webp.length - 3);             // the XMP chunk ends early
+        for (byte[] bad : new byte[][] {lyingWebp, cutWebp})
+            assertThatThrownBy(() -> ImageMetadata.strip(bad, "image/webp")).isInstanceOf(ApiException.class);
+    }
+
     // ---------------------------------------------------------------- fixtures
 
     /**
@@ -87,6 +123,37 @@ public class ImageMetadataTest {
         dirty.writeBytes(segment(0xFE, "a private comment".getBytes(StandardCharsets.US_ASCII)));
         dirty.write(jpeg, app0, jpeg.length - app0);
         dirty.writeBytes("SECOND-PICTURE with its own GPS".getBytes(StandardCharsets.US_ASCII));
+        return dirty.toByteArray();
+    }
+
+    /**
+     * A camera's JPEG: a JFIF APP0 with a 2 × 2 thumbnail, a JFXX APP0, a little-endian EXIF (orientation 8, an EXIF
+     * thumbnail, a GPS note), an ICC profile, an MPF index, the picture, and the MPF secondary image after it.
+     */
+    private static byte[] cameraPhoto() throws Exception {
+        var out = new ByteArrayOutputStream();
+        ImageIO.write(new BufferedImage(400, 300, BufferedImage.TYPE_INT_RGB), "jpg", out);
+        byte[] jpeg = out.toByteArray();
+        int app0 = 2 + 2 + (((jpeg[4] & 0xFF) << 8) | (jpeg[5] & 0xFF));
+        var dirty = new ByteArrayOutputStream();
+        dirty.write(0xFF); dirty.write(0xD8);
+        var jfif = new ByteArrayOutputStream();
+        jfif.writeBytes(new byte[] {'J', 'F', 'I', 'F', 0, 1, 2, 1, 0, 72, 0, 72, 2, 2});
+        jfif.writeBytes("THUMBJFIF..".getBytes(StandardCharsets.US_ASCII)); jfif.write(0);   // 12 bytes of "RGB"
+        dirty.writeBytes(segment(0xE0, jfif.toByteArray()));
+        dirty.writeBytes(segment(0xE0, "JFXX\0\u0010THUMBJFXX".getBytes(StandardCharsets.ISO_8859_1)));
+        var exif = new ByteArrayOutputStream();
+        exif.writeBytes(new byte[] {'E', 'x', 'i', 'f', 0, 0, 'I', 'I', 0x2A, 0, 8, 0, 0, 0, 2, 0,
+                0x12, 0x01, 3, 0, 1, 0, 0, 0, 8, 0, 0, 0,                                // Orientation 8, little-endian
+                0x01, 0x02, 4, 0, 1, 0, 0, 0, 40, 0, 0, 0,                               // JPEGInterchangeFormat
+                0, 0, 0, 0});
+        exif.writeBytes("THUMBEXIF GPS 51.5N".getBytes(StandardCharsets.US_ASCII));
+        dirty.writeBytes(segment(0xE1, exif.toByteArray()));
+        dirty.writeBytes(segment(0xE2, "ICC_PROFILE\0\u0001\u0001fake-profile".getBytes(StandardCharsets.ISO_8859_1)));
+        dirty.writeBytes(segment(0xE2, "MPF\0MM\0*index-of-the-second-picture".getBytes(StandardCharsets.ISO_8859_1)));
+        dirty.write(jpeg, app0, jpeg.length - app0);
+        dirty.writeBytes(new byte[] {(byte) 0xFF, (byte) 0xD8});
+        dirty.writeBytes("SECONDARY image, its own GPS".getBytes(StandardCharsets.US_ASCII));
         return dirty.toByteArray();
     }
 

@@ -16,8 +16,9 @@ import quest.server.config.ApiException;
  * <ul>
  *   <li><strong>JPEG</strong> — every APP1 (EXIF and XMP), APP13 (IPTC / Photoshop), APP3–APP12 and APP15 segment, every
  *       comment, and anything after the main image's end (a phone's appended depth map or second picture, which carries
- *       an EXIF of its own) go; APP0 (JFIF), APP2's colour profile and APP14 (Adobe colour transform) stay, because
- *       they decide how the pixels look. <strong>Upright without a re-encode:</strong> when the photo was stored on its
+ *       an EXIF of its own) go; APP2's colour profile and APP14 (Adobe colour transform) stay, because they decide how
+ *       the pixels look. APP0 is rewritten: a JFIF header keeps its version and density and loses its thumbnail, and a
+ *       JFXX extension (a thumbnail and nothing else) goes. <strong>Upright without a re-encode:</strong> when the photo was stored on its
  *       side, a new APP1 is written that holds the EXIF orientation and nothing else — every browser and image library
  *       turns the picture by it, exactly as before, and it says nothing about who took it or where.</li>
  *   <li><strong>PNG</strong> — the `eXIf`, `tEXt`, `zTXt`, `iTXt` and `tIME` chunks go; everything after `IEND` too.</li>
@@ -66,7 +67,8 @@ final class ImageMetadata {
             int len = ((b[i + 2] & 0xFF) << 8) | (b[i + 3] & 0xFF);
             if (len < 2 || i + 2 + len > b.length) throw new IllegalArgumentException("segment overruns the file");
             if (!oriented && marker != 0xE0) { out.writeBytes(orientationSegment(orientation)); oriented = true; }
-            if (keep(marker, b, i)) out.write(b, i, 2 + len);
+            if (marker == 0xE0) { if (jfif(b, i, len)) out.writeBytes(minimalJfif(b, i)); }   // JFXX and a JFIF thumbnail go
+            else if (keep(marker, b, i)) out.write(b, i, 2 + len);
             i += 2 + len;
             if (marker == 0xDA) entropy = true;                                      // SOS: its scan data follows
         }
@@ -77,8 +79,21 @@ final class ImageMetadata {
     private static boolean keep(int marker, byte[] b, int i) {
         if (marker == 0xFE) return false;                                             // COM
         if (marker == 0xE2) return startsWith(b, i + 4, "ICC_PROFILE\0");            // APP2: the colour profile, not MPF
-        if (marker == 0xE0 || marker == 0xEE) return true;                            // APP0 JFIF, APP14 Adobe
+        if (marker == 0xEE) return true;                                              // APP14 Adobe
         return marker < 0xE0 || marker > 0xEF;                                         // any other APPn goes
+    }
+
+    /** An APP0 that is JFIF (rather than JFXX, or anything else) and long enough to hold its own header. */
+    private static boolean jfif(byte[] b, int i, int len) { return len >= 16 && startsWith(b, i + 4, "JFIF\0"); }
+
+    /**
+     * B5b review: the JFIF APP0 with its version and pixel density, and a 0 × 0 thumbnail — the thumbnail a camera may put
+     * here is a small copy of the picture as it was before any crop, which is exactly what must not leave the phone.
+     */
+    private static byte[] minimalJfif(byte[] b, int i) {
+        byte[] out = {(byte) 0xFF, (byte) 0xE0, 0, 16, 'J', 'F', 'I', 'F', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        System.arraycopy(b, i + 9, out, 9, 7);                                        // version, units, X and Y density
+        return out;
     }
 
     /** An APP1 `Exif` with one IFD0 entry — Orientation — and nothing else. */

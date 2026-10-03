@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -59,6 +60,14 @@ public interface ChatThreadRepository extends JpaRepository<Entities.ChatThreadE
     @Query("select t from ChatThreadEntity t where (t.teacherId = :staffId or t.peerUserId = :staffId) and t.topic <> 'complaint'"
             + " order by case when t.teacherUnread > 0 or t.parentUnread > 0 then 0 else 1 end, t.lastMessageAt desc")
     List<Entities.ChatThreadEntity> findForStaff(@Param("staffId") String staffId);
+
+    /**
+     * B5b review: the thread row, locked until the send's transaction ends — so two sends naming one `clientId` in one
+     * thread run one after the other, and the second finds the first's row instead of racing it to the unique index.
+     */
+    @Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select t from ChatThreadEntity t where t.id = :id")
+    Optional<Entities.ChatThreadEntity> lockById(@Param("id") String id);
 
     /** Filters do not apply to `em.find`, so the scoped lookup goes through a query (see `ClassRepository.findOneById`). */
     @Query("select t from ChatThreadEntity t where t.id = :id")

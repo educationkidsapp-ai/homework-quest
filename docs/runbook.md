@@ -1689,7 +1689,8 @@ the sender's browser-local id, never an `attachments` row). From B5 a message ca
    breaks and every bidi/format character (`Cf`), so no RTL override can disguise it. **B5b: a chat image is stored
    without its metadata**, whatever the client did (`ImageMetadata`, lossless — nothing is re-encoded): a JPEG loses
    every EXIF/XMP (APP1), IPTC (APP13) and other APPn segment, its comments and anything appended after the image (a
-   phone's second picture), keeping JFIF, the ICC profile and Adobe's colour segment — and a photo stored on its side
+   phone's second picture, an MPF index), keeping the ICC profile and Adobe's colour segment; a JFIF header is rewritten
+   with its density and a 0 × 0 thumbnail, and a JFXX thumbnail goes — and a photo stored on its side
    gets a new EXIF holding the orientation and nothing else, so it stays upright everywhere; a PNG loses `eXIf`, `tEXt`,
    `zTXt`, `iTXt` and `tIME`; a WebP loses `EXIF` and `XMP `. A file whose containers cannot be walked is `400`.
 2. **Send** — `attachmentIds: [id…]` (at most 5) on any `POST …/messages` body or the socket's `message` command. Each must
@@ -1699,7 +1700,10 @@ the sender's browser-local id, never an `attachments` row). From B5 a message ca
    **B5b: a retry is the same message.** A send with the `clientId` this sender already used in this thread (≤ 64
    characters; V35 `chat_messages.client_id`) answers the message stored the first time — `201`, same id, files and all —
    and its `message` frame goes again to the sender's own sessions only, as the ack she missed; nothing new is written or
-   announced. So a send retried after a lost response is never a second message and never `409`. With a file the text may be empty (`body: ""`). The file is bound to that message
+   announced. So a send retried after a lost response is never a second message and never `409`. Two copies of one retry
+   arriving at once are one message too: the thread row is locked (`SELECT … FOR UPDATE`) before the lookup, so they run in
+   turn, and V35's unique index on (thread, sender, `client_id`) is the backstop. A `clientId` reused for **something
+   else** — other text, other files, or none — is `409 client_id_reused`: send it with a new `clientId`. With a file the text may be empty (`body: ""`). The file is bound to that message
    (`attachments.message_id`, V33) and its description written onto the message row (`chat_messages.attachments`), so
    every `ChatMessage` — REST history, `lastMessage`, the `message` frame — carries
    `attachments: [{id, contentType, name, size, width?, height?}]` (the key is absent when there are none). A chat upload
