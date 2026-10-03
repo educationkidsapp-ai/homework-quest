@@ -235,18 +235,16 @@ class ChatWebSocketTest extends ChatTestSupport {
         String teacherThread = frameOfType(parent, "message").get("message").get("threadId").asText();
 
         var teacher = new Frames();
-        connect(sara, true, teacher).sendMessage(new TextMessage("{\"type\":\"typing\",\"childId\":\"" + maya + "\"}"));
-        var fromTeacher = frameOfType(parent, "typing");
+        var fromTeacher = typing(connect(sara, true, teacher), "{\"type\":\"typing\",\"childId\":\"" + maya + "\"}", parent);
         assertThat(fromTeacher.get("threadId").asText()).isEqualTo(teacherThread);
         assertThat(fromTeacher.get("from").asText()).isEqualTo("teacher");
         // and the other way: the parent's typing reaches the teacher
-        parentSession.sendMessage(new TextMessage("{\"type\":\"typing\",\"childId\":\"" + maya + "\",\"teacherId\":\"" + SARA + "\"}"));
-        assertThat(frameOfType(teacher, "typing").get("from").asText()).isEqualTo("parent");
+        assertThat(typing(parentSession, "{\"type\":\"typing\",\"childId\":\"" + maya + "\",\"teacherId\":\"" + SARA + "\"}", teacher)
+                .get("from").asText()).isEqualTo("parent");
 
         String managerToken = manager(prefix() + "manager");
         String managerThread = postThread("/management/chat/threads", managerToken, null, "{\"childId\":\"" + maya + "\"}");
-        connect(managerToken, true, new Frames()).sendMessage(new TextMessage("{\"type\":\"typing\",\"threadId\":\"" + managerThread + "\"}"));
-        var fromManager = frameOfType(parent, "typing");
+        var fromManager = typing(connect(managerToken, true, new Frames()), "{\"type\":\"typing\",\"threadId\":\"" + managerThread + "\"}", parent);
         assertThat(fromManager.toString()).as("the exact frame the app receives")
                 .isEqualTo("{\"type\":\"typing\",\"threadId\":\"" + managerThread + "\",\"from\":\"teacher\"}");
         // the same id the parent's own list names the manager's row by
@@ -255,16 +253,14 @@ class ChatWebSocketTest extends ChatTestSupport {
         // a coordinator of 1A's maths, on the thread the parent opened with her
         String coordinatorId = prefix() + "coordinator", coordinatorToken = coordinator(coordinatorId);
         String coordinatorThread = parentPost("/children/" + maya + "/chat/threads/" + coordinatorId + "/messages", send("A question")).get("threadId").asText();
-        connect(coordinatorToken, true, new Frames()).sendMessage(new TextMessage("{\"type\":\"typing\",\"threadId\":\"" + coordinatorThread + "\"}"));
-        var fromCoordinator = frameOfType(parent, "typing");
+        var fromCoordinator = typing(connect(coordinatorToken, true, new Frames()), "{\"type\":\"typing\",\"threadId\":\"" + coordinatorThread + "\"}", parent);
         assertThat(fromCoordinator.get("threadId").asText()).isEqualTo(coordinatorThread);
         assertThat(fromCoordinator.get("from").asText()).isEqualTo("teacher");
 
         String adminThread = postThread("/admin/chat/threads", adminToken, A, "{\"childId\":\"" + maya + "\"}");
         var admin = new Frames();
         var adminSession = connect(adminToken, true, admin);
-        adminSession.sendMessage(new TextMessage("{\"type\":\"typing\",\"threadId\":\"" + adminThread + "\"}"));
-        var fromAdmin = frameOfType(parent, "typing");
+        var fromAdmin = typing(adminSession, "{\"type\":\"typing\",\"threadId\":\"" + adminThread + "\"}", parent);
         assertThat(fromAdmin.get("threadId").asText()).isEqualTo(adminThread);
         assertThat(fromAdmin.get("from").asText()).isEqualTo("teacher");
         adminSession.sendMessage(new TextMessage("{\"type\":\"message\",\"threadId\":\"" + adminThread + "\",\"body\":\"From the office\",\"clientId\":\"a-1\"}"));
@@ -272,6 +268,23 @@ class ChatWebSocketTest extends ChatTestSupport {
         assertThat(frameOfType(parent, "message").get("message").get("body").asText()).isEqualTo("From the office");
         adminSession.sendMessage(new TextMessage("{\"type\":\"typing\",\"threadId\":\"" + teacherThread + "\"}"));
         assertThat(frameOfType(admin, "error").get("code").asText()).as("a thread she is not on").isEqualTo("not_found");
+    }
+
+    /**
+     * `typing` is droppable by contract — skipped on a socket that still has a frame queued, such as the `presence` the
+     * typist's own connect has just sent the same reader — so the test types until it is seen, as a person does.
+     */
+    private static JsonNode typing(WebSocketSession from, String command, Frames to) throws Exception {
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        for (int attempt = 0; attempt < 10; attempt++) {
+            from.sendMessage(new TextMessage(command));
+            long until = System.currentTimeMillis() + 500;
+            for (String p; (p = to.queue.poll(Math.max(1, until - System.currentTimeMillis()), TimeUnit.MILLISECONDS)) != null; ) {
+                var frame = mapper.readTree(p);
+                if ("typing".equals(frame.get("type").asText())) return frame;
+            }
+        }
+        throw new AssertionError("no typing frame arrived");
     }
 
     private String postThread(String path, String token, String school, String body) throws Exception {
