@@ -111,6 +111,19 @@ public class ExamAttemptService {
     }
 
     /**
+     * B3 (D2): the sitting's paper by stop id — what {@link quest.server.grading.AnswerKey} grades each answer
+     * against — and the stops she has already answered, because the first answer to a question is the answer.
+     */
+    public record Paper(Map<String, Stop> stops, java.util.Set<String> answered) {}
+
+    public Paper paper(ChildEntity child, Sitting sitting) {
+        var stops = quest.server.grading.AnswerKey.index(papers.paperOf(sitting.lesson(), sitting.exam()));
+        var answered = new HashSet<String>();
+        for (var a : attempts.findByChildIdAndLessonIdIn(child.getId(), List.of(sitting.lesson().getId()))) answered.add(a.getStopId());
+        return new Paper(stops, answered);
+    }
+
+    /**
      * The row a sitting starts as, written and flushed at once.
      *
      * <p><strong>The flush is the point.</strong> Two devices can reach {@link #open} for the same child and the

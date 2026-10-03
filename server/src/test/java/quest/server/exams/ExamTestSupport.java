@@ -28,10 +28,18 @@ abstract class ExamTestSupport extends GradingTestSupport {
         return examSettings.save(row);
     }
 
-    /** One attempt on one stop of the exam, as the app would upload it. */
+    /**
+     * One attempt on one stop of the exam, as the app would upload it. B3: the server grades an exam answer itself, so
+     * `correct` picks the answer sent — the fixture's choice stops take `a` — and `stars` is what the app would claim.
+     */
     static String upload(String id, String lessonId, String stopId, boolean correct, int stars) {
+        return answer(id, lessonId, stopId, correct ? "a" : "b", correct, stars);
+    }
+
+    /** The same with the answer named outright — and `correct` / `stars` as a tampered client might claim them. */
+    static String answer(String id, String lessonId, String stopId, String answer, boolean correct, int stars) {
         return "{\"id\":\"" + id + "\",\"stopId\":\"" + stopId + "\",\"lessonId\":\"" + lessonId
-                + "\",\"level\":1,\"answerJson\":\"{}\",\"correct\":" + correct
+                + "\",\"level\":1,\"answerJson\":\"" + answer + "\",\"correct\":" + correct
                 + ",\"attemptNumber\":1,\"mistakes\":0,\"stars\":" + stars + ",\"answeredAt\":" + System.currentTimeMillis() + "}";
     }
 

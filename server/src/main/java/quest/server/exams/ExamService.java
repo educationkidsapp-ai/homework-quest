@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import quest.api.dto.ApiError;
 import quest.api.dto.Stop;
-import quest.api.dto.StopCategory;
 import quest.server.auth.Principals;
 import quest.server.children.ChildRepository;
 import quest.server.children.Entities.ChildEntity;
@@ -296,7 +295,7 @@ public class ExamService {
     public LessonEntity exam(Principals.User caller, String examId) { return requireExam(caller, examId); }
 
     /** Whether one stop of the paper is an open one, for the sheet's per-question table. */
-    public static boolean isOpen(Stop stop) { return stop.getCategory() == StopCategory.OPEN; }
+    public static boolean isOpen(Stop stop) { return quest.server.grading.Scoring.isOpen(stop, true); }
 
     // ---------------------------------------------------------------- rules
 
