@@ -7,7 +7,8 @@ import kotlinx.serialization.Serializable
  * notifications" is the client contract.
  *
  * The app registers its FCM registration token with `POST /me/devices` after the parent signs in (and again whenever
- * Firebase hands it a new one), and takes it back with `DELETE /me/devices/{token}` on sign-out. A token belongs to one
+ * Firebase hands it a new one), and takes it back with `POST /me/devices/unregister {token}` on sign-out — in the body,
+ * never the URL, so no request log ever holds a token. A token belongs to one
  * parent at a time: registering it as somebody else moves it, so a shared phone never shows the previous parent's news.
  */
 @Serializable
@@ -25,6 +26,10 @@ data class RegisterDeviceRequest(
     val appVersion: String? = null,
     val locale: String? = null,
 )
+
+/** `POST /me/devices/unregister` — sign-out. Answers 204, also for a token she does not hold (which is left alone). */
+@Serializable
+data class UnregisterDeviceRequest(val token: String)
 
 /**
  * What one push carries: the FCM **data** map (string → string), the same on every platform. Every push is a row of

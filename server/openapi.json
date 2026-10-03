@@ -7059,6 +7059,15 @@
         "required" : [ "count" ],
         "type" : "object"
       },
+      "UnregisterDeviceRequest" : {
+        "properties" : {
+          "token" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "token" ],
+        "type" : "object"
+      },
       "Unsure" : {
         "properties" : {
           "candidates" : {
@@ -14000,17 +14009,19 @@
         "tags" : [ "Devices" ]
       }
     },
-    "/me/devices/{token}" : {
-      "delete" : {
+    "/me/devices/unregister" : {
+      "post" : {
         "operationId" : "unregisterDevice",
-        "parameters" : [ {
-          "in" : "path",
-          "name" : "token",
-          "required" : true,
-          "schema" : {
-            "type" : "string"
-          }
-        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UnregisterDeviceRequest"
+              }
+            }
+          },
+          "required" : true
+        },
         "responses" : {
           "204" : {
             "description" : "Gone, or never hers"
@@ -17259,14 +17270,14 @@
     "description" : "Cache, usage and calendar",
     "name" : "Admin reports"
   }, {
-    "description" : "The parent's phones for push notifications (Firebase Cloud Messaging)",
-    "name" : "Devices"
-  }, {
     "description" : "Classes, school usage, billing, teachers and platform cost",
     "name" : "Dashboard data"
   }, {
     "description" : "Dashboard sign-in",
     "name" : "Auth"
+  }, {
+    "description" : "The parent's phones for push notifications (Firebase Cloud Messaging)",
+    "name" : "Devices"
   }, {
     "description" : "A teacher's own lessons: create, move, copy, publish and the pipeline",
     "name" : "Teacher lessons"

@@ -41,7 +41,10 @@ public class DeviceService {
             return fresh;
         });
         row.setParentId(parentId); row.setPlatform(request.getPlatform().name()); row.setLocale(locale); row.setAppVersion(version); row.setLastSeenAt(now);
-        devices.saveAndFlush(row);
+        // Two registrations of one new token at the same moment: the loser is a 409 to retry, and never the driver's
+        // message — a unique-key violation names the key's value, which here is the token.
+        try { devices.saveAndFlush(row); }
+        catch (org.springframework.dao.DataIntegrityViolationException raced) { throw ApiException.conflict("This phone is being registered already; try again."); }
         var mine = devices.findByParentIdOrderByLastSeenAtDescIdAsc(parentId);
         if (mine.size() > MAX_DEVICES) devices.deleteAllInBatch(mine.subList(MAX_DEVICES, mine.size()));
     }

@@ -143,7 +143,7 @@ class OpenApiContractTest extends ApiTestSupport {
             "/me/notifications", "/me/notifications/unread-count", "/me/notifications/{id}/read", "/me/notifications/read-all");
 
     /** B4: the parent's phones for push (`quest.api.dto.Push.kt`, `ContentApi.registerDevice`/`unregisterDevice`). */
-    static final List<String> DEVICES_API = List.of("/me/devices", "/me/devices/{token}");
+    static final List<String> DEVICES_API = List.of("/me/devices", "/me/devices/unregister");
 
     /**
      * R2 and R3: the coordinator's read-only area and the Admin routes that create one

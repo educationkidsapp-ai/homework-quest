@@ -8,13 +8,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import quest.api.dto.RegisterDeviceRequest;
+import quest.api.dto.UnregisterDeviceRequest;
 import quest.server.auth.Principals;
 import quest.server.config.ApiException;
 import quest.server.config.Json;
@@ -41,19 +40,25 @@ public class DeviceController {
     @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RegisterDeviceRequest.class)))
     @ApiResponse(responseCode = "204", description = "Registered, or refreshed")
     public void registerDevice(@AuthenticationPrincipal Principals.Parent parent, @RequestBody String body) {
-        devices.register(parent, decode(body));
+        devices.register(parent, decode(body, RegisterDeviceRequest.Companion.serializer()));
     }
 
-    @DeleteMapping(value = "/me/devices/{token}", produces = MediaType.APPLICATION_JSON_VALUE)
+    /**
+     * Sign-out. The token travels in the body, never in the path: Cloud Run's request log and {@code RequestLogging}
+     * record every path, and a token in one would be in the logs for as long as they are kept.
+     */
+    @PostMapping(value = "/me/devices/unregister", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('parent.me.write')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = UnregisterDeviceRequest.class)))
     @ApiResponse(responseCode = "204", description = "Gone, or never hers")
-    public void unregisterDevice(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String token) {
-        devices.unregister(parent, token);
+    public void unregisterDevice(@AuthenticationPrincipal Principals.Parent parent, @RequestBody String body) {
+        devices.unregister(parent, decode(body, UnregisterDeviceRequest.Companion.serializer()).getToken());
     }
 
-    private RegisterDeviceRequest decode(String body) {
-        try { return json.decodeShared(body, RegisterDeviceRequest.Companion.serializer()); }
-        catch (RuntimeException e) { throw ApiException.badRequest("Send {\"token\": \"…\", \"platform\": \"ANDROID\" | \"IOS\"} and, optionally, appVersion and locale."); }
+    /** The body is never echoed back or logged: it carries a token. */
+    private <T> T decode(String body, kotlinx.serialization.KSerializer<T> serializer) {
+        try { return json.decodeShared(body, serializer); }
+        catch (RuntimeException e) { throw ApiException.badRequest("Send {\"token\": \"…\"} — and, to register, \"platform\": \"ANDROID\" | \"IOS\" and, optionally, appVersion and locale."); }
     }
 }

@@ -1,7 +1,6 @@
 package quest.server.push;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -19,7 +18,7 @@ import quest.server.auth.ParentRepository;
 import quest.server.push.PushSender.Outcome;
 
 /**
- * B4: `POST`/`DELETE /me/devices` — upsert by token, a token moving to whoever registered it last, the cap of ten — and
+ * B4: `POST /me/devices` and `POST /me/devices/unregister` — upsert by token, a token moving to whoever registered it last, the cap of ten — and
  * what {@link ParentPush} does with FCM's answers: a dead token is deleted, a transient failure is retried a bounded
  * number of times, and each phone is pushed in its own language.
  */
@@ -52,9 +51,9 @@ class DeviceApiTest extends ApiTestSupport {
         assertThat(again.getLocale()).isEqualTo("en");
         assertThat(again.getLastSeenAt()).isAfter(row.getLastSeenAt());
 
-        mvc.perform(delete("/me/devices/" + token).header("Authorization", PARENT)).andExpect(status().isNoContent());
+        unregister(PARENT, token);
         assertThat(devices.findByToken(token)).isEmpty();
-        mvc.perform(delete("/me/devices/" + token).header("Authorization", PARENT)).andExpect(status().isNoContent());
+        unregister(PARENT, token);
     }
 
     @Test void a_token_belongs_to_whoever_registered_it_last() throws Exception {
@@ -64,7 +63,7 @@ class DeviceApiTest extends ApiTestSupport {
         assertThat(devices.findByToken(token).orElseThrow().getParentId()).as("the phone is hers now").isEqualTo(parentId(OTHER));
         assertThat(devices.findByParentIdOrderByLastSeenAtDescIdAsc(parentId(PARENT))).isEmpty();
 
-        mvc.perform(delete("/me/devices/" + token).header("Authorization", PARENT)).andExpect(status().isNoContent());
+        unregister(PARENT, token);
         assertThat(devices.findByToken(token)).as("the first parent cannot sign the second one's phone out").isPresent();
     }
 
@@ -128,6 +127,11 @@ class DeviceApiTest extends ApiTestSupport {
                 + (locale == null ? "" : ",\"locale\":\"" + locale + "\"") + "}";
         mvc.perform(post("/me/devices").header("Authorization", bearer).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isNoContent());
+    }
+
+    private void unregister(String bearer, String token) throws Exception {
+        mvc.perform(post("/me/devices/unregister").header("Authorization", bearer).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"" + token + "\"}")).andExpect(status().isNoContent());
     }
 
     private String token(String label) { String t = PushProbe.token(label); tokens.add(t); return t; }

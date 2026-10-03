@@ -1780,7 +1780,7 @@ A parent is pushed what was just written for her, on every phone she registered,
 | Route (parent's Firebase token) | Permission | What |
 |---|---|---|
 | `POST /me/devices` `{token, platform: ANDROID\|IOS, appVersion?, locale?}` | `parent.me.write` | **204.** Upsert by token: called after sign-in and whenever Firebase rotates the token. A token another parent registered **moves** to the caller (a shared phone shows only the signed-in parent's news). At most **10** phones per parent; the one seen longest ago is dropped. |
-| `DELETE /me/devices/{token}` | `parent.me.write` | **204**, on sign-out — also for a token she does not hold, which is left alone. |
+| `POST /me/devices/unregister` `{token}` | `parent.me.write` | **204**, on sign-out — also for a token she does not hold, which is left alone. The token is in the body, never the path: request logs (Cloud Run's and `RequestLogging`) record every path. |
 
 Rows live in `parent_devices` (V32): not a tenant table (a parent belongs to no school; her children do), every read
 starts from the parent id in her token, and the rows go with the parent (`ON DELETE CASCADE`, so `SEED_RESET` clears
@@ -1837,11 +1837,11 @@ the child's grade does the same. Without the app, with a token copied from a deb
 ```bash
 curl -X POST "$API/me/devices" -H "Authorization: Bearer $PARENT_ID_TOKEN" -H 'Content-Type: application/json' \
   -d '{"token":"'"$FCM_TOKEN"'","platform":"ANDROID","locale":"en"}'          # 204
-curl -X DELETE "$API/me/devices/$FCM_TOKEN" -H "Authorization: Bearer $PARENT_ID_TOKEN"   # 204
+curl -X POST "$API/me/devices/unregister" -H "Authorization: Bearer $PARENT_ID_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"token":"'"$FCM_TOKEN"'"}'                                                            # 204
 ```
 
-Cloud Run's request log records the path of the `DELETE`, token included; the token can only be used with this project's
-credentials, and the app re-registers a fresh one at the next sign-in.
+No route carries a token in its path, and no log line holds a token or a request body.
 
 **iOS, when the Apple developer account exists.** No server change — the sender already builds an APNs alert (title,
 body, `apns-collapse-id`, `mutable-content`) beside the same data for `platform: IOS`, because iOS does not wake a closed

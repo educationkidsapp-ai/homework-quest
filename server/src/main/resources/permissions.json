@@ -385,7 +385,7 @@
     { "method": "POST", "path": "/me/notifications/{id}/read", "permission": "notifications.write" },
     { "method": "POST", "path": "/me/notifications/read-all", "permission": "notifications.write" },
     { "method": "POST", "path": "/me/devices", "permission": "parent.me.write" },
-    { "method": "DELETE", "path": "/me/devices/{token}", "permission": "parent.me.write" },
+    { "method": "POST", "path": "/me/devices/unregister", "permission": "parent.me.write" },
     { "method": "GET", "path": "/me/broadcasts", "permission": "broadcast.read" },
     { "method": "GET", "path": "/me/weekly-plans", "permission": "broadcast.read" },
     { "method": "POST", "path": "/me/broadcasts/{id}/read", "permission": "broadcast.write" },

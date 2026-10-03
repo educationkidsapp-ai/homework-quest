@@ -2,7 +2,7 @@
 --
 -- One row per Firebase Cloud Messaging registration token. `token` is unique: a phone signed in as a second parent
 -- moves its row to her (`POST /me/devices` upserts by token), so it never shows the first parent's news. A row goes when
--- the app signs out (`DELETE /me/devices/{token}`), when FCM answers that the token is dead (`UNREGISTERED`,
+-- the app signs out (`POST /me/devices/unregister`, the token in the body), when FCM answers that the token is dead (`UNREGISTERED`,
 -- `INVALID_ARGUMENT`), and when the parent registers an eleventh phone — the one seen longest ago is dropped.
 --
 -- Not a tenant table: a parent belongs to no school (her children do), as `parents` itself. Every read starts from

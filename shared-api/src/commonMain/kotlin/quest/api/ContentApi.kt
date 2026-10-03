@@ -194,7 +194,7 @@ interface ContentApi {
     /** `POST /me/devices` — register (or refresh) this phone's FCM token for the signed-in parent; 204. */
     suspend fun registerDevice(request: quest.api.dto.RegisterDeviceRequest) {}
 
-    /** `DELETE /me/devices/{token}` — on sign-out; 204, and 204 again for a token she does not hold. */
+    /** `POST /me/devices/unregister {token}` — on sign-out; 204, and 204 again for a token she does not hold. */
     suspend fun unregisterDevice(token: String) {}
 }
 
