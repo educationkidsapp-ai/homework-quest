@@ -225,7 +225,7 @@ class StopPlayerViewModel(
 
     /**
      * M4 (D8): the window's end, from the same [ExamWindows] the Live Activity reads, judged by the server's clock. The
-     * screen shows it as a time of day; when it has passed, the sitting stops taking answers and ends on the submitted
+     * screen counts down to it (M5); when it has passed, the sitting stops taking answers and ends on the submitted
      * screen. The wait is re-measured against the clock in steps, so a device that slept does not answer late.
      */
     private fun watchWindow() {

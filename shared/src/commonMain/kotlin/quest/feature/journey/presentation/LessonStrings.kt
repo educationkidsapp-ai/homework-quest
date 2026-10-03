@@ -83,8 +83,12 @@ data class LessonStrings(
     val speakExamSubmitted: String = "Your exam has been submitted.",
     // M4 (D4): the result, once the teacher has released it — the formal exam card and its own screen.
     val examMarkedShort: String = "Marked",
-    /** M4 (D8): a time of day, never a countdown. */
+    /** M4 (D8): the time of day the window closes; M5 shows it beside the countdown. */
     val examClosesAt: String = "Closes at {time}",
+    /** M5: the exam sitting's countdown — its label, and what a screen reader is told at 10, 5 and 1 minutes. */
+    val examTimeLeftLabel: String = "Time left",
+    val examAnnounceMinutes: String = "{n} minutes left in this exam.",
+    val examAnnounceOneMinute: String = "1 minute left in this exam.",
     val examSeeResult: String = "See result",
     val examResultTitle: String = "Your result",
     val examResultLine: String = "Marked by your teacher · {band}",
@@ -171,6 +175,9 @@ data class LessonStrings(
             speakExamSubmitted = "تم تسليم اختبارك.",
             examMarkedShort = "تم التصحيح",
             examClosesAt = "يُغلق الساعة {time}",
+            examTimeLeftLabel = "الوقت المتبقي",
+            examAnnounceMinutes = "بقيت {n} دقائق في هذا الاختبار.",
+            examAnnounceOneMinute = "بقيت دقيقة واحدة في هذا الاختبار.",
             examSeeResult = "عرض النتيجة",
             examResultTitle = "نتيجتك",
             examResultLine = "صحّحه معلمك · {band}",
