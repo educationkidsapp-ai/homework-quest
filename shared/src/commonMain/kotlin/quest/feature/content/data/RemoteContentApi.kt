@@ -122,6 +122,16 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
     override suspend fun markBroadcastRead(childId: String, broadcastId: String): BroadcastView =
         call { client.post("$baseUrl/children/$childId/broadcasts/$broadcastId/read") { authed() } }
 
+    // ---- B3: the parent's own notification rows — the same `/me/notifications` routes as the dashboard bell.
+    override suspend fun notifications(unread: Boolean?, limit: Int?): List<quest.api.dto.NotificationView> =
+        call { client.get("$baseUrl/me/notifications") { authed(); unread?.let { parameter("unread", it) }; limit?.let { parameter("limit", it) } } }
+
+    override suspend fun unreadNotificationCount(): quest.api.dto.UnreadCount = call { client.get("$baseUrl/me/notifications/unread-count") { authed() } }
+
+    override suspend fun markNotificationRead(id: String): quest.api.dto.NotificationView = call { client.post("$baseUrl/me/notifications/$id/read") { authed() } }
+
+    override suspend fun markAllNotificationsRead(): quest.api.dto.UnreadCount = call { client.post("$baseUrl/me/notifications/read-all") { authed() } }
+
     // ---- MH1/MH3: the weekly-plan archive and the parent's own account
     override suspend fun childWeeklyPlans(childId: String, from: String?, to: String?): quest.api.dto.WeeklyPlanArchive =
         call {

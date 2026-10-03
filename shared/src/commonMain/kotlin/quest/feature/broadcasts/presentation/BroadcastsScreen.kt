@@ -36,6 +36,11 @@ import quest.api.dto.ApiError
 import quest.api.dto.BroadcastView
 import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatFrame
+import quest.api.dto.NotificationKind
+import quest.api.dto.NotificationView
+import quest.feature.notifications.domain.NotificationTarget
+import quest.feature.notifications.domain.NotificationsRepository
+import quest.feature.notifications.domain.targetOf
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import androidx.lifecycle.Lifecycle
@@ -87,17 +92,23 @@ object BroadcastsContract {
         val errorMessage: String? = null,
         val unread: Int = 0,
         val groups: BroadcastGroups = BroadcastGroups(),
-    ) : MviState
+        /** M4 (D5): her own notification rows about this child — messages, released results, new homework (B3). */
+        val updates: List<NotificationView> = emptyList(),
+    ) : MviState {
+        val isEmpty: Boolean get() = groups.isEmpty && updates.isEmpty()
+    }
 
     sealed interface Intent : MviIntent {
         data object Load : Intent
         data object Refresh : Intent
         /** Tapping a card marks it read (`POST …/read`); the unread styling goes with it. */
         data class Open(val id: String) : Intent
+        /** M4 (D5): a notification row — marked read, then followed to where it points. */
+        data class OpenUpdate(val id: String) : Intent
     }
 
-    /** Nothing here is one-shot: an image attachment is drawn in the card and opened full-screen from there. */
-    sealed interface Effect : MviEffect
+    /** An image attachment is drawn in the card; only a notification row leads somewhere else. */
+    sealed interface Effect : MviEffect { data class Follow(val target: NotificationTarget) : Effect }
 }
 
 class BroadcastsViewModel(
@@ -106,6 +117,7 @@ class BroadcastsViewModel(
     /** M4 (D5): `/ws/chat` — a `notification` frame while the tab is open refreshes the list. */
     frames: Flow<ChatFrame> = emptyFlow(),
     private val badges: ParentBadges? = null,
+    private val notifications: NotificationsRepository? = null,
 ) : MviViewModel<BroadcastsContract.State, BroadcastsContract.Intent, BroadcastsContract.Effect>(BroadcastsContract.State()) {
 
     init {
@@ -117,6 +129,7 @@ class BroadcastsViewModel(
             BroadcastsContract.Intent.Load -> load(refresh = false)
             BroadcastsContract.Intent.Refresh -> load(refresh = true)
             is BroadcastsContract.Intent.Open -> open(intent.id)
+            is BroadcastsContract.Intent.OpenUpdate -> openUpdate(intent.id)
         }
     }
 
@@ -126,7 +139,10 @@ class BroadcastsViewModel(
             reduce { copy(loading = false, refreshing = false, groups = BroadcastGroups()) }
             return
         }
-        reduce { copy(refreshing = refresh, loading = !refresh && groups.isEmpty) }
+        reduce { copy(refreshing = refresh, loading = !refresh && isEmpty) }
+        // Best effort and independent of the feed: an older server without parent rows simply has none.
+        val updates = notifications?.let { repo -> runCatching { repo.rows(child.id) }.getOrNull() } ?: current.updates
+        reduce { copy(updates = updates) }
         try {
             val feed = broadcasts.feed(child.id)
             reduce {
@@ -155,6 +171,15 @@ class BroadcastsViewModel(
      * Marking read is the parent's, not the row's: the server answers with the row it changed, so the list is patched
      * in place rather than refetched — a feed that reordered under her thumb is how a tap lands on the wrong card.
      */
+    private suspend fun openUpdate(id: String) {
+        val row = current.updates.firstOrNull { it.id == id } ?: return
+        if (row.readAt == null) {
+            val updated = notifications?.let { runCatching { it.markRead(id) }.getOrNull() }
+            if (updated != null) { reduce { copy(updates = updates.map { if (it.id == id) updated else it }) }; badges?.refresh() }
+        }
+        effect(BroadcastsContract.Effect.Follow(targetOf(row)))
+    }
+
     private suspend fun open(id: String) {
         val child = children.currentChild.value ?: return
         val updated = runCatching { broadcasts.markRead(child.id, id) }.getOrNull() ?: return
@@ -177,6 +202,8 @@ fun BroadcastsRoute(
     onHome: () -> Unit = onBack,
     onMessages: () -> Unit = {},
     onSettings: () -> Unit = {},
+    onProgress: () -> Unit = {},
+    onChildHome: () -> Unit = {},
 ) {
     val vm: BroadcastsViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -184,11 +211,23 @@ fun BroadcastsRoute(
     // sends it back where it came from rather than leaving the route composed over nothing.
     GateFallback(Flags.ANNOUNCEMENTS, onBack)
     FeatureGate(Flags.ANNOUNCEMENTS) {
-        LaunchedEffect(vm) { vm.dispatch(BroadcastsContract.Intent.Load) }
+        LaunchedEffect(vm) {
+            vm.dispatch(BroadcastsContract.Intent.Load)
+            vm.effects.collect { e ->
+                when (e) {
+                    is BroadcastsContract.Effect.Follow -> when (e.target) {
+                        NotificationTarget.MESSAGES -> onMessages()
+                        NotificationTarget.PROGRESS -> onProgress()
+                        NotificationTarget.CHILD_HOME -> onChildHome()
+                        NotificationTarget.NONE -> Unit
+                    }
+                }
+            }
+        }
         // M4 (D5): back in front with the tab open — what was posted meanwhile is shown without a pull.
         LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.dispatch(BroadcastsContract.Intent.Load) }
         ParentShell(
-            title = { it.announcements },
+            title = { it.notificationsTitle },
             onBack = onBack,
             currentTab = quest.ui.design.DashboardTab.NOTIFICATION,
             onTabSelected = { tab ->
@@ -205,6 +244,7 @@ fun BroadcastsRoute(
                 strings = strings,
                 onRefresh = { vm.dispatch(BroadcastsContract.Intent.Refresh) },
                 onOpen = { vm.dispatch(BroadcastsContract.Intent.Open(it.id)) },
+                onOpenUpdate = { vm.dispatch(BroadcastsContract.Intent.OpenUpdate(it.id)) },
             )
         }
     }
@@ -217,6 +257,7 @@ fun BroadcastsScreen(
     strings: Strings,
     onRefresh: () -> Unit = {},
     onOpen: (BroadcastView) -> Unit = {},
+    onOpenUpdate: (NotificationView) -> Unit = {},
 ) {
     PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
         Column(
@@ -234,16 +275,21 @@ fun BroadcastsScreen(
                 state.notEnabled -> strings.broadcastsDisabled
                 state.childNotPlaced -> strings.childNotPlaced
                 state.errorMessage != null -> strings.somethingWrong
-                state.groups.isEmpty -> strings.noBroadcasts
+                state.isEmpty -> strings.noBroadcasts
                 else -> null
             }
-            if (problem != null) {
+            // Her own rows are shown whatever the feed said; the problem card stands in only when there is nothing at all.
+            if (problem != null && state.updates.isEmpty()) {
                 ParentCard(Modifier.padding(vertical = Dimens.s8)) {
                     Text(problem, style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.inkSoft)
                 }
                 return@Column
             }
 
+            if (state.updates.isNotEmpty()) {
+                SectionTitle(strings.updatesGroup)
+                state.updates.forEach { row -> NotificationRowCard(row, strings) { onOpenUpdate(row) } }
+            }
             BroadcastGroupSection(strings.announcementsGroup, state.groups.announcements, strings, onOpen)
             BroadcastGroupSection(strings.eventsGroup, state.groups.events, strings, onOpen)
             Spacer(Modifier.height(Dimens.s24))
@@ -261,6 +307,34 @@ private fun BroadcastGroupSection(
     if (rows.isEmpty()) return
     SectionTitle(title)
     rows.forEach { row -> BroadcastCard(row, strings) { onOpen(row) } }
+}
+
+/** M4 (D5): one of her notification rows — what it is, what it says, and whether it is new. Tapping follows it. */
+@Composable
+fun NotificationRowCard(row: NotificationView, strings: Strings, onOpen: () -> Unit = {}) {
+    val unread = row.readAt == null
+    val kind = when (row.kind) {
+        NotificationKind.CHAT_MESSAGE -> strings.updateMessage
+        NotificationKind.EXAM_RELEASED -> strings.updateResult
+        NotificationKind.HOMEWORK_PUBLISHED -> strings.updateHomework
+        else -> strings.updateOther
+    }
+    ParentCard(
+        modifier = Modifier.fillMaxWidth().padding(bottom = Dimens.s8)
+            .semantics(mergeDescendants = true) { contentDescription = listOfNotNull(if (unread) strings.newBadge else null, kind, row.title, row.body).joinToString(", ") },
+        onClick = onOpen,
+    ) {
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+            Text(kind, style = MaterialTheme.typography.labelMedium, color = DashboardTokens.inkSoft, modifier = Modifier.weight(1f))
+            if (unread) Chip(strings.newBadge, DashboardTokens.secondarySoft)
+        }
+        Spacer(Modifier.height(Dimens.s4))
+        Text(isolate(row.title), style = MaterialTheme.typography.titleMedium, color = DashboardTokens.ink, fontWeight = if (unread) FontWeight.Bold else FontWeight.Normal)
+        row.body?.takeIf { it.isNotBlank() }?.let {
+            Spacer(Modifier.height(Dimens.s4))
+            Text(isolate(it), style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.ink, maxLines = 3)
+        }
+    }
 }
 
 /**

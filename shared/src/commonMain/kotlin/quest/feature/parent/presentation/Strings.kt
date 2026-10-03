@@ -129,6 +129,13 @@ data class Strings(
     // RM4 (DR4, DR6), split in two by MH3: the Weekly plan page and the Announcements page.
     val weeklyPlan: String = "Weekly plan",
     val announcements: String = "Announcements",
+    // M4 (D5): the Notifications tab — her own rows above the school's announcements and events.
+    val notificationsTitle: String = "Notifications",
+    val updatesGroup: String = "Updates",
+    val updateMessage: String = "Message",
+    val updateResult: String = "Result released",
+    val updateHomework: String = "New homework",
+    val updateOther: String = "Update",
     val thisWeeksPlan: String = "This week's plan",
     val earlierPlans: String = "Earlier weeks",
     /** `{date}` is replaced with the Sunday the plan's week starts on. */
@@ -349,6 +356,12 @@ data class Strings(
             markAsComplaintHintManager = "ستظهر كشكوى مفتوحة في قائمة الشكاوى عند مدير القسم.",
             weeklyPlan = "الخطة الأسبوعية",
             announcements = "الإعلانات",
+            notificationsTitle = "الإشعارات",
+            updatesGroup = "المستجدات",
+            updateMessage = "رسالة",
+            updateResult = "صدرت النتيجة",
+            updateHomework = "واجب جديد",
+            updateOther = "تحديث",
             thisWeeksPlan = "خطة هذا الأسبوع",
             earlierPlans = "أسابيع سابقة",
             weekOf = "أسبوع {date}",

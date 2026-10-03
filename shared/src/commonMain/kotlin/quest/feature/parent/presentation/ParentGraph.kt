@@ -65,6 +65,8 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
             onHome = { nav.navigate(Routes.ParentHome) { popUpTo(Routes.ParentHome) { inclusive = false } } },
             onMessages = { nav.navigate(Routes.ChatThreads) { popUpTo(Routes.ParentHome) { inclusive = false } } },
             onSettings = { nav.navigate(Routes.Settings) { popUpTo(Routes.ParentHome) { inclusive = false } } },
+            onProgress = { nav.navigate(Routes.Progress) },
+            onChildHome = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } },
         )
     }
     // MH3: a detail page reached from Home, like Calendar and Progress — a back arrow and no bottom bar, because the
