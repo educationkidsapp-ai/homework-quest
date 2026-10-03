@@ -1438,6 +1438,20 @@
           "title": "New message",
           "body": "Someone wrote to you. Open the conversation to read it."
         }
+      },
+      "complaint": {
+        "new": {
+          "title": "New complaint",
+          "body": "A parent raised a complaint with you."
+        },
+        "message": {
+          "title": "New message in a complaint",
+          "body": "A parent wrote in a complaint. Open it to reply."
+        },
+        "status": {
+          "title": "Complaint status changed",
+          "body": "A complaint was resolved or reopened."
+        }
       }
     }
   },
@@ -1468,7 +1482,6 @@
     "messagesTitle": "Messages",
     "managementSubtitle": "Parents of your department, your coordinators, and the admin.",
     "management": "Management",
-    "complaint": "Complaint",
     "readOnlyPeer": "You can read this conversation here, but replies are not enabled for your role yet.",
     "coordinatorSubtitle": "Your conversations with parents, and with the managers of your department.",
     "newMessage": "New message",
@@ -2120,34 +2133,7 @@
     "exams": {
       "subtitle": "The exams of one of your classes. You can read them; only the teacher sets and reopens them."
     },
-    "records": "Records",
-    "complaints": {
-      "subtitle": "What parents have raised with you, and what is still open.",
-      "filterLabel": "Filter complaints by status",
-      "open": "Open",
-      "resolved": "Resolved",
-      "resolve": "Mark resolved",
-      "reopen": "Reopen",
-      "resolveTitle": "Mark this complaint resolved?",
-      "resolveBody": "The parent is told it is resolved. You can reopen it afterwards.",
-      "reopenTitle": "Reopen this complaint?",
-      "reopenBody": "It goes back to your open list, and the parent sees it as open again.",
-      "writeFailed": "That did not change. Nothing was saved — try again.",
-      "emptyHint": "A parent raises a complaint from the app, naming you as the coordinator of the subject.",
-      "empty": {
-        "open": "No open complaints.",
-        "resolved": "No resolved complaints yet."
-      },
-      "columns": {
-        "child": "Child",
-        "parent": "From",
-        "className": "Class",
-        "last": "Last message",
-        "action": "Status"
-      },
-      "confirmResolve": "Yes, resolve it",
-      "confirmReopen": "Yes, reopen it"
-    }
+    "records": "Records"
   },
   "management": {
     "count": {
@@ -2431,6 +2417,86 @@
       "subtitle": "The coordinators of the subjects you teach, and the conversations you share.",
       "empty": "No coordinator for your subjects yet",
       "emptyHint": "No coordinator covers a subject you teach. Your department manager can help in the meantime."
+    }
+  },
+  "complaints": {
+    "subtitle": {
+      "staff": "What parents have raised with you, apart from your messages.",
+      "admin": "Every complaint parents have raised at this school. Read-only."
+    },
+    "filterLabel": "Filter complaints by status",
+    "filter": {
+      "open": "Open",
+      "resolved": "Resolved",
+      "all": "All"
+    },
+    "search": "Search complaints",
+    "columns": {
+      "title": "Complaint",
+      "child": "Child",
+      "parent": "From",
+      "recipient": "To",
+      "status": "Status"
+    },
+    "status": {
+      "open": "Open",
+      "resolved": "Resolved"
+    },
+    "role": {
+      "TEACHER": "Teacher",
+      "COORDINATOR": "Coordinator",
+      "MANAGERIAL": "Manager",
+      "ADMIN": "Admin",
+      "PARENT": "Parent"
+    },
+    "unread": "{{count}} new",
+    "empty": {
+      "open": "No open complaints.",
+      "resolved": "No resolved complaints yet.",
+      "all": "No complaints yet."
+    },
+    "emptyHint": "A parent raises a complaint from the app, about one child, to one member of staff.",
+    "noMatch": "No complaint matches that search.",
+    "readFailed": "The complaints could not be loaded.",
+    "back": "All complaints",
+    "from": "from",
+    "to": "to",
+    "conversation": "Conversation",
+    "event": {
+      "resolved": "Resolved by {{name}}",
+      "open": "Reopened by {{name}}"
+    },
+    "sending": "Sending…",
+    "reply": "Reply",
+    "replyPlaceholder": "Write your reply to the parent",
+    "send": "Send reply",
+    "resolve": "Mark resolved",
+    "reopen": "Reopen",
+    "readOnly": {
+      "supervisor": "Only {{name}} replies in this complaint. You can resolve or reopen it.",
+      "admin": "Complaints are read-only here: only the parent and {{name}} write in it."
+    },
+    "confirm": {
+      "resolved": {
+        "title": "Mark this complaint resolved?",
+        "body": "The parent is told it is resolved. It can be reopened afterwards.",
+        "action": "Yes, resolve it"
+      },
+      "open": {
+        "title": "Reopen this complaint?",
+        "body": "It goes back to the open list, and the parent sees it as open again.",
+        "action": "Yes, reopen it"
+      }
+    },
+    "moveFailed": "The status did not change. Nothing was saved — try again.",
+    "sendFailed": "Your reply was not sent. It is back in the box — try again.",
+    "older": "Load older messages",
+    "olderFailed": "The older messages could not be loaded. Try again.",
+    "errors": {
+      "alreadySent": "Not sent: a file on this reply already went with another message. Attach it again to send it.",
+      "tooManyPixels": "Not sent: a picture is too large (over 8192 pixels or 40 megapixels). Attach a smaller one.",
+      "tooBig": "Not sent: a file is too large. Pictures may be up to 5 MB and PDFs up to 10 MB.",
+      "notUploaded": "Not sent: a file could not be uploaded. Remove it and attach it again."
     }
   }
 }

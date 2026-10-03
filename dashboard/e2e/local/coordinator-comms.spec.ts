@@ -1,5 +1,18 @@
+import { mkdir } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { type APIRequestContext, type Page } from '@playwright/test';
-import { COORDINATOR, expect, signIn, teacherClasses, test } from './env';
+import {
+  ADMIN,
+  COORDINATOR,
+  MANAGER,
+  expect,
+  setLanguage,
+  setScheme,
+  shoot,
+  signIn,
+  teacherClasses,
+  test,
+} from './env';
 import {
   api,
   bearer,
@@ -13,28 +26,33 @@ import {
 } from './n4-api';
 
 /**
- * R7's acceptance (`docs/coordinator-flow.md` §5), against the built bundle and a local API on H2
- * started with `SEED_SCHOOL=true`.
+ * R7's acceptance (`docs/coordinator-flow.md` §5), redrawn by D5 on B6's contract, against the
+ * built bundle and a local API on H2 started with `SEED_SCHOOL=true`.
  *
  * **The complaint is real.** Nothing here writes into the database behind the product's back: a
  * fake-auth parent creates a child with 1A British's join code (the app's own path, `n4-api.ts`),
- * asks `GET /children/{id}/coordinators` who supervises the subject, and posts the first message
- * with `{"topic":"complaint"}` — which is the only way a complaint can exist (R4: a parent names
- * it, the staff side never does). Rasha Kamal then sees it in her inbox because the child sits in
- * a section her Math scope covers.
+ * asks `GET /children/{id}/complaints/recipients` whom she may complain to, and opens a complaint
+ * to the subject's coordinator with `POST /children/{id}/complaints` — B6's only way a complaint
+ * can exist. Rasha Kamal then sees it on her **Complaints** page, never in Messages.
  *
  * `chat` and `announcements` are both off in the one-school seed, so this file turns them on and
  * puts them back — `coordinator-area.spec.ts` asserts the flag-off rail (four links) and would
  * fail on a leftover.
  */
 const SECTION = '1A British';
+const TITLE = 'Homework not marked';
+/** The smallest document a PDF reader opens: B5 checks the bytes, not only the name. */
+const MINIMAL_PDF =
+  '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n' +
+  '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n';
+const SHOTS = resolve(process.cwd(), '../docs/screenshots/complaints-pages');
 
 let context: APIRequestContext;
 let schoolId = '';
 let restoreFlags: (() => Promise<void>) | null = null;
 let parent: Parent;
 let childId = '';
-let complaintOpened = false;
+let complaintId = '';
 
 test.beforeAll(async () => {
   context = await api();
@@ -46,7 +64,7 @@ test.beforeAll(async () => {
   );
   expect(section, `Sara should teach Math in ${SECTION} (seed/assignments.csv)`).toBeTruthy();
 
-  parent = parentOf(`hq-r7-${Date.now()}`);
+  parent = parentOf(`hq-d5-${Date.now()}`);
   childId = await createChild(
     context,
     parent,
@@ -54,20 +72,26 @@ test.beforeAll(async () => {
     await joinCodeOf(context, section!.classId),
   );
 
-  // Who may hear a complaint about this child: the coordinators whose scope covers a subject
-  // taught in her section. A complaint has to name one — `complaint` on a teacher's thread is
-  // 400 `complaint_needs_coordinator`.
-  const listed = await context.get(`/children/${childId}/coordinators`, { headers: bearer(parent.token) });
-  expect(listed.ok(), `GET /children/{id}/coordinators: HTTP ${listed.status()}`).toBeTruthy();
-  const rows = (await listed.json()) as { teacherId: string; teacherName: string }[];
-  expect(rows.length, 'the seeded Math coordinator should be reachable from 1A British').toBeGreaterThan(0);
-
-  const posted = await context.post(`/children/${childId}/chat/threads/${rows[0]!.teacherId}/messages`, {
+  // Whom she may complain to about this child: its teachers, the coordinators of its subjects and
+  // the manager of its department (B6). The seeded Math coordinator is the one this file signs in.
+  const listed = await context.get(`/children/${childId}/complaints/recipients`, {
     headers: bearer(parent.token),
-    data: { body: 'Nobody has marked the homework for two weeks.', topic: 'complaint' },
   });
-  expect(posted.ok(), `POST the complaint: HTTP ${posted.status()} ${await posted.text()}`).toBeTruthy();
-  complaintOpened = true;
+  expect(listed.ok(), `GET /children/{id}/complaints/recipients: HTTP ${listed.status()}`).toBeTruthy();
+  const rows = (await listed.json()) as { staffId: string; name: string; peerRole: string }[];
+  const coordinator = rows.find((row) => row.peerRole === 'COORDINATOR' && row.name === 'Rasha Kamal');
+  expect(coordinator, 'the seeded Math coordinator should be reachable from 1A British').toBeTruthy();
+
+  const opened = await context.post(`/children/${childId}/complaints`, {
+    headers: bearer(parent.token),
+    data: {
+      staffId: coordinator!.staffId,
+      title: TITLE,
+      body: 'Nobody has marked the homework for two weeks.',
+    },
+  });
+  expect(opened.ok(), `POST the complaint: HTTP ${opened.status()} ${await opened.text()}`).toBeTruthy();
+  complaintId = ((await opened.json()) as { complaint: { id: string } }).complaint.id;
 });
 
 test.afterAll(async () => {
@@ -86,62 +110,124 @@ async function openCoordinator(page: Page): Promise<void> {
 }
 
 test.describe('the coordinator’s messages, complaints and broadcasts', () => {
-  test('her rail gains the three screens, and the header badge links to Messages', async ({ page }) => {
+  test('her rail has Messages and Complaints apart, and the complaint is not a message', async ({ page }) => {
+    // Her threads are read at sign-in; the assertion below is only worth something once they are.
+    const threads = page.waitForResponse((response) => response.url().includes('/coordinator/chat/threads'));
     await openCoordinator(page);
+    await threads;
+    expect(complaintId).not.toBe('');
 
-    await expect(rail(page).getByRole('link')).toHaveText([
-      'Home',
-      'Teachers',
-      'Classes',
-      'All lessons',
-      'Messages',
-      'Complaints',
-      // RM3b made her Announcements item Broadcasts; MH2 item 5 gave it its name back.
-      'Announcements',
-    ]);
+    await expect(rail(page).getByRole('link', { name: /^Messages/ })).toBeVisible();
+    // The open count rides on the row.
+    await expect(rail(page).getByRole('link', { name: /^Complaints/ })).toContainText('1');
 
-    // The complaint is the first line of "What needs you": the only one she can act on herself.
-    expect(complaintOpened).toBe(true);
-    await expect(page.locator('main')).toContainText('Complaint');
-  });
-
-  test('reads the complaint in the conversation and answers it', async ({ page }) => {
-    await openCoordinator(page);
-    await rail(page).getByRole('link', { name: 'Messages' }).click();
-
+    // B6: no Messages list carries a complaint.
+    await rail(page)
+      .getByRole('link', { name: /^Messages/ })
+      .click();
     await expect(page.getByRole('heading', { level: 1, name: 'Messages' })).toBeVisible();
-    await expect(page.locator('main')).toContainText('R7 Complaint Child');
-    await page.getByText('R7 Complaint Child').first().click();
-    await expect(page.locator('main')).toContainText('Nobody has marked the homework');
-
-    await page.getByPlaceholder('Write a message...').fill('Thank you — I will speak to the teacher today.');
-    await page.getByRole('button', { name: 'Send' }).click();
-    await expect(page.locator('main')).toContainText('I will speak to the teacher today');
+    await expect(page.locator('main').first()).not.toContainText('R7 Complaint Child');
   });
 
-  test('resolves the complaint from the inbox, behind a confirm band', async ({ page }) => {
+  test('answers the complaint in its own conversation, resolves it and reopens it', async ({ page }) => {
+    await mkdir(SHOTS, { recursive: true });
     await openCoordinator(page);
-    await rail(page).getByRole('link', { name: 'Complaints' }).click();
+    await rail(page)
+      .getByRole('link', { name: /^Complaints/ })
+      .click();
 
     const table = page.getByRole('table', { name: 'Complaints' });
+    await expect(table).toContainText(TITLE);
     await expect(table).toContainText('R7 Complaint Child');
     await expect(table).toContainText(SECTION);
-    // No parent name on the contract's thread row, so the From column says whose parent it is.
-    await expect(table).toContainText('Parent of R7 Complaint Child');
+    await shoot(page, `${SHOTS}/01-list-en.png`, table);
 
-    await table.getByRole('button', { name: 'Mark resolved' }).first().click();
+    await table.getByRole('link', { name: TITLE }).click();
+    await expect(page).toHaveURL(new RegExp(`open=${complaintId}`));
+    const stream = page.getByRole('list', { name: 'Conversation' });
+    await expect(stream).toContainText('Nobody has marked the homework');
+
+    await page.getByRole('textbox', { name: 'Reply' }).fill('Thank you — I will speak to the teacher today.');
+    // D4's composer on a complaint (B5): the file uploads on pick and goes with the reply by id.
+    await page.locator('hq-complaint-conversation input[type="file"]').setInputFiles({
+      name: 'marking-plan.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from(MINIMAL_PDF),
+    });
+    const send = page.getByRole('button', { name: 'Send reply' });
+    await expect(send).toBeEnabled();
+    await send.click();
+    await expect(stream).toContainText('I will speak to the teacher today');
+    await expect(stream).toContainText('marking-plan.pdf');
+    await expect(stream).not.toContainText('Sending…');
+
+    await page.getByRole('button', { name: 'Mark resolved' }).click();
     await expect(page.getByText('Mark this complaint resolved?')).toBeVisible();
     await page.getByRole('button', { name: 'Yes, resolve it' }).click();
+    await expect(stream).toContainText('Resolved by Rasha Kamal');
+    await expect(page.getByRole('button', { name: 'Reopen' })).toBeVisible();
+    await shoot(page, `${SHOTS}/02-conversation-en.png`, stream);
 
-    // The list is a filter *on* status, so the row leaves the open tab entirely.
+    await setLanguage(page, 'ar');
+    await setScheme(page, 'dark');
+    await shoot(
+      page,
+      `${SHOTS}/03-conversation-ar-dark.png`,
+      page.locator('hq-complaint-conversation section'),
+    );
+    await setScheme(page, 'light');
+    await setLanguage(page, 'en');
+
+    // Back to the list: it moved tabs, so the open tab is empty and Resolved has it.
+    await page.getByRole('button', { name: 'All complaints' }).click();
     await expect(page.getByText('No open complaints.')).toBeVisible();
-    await page.getByRole('tab', { name: 'Resolved' }).click();
-    await expect(page.getByRole('table', { name: 'Complaints' })).toContainText('R7 Complaint Child');
+    await page.getByRole('tab', { name: /Resolved/ }).click();
+    await expect(page.getByRole('table', { name: 'Complaints' })).toContainText(TITLE);
 
-    // And back, so the file leaves the thread as it found it.
-    await page.getByRole('button', { name: 'Reopen' }).first().click();
+    // And back, so the file leaves the complaint as it found it.
+    await page.getByRole('table', { name: 'Complaints' }).getByRole('link', { name: TITLE }).click();
+    await page.getByRole('button', { name: 'Reopen' }).click();
     await page.getByRole('button', { name: 'Yes, reopen it' }).click();
-    await expect(page.getByText('No resolved complaints yet.')).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Conversation' })).toContainText('Reopened by Rasha Kamal');
+  });
+
+  /**
+   * B6: the department manager reads the complaints addressed to her coordinators — and may move
+   * them — but the reply is the recipient's, so she gets a note where the composer would be.
+   */
+  test('the manager reads it as a supervisor, with no composer', async ({ page }) => {
+    await signIn(page, MANAGER);
+    await page.goto(`management/complaints?open=${complaintId}`);
+    const stream = page.getByRole('list', { name: 'Conversation' });
+    await expect(stream).toContainText('Nobody has marked the homework');
+    await expect(page.getByRole('textbox', { name: 'Reply' })).toHaveCount(0);
+    await expect(page.getByRole('note')).toContainText('Only Rasha Kamal replies in this complaint');
+    await expect(page.getByRole('button', { name: 'Mark resolved' })).toBeVisible();
+    await shoot(page, `${SHOTS}/04-supervisor-en.png`, stream);
+  });
+
+  /**
+   * D5 review: the Admin's support view is read for the one school she is pinned to (D1) — the list,
+   * the complaint and the file on it, which all answer 400/404 without `X-School-Id`.
+   */
+  test('the Admin reads it, file included, with nothing to write', async ({ page }) => {
+    await signIn(page, ADMIN);
+    // Through the rail rather than a cold deep link: her flags are read for the pinned school,
+    // which a cold load has not resolved when the route's flag guard runs (reported separately).
+    await rail(page)
+      .getByRole('link', { name: /^Complaints/ })
+      .click();
+    await page.locator(`hq-table a[href*="open=${complaintId}"]`).click();
+    const stream = page.getByRole('list', { name: 'Conversation' });
+    await expect(stream).toContainText('Nobody has marked the homework');
+    await expect(stream).toContainText('marking-plan.pdf');
+    await expect(page.getByRole('textbox', { name: 'Reply' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Mark resolved' })).toHaveCount(0);
+    const file = page.waitForResponse((response) => response.url().includes('/media/attachments/'));
+    const opened = page.waitForEvent('popup');
+    await stream.getByRole('button', { name: /Open/ }).first().click();
+    expect((await file).status()).toBe(200);
+    await (await opened).close();
   });
 
   /**

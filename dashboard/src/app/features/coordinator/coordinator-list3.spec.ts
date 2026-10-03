@@ -13,7 +13,6 @@ import { SessionStore } from '../../core/auth/session.store';
 import { ChatService } from '../../core/chat/chat.service';
 import { FlagService } from '../../core/flags/flag.service';
 import { ManagementCoordinatorsPage } from '../management/management-coordinators.page';
-import { CoordinatorComplaintsPage } from './coordinator-complaints.page';
 import { CoordinatorLessonsPage, LESSON_STATUS_CHIPS, lessonStatusTone } from './coordinator-lessons.page';
 import { CoordinatorTeachersPage } from './coordinator-teachers.page';
 
@@ -150,37 +149,6 @@ describe('list 3 — message a person, and the lesson statuses', () => {
       expect(TestBed.inject(ChatService).holds('th-new')).toBe(true);
       rendered.fixture.destroy();
     });
-  });
-
-  /** S1 gave the manager the coordinator's pair of routes; the inbox is the same component. */
-  it('a manager reads and resolves her complaints on her own routes', async () => {
-    const { rendered, backend } = await signedIn(CoordinatorComplaintsPage, MANAGERIAL_USER, [
-      'management.complaints',
-    ]);
-    const list = backend.expectOne((request) => request.url === '/management/complaints');
-    expect(list.request.params.get('status')).toBe('open');
-    // B6: the list answers `ComplaintList`.
-    list.flush({
-      complaints: [{ ...THREAD, id: 'th-7', childId: 'ch-1', childName: 'Layla Ahmed', title: 'Homework', status: 'open' }],
-      open: 1,
-      resolved: 0,
-    });
-    await settle();
-    expect(backend.match((request) => request.url.startsWith('/coordinator/'))).toEqual([]);
-
-    // The row opens *her* Messages on that thread.
-    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
-    screen.getByText('Layla Ahmed').click();
-    expect(navigate).toHaveBeenCalledWith(['/management/messages'], { queryParams: { thread: 'th-7' } });
-
-    screen.getByRole('button', { name: 'Mark resolved' }).click();
-    await settle();
-    screen.getByRole('button', { name: 'Yes, resolve it' }).click();
-    await settle();
-    const patch = backend.expectOne('/management/complaints/th-7/status');
-    expect(patch.request.method).toBe('PATCH');
-    expect(patch.request.body).toEqual({ status: 'resolved' });
-    rendered.fixture.destroy();
   });
 
   describe('All lessons — the status chips', () => {

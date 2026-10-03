@@ -156,6 +156,27 @@ describe('MG2a — where a notification sends its reader', () => {
     );
   });
 
+  /**
+   * D5: B6's three complaint kinds open the complaint on the reader's own Complaints page — the
+   * server's link when it is hers, else rebuilt from the entity id — and never Messages.
+   */
+  it('opens a complaint row on the reader own Complaints page', () => {
+    const kinds = [
+      NotificationViewKindEnum.COMPLAINT_NEW,
+      NotificationViewKindEnum.COMPLAINT_MESSAGE,
+      NotificationViewKindEnum.COMPLAINT_STATUS,
+    ];
+    for (const kind of kinds) {
+      const item = row(kind, { link: '/management/complaints?open=c-7', lessonId: 'c-7' });
+      expect(target(item, 'MANAGERIAL')).toBe('/management/complaints?open=c-7');
+      // Written for another area (she changed role, or a role-blind sender): her own page.
+      expect(target(item, 'TEACHER')).toBe('/teacher/complaints?open=c-7');
+      expect(target(item, 'COORDINATOR')).toBe('/coordinator/complaints?open=c-7');
+      expect(target(row(kind, { lessonId: '' }), 'TEACHER')).toBe('/teacher/complaints');
+      expect(target(item, null)).toBe('/notifications');
+    }
+  });
+
   it('falls back to the notifications page before /me has landed', () => {
     expect(target(row(NotificationViewKindEnum.BROADCAST_POSTED, { lessonId: 'b-1' }), null)).toBe(
       '/notifications',
