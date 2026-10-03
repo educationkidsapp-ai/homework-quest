@@ -170,6 +170,13 @@ type StaffSource = 'teacher-managers' | 'teacher-coordinators' | 'coordinator-ma
     .staff-card__footer {
       display: flex;
       justify-content: flex-end;
+      padding-inline-end: 20px;
+      padding-block-end: 20px;
+      margin-inline-end: 20px;
+      margin-bottom: 20px;
+    }
+
+    .staff-card__footer hq-button {
       margin-inline-end: 20px;
       margin-bottom: 20px;
     }

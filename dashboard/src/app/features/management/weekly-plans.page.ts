@@ -106,6 +106,10 @@ interface GlanceCard {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <hq-page [title]="'nav.weeklyPlans' | transloco" [subtitle]="'plans.subtitle' | transloco">
+      <hq-button page-actions *hqCan="'management.broadcast'" (pressed)="add(null)">
+        {{ 'plans.add' | transloco }}
+      </hq-button>
+
       @if (!enabled()) {
         <hq-empty-state
           [message]="'broadcasts.notEnabled' | transloco"
@@ -175,6 +179,7 @@ interface GlanceCard {
         <hq-card [title]="'plans.archive' | transloco">
           <div class="mg-filters">
             <hq-select
+              class="wp-grade-filter"
               [label]="'plans.gradeFilter' | transloco"
               [options]="gradeFilters()"
               [value]="gradeChoice()"
@@ -210,14 +215,6 @@ interface GlanceCard {
           }
         </hq-card>
 
-        <!-- The screen's one primary action. It opens the sheet with this week filled in and the
-             grade left to her, which is the only difference from pressing a card. -->
-        <div page-footer>
-          <hq-button *hqCan="'management.broadcast'" (pressed)="add(null)">
-            {{ 'plans.add' | transloco }}
-          </hq-button>
-        </div>
-
         <hq-plan-compose
           [(open)]="composing"
           [ctx]="ctx()"
@@ -239,6 +236,25 @@ interface GlanceCard {
     </hq-page>
   `,
   styles: `
+    hq-card {
+      display: block;
+      margin-block-end: 20px;
+    }
+
+    .mg-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--hq-space-16);
+      align-items: flex-end;
+      margin-block-end: var(--hq-space-16);
+    }
+
+    .wp-grade-filter,
+    .mg-filters hq-select {
+      display: block;
+      margin-block-end: 20px;
+    }
+
     .wp__glance {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

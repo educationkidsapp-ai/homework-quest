@@ -116,6 +116,11 @@ import { scopeLabel } from './coordinator.labels';
     </hq-page>
   `,
   styles: `
+    hq-select {
+      display: block;
+      margin-block-end: 20px;
+    }
+
     .co-sections {
       display: flex;
       flex-direction: column;

@@ -51,6 +51,12 @@ import { StaffScopeService } from './staff-scope.service';
       }
     </hq-page>
   `,
+  styles: `
+    hq-select {
+      display: block;
+      margin-block-end: 20px;
+    }
+  `,
 })
 export class CoordinatorExamsPage {
   protected readonly co = inject(StaffScopeService);

@@ -70,6 +70,7 @@ import {
 
       @if (view() === 'day') {
         <hq-input
+          class="st-day-input"
           type="date"
           [label]="'management.staff.day' | transloco"
           [value]="day()"
@@ -83,6 +84,7 @@ import {
         } @else {
           @if (reason(); as why) {
             <hq-band
+              class="st-notice-band"
               variant="notice"
               [open]="true"
               [dismissible]="false"
@@ -178,7 +180,6 @@ import {
 
       <div page-footer class="st-footer">
         @if (view() === 'day') {
-          <span class="hq-muted">{{ footerLine() }}</span>
           <hq-button
             [disabled]="!editable() || changed().length === 0 || saving()"
             [loading]="saving()"
@@ -228,6 +229,18 @@ import {
       gap: var(--hq-space-12);
       min-block-size: var(--hq-size-row);
       border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-divider);
+      margin-block-end: 20px;
+    }
+
+    .st-day-input {
+      display: block;
+      margin-block: 15px;
+    }
+
+    .st-notice-band,
+    hq-band {
+      display: block;
+      margin-block: 20px;
     }
 
     .st-roster__who {
@@ -277,9 +290,45 @@ import {
     .st-footer {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: var(--hq-space-16);
+      justify-content: center;
       inline-size: 100%;
+    }
+
+    :host ::ng-deep {
+      .page__footer {
+        background: transparent !important;
+        border-block-start: none !important;
+        justify-content: center !important;
+      }
+
+      .st-day-input .field__label {
+        margin-block: 15px;
+      }
+
+      .tabs--underline {
+        border-block-end: none;
+        gap: var(--hq-space-8);
+      }
+
+      .tabs--underline .tabs__tab {
+        padding: 8px 16px;
+        border-radius: var(--hq-radius-control, 10px);
+        border-block-end: none;
+        margin-block-end: 0;
+        min-block-size: auto;
+        transition: all 0.15s ease;
+
+        &[aria-selected='true'] {
+          background: var(--hq-gradient-brand-fill);
+          color: #ffffff !important;
+          box-shadow: 0 4px 12px -2px color-mix(in srgb, var(--hq-color-brand-500) 35%, transparent);
+
+          .tabs__badge {
+            background: rgba(255, 255, 255, 0.25);
+            color: #ffffff;
+          }
+        }
+      }
     }
   `,
 })

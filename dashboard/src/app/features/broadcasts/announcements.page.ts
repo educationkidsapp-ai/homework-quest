@@ -89,6 +89,12 @@ type Panel = 'received' | 'posted' | 'plans';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <hq-page [title]="'nav.announcements' | transloco" [subtitle]="'announcements.subtitle' | transloco">
+      @if (composer() !== null) {
+        <hq-button page-actions *hqCan="postKey()" (pressed)="composing.set(true)">
+          {{ 'broadcasts.compose' | transloco }}
+        </hq-button>
+      }
+
       @if (!enabled()) {
         <hq-empty-state
           [message]="'broadcasts.notEnabled' | transloco"
@@ -171,12 +177,6 @@ type Panel = 'received' | 'posted' | 'plans';
         }
 
         @if (composer() !== null) {
-          <div page-footer>
-            <hq-button *hqCan="postKey()" (pressed)="composing.set(true)">
-              {{ 'broadcasts.compose' | transloco }}
-            </hq-button>
-          </div>
-
           <hq-broadcast-compose
             [(open)]="composing"
             [ctx]="ctx()"
