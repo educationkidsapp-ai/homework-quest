@@ -27,6 +27,7 @@ final class JourneyUITests: XCTestCase {
 
     func testHotSoupLevelOneCycle() {
         signInIfNeeded()
+        declineLockOfferIfShown()                                    // M6: the simulator has a passcode, so the lock is offered
         tap("Maya", timeout: 20)                                     // the fake API links Maya and Omar to every parent
         tapId("home.lesson.lesson-hot-soup-1", timeout: 20)          // the lesson card opens the overview
         tapId("lesson.cta")                                          // → step 1
@@ -82,6 +83,13 @@ final class JourneyUITests: XCTestCase {
         email.tap(); app.typeText("ios@test.com")
         id("signin.password").tap(); app.typeText("secret12")
         tapId("signin.submit")
+    }
+    /// M2/M6: the one-time offer to lock the app with Face ID or the passcode comes after a sign-in on a device that has either.
+    private func declineLockOfferIfShown() {
+        let notNow = id("lock.offer.decline")
+        guard notNow.waitForExistence(timeout: 5) else { NSLog("JourneyUITests: no lock offer"); return }
+        NSLog("JourneyUITests: lock offer shown, declined")
+        notNow.tap()
     }
     /// Pairs every left tile of the match stop with the right tile that carries the same pair id — by identifier, so neither the
     /// tiles' position nor their wording matters.

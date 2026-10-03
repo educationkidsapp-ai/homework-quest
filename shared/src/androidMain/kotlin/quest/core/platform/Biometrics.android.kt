@@ -1,5 +1,6 @@
 package quest.core.platform
 
+import android.content.Context
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
@@ -18,27 +19,37 @@ import kotlin.coroutines.resume
  */
 object BiometricHost {
     private var activity = WeakReference<FragmentActivity>(null)
-    fun attach(host: FragmentActivity) { activity = WeakReference(host) }
+    /** The application, kept from the first attach: what the device can unlock with does not need an activity. */
+    private var application: Context? = null
+    fun attach(host: FragmentActivity) { activity = WeakReference(host); application = host.applicationContext }
     fun detach(host: FragmentActivity) { if (activity.get() === host) activity.clear() }
     internal fun current(): FragmentActivity? = activity.get()
+    internal fun context(): Context? = activity.get() ?: application
 }
 
 /**
  * `androidx.biometric.BiometricPrompt` with the device PIN, pattern or password as the system's own fallback
- * (`BIOMETRIC_WEAK or DEVICE_CREDENTIAL`, the one combination every supported API level accepts). The lock is offered
- * only where a biometric is enrolled.
+ * (`BIOMETRIC_WEAK or DEVICE_CREDENTIAL`, the one combination every supported API level accepts; on API 26–28 the
+ * library itself shows the screen lock through `KeyguardManager` when no biometric is enrolled). The lock is offered on
+ * every phone that has a screen lock: with a Class 2+ biometric it is named "fingerprint or face", without one it is
+ * "your phone's screen lock".
  */
 actual fun platformBiometricAuthenticator(): BiometricAuthenticator = object : BiometricAuthenticator {
+    override val lockToSetUp = BiometricKind.SCREEN_LOCK
+
     /**
-     * Null while no biometric can be used right now — none enrolled, or the sensor is locked out. That only stops the
-     * lock being offered; an app that is already locked stays locked and [authenticate] falls back to the device
-     * PIN, pattern or password.
+     * [BiometricKind.GENERIC] while a Class 2+ biometric can be used; [BiometricKind.SCREEN_LOCK] when it cannot —
+     * none enrolled, only a Class 1 face unlock (most Samsung, Xiaomi, Oppo and Huawei phones), or the sensor locked
+     * out — but the phone has a PIN, pattern or password; null only on a phone with no screen lock at all.
+     * `canAuthenticate(BIOMETRIC_WEAK or DEVICE_CREDENTIAL)` is "the device is secure" on every API level from 26.
      */
     override fun kind(): BiometricKind? {
-        val host = BiometricHost.current() ?: return null
-        val enrolled = BiometricManager.from(host).canAuthenticate(BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
+        val manager = BiometricManager.from(BiometricHost.context() ?: return null)
         // Android does not say which biometric the owner enrolled, so the copy stays generic there.
-        return if (enrolled) BiometricKind.GENERIC else null
+        return androidLockKind(
+            biometric = manager.canAuthenticate(BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS,
+            secure = manager.canAuthenticate(BIOMETRIC_WEAK or DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS,
+        )
     }
 
     override suspend fun authenticate(reason: String): BiometricResult = withContext(Dispatchers.Main.immediate) {

@@ -15,6 +15,7 @@ import quest.core.platform.BiometricAuthenticator
 import quest.core.platform.BiometricKind
 import quest.core.platform.BiometricResult
 import quest.core.platform.DriverFactory
+import quest.core.platform.androidLockKind
 import quest.feature.lock.data.BiometricPreferencesImpl
 import quest.feature.lock.domain.AppLock
 import quest.feature.lock.domain.AppLock.Stage
@@ -164,6 +165,89 @@ class AppLockTest {
         assertTrue(lock.confirmOwner("Open the parent area"), "confirmed through the passcode fallback")
         authenticator.passcode = false
         assertFalse(lock.confirmOwner("Open the parent area"), "impossible: the PIN is the way in")
+    }
+
+    // ---------------------------------------------------------------- M6: every phone, and accounts signed in before the lock
+
+    @Test fun androidOffersTheBiometricThenTheScreenLockThenNothing() {
+        assertEquals(BiometricKind.GENERIC, androidLockKind(biometric = true, secure = true), "a Class 2+ fingerprint or face")
+        assertEquals(BiometricKind.SCREEN_LOCK, androidLockKind(biometric = false, secure = true), "a Class 1 face unlock, or none: the PIN, pattern or password")
+        assertNull(androidLockKind(biometric = false, secure = false), "no screen lock at all: nothing to offer")
+    }
+
+    @Test fun aPhoneWithOnlyAScreenLockIsOfferedTheScreenLockAndLocksWithIt() = runTest {
+        authenticator.kind = BiometricKind.SCREEN_LOCK
+        lock.signedIn()
+        assertEquals(Stage.OFFER, lock.state.value.stage)
+        assertEquals(BiometricKind.SCREEN_LOCK, lock.state.value.kind)
+        lock.acceptOffer("Unlock")
+        assertTrue(lock.enabled())
+
+        lock.coldStart()
+        assertEquals(Stage.LOCKED, lock.state.value.stage)
+        lock.unlock("Unlock")
+        assertEquals(Stage.UNLOCKED, lock.state.value.stage)
+        assertTrue(lock.confirmOwner("Open the parent area"), "the parent area asks for the same screen lock")
+    }
+
+    @Test fun anIPhoneWithAPasscodeAndNoUsableFaceIdIsOfferedItsPasscode() = runTest {
+        authenticator.kind = BiometricKind.PASSCODE
+        lock.signedIn()
+        assertEquals(Stage.OFFER, lock.state.value.stage)
+        assertEquals(BiometricKind.PASSCODE, lock.state.value.kind)
+        lock.acceptOffer("Unlock")
+        assertTrue(lock.enabled())
+    }
+
+    @Test fun anAccountSignedInBeforeTheLockExistedIsAskedOnTheParentHome() = runTest {
+        authenticator.kind = BiometricKind.SCREEN_LOCK   // the app was updated, not signed in to: signedIn() never ran
+        lock.coldStart()
+        assertEquals(Stage.UNLOCKED, lock.state.value.stage)
+
+        lock.parentHomeOpened()
+        assertEquals(Stage.OFFER, lock.state.value.stage)
+        assertEquals(BiometricKind.SCREEN_LOCK, lock.state.value.kind)
+        lock.declineOffer()
+
+        lock.parentHomeOpened()
+        assertEquals(Stage.UNLOCKED, lock.state.value.stage, "an answer is never asked again")
+    }
+
+    @Test fun theParentHomeAsksOnlyAnAccountThatWasNeverAsked() = runTest {
+        enable()
+        lock.parentHomeOpened()
+        assertEquals(Stage.UNLOCKED, lock.state.value.stage, "on already")
+
+        val fresh = AppLock(Auth("u2"), preferences, FakeAuthenticator(), signOut = {}, elapsed = { clock })
+        fresh.signedIn(); fresh.acceptOffer("Unlock")
+        fresh.coldStart()
+        fresh.parentHomeOpened()
+        assertEquals(Stage.LOCKED, fresh.state.value.stage, "a locked app is never covered by the offer")
+    }
+
+    @Test fun aPhoneWithoutAScreenLockIsAskedOnceItHasOne() = runTest {
+        authenticator.kind = null
+        lock.signedIn()
+        lock.parentHomeOpened()
+        assertEquals(Stage.UNLOCKED, lock.state.value.stage, "nothing to prompt with: no offer")
+        assertNull(lock.available(), "and the Settings row says to set a screen lock")
+
+        authenticator.kind = BiometricKind.SCREEN_LOCK   // she set a PIN in the phone's settings
+        lock.parentHomeOpened()
+        assertEquals(Stage.OFFER, lock.state.value.stage)
+        lock.declineOffer()
+        assertEquals(BiometricChoice.DECLINED, preferences.choice("u1"))
+    }
+
+    @Test fun theOfferIsMadeOncePerLaunchEvenUnanswered() = runTest {
+        lock.parentHomeOpened()
+        assertEquals(Stage.OFFER, lock.state.value.stage)
+        lock.usePassword()                                // the offer is gone without an answer
+        auth.signIn("u1@example.com", "secret")
+        lock.parentHomeOpened()
+        assertEquals(Stage.UNLOCKED, lock.state.value.stage, "not twice in one launch without a sign-in")
+        lock.signedIn()
+        assertEquals(Stage.OFFER, lock.state.value.stage, "a new sign-in is asked afresh")
     }
 
     // ---------------------------------------------------------------- locking

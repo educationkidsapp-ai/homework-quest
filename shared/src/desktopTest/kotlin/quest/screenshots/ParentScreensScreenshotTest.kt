@@ -1,6 +1,7 @@
 package quest.screenshots
 
 import quest.feature.parent.domain.Appearance
+import quest.core.platform.BiometricKind
 import quest.ui.design.LocalDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -404,6 +405,17 @@ class ParentScreensScreenshotTest {
     @Test fun signInDark() = shot("40b-sign-in-dark", dark = true) { s -> SignInScreen(SignInContract.State(email = "parent@example.com"), s, {}) }
     @Test fun childPickerDark() = shot("42d-child-picker-dark", dark = true) { s -> ChildPickerScreen(ChildrenContract.State(loading = false, children = listOf(maya, omar), currentId = "c1"), s) {} }
     @Test fun homeDark() = shot("44c-parent-home-dark", dark = true) { s -> ParentHomeScreen(ParentHomeContract.State(false, listOf(maya, omar), maya, listOf(CalendarDay(today, listOf(Subject.MATH, Subject.ENGLISH), listOf("l1", "l2"), listOf("l2")))), s, {}, {}, {}, {}, {}) }
+    // M6: the lock row on an Android phone without a usable biometric (its screen lock), and on one with no screen
+    // lock; then the iPhone's counterparts — a passcode and no usable Face ID, and no passcode at all. (`settings` above
+    // is desktop: no system prompt, no row.)
+    private fun lockRow(kind: BiometricKind?, toSetUp: BiometricKind, language: String = "en") =
+        SettingsContract.State(false, ParentSettings(language), biometricKind = kind, lockToSetUp = toSetUp)
+    @Test fun settingsScreenLock() = shot("47d-settings-screen-lock") { s -> SettingsScreen(lockRow(BiometricKind.SCREEN_LOCK, BiometricKind.SCREEN_LOCK), s, {}, {}) }
+    @Test fun settingsNoScreenLock() = shot("47e-settings-no-screen-lock") { s -> SettingsScreen(lockRow(null, BiometricKind.SCREEN_LOCK), s, {}, {}) }
+    @Test fun settingsNoScreenLockArabic() = shot("47f-settings-no-screen-lock-ar", Strings.ar) { s -> SettingsScreen(lockRow(null, BiometricKind.SCREEN_LOCK, "ar"), s, {}, {}) }
+    @Test fun settingsPasscode() = shot("47g-settings-ios-passcode") { s -> SettingsScreen(lockRow(BiometricKind.PASSCODE, BiometricKind.PASSCODE), s, {}, {}) }
+    @Test fun settingsNoPasscode() = shot("47h-settings-ios-no-passcode") { s -> SettingsScreen(lockRow(null, BiometricKind.PASSCODE), s, {}, {}) }
+    @Test fun settingsNoPasscodeArabic() = shot("47i-settings-ios-no-passcode-ar", Strings.ar) { s -> SettingsScreen(lockRow(null, BiometricKind.PASSCODE, "ar"), s, {}, {}) }
     @Test fun settingsDark() = shot("47c-settings-dark", dark = true) { s -> SettingsScreen(SettingsContract.State(false, ParentSettings("en"), Appearance.DARK, phone = "+971501234567", phoneKnown = true), s, {}, {}) }
     @Test fun newMessageComplaintDark() = shot("57d-new-message-complaint-dark", dark = true) { s -> CoordinatorPickerScreen(newMessageState(true), s, {}) }
     @Test fun weeklyPlanPdfDark() = shot("56e-weekly-plan-pdf-dark", dark = true) { s ->

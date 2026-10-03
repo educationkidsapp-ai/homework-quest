@@ -11,19 +11,22 @@ import platform.LocalAuthentication.LAPolicyDeviceOwnerAuthenticationWithBiometr
 import kotlin.coroutines.resume
 
 /**
- * Face ID / Touch ID through `LAContext`. Availability is asked of the *biometric* policy, so the lock is offered only
- * on a device that has one enrolled; the prompt itself uses the device-owner policy, which is the same sheet with the
- * device passcode as its fallback.
+ * Face ID / Touch ID through `LAContext`, the device passcode as the system's own fallback. The *biometric* policy
+ * decides how the lock is named; the device-owner policy — the same sheet, passcode included — decides whether it can
+ * be offered at all, so an iPhone with a passcode and no usable Face ID is offered its passcode (M6).
  */
 actual fun platformBiometricAuthenticator(): BiometricAuthenticator = object : BiometricAuthenticator {
+    override val lockToSetUp = BiometricKind.PASSCODE
+
     /**
-     * Null while a biometric cannot be used *at this moment* — none enrolled, locked out after failed attempts, or
-     * switched off for this app in Settings. That only stops the lock being offered; an app that is already locked
-     * stays locked and [authenticate] falls back to the passcode.
+     * Face ID / Touch ID while usable; [BiometricKind.PASSCODE] while it is not — none enrolled, locked out after
+     * failed attempts, or switched off for this app in Settings — but a passcode is set; null with no passcode.
      */
     override fun kind(): BiometricKind? {
         val context = LAContext()
-        if (!context.canEvaluatePolicy(LAPolicyDeviceOwnerAuthenticationWithBiometrics, error = null)) return null
+        if (!context.canEvaluatePolicy(LAPolicyDeviceOwnerAuthenticationWithBiometrics, error = null)) {
+            return if (context.canEvaluatePolicy(LAPolicyDeviceOwnerAuthentication, error = null)) BiometricKind.PASSCODE else null
+        }
         return when (context.biometryType) {
             LABiometryTypeFaceID -> BiometricKind.FACE
             LABiometryTypeTouchID -> BiometricKind.FINGERPRINT
