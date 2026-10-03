@@ -136,6 +136,17 @@ class OpenApiContractTest extends ApiTestSupport {
             "/children/{id}/managers");
 
     /**
+     * B6: complaints as their own conversations (`quest.api.dto.Complaints.kt`) — the parent's, the teacher's and
+     * support's here; the coordinator's and the manager's with the rest of their areas. Behind the `chat` flag.
+     */
+    static final List<String> COMPLAINTS_API = List.of(
+            "/children/{id}/complaints", "/children/{id}/complaints/recipients", "/children/{id}/complaints/{complaintId}",
+            "/children/{id}/complaints/{complaintId}/messages", "/children/{id}/complaints/{complaintId}/read",
+            "/children/{id}/complaints/{complaintId}/status",
+            "/teacher/complaints", "/teacher/complaints/{id}", "/teacher/complaints/{id}/messages", "/teacher/complaints/{id}/read",
+            "/teacher/complaints/{id}/status", "/admin/complaints", "/admin/complaints/{id}");
+
+    /**
      * E2: the dashboard bell (`quest.api.dto.Notifications.kt`, D26). Not behind a flag and not behind a role
      * beyond the three dashboard ones — every signed-in dashboard user has a bell, and the rows are her own.
      */
@@ -167,7 +178,8 @@ class OpenApiContractTest extends ApiTestSupport {
             "/coordinator/lessons/{id}/results", "/coordinator/children/{id}",
             "/coordinator/classes/{id}/exams", "/coordinator/exams/{id}/results",
             "/coordinator/chat/threads", "/coordinator/chat/threads/{id}/messages", "/coordinator/chat/threads/{id}/read",
-            "/coordinator/chat/threads/{id}/status", "/coordinator/complaints", "/coordinator/managers",
+            "/coordinator/complaints", "/coordinator/complaints/{id}", "/coordinator/complaints/{id}/messages",
+            "/coordinator/complaints/{id}/read", "/coordinator/complaints/{id}/status", "/coordinator/managers",
             "/coordinator/announcements", "/coordinator/broadcasts",
             "/admin/coordinators", "/admin/coordinators/{id}",
             "/admin/coordinators/{id}/reset-password", "/admin/coordinators/{id}/scopes");
@@ -211,8 +223,9 @@ class OpenApiContractTest extends ApiTestSupport {
             "/management/chat/threads", "/management/chat/threads/{id}/messages",
             "/management/chat/threads/{id}/read", "/management/admins",
             "/management/weekly-plans", "/me/weekly-plans", "/children/{id}/weekly-plans",
-            // S1: the manager's Complaints inbox and its status write, and the school logo's two writes.
-            "/management/complaints", "/management/chat/threads/{id}/status", "/admin/schools/{id}/logo");
+            // S1: the school logo's two writes; B6: the manager's Complaints page.
+            "/admin/schools/{id}/logo", "/management/complaints", "/management/complaints/{id}", "/management/complaints/{id}/messages",
+            "/management/complaints/{id}/read", "/management/complaints/{id}/status");
 
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */
     static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings",
@@ -230,6 +243,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(EXAMS_API);
         assertThat(paths).containsAll(CLASSES_API);
         assertThat(paths).containsAll(CHAT_API);
+        assertThat(paths).containsAll(COMPLAINTS_API);
         assertThat(paths).containsAll(NOTIFICATIONS_API);
         assertThat(paths).containsAll(DEVICES_API);
         assertThat(paths).containsAll(COORDINATOR_API);

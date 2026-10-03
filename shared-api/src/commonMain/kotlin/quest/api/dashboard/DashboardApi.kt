@@ -1049,11 +1049,29 @@ interface DashboardApi {
     /** S1 `POST /coordinator/chat/threads` — exactly one of a manager of her department and a teacher of her subjects. */
     suspend fun createCoordinatorChatThread(managerUserId: String? = null, teacherUserId: String? = null): quest.api.dto.ChatThread
 
-    /** S1 `GET /management/complaints?status=` — the `complaint` threads parents opened with her. */
-    suspend fun managementComplaints(status: String? = null): List<quest.api.dto.ChatThread>
+    /**
+     * B6 `GET /{area}/complaints?status=open|resolved|all` — the Complaints page of a teacher (addressed to her), a
+     * coordinator (addressed to her, and those to the teachers of her subjects in her sections), a manager (addressed
+     * to her, and those to the teachers and coordinators of her department) or, read-only, the Admin (the whole school
+     * named by `X-School-Id`). Replaces S1's `managementComplaints`, which answered `ChatThread` rows.
+     */
+    suspend fun complaints(area: quest.api.dto.ComplaintArea, status: String? = null): quest.api.dto.ComplaintList
 
-    /** S1 `PATCH /management/chat/threads/{id}/status` — `open` or `resolved`, as the coordinator's. */
-    suspend fun setManagementThreadStatus(threadId: String, status: String): quest.api.dto.ChatThread
+    /** B6 `GET /{area}/complaints/{id}?before=&since=&limit=` — the complaint, a page of messages, every status change. */
+    suspend fun complaint(area: quest.api.dto.ComplaintArea, complaintId: String, before: String? = null, since: String? = null,
+                          limit: Int? = null): quest.api.dto.ComplaintDetail
+
+    /** B6 `POST /{area}/complaints/{id}/messages` — the recipient's reply (403 for a supervisor: [quest.api.dto.Complaint.canReply]). */
+    suspend fun sendComplaintMessage(area: quest.api.dto.ComplaintArea, complaintId: String, request: quest.api.dto.SendChatMessageRequest): quest.api.dto.ChatMessage
+
+    /** B6 `POST /{area}/complaints/{id}/read` — the recipient read it (403 for a supervisor). */
+    suspend fun markComplaintRead(area: quest.api.dto.ComplaintArea, complaintId: String): quest.api.dto.ChatReadReceipt
+
+    /**
+     * B6 `PATCH /{area}/complaints/{id}/status` — `resolved` or `open` (reopen), by the recipient or a supervisor in
+     * scope. Replaces S1's `setManagementThreadStatus` and R4's `PATCH /coordinator/chat/threads/{id}/status`.
+     */
+    suspend fun setComplaintStatus(area: quest.api.dto.ComplaintArea, complaintId: String, status: quest.api.dto.ChatThreadStatus): quest.api.dto.Complaint
 
     /** S1 `PUT /admin/schools/{id}/logo` — one JPEG, PNG or WebP of at most 1 MB as multipart `file`. */
     suspend fun uploadSchoolLogo(schoolId: String, file: quest.api.UploadFile): SchoolLogo

@@ -43,18 +43,18 @@ public class RosterService {
     private final quest.server.teacher.TeacherQuestionAnswerRepository answers; private final quest.server.files.FileStore files;
     private final quest.server.chat.ChatThreadRepository chatThreads; private final quest.server.chat.ChatMessageRepository chatMessages;
     private final quest.server.auth.ParentRepository parents;
-    private final quest.server.auth.ParentAccounts accounts;
+    private final quest.server.auth.ParentAccounts accounts; private final quest.server.chat.ComplaintEventRepository complaintEvents;
 
     public RosterService(ChildRepository children, TeacherScope scope, RosterImport reader, AuditService audit,
                          quest.server.children.ChildMediaRepository media,
                          quest.server.teacher.TeacherQuestionAnswerRepository answers, quest.server.files.FileStore files,
                          quest.server.chat.ChatThreadRepository chatThreads, quest.server.chat.ChatMessageRepository chatMessages,
                          quest.server.auth.ParentRepository parents,
-                         quest.server.auth.ParentAccounts accounts) {
+                         quest.server.auth.ParentAccounts accounts, quest.server.chat.ComplaintEventRepository complaintEvents) {
         this.children = children; this.scope = scope; this.reader = reader; this.audit = audit;
         this.media = media; this.answers = answers; this.files = files;
         this.chatThreads = chatThreads; this.chatMessages = chatMessages; this.parents = parents;
-        this.accounts = accounts;
+        this.accounts = accounts; this.complaintEvents = complaintEvents;
     }
 
     /**
@@ -234,7 +234,9 @@ public class RosterService {
         for (var m : media.findByChildId(child.getId())) delete(m.getStoragePath());
         answers.deleteAll(answers.findByChildIdOrderByAnsweredAtDesc(child.getId()));
         var threadIds = chatThreads.findByChildIdOrderByLastMessageAtDesc(child.getId()).stream().map(quest.server.chat.Entities.ChatThreadEntity::getId).toList();
-        if (!threadIds.isEmpty()) { chatMessages.deleteByThreads(threadIds); chatThreads.deleteByChild(child.getId()); }
+        if (!threadIds.isEmpty()) {
+            chatMessages.deleteByThreads(threadIds); complaintEvents.deleteByThreads(threadIds); chatThreads.deleteByChild(child.getId());
+        }
         children.delete(child);
         audit.record(caller.userId(), "child.delete", "child", child.getId(), child.getSchoolId(), Map.of("name", child.getName()));
     }

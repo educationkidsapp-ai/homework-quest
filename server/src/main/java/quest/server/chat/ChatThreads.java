@@ -20,15 +20,15 @@ public class ChatThreads {
     public ChatThreads(ChatThreadRepository threads, Clock clock) { this.threads = threads; this.clock = clock; }
 
     /**
-     * The parent's thread with one staff member. {@code staffRole} says which kind she is and {@code topic} is read
-     * only here, on the row that is being created: a parent marks a conversation a complaint when she opens it, and a
-     * later message cannot re-label one the coordinator has already worked on.
+     * The parent's Messages thread with one staff member; {@code staffRole} says which kind she is. B6: always a
+     * `question` — a complaint is never this row but one of its own ({@link ComplaintService#create}), so the unique
+     * (child, staff, `''`) index V34 keeps is what makes two first messages one thread.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public Entities.ChatThreadEntity getOrCreate(ChildEntity child, String staffId, String staffRole, String topic) {
+    public Entities.ChatThreadEntity getOrCreate(ChildEntity child, String staffId, String staffRole) {
         var existing = threads.findByChildIdAndTeacherId(child.getId(), staffId);
         if (existing.isPresent()) return existing.get();
-        var t = row(child.getSchoolId(), staffId, staffRole, topic);
+        var t = row(child.getSchoolId(), staffId, staffRole, ChatService.QUESTION);
         t.setChildId(child.getId());
         try { return threads.saveAndFlush(t); }
         catch (DataIntegrityViolationException raced) { return threads.findByChildIdAndTeacherId(child.getId(), staffId).orElseThrow(() -> raced); }
@@ -36,7 +36,7 @@ public class ChatThreads {
 
     /**
      * R4: a staff-to-staff thread — no child, and the pair de-duplicated by `chat_threads_staff_pair` the way the
-     * parent's is by `chat_threads_child_teacher`. The **subordinate** is always the `teacherId` side, so whichever
+     * parent's is by `chat_threads_child_staff_key` (V34). The **subordinate** is always the `teacherId` side, so whichever
      * of the two writes first gets one row.
      */
     public Entities.ChatThreadEntity getOrCreateStaff(String schoolId, String subordinateId, String supervisorId) {

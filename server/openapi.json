@@ -1524,6 +1524,162 @@
         } ],
         "required" : [ "correctOptionId", "hint", "id", "ingredient", "left", "numberLine", "options", "parentTip", "right", "speak", "title", "type" ]
       },
+      "Complaint" : {
+        "properties" : {
+          "canReply" : {
+            "type" : "boolean"
+          },
+          "childId" : {
+            "type" : "string"
+          },
+          "childName" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "lastMessage" : {
+            "$ref" : "#/components/schemas/ChatMessage"
+          },
+          "parentName" : {
+            "type" : "string"
+          },
+          "recipientId" : {
+            "type" : "string"
+          },
+          "recipientName" : {
+            "type" : "string"
+          },
+          "recipientRole" : {
+            "enum" : [ "TEACHER", "COORDINATOR", "MANAGERIAL", "ADMIN", "PARENT" ],
+            "type" : "string"
+          },
+          "resolvedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "resolvedByName" : {
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "open", "resolved" ],
+            "type" : "string"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "unread" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "canReply", "childId", "childName", "createdAt", "id", "recipientId", "recipientName", "recipientRole", "status", "title", "unread" ],
+        "type" : "object"
+      },
+      "ComplaintDetail" : {
+        "properties" : {
+          "complaint" : {
+            "$ref" : "#/components/schemas/Complaint"
+          },
+          "events" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ComplaintEvent"
+            },
+            "type" : "array"
+          },
+          "messages" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ChatMessage"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "complaint", "events", "messages" ],
+        "type" : "object"
+      },
+      "ComplaintEvent" : {
+        "properties" : {
+          "at" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "by" : {
+            "enum" : [ "parent", "staff" ],
+            "type" : "string"
+          },
+          "byId" : {
+            "type" : "string"
+          },
+          "byName" : {
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "open", "resolved" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "at", "by", "byId", "byName", "status" ],
+        "type" : "object"
+      },
+      "ComplaintList" : {
+        "properties" : {
+          "complaints" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Complaint"
+            },
+            "type" : "array"
+          },
+          "open" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "resolved" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "complaints", "open", "resolved" ],
+        "type" : "object"
+      },
+      "ComplaintRecipient" : {
+        "properties" : {
+          "name" : {
+            "type" : "string"
+          },
+          "peerRole" : {
+            "enum" : [ "TEACHER", "COORDINATOR", "MANAGERIAL", "ADMIN", "PARENT" ],
+            "type" : "string"
+          },
+          "staffId" : {
+            "type" : "string"
+          },
+          "subject" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "name", "peerRole", "staffId" ],
+        "type" : "object"
+      },
+      "ComplaintStatusRequest" : {
+        "properties" : {
+          "status" : {
+            "enum" : [ "open", "resolved" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "status" ],
+        "type" : "object"
+      },
       "CoordinatorAccount" : {
         "properties" : {
           "email" : {
@@ -1922,6 +2078,30 @@
           }
         },
         "required" : [ "curriculum", "subject" ],
+        "type" : "object"
+      },
+      "CreateComplaintRequest" : {
+        "properties" : {
+          "attachmentIds" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "body" : {
+            "type" : "string"
+          },
+          "clientId" : {
+            "type" : "string"
+          },
+          "staffId" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "attachmentIds", "body", "staffId", "title" ],
         "type" : "object"
       },
       "CreateCoordinatorRequest" : {
@@ -4161,7 +4341,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status" ],
+            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message" ],
             "type" : "string"
           },
           "lessonId" : {
@@ -7021,16 +7201,6 @@
         "required" : [ "dishName", "potEmoji", "potName", "servedText" ],
         "type" : "object"
       },
-      "ThreadStatusRequest" : {
-        "properties" : {
-          "status" : {
-            "minLength" : 1,
-            "type" : "string"
-          }
-        },
-        "required" : [ "status" ],
-        "type" : "object"
-      },
       "Tile" : {
         "properties" : {
           "id" : {
@@ -8720,6 +8890,80 @@
           }
         },
         "tags" : [ "Classes" ]
+      }
+    },
+    "/admin/complaints" : {
+      "get" : {
+        "operationId" : "supportComplaints",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ComplaintList"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Complaints" ]
+      }
+    },
+    "/admin/complaints/{id}" : {
+      "get" : {
+        "operationId" : "supportComplaint",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "before",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "since",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ComplaintDetail"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Complaints" ]
       }
     },
     "/admin/coordinators" : {
@@ -11723,6 +11967,276 @@
         "tags" : [ "Chat" ]
       }
     },
+    "/children/{id}/complaints" : {
+      "get" : {
+        "operationId" : "parentComplaints",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ComplaintList"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Complaints" ]
+      },
+      "post" : {
+        "operationId" : "parentCreateComplaint",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateComplaintRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ComplaintDetail"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Complaints" ]
+      }
+    },
+    "/children/{id}/complaints/recipients" : {
+      "get" : {
+        "operationId" : "parentComplaintRecipients",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ComplaintRecipient"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Complaints" ]
+      }
+    },
+    "/children/{id}/complaints/{complaintId}" : {
+      "get" : {
+        "operationId" : "parentComplaint",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "complaintId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "before",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "since",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ComplaintDetail"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Complaints" ]
+      }
+    },
+    "/children/{id}/complaints/{complaintId}/messages" : {
+      "post" : {
+        "operationId" : "parentSendComplaintMessage",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "complaintId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SendChatMessageRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatMessage"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Complaints" ]
+      }
+    },
+    "/children/{id}/complaints/{complaintId}/read" : {
+      "post" : {
+        "operationId" : "parentMarkComplaintRead",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "complaintId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatReadReceipt"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Complaints" ]
+      }
+    },
+    "/children/{id}/complaints/{complaintId}/status" : {
+      "patch" : {
+        "operationId" : "parentComplaintStatus",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "complaintId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ComplaintStatusRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Complaint"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Complaints" ]
+      }
+    },
     "/children/{id}/coordinators" : {
       "get" : {
         "operationId" : "parentCoordinators",
@@ -12350,42 +12864,6 @@
         "tags" : [ "Coordinator chat" ]
       }
     },
-    "/coordinator/chat/threads/{id}/status" : {
-      "patch" : {
-        "operationId" : "coordinatorThreadStatus",
-        "parameters" : [ {
-          "in" : "path",
-          "name" : "id",
-          "required" : true,
-          "schema" : {
-            "type" : "string"
-          }
-        } ],
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/ThreadStatusRequest"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ChatThread"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [ "Coordinator chat" ]
-      }
-    },
     "/coordinator/children/{id}" : {
       "get" : {
         "operationId" : "coordinatorChild",
@@ -12561,10 +13039,153 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "items" : {
-                    "$ref" : "#/components/schemas/ChatThread"
-                  },
-                  "type" : "array"
+                  "$ref" : "#/components/schemas/ComplaintList"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator chat" ]
+      }
+    },
+    "/coordinator/complaints/{id}" : {
+      "get" : {
+        "operationId" : "coordinatorComplaint",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "before",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "since",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ComplaintDetail"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator chat" ]
+      }
+    },
+    "/coordinator/complaints/{id}/messages" : {
+      "post" : {
+        "operationId" : "coordinatorSendComplaintMessage",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SendChatMessageRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatMessage"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Coordinator chat" ]
+      }
+    },
+    "/coordinator/complaints/{id}/read" : {
+      "post" : {
+        "operationId" : "coordinatorMarkComplaintRead",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatReadReceipt"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Coordinator chat" ]
+      }
+    },
+    "/coordinator/complaints/{id}/status" : {
+      "patch" : {
+        "operationId" : "coordinatorComplaintStatus",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ComplaintStatusRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Complaint"
                 }
               }
             },
@@ -13179,42 +13800,6 @@
         "tags" : [ "Management chat" ]
       }
     },
-    "/management/chat/threads/{id}/status" : {
-      "patch" : {
-        "operationId" : "managementThreadStatus",
-        "parameters" : [ {
-          "in" : "path",
-          "name" : "id",
-          "required" : true,
-          "schema" : {
-            "type" : "string"
-          }
-        } ],
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/ThreadStatusRequest"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ChatThread"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [ "Management chat" ]
-      }
-    },
     "/management/children/{id}" : {
       "get" : {
         "operationId" : "managementChild",
@@ -13390,10 +13975,153 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "items" : {
-                    "$ref" : "#/components/schemas/ChatThread"
-                  },
-                  "type" : "array"
+                  "$ref" : "#/components/schemas/ComplaintList"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management chat" ]
+      }
+    },
+    "/management/complaints/{id}" : {
+      "get" : {
+        "operationId" : "managementComplaint",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "before",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "since",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ComplaintDetail"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management chat" ]
+      }
+    },
+    "/management/complaints/{id}/messages" : {
+      "post" : {
+        "operationId" : "managementSendComplaintMessage",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SendChatMessageRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatMessage"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Management chat" ]
+      }
+    },
+    "/management/complaints/{id}/read" : {
+      "post" : {
+        "operationId" : "managementMarkComplaintRead",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatReadReceipt"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Management chat" ]
+      }
+    },
+    "/management/complaints/{id}/status" : {
+      "patch" : {
+        "operationId" : "managementComplaintStatus",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ComplaintStatusRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Complaint"
                 }
               }
             },
@@ -15635,6 +16363,178 @@
         "tags" : [ "Teacher" ]
       }
     },
+    "/teacher/complaints" : {
+      "get" : {
+        "operationId" : "teacherComplaints",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ComplaintList"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Complaints" ]
+      }
+    },
+    "/teacher/complaints/{id}" : {
+      "get" : {
+        "operationId" : "teacherComplaint",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "before",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "since",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ComplaintDetail"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Complaints" ]
+      }
+    },
+    "/teacher/complaints/{id}/messages" : {
+      "post" : {
+        "operationId" : "teacherSendComplaintMessage",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SendChatMessageRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatMessage"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Complaints" ]
+      }
+    },
+    "/teacher/complaints/{id}/read" : {
+      "post" : {
+        "operationId" : "teacherMarkComplaintRead",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatReadReceipt"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Complaints" ]
+      }
+    },
+    "/teacher/complaints/{id}/status" : {
+      "patch" : {
+        "operationId" : "teacherComplaintStatus",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ComplaintStatusRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Complaint"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Complaints" ]
+      }
+    },
     "/teacher/coordinators" : {
       "get" : {
         "operationId" : "teacherCoordinators",
@@ -17383,6 +18283,9 @@
   }, {
     "description" : "The dashboard bell and the parent app's notifications: the caller's own rows, unread count and read marks",
     "name" : "Notifications"
+  }, {
+    "description" : "Complaints as their own conversations: the parent's, the teacher's and support's",
+    "name" : "Complaints"
   }, {
     "description" : "The teacher's attendance, gradebook and exam numbers, read through a coordinator's scope",
     "name" : "Coordinator results"

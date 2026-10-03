@@ -44,11 +44,15 @@ enum class ChatPeerRole {
     @SerialName("ADMIN") ADMIN, @SerialName("PARENT") PARENT,
 }
 
-/** What the parent opened a thread about. A `complaint` is what the coordinator's Complaints inbox lists (DR3). */
+/**
+ * What the parent opened a thread about. B6: a Messages thread is always `question` — complaints are their own
+ * conversations ([Complaint], `/children/{id}/complaints`) and no Messages list carries one any more. `complaint` stays
+ * on the wire for the rows written before B6, which the Complaints routes serve as they are.
+ */
 @Serializable
 enum class ChatTopic { @SerialName("question") QUESTION, @SerialName("complaint") COMPLAINT }
 
-/** Where a thread stands. Only the staff side moves it, and it is the complaint inbox's filter. */
+/** Where a complaint stands ([Complaint.status]); a Messages thread is always `open`. */
 @Serializable
 enum class ChatThreadStatus { @SerialName("open") OPEN, @SerialName("resolved") RESOLVED }
 
@@ -149,9 +153,10 @@ data class ChatThread(
 )
 
 /**
- * `POST …/messages`. [clientId] is the client's own id for the send; it comes back in the socket's echo. [topic] is
- * read only while the thread is being created by this very message (R4) — a parent marks a conversation a complaint
- * when she opens it, and a later send cannot re-label a thread the coordinator has already worked on.
+ * `POST …/messages`. [clientId] is the client's own id for the send; it comes back in the socket's echo. B6: [topic]
+ * `complaint` is refused with `400 complaint_moved` — a complaint is opened with `POST /children/{id}/complaints`, never
+ * by marking a Messages thread; `question` (or absent) is the only value a send takes. The same request is a reply in
+ * a complaint (`POST …/complaints/{id}/messages`), where [topic] is ignored.
  */
 @Serializable
 data class SendChatMessageRequest(
@@ -184,8 +189,8 @@ data class ChatReadReceipt(val threadId: String, val readBy: ChatSender, val rea
  * - [Presence]: T1 — somebody who shares a thread with the caller came online or went offline. It is fanned out on
  *   connect and disconnect, so a manager who signs out (or whose tab crashed and missed the heartbeat) stops showing
  *   as "Live" within about a minute rather than forever.
- * - [Status]: R4 — the staff side moved a thread between `open` and `resolved`. Both parties receive it, so the
- *   parent's app can show that her complaint was answered without refetching the list.
+ * - [Status]: R4 — a complaint moved between `open` and `resolved` ([Status.threadId] is the complaint's id). B6: the
+ *   parent and the recipient both receive it, whoever moved it (the recipient, a supervisor, or the parent reopening).
  * - [Ping]: sent every 30 s; answer with a `pong` command (any command counts) or the session is closed as idle
  *   after 10 minutes without one.
  * - [Pong]: the reply to a client `ping`.

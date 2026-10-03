@@ -3,8 +3,14 @@ import { rxResource } from '@angular/core/rxjs-interop';
 import { DatePipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { catchError, of, tap } from 'rxjs';
-import { type ChatThread, ChatThreadStatusEnum, CoordinatorChatApi, ManagementChatApi } from '../../api';
+import { catchError, map, of, tap } from 'rxjs';
+import {
+  type Complaint,
+  ChatThreadStatusEnum,
+  ComplaintStatusRequestStatusEnum,
+  CoordinatorChatApi,
+  ManagementChatApi,
+} from '../../api';
 import { StaffAreaService } from '../../core/auth/staff-area';
 import { ChatService } from '../../core/chat/chat.service';
 import { FeatureDirective } from '../../core/flags/feature.directive';
@@ -25,21 +31,19 @@ import { CoordinatorReadFailedComponent } from './read-failed.component';
 type StatusFilter = 'open' | 'resolved';
 
 /**
- * The complaints inbox (R7, DR3): the `complaint` threads she is the staff peer of.
+ * The complaints inbox (R7, DR3), on B6's routes: `GET /<area>/complaints?status=` (a
+ * `ComplaintList`, of which this screen draws `complaints`) and
+ * `PATCH /<area>/complaints/{id}/status`. Since B6 a complaint is its own conversation rather
+ * than a Messages thread with a label; the screen that opens and answers one is the B6 dashboard
+ * package's, and until it lands a row still links to the Messages screen.
  *
- * DR3 keeps a complaint **in the conversation it arrived in** rather than in a store of its own,
- * so this screen is a filter over `GET /coordinator/complaints` and every row opens the same
- * thread the Messages screen shows. That is why it carries `chat` and not N5.2's `complaints`
- * flag: there is no complaint record here to gate, only chat threads wearing a label.
+ * The one thing she may write in the whole of `/coordinator/**` is a complaint's status, and it is
+ * the only reason this screen has a confirm band. Resolving is visible to the parent (the server
+ * sends both parties a `status` frame), so it is worth one question first.
  *
- * The one thing she may write in the whole of `/coordinator/**` is a thread's status, and it is
- * the only reason this screen has a confirm band. Resolving is visible to the parent (R4 sends
- * both parties a `status` frame), so it is worth one question first.
- *
- * **One component, two areas** (D2, list 3): S1 gave the department manager the same pair —
- * `GET /management/complaints?status=` and `PATCH /management/chat/threads/{id}/status` — for the
- * threads a parent marks as a complaint to *her*. The role picks the routes and the Messages
- * screen a row opens; everything drawn is the same.
+ * **One component, two areas** (D2, list 3): the department manager has the same pair under
+ * `/management/complaints`. The role picks the routes and the screen a row opens; everything
+ * drawn is the same.
  */
 @Component({
   selector: 'hq-coordinator-complaints-page',
@@ -156,10 +160,13 @@ export class CoordinatorComplaintsPage {
   protected readonly pending = signal<ComplaintRow | null>(null);
   protected readonly writeFailed = signal(false);
 
-  protected readonly threads = rxResource<ChatThread[], StatusFilter>({
+  /** B6: the lists answer `ComplaintList`; this screen keeps drawing its rows until the B6 dashboard package redraws it. */
+  protected readonly threads = rxResource<Complaint[], StatusFilter>({
     params: () => this.status(),
     stream: ({ params }) =>
-      this.manager() ? this.management.managementComplaints(params) : this.api.coordinatorComplaints(params),
+      (this.manager() ? this.management.managementComplaints(params) : this.api.coordinatorComplaints(params)).pipe(
+        map((list) => list.complaints),
+      ),
     defaultValue: [],
   });
 
@@ -206,11 +213,11 @@ export class CoordinatorComplaintsPage {
       this.threads
         .value()
         .map((thread) => ({
-          threadId: thread.id ?? '',
+          threadId: thread.id,
           childName: thread.childName,
           className: thread.className ?? '',
           lastAt: thread.lastMessage?.createdAt ?? null,
-          resolved: (live.get(thread.id ?? '') ?? thread.status) === ChatThreadStatusEnum.RESOLVED,
+          resolved: (live.get(thread.id) ?? thread.status) === ChatThreadStatusEnum.RESOLVED,
         }))
         // The list is a filter *on* status, so a row the socket has moved has to leave the tab it
         // no longer belongs to — not merely change the word in its last column.
@@ -243,16 +250,16 @@ export class CoordinatorComplaintsPage {
   }
 
   /**
-   * `PATCH /<area>/chat/threads/{id}/status`, then reload rather than patch the row in place:
+   * `PATCH /<area>/complaints/{id}/status` (B6), then reload rather than patch the row in place:
    * the list is a filter *on* status, so a resolved thread has to leave the open tab entirely and
    * a row that merely changed its badge would sit in a tab that no longer describes it.
    */
   protected commit(row: ComplaintRow): void {
     this.pending.set(null);
-    const body = { status: row.resolved ? 'open' : 'resolved' };
+    const body = { status: row.resolved ? ComplaintStatusRequestStatusEnum.OPEN : ComplaintStatusRequestStatusEnum.RESOLVED };
     (this.manager()
-      ? this.management.managementThreadStatus(row.threadId, body)
-      : this.api.coordinatorThreadStatus(row.threadId, body)
+      ? this.management.managementComplaintStatus(row.threadId, body)
+      : this.api.coordinatorComplaintStatus(row.threadId, body)
     )
       .pipe(
         tap(() => this.threads.reload()),

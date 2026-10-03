@@ -79,11 +79,29 @@ enum class NotificationKind {
      */
     @SerialName("question.sent") QUESTION_SENT,
     /**
-     * B4 (parents only): a coordinator or a manager marked one of her threads resolved, or opened it again —
-     * [NotificationView.title] says which. [NotificationView.lessonId] is the **thread's** id and
-     * [NotificationView.link] the thread (`/children/{childId}/chat/{staffId}`). One row per change.
+     * B4: a coordinator or a manager marked one of her threads resolved, or opened it again — [NotificationView.title]
+     * says which. One row per real change, and [NotificationView.lessonId] is the **complaint's** id.
+     *
+     * B6: complaints are their own conversations ([Complaint]). A parent's row is written when a staff member resolves
+     * or reopens her complaint, linked to `/children/{childId}/complaints/{complaintId}`; since B6 a **dashboard** user
+     * has one too — the recipient, when the parent reopens it or a supervisor moves it — linked to her own Complaints
+     * page (`/teacher/complaints?open={id}`, `/coordinator/…`, `/management/…`).
      */
     @SerialName("complaint.status") COMPLAINT_STATUS,
+    /**
+     * B6 (dashboard only): a parent opened a complaint addressed to this user. [NotificationView.title] is "New
+     * complaint from &lt;parent&gt;", [NotificationView.body] the complaint's title, [NotificationView.lessonId] the
+     * complaint's id and [NotificationView.link] her Complaints page opened on it (`/{area}/complaints?open={id}`).
+     */
+    @SerialName("complaint.new") COMPLAINT_NEW,
+    /**
+     * B6: a message landed in a complaint — the staff recipient's reply on the parent's row (with
+     * [NotificationView.childId], linked to `/children/{childId}/complaints/{complaintId}`, and pushed), the parent's
+     * on the recipient's (linked to `/{area}/complaints?open={id}`). T1's throttle applies: at most one unread row per
+     * complaint per recipient, refreshed by later messages and marked read when she reads the complaint.
+     * [NotificationView.lessonId] is the complaint's id. A `chat.message` is never written for a complaint.
+     */
+    @SerialName("complaint.message") COMPLAINT_MESSAGE,
 }
 
 /**

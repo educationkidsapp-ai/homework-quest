@@ -2,7 +2,7 @@ import { Injectable, computed, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { catchError, map, of } from 'rxjs';
 import {
-  type ChatThread,
+  type Complaint,
   type CoordinatorTeacher,
   AdminLessonStatusEnum,
   CoordinatorApi,
@@ -255,10 +255,15 @@ export class StaffScopeService {
    * `GET /management/chat/threads` and this package reads none of it — `core/chat/*` and
    * `features/chat/*` are RM3b's to wire.
    */
-  private readonly complaintsRes = rxResource<readonly ChatThread[], boolean>({
+  private readonly complaintsRes = rxResource<readonly Complaint[], boolean>({
     params: () => this.readsComplaints(),
     stream: ({ params: mine }) =>
-      mine ? this.chatApi.coordinatorComplaints('open').pipe(catchError(() => of([]))) : of([]),
+      mine
+        ? this.chatApi.coordinatorComplaints('open').pipe(
+            map((list) => list.complaints),
+            catchError(() => of([])),
+          )
+        : of([]),
     defaultValue: [],
   });
 

@@ -91,8 +91,11 @@ class ManagerScopeArchitectureTest {
             "POST /management/chat/threads",
             "POST /management/chat/threads/{id}/messages",
             "POST /management/chat/threads/{id}/read",
-            // S1: `open`/`resolved` on a complaint a parent opened with her — a `chat_threads` row that is hers.
-            "PATCH /management/chat/threads/{id}/status");
+            // B6: her Complaints page — a reply and a read on a complaint addressed to her, and `resolved`/`open` on one
+            // addressed to her or to a teacher or coordinator of her department. `chat_threads` rows, nothing a teacher owns.
+            "POST /management/complaints/{id}/messages",
+            "POST /management/complaints/{id}/read",
+            "PATCH /management/complaints/{id}/status");
 
     @Test void the_management_namespace_writes_only_what_rm2_added() {
         var writes = new ArrayList<String>();

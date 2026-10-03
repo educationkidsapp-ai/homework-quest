@@ -74,7 +74,7 @@ describe('the coordinator comms screens', () => {
 
   it('asks before it resolves a complaint, and reloads the list it filters', async () => {
     const { backend } = await signedIn(CoordinatorComplaintsPage);
-    backend.expectOne('/coordinator/complaints?status=open').flush([COMPLAINT]);
+    backend.expectOne('/coordinator/complaints?status=open').flush({ complaints: [COMPLAINT], open: 1, resolved: 0 });
     await settle();
 
     expect(screen.getByText('Layla Ahmed')).toBeTruthy();
@@ -85,19 +85,19 @@ describe('the coordinator comms screens', () => {
     await settle();
     // The band first: resolving is visible to the parent, so it is worth one question.
     expect(screen.getByText('Mark this complaint resolved?')).toBeTruthy();
-    expect(backend.match('/coordinator/chat/threads/th-7/status')).toEqual([]);
+    expect(backend.match('/coordinator/complaints/th-7/status')).toEqual([]);
 
     screen.getByRole('button', { name: 'Yes, resolve it' }).click();
     await settle();
 
-    const patch = backend.expectOne('/coordinator/chat/threads/th-7/status');
+    const patch = backend.expectOne('/coordinator/complaints/th-7/status');
     expect(patch.request.method).toBe('PATCH');
     expect(patch.request.body).toEqual({ status: 'resolved' });
     patch.flush({ ...COMPLAINT, status: 'resolved' });
     await settle();
 
     // The list *is* a status filter, so the row has to leave the open tab: refetch, not repaint.
-    backend.expectOne('/coordinator/complaints?status=open').flush([]);
+    backend.expectOne('/coordinator/complaints?status=open').flush({ complaints: [], open: 0, resolved: 1 });
     await settle();
     expect(screen.getByText('No open complaints.')).toBeTruthy();
   });
@@ -109,7 +109,7 @@ describe('the coordinator comms screens', () => {
    */
   it('lets go of a row the status frame resolved, with no second request', async () => {
     const { backend } = await signedIn(CoordinatorComplaintsPage);
-    backend.expectOne('/coordinator/complaints?status=open').flush([COMPLAINT]);
+    backend.expectOne('/coordinator/complaints?status=open').flush({ complaints: [COMPLAINT], open: 1, resolved: 0 });
     await settle();
     expect(screen.getByText('Layla Ahmed')).toBeTruthy();
 

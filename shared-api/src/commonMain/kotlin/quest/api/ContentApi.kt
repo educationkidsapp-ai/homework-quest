@@ -134,10 +134,43 @@ interface ContentApi {
 
     /**
      * `GET /children/{id}/managers` — RM2 (DR5): the manager of the department her child's section is in, as thread
-     * rows, so she can write to her about the school, the child or a coordinator. `topic = complaint` is allowed on
-     * this thread as it is on a coordinator's. Behind the `chat` flag.
+     * rows, so she can write to her about the school, the child or a coordinator. B6: a complaint to her is opened
+     * with [createComplaint], not on this thread. Behind the `chat` flag.
      */
     suspend fun childManagers(childId: String): List<ChatThread> = throw NotImplementedError("childManagers needs a backend")
+
+    // ---------------------------------------------------------------- B6: complaints, apart from Messages
+
+    /**
+     * B6 `GET /children/{id}/complaints?status=open|resolved|all` — her complaints about this child (default `all`),
+     * with the open and resolved counts whatever the filter. Behind the `chat` flag. See `quest.api.dto.Complaints.kt`.
+     */
+    suspend fun complaints(childId: String, status: String? = null): quest.api.dto.ComplaintList =
+        throw NotImplementedError("complaints needs a backend")
+
+    /** B6 `GET /children/{id}/complaints/recipients` — the teachers, coordinators and manager she may complain to. */
+    suspend fun complaintRecipients(childId: String): List<quest.api.dto.ComplaintRecipient> =
+        throw NotImplementedError("complaintRecipients needs a backend")
+
+    /** B6 `POST /children/{id}/complaints` — a new complaint, its own conversation; answers it with its first message. */
+    suspend fun createComplaint(childId: String, request: quest.api.dto.CreateComplaintRequest): quest.api.dto.ComplaintDetail =
+        throw NotImplementedError("createComplaint needs a backend")
+
+    /** B6 `GET /children/{id}/complaints/{complaintId}?before=&since=&limit=` — the complaint, a page of messages, every status change. */
+    suspend fun complaint(childId: String, complaintId: String, before: String? = null, since: String? = null, limit: Int? = null): quest.api.dto.ComplaintDetail =
+        throw NotImplementedError("complaint needs a backend")
+
+    /** B6 `POST /children/{id}/complaints/{complaintId}/messages` — her reply; a resolved complaint stays resolved until she reopens it. */
+    suspend fun sendComplaintMessage(childId: String, complaintId: String, request: SendChatMessageRequest): ChatMessage =
+        throw NotImplementedError("sendComplaintMessage needs a backend")
+
+    /** B6 `POST /children/{id}/complaints/{complaintId}/read` — everything the staff member wrote in it is read. */
+    suspend fun markComplaintRead(childId: String, complaintId: String): ChatReadReceipt =
+        throw NotImplementedError("markComplaintRead needs a backend")
+
+    /** B6 `PATCH /children/{id}/complaints/{complaintId}/status {"status":"open"}` — she reopens it (`resolved` is 403 for her). */
+    suspend fun reopenComplaint(childId: String, complaintId: String): quest.api.dto.Complaint =
+        throw NotImplementedError("reopenComplaint needs a backend")
 
     /**
      * MH1 `GET /parent/me` — her own account: the address she signed in with and the mobile number the school has for

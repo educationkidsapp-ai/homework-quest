@@ -124,7 +124,7 @@ public class ChatService {
         var child = placed(parent, childId);
         var assignments = scope.assignmentsOn(child.getClassId());
         var teacherIds = assignments.stream().map(TeachingAssignmentEntity::getTeacherId).distinct().toList();
-        var byStaff = byId(threads.findByChildIdOrderByLastMessageAtDesc(childId), ChatThreadEntity::getTeacherId);
+        var byStaff = byId(threads.findMessageThreadsOf(childId), ChatThreadEntity::getTeacherId);
         var staffThreads = byStaff.values().stream().filter(t -> !ROLE_TEACHER.equals(t.getStaffRole())).toList();
         var lookup = new ArrayList<>(teacherIds);
         staffThreads.forEach(t -> lookup.add(t.getTeacherId()));
@@ -165,7 +165,7 @@ public class ChatService {
         var child = placed(parent, childId);
         var section = classes.findOneById(child.getClassId()).orElse(null);
         if (section == null) return List.of();
-        var byStaff = byId(threads.findByChildIdOrderByLastMessageAtDesc(childId), ChatThreadEntity::getTeacherId);
+        var byStaff = byId(threads.findMessageThreadsOf(childId), ChatThreadEntity::getTeacherId);
         var last = lastMessages(byStaff.values());
         String parentName = parentNames(List.of(child)).get(child.getId());
         var rows = new ArrayList<ChatThread>();
@@ -189,7 +189,7 @@ public class ChatService {
         var child = placed(parent, childId);
         var section = classes.findOneById(child.getClassId()).orElse(null);
         if (section == null) return List.of();
-        var byStaff = byId(threads.findByChildIdOrderByLastMessageAtDesc(childId), ChatThreadEntity::getTeacherId);
+        var byStaff = byId(threads.findMessageThreadsOf(childId), ChatThreadEntity::getTeacherId);
         var last = lastMessages(byStaff.values());
         String parentName = parentNames(List.of(child)).get(child.getId());
         var rows = new ArrayList<ChatThread>();
@@ -208,19 +208,18 @@ public class ChatService {
         return threads.findByChildIdAndTeacherId(childId, staffId).map(t -> page(t.getId(), before, since, limit)).orElse(List.of());
     }
 
+    /**
+     * B6: a Messages send is never a complaint. `topic: complaint` — what S1 used to turn this thread into one — is
+     * refused with `400 complaint_moved`, so an app that has not learnt the Complaints page fails loudly rather than
+     * filing a complaint as an ordinary message nobody's Complaints page will show.
+     */
     @Transactional
     public ChatMessage parentSend(Principals.Parent parent, String childId, String staffId, String body, List<String> files, String clientId, ChatTopic topic) {
+        if (topic == ChatTopic.COMPLAINT) throw new ApiException(HttpStatus.BAD_REQUEST, quest.api.dto.ApiError.COMPLAINT_MOVED,
+                "Complaints have their own page now: open one with POST /children/{id}/complaints.");
         var child = placed(parent, childId);
         String staffRole = requireStaffOf(child, staffId);
-        var thread = threadRows.getOrCreate(child, staffId, staffRole, topic == null ? QUESTION : key(topic));
-        // S1 (owner's list): a complaint may go to a teacher, a coordinator or a manager, and one thread per pair
-        // means it often lands on a conversation that already exists — which then becomes an open complaint. Never
-        // the other way: a `question` cannot take a complaint out of somebody's inbox.
-        if (topic == ChatTopic.COMPLAINT && !(COMPLAINT.equals(thread.getTopic()) && OPEN.equals(thread.getStatus()))) {
-            thread.setTopic(COMPLAINT); thread.setStatus(OPEN); thread.setResolvedAt(null); thread.setResolvedBy(null);
-            thread = threads.save(thread);
-        }
-        return send(thread, child.getParentId(), PARENT, parent.parentId(), body, files, clientId);
+        return send(threadRows.getOrCreate(child, staffId, staffRole), child.getParentId(), PARENT, parent.parentId(), body, files, clientId);
     }
 
     @Transactional
@@ -264,7 +263,7 @@ public class ChatService {
     @Transactional
     public ChatMessage teacherSend(Principals.User caller, String childId, String body, List<String> files, String clientId) {
         var teacher = TeacherScope.require(caller); var child = childOf(teacher, childId);
-        return send(threadRows.getOrCreate(child, teacher.userId(), ROLE_TEACHER, QUESTION), child.getParentId(), TEACHER, teacher.userId(), body, files, clientId);
+        return send(threadRows.getOrCreate(child, teacher.userId(), ROLE_TEACHER), child.getParentId(), TEACHER, teacher.userId(), body, files, clientId);
     }
 
     @Transactional
@@ -392,7 +391,7 @@ public class ChatService {
     /** One staff thread of hers: 404 for another school's (the filter), another person's, or another department's. */
     private ChatThreadEntity ownTeacherThread(Principals.User me, String threadId) {
         requireOn(tenant.writeSchoolId());
-        var t = threads.findOneById(threadId).orElseThrow(() -> ApiException.notFound("thread"));
+        var t = messageThread(threadId);
         if (!staffThreadOf(t, me.userId(), supervisorsOf(me))) throw ApiException.notFound("thread");
         return t;
     }
@@ -401,7 +400,7 @@ public class ChatService {
 
     public List<ChatThread> supportThreads() {
         String schoolId = requireSchool(); requireOn(schoolId);
-        var all = threads.findAllByOrderByLastMessageAtDesc();
+        var all = threads.findMessageThreads();
         var kids = byId(children.findAllById(all.stream().map(ChatThreadEntity::getChildId).filter(Objects::nonNull).distinct().toList()), ChildEntity::getId);
         var teachers = byId(users.findAllById(all.stream().map(ChatThreadEntity::getTeacherId).distinct().toList()), UserEntity::getId);
         var sections = byId(classes.findAllById(kids.values().stream().map(ChildEntity::getClassId).filter(Objects::nonNull).distinct().toList()), ClassEntity::getId);
@@ -421,29 +420,28 @@ public class ChatService {
      */
     public List<ChatThread> adminThreads(Principals.User caller) {
         String schoolId = requireSchool(); requireOn(schoolId);
-        return staffThreads(caller.userId(), null, null, null);
+        return staffThreads(caller.userId(), null, null);
     }
 
     public List<ChatMessage> supportMessages(String threadId, String before, String since, Integer limit) {
         String schoolId = requireSchool(); requireOn(schoolId);
-        var t = threads.findOneById(threadId).orElseThrow(() -> ApiException.notFound("thread"));
-        return page(t.getId(), before, since, limit);
+        return page(messageThread(threadId).getId(), before, since, limit);
     }
 
     // ---------------------------------------------------------------- the coordinator (dashboard, R4)
 
     /**
      * Her conversations, named by thread id rather than by child, because one of them has no child on it: the parents
-     * who wrote to her about a child in a section she supervises, and the manager of her department. `topic` and
-     * `status` are the Complaints inbox's two filters.
+     * who wrote to her about a child in a section she supervises, and the manager of her department. B6: Messages
+     * only — her complaints are {@link ComplaintService}'s.
      *
      * <p>A parent thread drops out of the list when the child leaves her scope — the thread is not deleted, it simply
      * stops being hers to answer, which is the rule {@link #teacherThreads} applies with the teacher's assignments.
      */
-    public List<ChatThread> coordinatorThreads(Principals.User caller, String topic, String status) {
+    public List<ChatThread> coordinatorThreads(Principals.User caller, String status) {
         var me = CoordinatorScope.require(caller);
         requireOn(tenant.writeSchoolId());
-        return staffThreads(me.userId(), coordinatorScope.reach(me), topic, status);
+        return staffThreads(me.userId(), coordinatorScope.reach(me), status);
     }
 
     /**
@@ -451,9 +449,8 @@ public class ChatService {
      * and every staff thread this person is on. One body for the two, because a manager's inbox is a coordinator's with
      * a wider reach — the only difference is which scope built it and which `require` proved she may hold one.
      */
-    private List<ChatThread> staffThreads(String meId, CoordinatorScope.Reach reach, String topic, String status) {
+    private List<ChatThread> staffThreads(String meId, CoordinatorScope.Reach reach, String status) {
         var mine = threads.findForStaff(meId).stream()
-                .filter(t -> topic == null || topic.equals(t.getTopic()))
                 .filter(t -> status == null || status.equals(t.getStatus())).toList();
         var kids = byId(children.findAllById(mine.stream().map(ChatThreadEntity::getChildId).filter(Objects::nonNull).distinct().toList()), ChildEntity::getId);
         // `reach` is null for the admin (S1): she answers every thread she is on, and her sections are read by id.
@@ -501,42 +498,6 @@ public class ChatService {
     }
 
     /**
-     * `PATCH /coordinator/chat/threads/{id}/status`: `open` or `resolved`, and the parent is told over her own socket
-     * with a `status` frame so her app can show that the complaint was answered without refetching the list.
-     */
-    @Transactional
-    public ChatThread coordinatorStatus(Principals.User caller, String threadId, String wanted) {
-        var me = CoordinatorScope.require(caller);
-        return status(me, ownThread(me, threadId), wanted);
-    }
-
-    /** S1 `PATCH /management/chat/threads/{id}/status`: the same write on a thread of the manager's. */
-    @Transactional
-    public ChatThread managerStatus(Principals.User caller, String threadId, String wanted) {
-        var me = ManagerScope.require(caller);
-        return status(me, ownManagerThread(me, threadId), wanted);
-    }
-
-    private ChatThread status(Principals.User me, ChatThreadEntity t, String wanted) {
-        String status = switch (wanted == null ? "" : wanted.trim().toLowerCase(java.util.Locale.ROOT)) {
-            case OPEN -> OPEN;
-            case RESOLVED -> RESOLVED;
-            default -> throw ApiException.badRequest("status must be " + OPEN + " or " + RESOLVED + ".");
-        };
-        Instant now = clock.instant();
-        boolean changed = !status.equals(t.getStatus());
-        t.setStatus(status);
-        t.setResolvedAt(RESOLVED.equals(status) ? now : null);
-        t.setResolvedBy(RESOLVED.equals(status) ? me.userId() : null);
-        threads.save(t);
-        publish(ChatEvent.status(t.getSchoolId(), t.getId(), t.getChildId(), t.getTeacherId(), parentOf(t), t.getPeerUserId(), status, now.toEpochMilli()));
-        // B4: and a row and a push, so she hears it with the app closed too — only when it really changed.
-        if (changed) bells.complaintStatus(t.getSchoolId(), parentOf(t), t.getChildId(), t.getId(), t.getTeacherId(), COMPLAINT.equals(t.getTopic()),
-                RESOLVED.equals(status), users.findById(me.userId()).map(ChatService::name).orElse(null));
-        return one(t, me.userId());
-    }
-
-    /**
      * `POST /coordinator/chat/threads`: her thread with one manager of her own department (DR5). The manager is
      * resolved through {@link ChatPeers#managersFor} — a manager of the other track is 404, because she is not told
      * which managers exist outside her department any more than a parent is told which teachers exist.
@@ -570,14 +531,7 @@ public class ChatService {
     public List<ChatThread> managerThreads(Principals.User caller, String status) {
         var me = ManagerScope.require(caller);
         requireOn(tenant.writeSchoolId());
-        return staffThreads(me.userId(), managerScope.reach(me), null, status);
-    }
-
-    /** S1 `GET /management/complaints`: the `complaint` threads parents opened with her, as the coordinator's inbox. */
-    public List<ChatThread> managerComplaints(Principals.User caller, String status) {
-        var me = ManagerScope.require(caller);
-        requireOn(tenant.writeSchoolId());
-        return staffThreads(me.userId(), managerScope.reach(me), COMPLAINT, status);
+        return staffThreads(me.userId(), managerScope.reach(me), status);
     }
 
     public List<ChatMessage> managerMessages(Principals.User caller, String threadId, String before, String since, Integer limit) {
@@ -631,7 +585,7 @@ public class ChatService {
             var child = managerScope.requireChild(me, childId);
             if (child.getParentId() == null)
                 throw new ApiException(HttpStatus.NOT_FOUND, "no_parent", "No parent has registered for this child yet.");
-            return one(threadRows.getOrCreate(child, me.userId(), MANAGERIAL, QUESTION), me.userId());
+            return one(threadRows.getOrCreate(child, me.userId(), MANAGERIAL), me.userId());
         }
         if (teacherUserId != null && !teacherUserId.isBlank()) {
             var teacher = managerScope.teachersOf(me).stream().filter(u -> u.getId().equals(teacherUserId)).findFirst()
@@ -660,7 +614,7 @@ public class ChatService {
     /** One thread with the manager on it; a parent thread also has to be about a child of her department (403 otherwise). */
     private ChatThreadEntity ownManagerThread(Principals.User me, String threadId) {
         requireOn(tenant.writeSchoolId());
-        var t = threads.findOneById(threadId).orElseThrow(() -> ApiException.notFound("thread"));
+        var t = messageThread(threadId);
         if (!me.userId().equals(t.getTeacherId()) && !me.userId().equals(t.getPeerUserId())) throw ApiException.notFound("thread");
         if (t.getChildId() != null) managerScope.requireChild(me, t.getChildId());
         return t;
@@ -691,7 +645,7 @@ public class ChatService {
                     .orElseThrow(() -> ApiException.notFound("child"));
             if (child.getParentId() == null)
                 throw new ApiException(HttpStatus.NOT_FOUND, "no_parent", "No parent has registered for this child yet.");
-            return one(threadRows.getOrCreate(child, caller.userId(), ADMIN, QUESTION), caller.userId());
+            return one(threadRows.getOrCreate(child, caller.userId(), ADMIN), caller.userId());
         }
         if (named(managerUserId))
             return one(threadRows.getOrCreateStaff(schoolId, staff(managerUserId, MANAGERIAL, schoolId, "manager").getId(), caller.userId()), caller.userId());
@@ -725,7 +679,7 @@ public class ChatService {
      */
     private ChatThreadEntity ownAdminThread(Principals.User caller, String threadId) {
         String schoolId = requireSchool(); requireOn(schoolId);
-        var t = threads.findOneById(threadId).orElseThrow(() -> ApiException.notFound("thread"));
+        var t = messageThread(threadId);
         if (!caller.userId().equals(t.getTeacherId()) && !caller.userId().equals(t.getPeerUserId())) throw ApiException.notFound("thread");
         return t;
     }
@@ -792,7 +746,7 @@ public class ChatService {
      */
     private ChatThreadEntity ownThread(Principals.User me, String threadId) {
         requireOn(tenant.writeSchoolId());
-        var t = threads.findOneById(threadId).orElseThrow(() -> ApiException.notFound("thread"));
+        var t = messageThread(threadId);
         if (!me.userId().equals(t.getTeacherId()) && !me.userId().equals(t.getPeerUserId())) throw ApiException.notFound("thread");
         if (t.getChildId() != null) { coordinatorScope.requireChild(me, t.getChildId()); return t; }
         String other = named(t, me.userId());
@@ -867,9 +821,10 @@ public class ChatService {
 
     /**
      * B5: {@code files} are `POST /media/attachments` ids ({@link ChatAttachments#claim}); with at least one, the text may
-     * be empty, and the bell and the push then say "📷 Photo" / "📄 name" instead of the words nobody wrote.
+     * be empty, and the bell and the push then say "📷 Photo" / "📄 name" instead of the words nobody wrote. B6: package
+     * access, because a complaint's messages are written through it too ({@link ComplaintService}).
      */
-    private ChatMessage send(ChatThreadEntity thread, String parentId, String role, String senderId, String rawBody, List<String> files, String clientId, boolean bell) {
+    ChatMessage send(ChatThreadEntity thread, String parentId, String role, String senderId, String rawBody, List<String> files, String clientId, boolean bell) {
         boolean withFiles = files != null && files.stream().anyMatch(id -> id != null && !id.isBlank());
         String body = withFiles ? cleanOptional(rawBody) : clean(rawBody);
         limiter.record(key(role, senderId));
@@ -911,7 +866,7 @@ public class ChatService {
         bells.chatMessage(thread.getSchoolId(), recipient, thread.getId(), from, body);
     }
 
-    private ChatReadReceipt read(ChatThreadEntity thread, String parentId, String role, String readerId) {
+    ChatReadReceipt read(ChatThreadEntity thread, String parentId, String role, String readerId) {
         Instant now = clock.instant();
         messages.markRead(thread.getId(), counterpart(thread, role), now);
         if (TEACHER.equals(role)) threads.clearTeacherUnread(thread.getId()); else threads.clearParentUnread(thread.getId());
@@ -954,7 +909,7 @@ public class ChatService {
     // ---------------------------------------------------------------- who reaches what
 
     /** The parent's child, on a section: 404 when she is not hers, 409 `child_not_placed` when she sits nowhere yet. */
-    private ChildEntity placed(Principals.Parent parent, String childId) {
+    ChildEntity placed(Principals.Parent parent, String childId) {
         var child = childService.owned(childId, parent);
         requireOn(child.getSchoolId());
         if (child.getClassId() == null) throw notPlaced();
@@ -966,7 +921,7 @@ public class ChatService {
      * child's section, or — R4 — a coordinator of one of that section's subjects. 404 otherwise, because a parent is
      * not told which staff exist beyond her own child's.
      */
-    private String requireStaffOf(ChildEntity child, String staffId) {
+    String requireStaffOf(ChildEntity child, String staffId) {
         if (scope.assignmentsOn(child.getClassId()).stream().anyMatch(a -> a.getTeacherId().equals(staffId))) return ROLE_TEACHER;
         var section = classes.findOneById(child.getClassId()).orElseThrow(() -> ApiException.notFound("teacher"));
         if (peers.coordinatorsOn(child.getSchoolId(), section).stream().anyMatch(c -> c.user().getId().equals(staffId))) return COORDINATOR;
@@ -987,11 +942,19 @@ public class ChatService {
         return child;
     }
 
+    /**
+     * B6: a Messages thread by id — 404 for another school's (the filter), for none, and for a complaint, which is read
+     * and answered on the Complaints routes only. Every thread-keyed Messages route goes through it.
+     */
+    private ChatThreadEntity messageThread(String threadId) {
+        return threads.findOneById(threadId).filter(t -> !COMPLAINT.equals(t.getTopic())).orElseThrow(() -> ApiException.notFound("thread"));
+    }
+
     private ChatThreadEntity threadOf(String childId, String teacherId) {
         return threads.findByChildIdAndTeacherId(childId, teacherId).orElseThrow(() -> ApiException.notFound("thread"));
     }
 
-    private String requireSchool() {
+    String requireSchool() {
         String schoolId = tenant.schoolId();
         if (schoolId == null) throw ApiException.badRequest("Send X-School-Id: chat threads are read one school at a time.");
         return schoolId;
@@ -999,7 +962,7 @@ public class ChatService {
 
 
     /** The same body an unknown route gets, so a socket command on a school without the feature reads as REST does. */
-    private void requireOn(String schoolId) {
+    void requireOn(String schoolId) {
         if (!flags.isOn(schoolId, FlagKeys.CHAT)) throw new ApiException(HttpStatus.NOT_FOUND, "not_found", "No such endpoint.");
     }
 
@@ -1076,7 +1039,7 @@ public class ChatService {
      * thread. The name the Admin typed for her (V25) or, without one, her registered address, falling back to the address a teacher typed on the roster (`children.parent_email`) for a
      * child nobody has claimed yet, and absent when there is neither.
      */
-    private java.util.Map<String, String> parentNames(java.util.Collection<ChildEntity> kids) {
+    java.util.Map<String, String> parentNames(java.util.Collection<ChildEntity> kids) {
         var out = new LinkedHashMap<String, String>();
         var ids = kids.stream().filter(Objects::nonNull).map(ChildEntity::getParentId).filter(Objects::nonNull).distinct().toList();
         var registered = new LinkedHashMap<String, String>();
@@ -1096,8 +1059,6 @@ public class ChatService {
     }
     static ChatTopic topic(String topic) { return COMPLAINT.equals(topic) ? ChatTopic.COMPLAINT : ChatTopic.QUESTION; }
     static ChatThreadStatus status(String status) { return RESOLVED.equals(status) ? ChatThreadStatus.RESOLVED : ChatThreadStatus.OPEN; }
-    /** The wire word a contract enum serialises to, which is the word the column holds. */
-    static String key(ChatTopic topic) { return topic == ChatTopic.COMPLAINT ? COMPLAINT : QUESTION; }
 
     /** The name a chooser or a thread row shows: her display name, or her address until she has set one. */
     public static String name(UserEntity u) { return u == null ? "" : u.getDisplayName() == null || u.getDisplayName().isBlank() ? u.getEmail() : u.getDisplayName(); }
@@ -1107,7 +1068,7 @@ public class ChatService {
         return p == null ? "" : p.getDisplayName() == null || p.getDisplayName().isBlank() ? p.getEmail() : p.getDisplayName();
     }
 
-    private Map<String, ChatMessage> lastMessages(java.util.Collection<ChatThreadEntity> ts) {
+    Map<String, ChatMessage> lastMessages(java.util.Collection<ChatThreadEntity> ts) {
         var ids = ts.stream().map(ChatThreadEntity::getId).toList();
         if (ids.isEmpty()) return Map.of();
         var out = new HashMap<String, ChatMessage>();
@@ -1115,7 +1076,7 @@ public class ChatService {
         return out;
     }
 
-    private static <T> Map<String, T> byId(List<T> rows, Function<T, String> id) { return rows.stream().collect(Collectors.toMap(id, r -> r, (a, b) -> a, LinkedHashMap::new)); }
+    static <T> Map<String, T> byId(List<T> rows, Function<T, String> id) { return rows.stream().collect(Collectors.toMap(id, r -> r, (a, b) -> a, LinkedHashMap::new)); }
 
     private static Comparator<ChatThread> order() {
         return Comparator.<ChatThread>comparingInt(t -> t.getUnread() > 0 ? 0 : 1)
@@ -1124,7 +1085,7 @@ public class ChatService {
     }
 
     /** After the commit, or now when there is no transaction (typing): the socket never announces a row that could still roll back. */
-    private void publish(ChatEvent event) {
+    void publish(ChatEvent event) {
         if (TransactionSynchronizationManager.isSynchronizationActive())
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() { @Override public void afterCommit() { bus.publish(event); } });
         else bus.publish(event);

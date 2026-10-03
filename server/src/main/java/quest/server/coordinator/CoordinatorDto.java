@@ -75,9 +75,6 @@ public final class CoordinatorDto {
     @io.swagger.v3.oas.annotations.media.Schema(name = "OpenManagerThreadRequest")
     public record StaffThreadRequest(String managerUserId, String teacherUserId) {}
 
-    /** `PATCH /coordinator/chat/threads/{id}/status`: `open` or `resolved`, the two words the column holds. */
-    public record ThreadStatusRequest(@NotBlank String status) {}
-
     /**
      * `POST /coordinator/announcements`: the same note a teacher posts (`bodyEn` required, `bodyAr` optional), sent to
      * the classes named — or, when `classIds` is absent, to every section in her scope. One `announcements` row per

@@ -9,7 +9,8 @@ import org.hibernate.annotations.Filter;
 
 /**
  * V15: one conversation per (child, teacher) and its messages (C1 `backend/chat-websocket`), widened by V20 (R4,
- * DR3) to a conversation between a parent and any staff peer, or between two staff members.
+ * DR3) to a conversation between a parent and any staff peer, or between two staff members. V34 (B6) makes a
+ * complaint a conversation of its own beside them, with its status history in `complaint_events`.
  */
 public final class Entities {
     private Entities() {}
@@ -24,6 +25,11 @@ public final class Entities {
      * says, {@code teacherUnread} is that person's badge and {@code parentUnread} the counterpart's;
      * {@code peerUserId} is the second staff member of a coordinator-to-manager thread and null on every parent
      * thread, which is the only shape that carries a {@code childId} at all.
+     *
+     * <p>V34 (B6): {@code threadKey} is `""` on a Messages thread — one per (child, staff), as before — and the row's
+     * own id on a complaint (`topic` `complaint`), so a parent may hold any number of complaints beside her one
+     * Messages thread with the same person; {@code title} is a complaint's subject line and {@code subject} the recipient's
+     * subjects on the child's section when it was opened, both null on a Messages thread.
      */
     @Entity(name = "ChatThreadEntity") @Table(name = "chat_threads")
     @Filter(name = "school", condition = "school_id = :schoolId")
@@ -42,6 +48,9 @@ public final class Entities {
         @Column(name = "last_message_at") private Instant lastMessageAt;
         @Column(name = "parent_unread", nullable = false) private int parentUnread;
         @Column(name = "teacher_unread", nullable = false) private int teacherUnread;
+        @Column(name = "thread_key", nullable = false) private String threadKey = "";
+        @Column private String title;
+        @Column private String subject;
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
         public String getChildId() { return childId; } public void setChildId(String v) { childId = v; }
@@ -56,6 +65,9 @@ public final class Entities {
         public String getStatus() { return status; } public void setStatus(String v) { status = v; }
         public Instant getResolvedAt() { return resolvedAt; } public void setResolvedAt(Instant v) { resolvedAt = v; }
         public String getResolvedBy() { return resolvedBy; } public void setResolvedBy(String v) { resolvedBy = v; }
+        public String getThreadKey() { return threadKey; } public void setThreadKey(String v) { threadKey = v; }
+        public String getTitle() { return title; } public void setTitle(String v) { title = v; }
+        public String getSubject() { return subject; } public void setSubject(String v) { subject = v; }
     }
 
     /**
@@ -86,5 +98,28 @@ public final class Entities {
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
         public Instant getReadAt() { return readAt; } public void setReadAt(Instant v) { readAt = v; }
         public String getAttachments() { return attachments; } public void setAttachments(String v) { attachments = v; }
+    }
+
+    /**
+     * V34 (B6): one status change of a complaint — `resolved` or `open` (reopened), by `parent` or `staff`, with the
+     * person's id. Written by {@link ComplaintService} only, never from a request; `schoolId` is the complaint's.
+     */
+    @Entity(name = "ComplaintEventEntity") @Table(name = "complaint_events")
+    @Filter(name = "school", condition = "school_id = :schoolId")
+    public static class ComplaintEventEntity {
+        @Id private String id;
+        @Column(name = "school_id", nullable = false) private String schoolId;
+        @Column(name = "thread_id", nullable = false) private String threadId;
+        @Column(nullable = false) private String status;
+        @Column(name = "actor_role", nullable = false) private String actorRole;
+        @Column(name = "actor_id", nullable = false) private String actorId;
+        @Column(name = "changed_at", nullable = false) private Instant changedAt;
+        public String getId() { return id; } public void setId(String v) { id = v; }
+        public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
+        public String getThreadId() { return threadId; } public void setThreadId(String v) { threadId = v; }
+        public String getStatus() { return status; } public void setStatus(String v) { status = v; }
+        public String getActorRole() { return actorRole; } public void setActorRole(String v) { actorRole = v; }
+        public String getActorId() { return actorId; } public void setActorId(String v) { actorId = v; }
+        public Instant getChangedAt() { return changedAt; } public void setChangedAt(Instant v) { changedAt = v; }
     }
 }

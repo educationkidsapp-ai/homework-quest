@@ -12,7 +12,7 @@ import quest.server.push.PushSender.Outcome;
 /** B4: what FCM's answers mean to the sender, and the two message shapes it builds. No network. */
 class FcmPushSenderTest {
     private static final PushMessage PUSH = new PushMessage(NotificationKind.EXAM_RELEASED, "Results ready: Maths", "Maya's result is ready.",
-            "n-1", "c-1", "/children/c-1/progress", null, "lesson:" + "x".repeat(80), null, null);
+            "n-1", "c-1", "/children/c-1/progress", null, "lesson:" + "x".repeat(80), null, null, null);
 
     @Test void a_dead_token_is_pruned_a_transient_error_retried_and_the_rest_dropped() {
         for (var code : new MessagingErrorCode[] {MessagingErrorCode.UNREGISTERED, MessagingErrorCode.INVALID_ARGUMENT, MessagingErrorCode.SENDER_ID_MISMATCH})
