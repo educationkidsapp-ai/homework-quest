@@ -89,6 +89,20 @@ private val CHILD = Regex("^/children/([^/?#]+)")
 private val CHAT = Regex("^/children/[^/]+/chat/([^/?#]+)")
 private val OPEN = Regex("[?&]open=([^&#]+)")
 
+/** The app paths B4's contract writes on a row and a push (`ebbab61`). */
+enum class LinkShape { CHAT, BROADCAST, ANNOUNCEMENT, TEACHER_QUESTION, MAP, PROGRESS, OTHER }
+
+private val SHAPES = listOf(
+    Regex("^/children/[^/]+/chat/[^/?#]+$") to LinkShape.CHAT,
+    Regex("^/children/[^/]+/broadcasts(\\?.*)?$") to LinkShape.BROADCAST,
+    Regex("^/children/[^/]+/announcements(\\?.*)?$") to LinkShape.ANNOUNCEMENT,
+    Regex("^/children/[^/]+/teacher-questions/[^/?#]+$") to LinkShape.TEACHER_QUESTION,
+    Regex("^/children/[^/]+/map$") to LinkShape.MAP,
+    Regex("^/children/[^/]+/progress$") to LinkShape.PROGRESS,
+)
+
+fun linkShape(link: String?): LinkShape = link?.trim()?.let { path -> SHAPES.firstOrNull { it.first.matches(path) }?.second } ?: LinkShape.OTHER
+
 /** The child an app path names (`/children/{id}/…`). */
 fun childOf(link: String?): String? = link?.let { CHILD.find(it.trim())?.groupValues?.get(1) }
 

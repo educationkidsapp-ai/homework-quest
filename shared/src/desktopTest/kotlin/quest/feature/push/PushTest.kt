@@ -37,6 +37,12 @@ import quest.api.dto.WeeklyPlanEntry
 import quest.api.dto.WeeklyPlanWeek
 import quest.feature.push.domain.NotificationRouter
 import quest.feature.push.domain.NotificationTap
+import quest.feature.push.domain.LinkShape
+import quest.feature.push.domain.linkShape
+import quest.feature.push.domain.childOf
+import quest.feature.push.domain.staffOf
+import quest.feature.push.domain.openOf
+import quest.feature.parent.presentation.asConversation
 import quest.feature.push.domain.ParentGate
 import quest.feature.push.domain.PushChannel
 import quest.feature.push.domain.PushLinks
@@ -414,6 +420,36 @@ class PushTest {
         assertEquals(NotificationTap("broadcast.posted", "/children/c1/broadcasts?open=bc-ann", "nt-4", "bc-ann", "c1", subjectId = "bc-ann"), NotificationTap.of(row))
         val lesson = NotificationView("nt-8", NotificationKind.HOMEWORK_PUBLISHED, "Homework", null, "/children/c1/map", lessonId = "l1", createdAt = 1L, childId = "c1")
         assertEquals("l1", NotificationTap.of(lesson).idFor("lesson"), "a row names its lesson by lessonId, a push by its collapse key")
+    }
+
+    /** Every link shape in B4's contract (ebbab61) is read — and followed even when the kind is one this build lacks. */
+    @Test fun everyLinkShapeOfTheContractIsReadAndFollowed() = runTest {
+        val shapes = mapOf(
+            "/children/c1/chat/t-maya" to LinkShape.CHAT,
+            "/children/c1/broadcasts?open=bc-ann" to LinkShape.BROADCAST,
+            "/children/c1/announcements?open=a1" to LinkShape.ANNOUNCEMENT,
+            "/children/c1/teacher-questions/q1" to LinkShape.TEACHER_QUESTION,
+            "/children/c1/map" to LinkShape.MAP,
+            "/children/c1/progress" to LinkShape.PROGRESS,
+        )
+        shapes.forEach { (link, shape) -> assertEquals(shape, linkShape(link), link); assertEquals("c1", childOf(link), link) }
+        assertEquals(LinkShape.OTHER, linkShape("/teacher/chat?thread=1"))
+        assertEquals("t-maya", staffOf("/children/c1/chat/t-maya"))
+        assertEquals("bc-ann", openOf("/children/c1/broadcasts?open=bc-ann"))
+        assertEquals("a1", openOf("/children/c1/announcements?open=a1"))
+
+        val expected = mapOf(
+            "/children/c1/chat/t-maya" to PushNavigator.Step.Parent(teacherThread.asConversation()),
+            "/children/c1/broadcasts?open=bc-ann" to PushNavigator.Step.Parent(Routes.Broadcasts(focusBroadcast = "bc-ann")),
+            "/children/c1/announcements?open=a1" to PushNavigator.Step.Parent(Routes.Broadcasts(focusRow = "nt-x")),
+            "/children/c1/teacher-questions/q1" to PushNavigator.Step.Parent(Routes.Broadcasts(focusRow = "nt-x")),
+            "/children/c1/map" to PushNavigator.Step.Child(null),
+            "/children/c1/progress" to PushNavigator.Step.Parent(Routes.Progress),
+        )
+        for ((link, step) in expected) {
+            val w = World().apply { gate.passed() }
+            assertEquals(step, w.navigator(listOf(teacherThread)).follow(NotificationTap("kind.from.later", link, "nt-x", childId = "c1")), link)
+        }
     }
 
     @Test fun aSignedOutAppFollowsNothing() = runTest {

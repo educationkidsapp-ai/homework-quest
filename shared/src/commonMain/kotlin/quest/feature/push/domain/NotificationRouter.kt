@@ -19,8 +19,10 @@ sealed interface Destination {
     data class Broadcast(val broadcastId: String) : Destination
     /** `homework.published`: that lesson for that child. */
     data class Lesson(val lessonId: String) : Destination
-    /** `exam.published`: the child's home, where the exam's card is (title and window only — never the paper). */
+    /** `exam.published` (or any `…/map` link): the child's home, where the exam's card is — title and window, never the paper. */
     data object ExamCard : Destination
+    /** The parent's Progress page — an `…/progress` link that names no exam. */
+    data object Progress : Destination
     /** `exam.released`: that exam's result for that child. */
     data class ExamResult(val lessonId: String) : Destination
     /**
@@ -54,9 +56,22 @@ class NotificationRouter(
             "broadcast.posted" -> broadcast(tap, child)
             "homework.published" -> lesson(tap, child) { Destination.Lesson(it) }
             "exam.published" -> lesson(tap, child) { Destination.ExamCard }
-            "exam.released" -> tap.idFor("lesson")?.let { Destination.ExamResult(it) } ?: notifications(tap)
-            else -> notifications(tap)                  // announcement.posted, question.sent and any kind to come
+            "exam.released" -> tap.idFor("lesson")?.let { Destination.ExamResult(it) } ?: Destination.Progress
+            "announcement.posted", "question.sent" -> notifications(tap)
+            else -> byLink(tap, child)                  // a kind still to come: its link decides
         }
+    }
+
+    /**
+     * A kind this build does not know is followed by the shape of its link — every shape B4's contract writes — and,
+     * where the link names nothing this app can open by itself, by its row on the Notifications tab.
+     */
+    private suspend fun byLink(tap: NotificationTap, child: Child?): Destination = when (linkShape(tap.link)) {
+        LinkShape.CHAT -> conversation(tap, child)
+        LinkShape.BROADCAST -> broadcast(tap, child)
+        LinkShape.MAP -> Destination.ExamCard
+        LinkShape.PROGRESS -> Destination.Progress
+        LinkShape.ANNOUNCEMENT, LinkShape.TEACHER_QUESTION, LinkShape.OTHER -> notifications(tap)
     }
 
     /** Makes [id] the current child when she is this parent's; null when she is not (any more). */

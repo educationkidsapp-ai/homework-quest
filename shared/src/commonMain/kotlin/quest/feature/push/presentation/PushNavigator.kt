@@ -43,6 +43,7 @@ class PushNavigator(private val router: NotificationRouter, private val gate: Pa
             is Destination.WeeklyPlan -> Step.Parent(Routes.WeeklyPlan(focus = destination.planId))
             is Destination.Broadcast -> Step.Parent(Routes.Broadcasts(focusBroadcast = destination.broadcastId))
             is Destination.Notifications -> Step.Parent(Routes.Broadcasts(focusRow = destination.row, gone = destination.gone))
+            Destination.Progress -> Step.Parent(Routes.Progress)
             is Destination.Lesson -> Step.Child(Routes.Journey(destination.lessonId))
             Destination.ExamCard -> Step.Child(null)
             is Destination.ExamResult -> Step.Child(Routes.ExamResult(destination.lessonId))
