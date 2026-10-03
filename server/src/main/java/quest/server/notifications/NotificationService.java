@@ -62,13 +62,15 @@ public class NotificationService {
     private final NotificationRepository rows; private final UserRepository users; private final ChatBus bus;
     private final Json json; private final Clock clock; private final NotificationRows upserts;
     private final quest.server.children.ChildRepository children; private final org.springframework.transaction.support.TransactionTemplate own;
-    private final ParentPush push;
+    private final ParentPush push; private final quest.server.exams.ExamSettingsRepository exams;
+    private final quest.server.platform.SchoolCalendar calendar;
 
     public NotificationService(NotificationRepository rows, UserRepository users, ChatBus bus, Json json, Clock clock,
                               NotificationRows upserts, quest.server.children.ChildRepository children,
-                              org.springframework.transaction.PlatformTransactionManager transactions, ParentPush push) {
+                              org.springframework.transaction.PlatformTransactionManager transactions, ParentPush push,
+                              quest.server.exams.ExamSettingsRepository exams, quest.server.platform.SchoolCalendar calendar) {
         this.rows = rows; this.users = users; this.bus = bus; this.json = json; this.clock = clock; this.upserts = upserts;
-        this.children = children; this.push = push;
+        this.children = children; this.push = push; this.exams = exams; this.calendar = calendar;
         this.own = new org.springframework.transaction.support.TransactionTemplate(transactions);
         this.own.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -190,51 +192,171 @@ public class NotificationService {
 
     /**
      * B3 (D5): one row for the parent of every child on the lesson's section — `exam.released` when an exam's results
-     * are released (by the teacher or by the close-of-window sweep), `homework.published` when a homework goes out.
+     * are released (by the teacher or by the close-of-window sweep), `homework.published` when a homework goes out and,
+     * B4, `exam.published` when an exam is published (its title and window, never its content).
      *
-     * <p><strong>After the release commits, in a transaction of its own</strong>: nothing here can roll the release
-     * or the publish back, and a release that did roll back tells nobody. <strong>Once per lesson and child</strong>,
-     * decided by V31's unique `once_key` rather than by a read — a release withdrawn and given again, a re-publish, or
-     * two instances sweeping the same exam write nothing new.
+     * <p><strong>After the release commits, in a transaction of its own</strong> ({@link #afterCommit}): nothing here can
+     * roll the release or the publish back, and a release that did roll back tells nobody. <strong>Once per lesson and
+     * child</strong>, decided by V31's unique `once_key` rather than by a read — a release withdrawn and given again, a
+     * re-publish, or two instances sweeping the same exam write nothing new.
      */
     public void parentsOf(LessonEntity lesson, NotificationKind kind) {
         if (lesson == null || lesson.getClassId() == null) return;
         String lessonId = lesson.getId(), classId = lesson.getClassId(), schoolId = lesson.getSchoolId();
         String name = lesson.getTitle() == null || lesson.getTitle().isBlank() ? "the lesson" : lesson.getTitle().trim();
         String day = String.valueOf(lesson.getDate());
-        Runnable fanOut = () -> {
-            try { own.executeWithoutResult(status -> tellParents(lessonId, classId, schoolId, name, day, kind)); }
-            catch (RuntimeException e) { log.warn("notifications: could not tell the parents of lesson {} ({}): {}", lessonId, key(kind), e.toString()); }
-        };
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) { fanOut.run(); return; }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override public void afterCommit() { fanOut.run(); }
+        afterCommit(lessonId + " (" + key(kind) + ")", () -> {
+            var window = kind == NotificationKind.EXAM_PUBLISHED ? exams.findOneByLessonId(lessonId).orElse(null) : null;
+            for (var child : children.findByClassIdAndDeletedAtIsNullOrderByNameAsc(classId))
+                tell(schoolId, child.getParentId(), child.getId(), lessonNote(kind, lessonId, child, name, day, window, schoolId), true);
         });
     }
 
-    private void tellParents(String lessonId, String classId, String schoolId, String name, String day, NotificationKind kind) {
-        String k = key(kind);
-        for (var child : children.findByClassIdAndDeletedAtIsNullOrderByNameAsc(classId)) {
-            if (child.getParentId() == null) continue;
-            var e = new NotificationEntity();
-            e.setId(UUID.randomUUID().toString()); e.setSchoolId(schoolId); e.setUserId(parentRecipient(child.getParentId()));
-            e.setKind(k); e.setLessonId(lessonId); e.setChildId(child.getId()); e.setCreatedAt(clock.instant());
-            e.setOnceKey(e.getUserId() + "|" + k + "|" + lessonId + "|" + child.getId());
-            if (kind == NotificationKind.EXAM_RELEASED) {
-                e.setTitle(clip("Results ready: " + name, TITLE_MAX)); e.setBody(clip(child.getName() + "'s result for " + name + " is ready.", BODY_MAX));
-                e.setLink("/children/" + child.getId() + "/progress");
-            } else {
-                e.setTitle(clip("New homework: " + name, TITLE_MAX)); e.setBody(clip(child.getName() + " has new homework for " + day + ".", BODY_MAX));
-                e.setLink("/children/" + child.getId() + "/map");
+    private Note lessonNote(NotificationKind kind, String lessonId, quest.server.children.Entities.ChildEntity child, String name, String day,
+                            quest.server.exams.Entities.ExamSettingsEntity window, String schoolId) {
+        String c = child.getId(), collapse = "lesson:" + lessonId;
+        return switch (kind) {
+            case EXAM_RELEASED -> new Note(kind, lessonId, "Results ready: " + name, child.getName() + "'s result for " + name + " is ready.",
+                    "/children/" + c + "/progress", collapse);
+            case HOMEWORK_PUBLISHED -> new Note(kind, lessonId, "New homework: " + name, child.getName() + " has new homework for " + day + ".",
+                    "/children/" + c + "/map", collapse);
+            case EXAM_PUBLISHED -> {
+                var exam = new Note(kind, lessonId, "New exam: " + name, child.getName() + " has an exam: " + name + windowText(window, schoolId) + ".",
+                        "/children/" + c + "/map", collapse);
+                yield window == null ? exam : exam.window(window.getOpensAt().toEpochMilli(), window.getClosesAt().toEpochMilli());
             }
-            if (rows.insertOnce(e) == 1) {
-                publishAfterCommit(schoolId, e.getUserId(), view(e));
-                pushTo(child.getParentId(), e, "lesson:" + lessonId);
-            }
-        }
+            default -> throw new IllegalStateException(key(kind) + " is not about a lesson");
+        };
     }
 
-    /** B4: the row as a push — after this transaction commits, on its own thread (`ParentPush`). English only: the server has no other text for these kinds. */
+    /** ", open Sun 5 Oct 08:00 – Sun 5 Oct 09:00" in the school's own zone — the push also carries the instants. */
+    private String windowText(quest.server.exams.Entities.ExamSettingsEntity window, String schoolId) {
+        if (window == null) return "";
+        var zone = calendar.of(schoolId).zone();
+        var f = java.time.format.DateTimeFormatter.ofPattern("EEE d MMM HH:mm", Locale.ENGLISH).withZone(zone);
+        return ", open " + f.format(window.getOpensAt()) + " – " + f.format(window.getClosesAt());
+    }
+
+    /**
+     * B4: a manager's or a coordinator's broadcast — weekly plan, announcement or event — reached these children's feed
+     * (the caller decided who, with the feed's own predicate). One row per <em>parent</em>, about her first child here:
+     * two children in one grade are one plan to read, not two.
+     */
+    public void parentsOfBroadcast(String schoolId, List<quest.server.children.Entities.ChildEntity> kids, String broadcastId,
+                                   String title, String bodyEn, String titleAr, String bodyAr) {
+        var once = onePerParent(kids);
+        if (once.isEmpty()) return;
+        afterCommit(broadcastId + " (broadcast.posted)", () -> {
+            for (var kid : once) {
+                var note = new Note(NotificationKind.BROADCAST_POSTED, broadcastId, title, cue(bodyEn), "/children/" + kid.getId() + "/broadcasts?open=" + broadcastId,
+                        "broadcast:" + broadcastId).arabic(titleAr, cue(bodyAr));
+                tell(schoolId, kid.getParentId(), kid.getId(), note.broadcast(), true);
+            }
+        });
+    }
+
+    /** B4: a teacher's note to the parents of a class (§6 screen 16) reached these children. Once per parent. */
+    public void parentsOfAnnouncement(String schoolId, List<quest.server.children.Entities.ChildEntity> kids, String announcementId,
+                                      String author, String bodyEn, String bodyAr) {
+        var once = onePerParent(kids);
+        if (once.isEmpty()) return;
+        String who = author == null || author.isBlank() ? "your child's teacher" : author;
+        afterCommit(announcementId + " (announcement.posted)", () -> {
+            for (var kid : once)
+                tell(schoolId, kid.getParentId(), kid.getId(), new Note(NotificationKind.ANNOUNCEMENT_POSTED, announcementId, "Note from " + who, cue(bodyEn),
+                        "/children/" + kid.getId() + "/announcements?open=" + announcementId, "announcement:" + announcementId)
+                        .arabic(author == null || author.isBlank() ? "ملاحظة من المعلمة" : "ملاحظة من " + author, cue(bodyAr)), true);
+        });
+    }
+
+    /** B4: a teacher sent these children a question to answer in the app (§6 screen 14). Once per question and child. */
+    public void parentsOfQuestion(String schoolId, List<quest.server.children.Entities.ChildEntity> kids, String questionId, String author, String title) {
+        if (kids.isEmpty()) return;
+        String who = author == null || author.isBlank() ? "the teacher" : author;
+        String what = title == null || title.isBlank() ? "a question" : title.trim();
+        afterCommit(questionId + " (question.sent)", () -> {
+            for (var kid : kids)
+                tell(schoolId, kid.getParentId(), kid.getId(), new Note(NotificationKind.QUESTION_SENT, questionId, "New question from " + who,
+                        kid.getName() + " has a question to answer: " + what + ".", "/children/" + kid.getId() + "/teacher-questions/" + questionId,
+                        "question:" + questionId), true);
+        });
+    }
+
+    /**
+     * B4: a coordinator or a manager resolved one of her threads, or opened it again. One row per change — a complaint
+     * reopened and resolved twice is news each time — collapsed with the thread's messages on her phone.
+     */
+    public void complaintStatus(String schoolId, String parentId, String childId, String threadId, String staffId, boolean complaint, boolean resolved, String by) {
+        if (parentId == null || childId == null) return;
+        String what = complaint ? "Complaint" : "Conversation", whatAr = complaint ? "الشكوى" : "المحادثة";
+        String title = what + (resolved ? " resolved" : " reopened"), titleAr = resolved ? "تم حل " + whatAr : "أعيد فتح " + whatAr;
+        String body = (by == null || by.isBlank() ? "Your school" : by) + (resolved ? " marked it resolved." : " opened it again.");
+        afterCommit(threadId + " (complaint.status)", () -> tell(schoolId, parentId, childId,
+                new Note(NotificationKind.COMPLAINT_STATUS, threadId, title, body, "/children/" + childId + "/chat/" + staffId, "chat:" + threadId)
+                        .arabic(titleAr, null), false));
+    }
+
+    /**
+     * B4: what one parent row says, and what its push adds — an Arabic title and body when the server has them, the
+     * broadcast id, an exam's window. The row itself is English, as every row is; the push is the phone's language.
+     */
+    record Note(NotificationKind kind, String entityId, String title, String body, String link, String collapseKey,
+                String titleAr, String bodyAr, boolean isBroadcast, Long opensAt, Long closesAt) {
+        Note(NotificationKind kind, String entityId, String title, String body, String link, String collapseKey) {
+            this(kind, entityId, title, body, link, collapseKey, null, null, false, null, null);
+        }
+        Note arabic(String t, String b) { return new Note(kind, entityId, title, body, link, collapseKey, t, b, isBroadcast, opensAt, closesAt); }
+        Note broadcast() { return new Note(kind, entityId, title, body, link, collapseKey, titleAr, bodyAr, true, opensAt, closesAt); }
+        Note window(long opens, long closes) { return new Note(kind, entityId, title, body, link, collapseKey, titleAr, bodyAr, isBroadcast, opens, closes); }
+    }
+
+    /**
+     * Writes one parent row — once per `recipient|kind|entity|child` when {@code once} — and, when it was written, sends
+     * her the `notification` frame and the push. Runs inside {@link #afterCommit}'s own transaction.
+     */
+    private void tell(String schoolId, String parentId, String childId, Note note, boolean once) {
+        if (parentId == null) return;
+        var e = new NotificationEntity();
+        e.setId(UUID.randomUUID().toString()); e.setSchoolId(schoolId); e.setUserId(parentRecipient(parentId));
+        e.setKind(key(note.kind())); e.setLessonId(note.entityId()); e.setChildId(childId); e.setCreatedAt(clock.instant());
+        e.setTitle(clip(note.title(), TITLE_MAX)); e.setBody(clip(note.body(), BODY_MAX)); e.setLink(note.link());
+        if (once) e.setOnceKey(e.getUserId() + "|" + e.getKind() + "|" + note.entityId() + "|" + childId);
+        if (rows.insertOnce(e) != 1) return;
+        publishAfterCommit(schoolId, e.getUserId(), view(e));
+        String broadcastId = note.isBroadcast() ? note.entityId() : null;
+        var english = new PushMessage(note.kind(), e.getTitle(), e.getBody(), e.getId(), childId, e.getLink(), broadcastId, note.collapseKey(), note.opensAt(), note.closesAt());
+        var arabic = note.titleAr() == null && note.bodyAr() == null ? null
+                : new PushMessage(note.kind(), clip(note.titleAr() == null ? e.getTitle() : note.titleAr(), TITLE_MAX),
+                        note.bodyAr() == null ? e.getBody() : clip(note.bodyAr(), BODY_MAX), e.getId(), childId, e.getLink(), broadcastId,
+                        note.collapseKey(), note.opensAt(), note.closesAt());
+        push.toParent(parentId, english, arabic);
+    }
+
+    /** The children whose parents are told once each — her first child here — skipping a child with no parent. */
+    private static List<quest.server.children.Entities.ChildEntity> onePerParent(List<quest.server.children.Entities.ChildEntity> kids) {
+        var seen = new java.util.HashSet<String>();
+        return kids.stream().filter(k -> k.getParentId() != null && seen.add(k.getParentId())).toList();
+    }
+
+    /** A row is a cue, not the post: the first lines of what was written, as a `chat.message` body is. */
+    private static String cue(String body) { return clip(body, CHAT_BODY_MAX * 2); }
+
+    /**
+     * After the caller's transaction commits, in one of its own: a parent row is never written for work that rolled
+     * back, and nothing here can undo the release, the post or the message that caused it — a failure is logged.
+     */
+    private void afterCommit(String what, Runnable work) {
+        Runnable run = () -> {
+            try { own.executeWithoutResult(status -> work.run()); }
+            catch (RuntimeException e) { log.warn("notifications: could not tell the parents about {}: {}", what, e.toString()); }
+        };
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) { run.run(); return; }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() { run.run(); }
+        });
+    }
+
+    /** B4: a chat row as a push — after this transaction commits, on its own thread (`ParentPush`). English only. */
     private void pushTo(String parentId, NotificationEntity row, String collapseKey) {
         push.toParent(parentId, new PushMessage(kind(row.getKind()), row.getTitle(), row.getBody(), row.getId(), row.getChildId(),
                 row.getLink(), null, collapseKey, null, null), null);

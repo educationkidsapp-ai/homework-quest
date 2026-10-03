@@ -865,13 +865,18 @@ class BroadcastApiTest extends ApiTestSupport {
         assertThat(push.getKind()).isEqualTo(quest.api.dto.NotificationKind.BROADCAST_POSTED);
         assertThat(push.getTitle()).as("no title typed: the kind, in Arabic").isEqualTo("إعلان");
         assertThat(push.getBody()).isEqualTo("رحلة إلى المتحف يوم الاثنين.");
-        assertThat(push.getNotificationId()).as("a broadcast has no row of hers").isNull();
+        var row = rowWith(parentGet(BRITISH_2_PARENT, "/me/notifications"), "kind", "broadcast.posted");
+        assertThat(push.getNotificationId()).as("her row, which the push is").isEqualTo(row.get("id").asText());
+        assertThat(row.get("childId").asText()).isEqualTo(childBritish2);
+        assertThat(row.get("link").asText()).isEqualTo("/children/" + childBritish2 + "/broadcasts?open=" + id);
+        assertThat(row.get("body").asText()).as("the row is English; the push is the phone's language").isEqualTo("Museum trip on Monday.");
         assertThat(push.getBroadcastId()).isEqualTo(id);
         assertThat(push.getChildId()).isEqualTo(childBritish2);
         assertThat(push.getLink()).isEqualTo("/children/" + childBritish2 + "/broadcasts?open=" + id);
         assertThat(push.getCollapseKey()).isEqualTo("broadcast:" + id);
         for (String other : List.of(grade1, american, abroad))
             assertThat(PushProbe.sentTo(pushes, other)).as("not this grade's, or not this school's").isEmpty();
+        assertThat(names(parentGet("bc-parent-foreign", "/me/notifications"), "kind")).doesNotContain("broadcast.posted");
 
         for (String token : List.of(grade2, grade1, american, abroad)) devices.deleteByTokenValue(token);
         assignments.deleteAll(assignments.findAll().stream().filter(a -> OTHER_SCHOOL.equals(a.getSchoolId())).toList());

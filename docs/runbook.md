@@ -1672,15 +1672,21 @@ chat ones.
 | `chat.message` | a teacher, coordinator, manager or Admin wrote in her child's thread — one unread row per thread, read when she calls `…/chat/threads/{staffId}/read` | `/children/{childId}/chat/{staffId}` |
 | `exam.released` | the teacher released an exam (by hand or by the close-of-window sweep), one row per child of the section, once | `/children/{childId}/progress` |
 | `homework.published` | a homework was published to the child's section (its results are released with it), once | `/children/{childId}/map` |
+| `exam.published` | B4: an exam was published to the child's section — its title and window (in the school's zone), never its content — once | `/children/{childId}/map` |
+| `broadcast.posted` | B4: a manager's or a coordinator's weekly plan, announcement or event reached the child's feed (`/management/broadcasts`, `/coordinator/broadcasts` or the older `/coordinator/announcements`), once per parent | `/children/{childId}/broadcasts?open={broadcastId}` |
+| `announcement.posted` | B4: a teacher's class note (`POST /teacher/announcements`) reached the child's course, once per parent | `/children/{childId}/announcements?open={id}` |
+| `question.sent` | B4: a teacher sent the child a question to answer (`POST /teacher/questions/{id}/send`), once | `/children/{childId}/teacher-questions/{id}` |
+| `complaint.status` | B4: a coordinator or manager resolved her thread or opened it again (title "Complaint resolved" / "… reopened"; "Conversation …" on a question thread) — one row per real change | `/children/{childId}/chat/{staffId}` |
 
-`exam.released` and `homework.published` are written after the release (or publish) has committed, in a transaction
-of their own — a failure there is logged and never undoes the release — and only once per recipient, lesson and
+Every parent row except `chat.message` is written after the release, publish, post or status change has committed, in a
+transaction of its own — a failure there is logged and never undoes the release — and only once per recipient, lesson and
 child: `notifications.once_key` (V31) is unique and the row is inserted with `ON CONFLICT DO NOTHING`, so two instances
 sweeping the same exam cannot both tell her.
 
-Broadcasts stay on `GET /children/{id}/broadcasts`. The `notification` frame reaches her sockets as well (her socket
-is admitted while one of her children's schools has `chat` on). With the app in the background or closed, each of these
-rows — and each broadcast that reaches her child — is also a push to her phone: [Push notifications](#push-notifications-b4).
+Broadcasts and notes stay readable on `GET /children/{id}/broadcasts` and `…/announcements`; since B4 they are rows here
+too. The `notification` frame reaches her sockets as well (her socket is admitted while one of her children's schools has
+`chat` on). With the app in the background or closed, each of these rows is also a push to her phone:
+[Push notifications](#push-notifications-b4).
 
 Two keys rather than one because the dashboard derives "what a read-only View-as session must hide" from the
 methods behind a key (`pnpm gen:permissions`): a single key covering the GETs and the POSTs would make the whole
@@ -1780,30 +1786,40 @@ Rows live in `parent_devices` (V32): not a tenant table (a parent belongs to no 
 starts from the parent id in her token, and the rows go with the parent (`ON DELETE CASCADE`, so `SEED_RESET` clears
 them too).
 
-**What is pushed, and when.** After the transaction that wrote it **commits**, on a task thread (`ParentPush`,
-`@TransactionalEventListener(AFTER_COMMIT)` + `@Async`), so a push never goes out for work that rolled back and never
-slows or fails the request that caused it:
+**What is pushed, and when.** **Every staff → parent event is a `/me/notifications` row and a push** — the parent rows
+in [Notifications](#notifications-e2-d26) above. The push leaves after the row's transaction **commits** (`ParentPush`,
+`@TransactionalEventListener(AFTER_COMMIT)`; her phones are read there, the sending runs on the task executor), so a push
+never goes out for work that rolled back and never slows or fails the request that caused it:
 
-| `kind` | When | `notificationId` | `collapseKey` |
-|---|---|---|---|
-| `chat.message` | a **new** unread row for a staff thread — the bell's throttle: five messages before she opens the thread are one push; after she reads it, the next message pushes again | the row | `chat:{threadId}` |
-| `exam.released`, `homework.published` | each row B3 writes (once per lesson and child) | the row | `lesson:{lessonId}` |
-| `broadcast.posted` | a weekly plan, announcement or event that her child's feed now shows (the feed's own predicate decides; once per parent) | — (no row; `broadcastId` instead) | `broadcast:{broadcastId}` |
+| `kind` | From | `collapseKey` |
+|---|---|---|
+| `chat.message` | a teacher, coordinator, manager or the Admin writing in her child's thread, complaint threads included — a **new** unread row only (the bell's throttle: five messages before she opens the thread are one push; after she reads it, the next one pushes again) | `chat:{threadId}` |
+| `complaint.status` | a coordinator or manager resolving or reopening the thread | `chat:{threadId}` |
+| `broadcast.posted` | a manager or coordinator: weekly plan (image or PDF), announcement, event — the feed's own predicate decides who | `broadcast:{broadcastId}` |
+| `announcement.posted` | a teacher's class note | `announcement:{id}` |
+| `question.sent` | a teacher's question to the child | `question:{id}` |
+| `homework.published`, `exam.published`, `exam.released` | a teacher publishing a homework or an exam, releasing an exam's results (by hand or by the sweep) | `lesson:{lessonId}` |
 
-**The payload** is the FCM *data* map of `PushMessage`: `kind`, `title`, `body`, `notificationId`, `childId`, `link` (the
-same app paths `/me/notifications` carries; a broadcast's is `/children/{childId}/broadcasts?open={broadcastId}`),
-`broadcastId` and `collapseKey`. On **Android it is data-only at high priority** (TTL two days, FCM `collapse_key` =
+Found and **not** pushed: the attendance register (`/children/{id}/attendance`) is a record of every child every day,
+not a message, and pushing it would ring every parent every morning — an absence-only alert is a product decision.
+Lessons themselves reach the map through `homework.published`/`exam.published`.
+
+**The payload** is the FCM *data* map of `PushMessage`: `kind`, `title`, `body`, `notificationId` (the row), `childId`,
+`link` (the row's app path), `broadcastId` (on `broadcast.posted`), `opensAt`/`closesAt` (epoch ms, on `exam.published`)
+and `collapseKey`. On **Android it is data-only at high priority** (TTL two days, FCM `collapse_key` =
 `collapseKey`): `onMessageReceived` runs in the foreground, the background and after a swipe-away alike, and the app draws
 the notification itself — its own channel, wording localised from `kind` in the phone's current language, `collapseKey`
 as the tag so a newer push replaces the older one, a tap that opens `link`. A notification message would be drawn by the
 system tray with none of that. `title`/`body` are Arabic when the device's `locale` starts with `ar` **and** the server
-has Arabic (a broadcast's `bodyAr`; an untitled broadcast's kind), English otherwise. A force-stopped app receives nothing
+has Arabic (a broadcast's or note's `bodyAr`, an untitled broadcast's kind, a complaint's status), English otherwise;
+the row itself is always English. A force-stopped app receives nothing
 until it is opened again — Android's rule, not ours.
 
 **Failures.** FCM's `UNREGISTERED`, `INVALID_ARGUMENT` and `SENDER_ID_MISMATCH` delete the token. `UNAVAILABLE`,
 `INTERNAL` and `QUOTA_EXCEEDED` are retried — three attempts, 1 s then 4 s apart (`quest.push.max-attempts`,
 `quest.push.backoff-millis`) — and then dropped; the row is still in `/me/notifications`. Nothing is logged at INFO but
-"a dead device token was removed": never a token, never a title or body.
+"a dead device token was removed": never a token, never a title or body. A row that could not be written is logged
+and never fails the post, the message or the release.
 
 **Configuration.** `quest.push.enabled` (`QUEST_PUSH_ENABLED`) is on under `qa` and `prod`, off elsewhere: H2, the test
 profile and a laptop use `RecordingPushSender`, which keeps the last 500 sends in memory (tests read and script it).

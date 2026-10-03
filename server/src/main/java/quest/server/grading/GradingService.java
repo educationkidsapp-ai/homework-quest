@@ -537,7 +537,11 @@ public class GradingService {
     @Transactional
     public void releaseOnPublish(String lessonId) {
         var lesson = lessons.findById(lessonId).orElse(null);
-        if (lesson == null || "exam".equals(lesson.getType())) return;
+        if (lesson == null) return;
+        if ("exam".equals(lesson.getType())) {                                  // B4: the parents hear an exam is coming,
+            notifications.parentsOf(lesson, quest.api.dto.NotificationKind.EXAM_PUBLISHED);   // never what is in it
+            return;
+        }
         if (lesson.getReleasedAt() != null || lesson.isReleaseWithdrawn()) return;
         lesson.setReleasedAt(Instant.now());
         lesson.setUpdatedAt(Instant.now());

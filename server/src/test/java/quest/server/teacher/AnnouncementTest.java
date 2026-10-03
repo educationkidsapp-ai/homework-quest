@@ -23,6 +23,8 @@ class AnnouncementTest extends TeacherTestSupport {
 
     private String adminToken, teacherToken, otherTeacherToken, managerToken;
     private String childInClass, childInAnotherGrade;
+    @org.springframework.beans.factory.annotation.Autowired quest.server.push.PushSender pushes;
+    @org.springframework.beans.factory.annotation.Autowired quest.server.push.ParentDeviceRepository devices;
 
     @BeforeEach void seed() throws Exception {
         school(A, "Notice Academy", "ANSCHA");
@@ -59,6 +61,27 @@ class AnnouncementTest extends TeacherTestSupport {
         assertThat(mine.get(0).toString()).as("no school internals reach the app").doesNotContain("teacherId").doesNotContain("schoolId");
 
         assertThat(parentGet("/children/" + childInAnotherGrade + "/announcements")).isEmpty();
+    }
+
+    /** B4: the parent is told — a row and a push, in her phone's language — about the child the note is for only. */
+    @Test void a_note_is_a_row_and_a_push_for_the_parent_of_that_course() throws Exception {
+        String phone = quest.server.push.PushProbe.token("an-phone");
+        quest.server.push.PushProbe.register(mvc, PARENT, phone, "ar");
+        String id = postNote(CLASS_A1, "Tomorrow we start subtraction", "غدا نبدأ الطرح", null).get("id").asText();
+
+        var rows = parentGet("/me/notifications");
+        assertThat(rows).as("one row, for Maya; Omar is in grade 3").hasSize(1);
+        assertThat(rows.get(0).get("kind").asText()).isEqualTo("announcement.posted");
+        assertThat(rows.get(0).get("childId").asText()).isEqualTo(childInClass);
+        assertThat(rows.get(0).get("link").asText()).isEqualTo("/children/" + childInClass + "/announcements?open=" + id);
+        var pushed = quest.server.push.PushProbe.await(pushes, phone, 1);
+        assertThat(pushed).singleElement().satisfies(p -> {
+            assertThat(p.message().getKind()).isEqualTo(quest.api.dto.NotificationKind.ANNOUNCEMENT_POSTED);
+            assertThat(p.message().getTitle()).isEqualTo("ملاحظة من Ms Sara");
+            assertThat(p.message().getBody()).isEqualTo("غدا نبدأ الطرح");
+            assertThat(p.message().getNotificationId()).isEqualTo(rows.get(0).get("id").asText());
+        });
+        devices.deleteByTokenValue(phone);
     }
 
     @Test void an_expired_note_stays_in_her_list_and_leaves_the_app() throws Exception {

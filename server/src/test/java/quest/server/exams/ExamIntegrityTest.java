@@ -233,10 +233,12 @@ class ExamIntegrityTest extends ExamTestSupport {
         assertThat(rows).extracting(r -> r.get("childId").asText()).containsExactlyInAnyOrder(maya, omar);
         assertThat(rows.get(0).get("lessonId").asText()).isEqualTo(EXAM);
         assertThat(rows.get(0).has("readAt")).isFalse();
-        assertThat(parentGet("/me/notifications/unread-count").get("count").asInt()).isEqualTo(2);
+        assertThat(parentGet("/me/notifications/unread-count").get("count").asInt()).as("and B4's two `exam.published`").isEqualTo(4);
 
-        // B4: one push per row, after the release committed — English, since the server has no Arabic for these.
-        var pushed = PushProbe.await(pushes, phone, 2);
+        // B4: one push per row, after the release committed — English, since the server has no Arabic for these. The
+        // exam's publish has already pushed two `exam.published`, so four in all.
+        var pushed = PushProbe.await(pushes, phone, 4).stream()
+                .filter(p -> p.message().getKind() == quest.api.dto.NotificationKind.EXAM_RELEASED).toList();
         assertThat(pushed).hasSize(2);
         assertThat(pushed).extracting(p -> p.message().getChildId()).containsExactlyInAnyOrder(maya, omar);
         assertThat(pushed).allSatisfy(p -> {
@@ -250,7 +252,7 @@ class ExamIntegrityTest extends ExamTestSupport {
 
         release(false); release(true);
         assertThat(kinds("exam.released")).as("a release given again is not news").hasSize(2);
-        assertThat(PushProbe.await(pushes, phone, 3)).as("and pushes nothing").hasSize(2);
+        assertThat(PushProbe.await(pushes, phone, 5)).as("and pushes nothing").hasSize(4);
         devices.deleteByTokenValue(phone);
         assertThat(parentPost("/me/notifications/read-all", "").get("count").asInt()).isZero();
         assertThat(parentGet("/me/notifications/unread-count").get("count").asInt()).isZero();
@@ -263,18 +265,34 @@ class ExamIntegrityTest extends ExamTestSupport {
         assertThat(kinds("exam.released")).hasSize(2);
     }
 
-    @Test void a_published_homework_is_announced_and_an_exam_publish_is_not() throws Exception {
+    /** B3 + B4: a homework is announced with its results; an exam is announced as coming — its window, never its content. */
+    @Test void a_published_homework_and_a_published_exam_are_both_announced() throws Exception {
         String phone = PushProbe.token("ei-phone");
         PushProbe.register(mvc, PARENT, phone, null);
-        publishedExam(-30, 30, ExamLevels.MANUAL);
+        publishedExam(30, 90, ExamLevels.MANUAL);
         assertThat(kinds("homework.published")).as("publishing an exam releases nothing").isEmpty();
+        var exams = kinds("exam.published");
+        assertThat(exams).as("one per child of the section").hasSize(2);
+        assertThat(exams).allSatisfy(r -> {
+            assertThat(r.get("lessonId").asText()).isEqualTo(EXAM);
+            assertThat(r.get("link").asText()).isEqualTo("/children/" + r.get("childId").asText() + "/map");
+            assertThat(r.get("body").asText()).contains(", open ");
+        });
+        var examPushes = PushProbe.await(pushes, phone, 2);
+        assertThat(examPushes).hasSize(2).allSatisfy(p -> {
+            assertThat(p.message().getKind()).isEqualTo(quest.api.dto.NotificationKind.EXAM_PUBLISHED);
+            assertThat(p.message().getOpensAt()).isNotNull();
+            assertThat(p.message().getClosesAt()).isGreaterThan(p.message().getOpensAt());
+        });
+        publish(EXAM);
+        assertThat(kinds("exam.published")).as("a re-publish is not news").hasSize(2);
         readyToPublish("ei-homework-1", A, section1a, LocalDate.now(), "homework");
         publish("ei-homework-1");
         var rows = kinds("homework.published");
         assertThat(rows).hasSize(2);
         assertThat(rows.get(0).get("lessonId").asText()).isEqualTo("ei-homework-1");
-        assertThat(PushProbe.await(pushes, phone, 2)).as("B4: one push per row, none for the exam's publish")
-                .hasSize(2).allSatisfy(p -> assertThat(p.message().getKind()).isEqualTo(quest.api.dto.NotificationKind.HOMEWORK_PUBLISHED));
+        assertThat(PushProbe.await(pushes, phone, 4).stream().filter(p -> p.message().getKind() == quest.api.dto.NotificationKind.HOMEWORK_PUBLISHED))
+                .as("B4: one push per row").hasSize(2);
         devices.deleteByTokenValue(phone);
     }
 
