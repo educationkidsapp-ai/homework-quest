@@ -568,7 +568,7 @@ export class ChildrenPage implements OnDestroy {
         classId: this.classId(),
         parentPhone: this.parentPhone().trim(),
         ...(this.editingHasParent() ? { parentName: this.parentName().trim() } : {}),
-        ...(this.editingHasParent() && newPassword ? ({ parentPassword: newPassword } as Record<string, unknown>) : {}),
+        ...(this.editingHasParent() && newPassword ? { parentPassword: newPassword } : {}),
       })
       .subscribe({
         next: () => {

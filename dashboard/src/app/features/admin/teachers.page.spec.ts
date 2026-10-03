@@ -143,7 +143,7 @@ describe('Teachers', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     const post = backend.expectOne('/admin/teachers');
-    expect(post.request.body.subjects).toEqual(expect.arrayContaining(['science', 'religion']));
+    expect((post.request.body as { subjects: string[] }).subjects).toEqual(expect.arrayContaining(['science', 'religion']));
     post.flush({
       teacher: { ...SARA, fullName: 'Noura', subjects: ['science', 'religion'] },
       temporaryPassword: 'secret-pass-1',
