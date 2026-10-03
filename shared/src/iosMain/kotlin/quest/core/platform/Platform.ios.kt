@@ -41,7 +41,8 @@ actual fun platformModule(): Module = module {
     single<Speaker> { IosSpeaker() }
     single<TodaySnapshotStore> { IosTodaySnapshotStore() }
     single<ExamSittingPresenter> { IosExamSittingPresenter() }
-    // M5: no push here yet — iOS waits for an Apple developer account (APNs key); see docs/runbook.md.
+    // M5: no push on iOS yet. The later step: an Apple developer account, an APNs key uploaded to the Firebase project,
+    // the Firebase Messaging SDK in iosApp and an actual PushTokens here — B4 already sends the APNs alert beside the data.
     single<PushTokens> { NoPushTokens }
 }
 
