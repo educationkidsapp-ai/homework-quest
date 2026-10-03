@@ -5,12 +5,8 @@ import {
   NotificationView,
   SendChatMessageRequest,
 } from '../../api';
-import { type ChatAttachment } from './chat-attachments';
 
 export type { ChatMessage, ChatReadReceipt, ChatThread, SendChatMessageRequest };
-
-/** D4: a REST send with the files B5 added to it, by id. */
-export type ChatSendRequest = SendChatMessageRequest & { attachmentIds?: string[] };
 
 export type ChatConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 
@@ -77,10 +73,10 @@ export function peerIdsOf(thread: ChatThread, ownUserId: string | null): readonl
 }
 
 export interface LocalMessage extends ChatMessage {
-  /** D4 (B5): files on the message; the server's echo replaces the optimistic copy. */
-  attachments?: ChatAttachment[];
   pending?: boolean;
   failed?: boolean;
   errorMessage?: string;
+  /** The server's code for a refused send, when the screen has words of its own for it (D4). */
+  errorCode?: string;
   clientId?: string;
 }

@@ -19,7 +19,6 @@ import {
   ManagementApi,
   ManagementChatApi,
   ManagersApi,
-  MediaApi,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
 import { LocalMessage } from '../../core/chat/chat.models';
@@ -108,14 +107,13 @@ describe('ChatPage', () => {
 
   const PIXEL = 'data:image/png;base64,iVBORw0KGgo=';
   /** D4: every upload is accepted at once as `att-9`. */
-  const mediaApi = {
-    uploadAttachment: vi.fn(() => of({ type: HttpEventType.Response, body: { id: 'att-9' } })),
-  };
+  const uploadChatAttachment = vi.fn(() => of({ type: HttpEventType.Response, body: { id: 'att-9' } }));
 
   /** MG2b: a teacher's chooser asks for the department managers, so the page needs the API stubbed. */
   const chatApi = {
     teacherManagers: vi.fn().mockReturnValue(of([])),
     teacherStaffThread: vi.fn().mockReturnValue(of({ id: 'th-2' })),
+    uploadChatAttachment,
   };
 
   async function renderPage(
@@ -148,7 +146,6 @@ describe('ChatPage', () => {
           provide: MediaService,
           useValue: { attachmentImage: () => of(PIXEL), attachmentFile: () => of(new Blob()) },
         },
-        { provide: MediaApi, useValue: mediaApi },
         ...(query === null
           ? []
           : [
@@ -263,7 +260,7 @@ describe('ChatPage', () => {
     beforeEach(() => {
       activeKeySig.set('ch-1');
       activeThreadSig.set(sampleThread);
-      mediaApi.uploadAttachment.mockClear();
+      uploadChatAttachment.mockClear();
     });
 
     function picker(): HTMLInputElement {
@@ -277,7 +274,7 @@ describe('ChatPage', () => {
       await user.upload(picker(), picture);
       rendered.fixture.detectChanges();
 
-      expect(mediaApi.uploadAttachment).toHaveBeenCalledWith(picture, 'events', true, expect.anything());
+      expect(uploadChatAttachment).toHaveBeenCalledWith(picture, 'events', true, expect.anything());
       expect(screen.getByText('board.png')).toBeTruthy();
       await user.click(screen.getByRole('button', { name: 'Send' }));
       expect(mockChatService.sendMessage).toHaveBeenCalledWith('', [
@@ -293,7 +290,7 @@ describe('ChatPage', () => {
       await user.upload(picker(), new File(['x'], 'clip.gif', { type: 'image/gif' }));
       rendered.fixture.detectChanges();
 
-      expect(mediaApi.uploadAttachment).not.toHaveBeenCalled();
+      expect(uploadChatAttachment).not.toHaveBeenCalled();
       expect(screen.getByRole('alert').textContent).toContain(
         'clip.gif cannot be attached. Attach a JPEG, PNG or WebP picture, or a PDF.',
       );
@@ -327,6 +324,24 @@ describe('ChatPage', () => {
       expect(image.getAttribute('src')).toBe(PIXEL);
       expect(screen.getByText('[attachment:att-old:image:old.png:2 KB]')).toBeTruthy();
       expect(screen.queryByRole('img', { name: 'old.png' })).toBeNull();
+    });
+
+    it('says why a send with files was refused when the files were already sent', async () => {
+      messagesSig.set([
+        {
+          id: 'temp-1',
+          threadId: 'th-1',
+          sender: ChatMessageSenderEnum.TEACHER,
+          senderId: 'u-sara',
+          body: '',
+          createdAt: 1700000000000,
+          failed: true,
+          errorCode: 'attachment_already_sent',
+        },
+      ]);
+      await renderPage();
+
+      expect(screen.getByText(/these files were already sent in another message/)).toBeTruthy();
     });
 
     it('names a files-only last message "Photo" or by the document in the list', async () => {

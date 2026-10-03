@@ -1508,13 +1508,15 @@
       "imageTooBig": "{{name}} is larger than 5 MB. Attach a smaller picture.",
       "pdfTooBig": "{{name}} is larger than 10 MB. Attach a smaller PDF.",
       "tooMany": "A message can carry up to 5 files. Send these first, then attach the rest.",
-      "failed": "{{name}} could not be uploaded. Remove it and try again."
+      "failed": "{{name}} could not be uploaded. Remove it and try again.",
+      "tooManyPixels": "{{name}} is too large a picture (over 8192 pixels or 40 megapixels). Attach a smaller one."
     },
     "preview": {
       "photo": "📷 Photo",
       "photos": "📷 {{count}} photos",
       "file": "📄 {{name}}"
-    }
+    },
+    "attachmentAlreadySent": "Not sent: these files were already sent in another message. Attach them again."
   },
   "profile": {
     "title": "Your profile",

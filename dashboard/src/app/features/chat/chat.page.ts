@@ -36,6 +36,7 @@ import {
   formatBytes,
   isImageAttachment,
   type ChatFileRefusal,
+  type ChatUploadFailure,
 } from '../../core/chat/chat-attachments';
 import { ChatUploads } from '../../core/chat/chat-uploads';
 import { ChatService } from '../../core/chat/chat.service';
@@ -447,7 +448,13 @@ interface ChatPreview {
                             <span class="message-bubble__status">⏳</span>
                           } @else if (msg.failed) {
                             <span class="message-bubble__status message-bubble__status--failed"
-                              >⚠️ {{ 'chat.failed' | transloco }}</span
+                              >⚠️
+                              {{
+                                (msg.errorCode === 'attachment_already_sent'
+                                  ? 'chat.attachmentAlreadySent'
+                                  : 'chat.failed'
+                                ) | transloco
+                              }}</span
                             >
                           } @else if (msg.readAt) {
                             <span
@@ -2306,7 +2313,7 @@ export class ChatPage implements AfterViewChecked {
     if (files.length > 0) this.uploads.add(files);
   }
 
-  protected problemText(reason: ChatFileRefusal | 'failed'): string {
+  protected problemText(reason: ChatFileRefusal | ChatUploadFailure): string {
     return `chat.upload.${reason}`;
   }
 

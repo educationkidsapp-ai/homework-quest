@@ -38,7 +38,7 @@ describe('ChatAttachmentsComponent', () => {
     expect(media.attachmentImage).not.toHaveBeenCalled();
     scrollIntoView(image);
     rendered.fixture.detectChanges();
-    expect(media.attachmentImage).toHaveBeenCalledWith('att-1', 600);
+    expect(media.attachmentImage).toHaveBeenCalledWith('att-1', 640);
     expect(image.getAttribute('src')).toBe(PIXEL);
 
     screen.getByRole('button', { name: 'Open board.jpg full size' }).click();

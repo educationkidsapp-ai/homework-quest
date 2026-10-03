@@ -1,8 +1,8 @@
-import { HttpEventType } from '@angular/common/http';
+import { HttpErrorResponse, HttpEventType } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { Subject } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MediaApi } from '../../api';
+import { ChatApi } from '../../api';
 import { attachmentsOf, formatBytes, refusalOf } from './chat-attachments';
 import { ChatUploads } from './chat-uploads';
 
@@ -56,13 +56,13 @@ describe('ChatUploads', () => {
   beforeEach(() => {
     requests = [];
     const media = {
-      uploadAttachment: vi.fn((picked: Blob) => {
+      uploadChatAttachment: vi.fn((picked: Blob) => {
         const events = new Subject<unknown>();
         requests.push({ file: picked, events });
         return events;
       }),
     };
-    TestBed.configureTestingModule({ providers: [ChatUploads, { provide: MediaApi, useValue: media }] });
+    TestBed.configureTestingModule({ providers: [ChatUploads, { provide: ChatApi, useValue: media }] });
     uploads = TestBed.inject(ChatUploads);
   });
 
@@ -104,6 +104,17 @@ describe('ChatUploads', () => {
 
     expect(requests[0]!.events.observed).toBe(false);
     expect(uploads.staged()).toEqual([]);
+  });
+
+  it('says in her words what the server refused: too many pixels, or too many bytes', () => {
+    uploads.add([file('scan.png', 'image/png', 1), file('plan.pdf', 'application/pdf', 1)]);
+    requests[0]!.events.error(
+      new HttpErrorResponse({ status: 400, error: { code: 'image_too_large', message: 'Too large.' } }),
+    );
+    expect(uploads.problem()).toEqual({ reason: 'tooManyPixels', name: 'scan.png' });
+
+    requests[1]!.events.error(new HttpErrorResponse({ status: 413 }));
+    expect(uploads.problem()).toEqual({ reason: 'pdfTooBig', name: 'plan.pdf' });
   });
 
   it('marks a failed upload and says so, and nothing failed is offered to the message', () => {

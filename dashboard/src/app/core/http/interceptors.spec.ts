@@ -92,13 +92,16 @@ describe('interceptors', () => {
    * `multiSchool` off there is no switcher for her to pick with — so those routes, and only those,
    * fall back to the school somebody resolved from `GET /admin/schools`.
    */
-  it('falls back to the one school for /admin/chat/** and for nothing else', () => {
+  it('falls back to the one school for /admin/chat/** and the chat upload, and for nothing else', () => {
     signedInAs(ADMIN_USER);
     scope.setMultiSchool(false);
     scope.setSoleSchool('school-a');
 
     http.get('/admin/chat/threads').subscribe();
     expect(backend.expectOne('/admin/chat/threads').request.headers.get('X-School-Id')).toBe('school-a');
+    // D4: a file for one of her messages is uploaded for the same school.
+    http.post('/media/chat-attachments', null).subscribe();
+    expect(backend.expectOne('/media/chat-attachments').request.headers.get('X-School-Id')).toBe('school-a');
 
     // Every other Admin read is deliberately cross-school with the flag off: D13 stands.
     http.get('/admin/classes').subscribe();

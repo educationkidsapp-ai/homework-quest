@@ -1,4 +1,4 @@
-import { ChatMessage } from '../../api';
+import { ChatAttachment, ChatMessage } from '../../api';
 
 /**
  * **A file on a chat message** (D4, B5's contract): uploaded with `POST /media/attachments`
@@ -9,14 +9,7 @@ import { ChatMessage } from '../../api';
  * the bytes in its own `sessionStorage`, so the parent's app received a file *name* and nothing
  * else. That path is gone; a body that still carries one of those tags is plain text now.
  */
-export interface ChatAttachment {
-  readonly id: string;
-  readonly contentType: string;
-  readonly name: string;
-  readonly size: number;
-  readonly width?: number;
-  readonly height?: number;
-}
+export type { ChatAttachment };
 
 /** What the server accepts for a chat (B5): the three web image formats, and PDF. */
 export const CHAT_IMAGE_TYPES: readonly string[] = ['image/jpeg', 'image/png', 'image/webp'];
@@ -30,6 +23,8 @@ export const CHAT_ACCEPT = [...CHAT_IMAGE_TYPES, CHAT_PDF_TYPE].join(',');
 export type ChatFileKind = 'image' | 'pdf';
 /** Why a picked file was not staged: each one is a sentence in `chat.upload.*`. */
 export type ChatFileRefusal = 'type' | 'imageTooBig' | 'pdfTooBig' | 'tooMany';
+/** Why the server refused an upload the client let through (B5): each one is a sentence too. */
+export type ChatUploadFailure = 'imageTooBig' | 'pdfTooBig' | 'tooManyPixels' | 'failed';
 
 /** A picked file's kind by its type, or by its name when the browser reports no type. */
 export function kindOfFile(file: { readonly type: string; readonly name: string }): ChatFileKind | null {
@@ -54,13 +49,9 @@ export function isImageAttachment(attachment: ChatAttachment): boolean {
   return CHAT_IMAGE_TYPES.includes(attachment.contentType.toLowerCase());
 }
 
-/**
- * A message's attachments. Every message written before D4 has none.
- *
- * Read through this one function so the field the contract names is spelled in one place.
- */
+/** A message's attachments: the field is absent on a message without files, and on every one before D4. */
 export function attachmentsOf(message: ChatMessage | null | undefined): readonly ChatAttachment[] {
-  return (message as { attachments?: readonly ChatAttachment[] } | null | undefined)?.attachments ?? [];
+  return message?.attachments ?? [];
 }
 
 /** `820 KB`, `4.2 MB` — the size under a file's name. Units are the same in both languages. */

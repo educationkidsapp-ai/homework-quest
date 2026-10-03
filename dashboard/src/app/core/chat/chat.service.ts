@@ -7,7 +7,9 @@ import {
   ChatThreadStaffRoleEnum,
   ChatThreadStatusEnum,
   ChatThreadTopicEnum,
+  SendChatMessageRequest,
 } from '../../api';
+import { apiErrorCodeOf } from '../../api/api-error';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { SessionStore } from '../auth/session.store';
@@ -18,7 +20,6 @@ import { type ChatTransport, ChatRoutes } from './chat-routes';
 import {
   type ChatClientCommand,
   type ChatConnectionStatus,
-  type ChatSendRequest,
   type ChatServerFrame,
   type LocalMessage,
   peerIdsOf,
@@ -431,7 +432,7 @@ export class ChatService {
 
     const attachmentIds = attachments.map((attachment) => attachment.id);
     // On the socket when it is open — the echo with this `clientId` is the ack — else over REST.
-    if (this.socketOpenFor(transport)) {
+    if (this.socketOpen()) {
       const command: ChatClientCommand = {
         type: 'message',
         ...transport.commandKey(key),
@@ -442,7 +443,7 @@ export class ChatService {
       this.socket?.send(JSON.stringify(command));
     } else {
       // Fall back to REST
-      const request: ChatSendRequest = { body: cleanBody, clientId };
+      const request: SendChatMessageRequest = { body: cleanBody, clientId };
       if (attachmentIds.length > 0) request.attachmentIds = attachmentIds;
       transport
         .send(key, request)
@@ -451,10 +452,11 @@ export class ChatService {
             this.handleServerMessage(msg, clientId);
           }),
           catchError((err: unknown) => {
+            const errorCode = apiErrorCodeOf(err) ?? undefined;
             this.messages.update((list) =>
               list.map((m) =>
                 m.clientId === clientId
-                  ? { ...m, pending: false, failed: true, errorMessage: 'Failed to send' }
+                  ? { ...m, pending: false, failed: true, errorMessage: 'Failed to send', errorCode }
                   : m,
               ),
             );
@@ -476,7 +478,7 @@ export class ChatService {
   sendTyping(): void {
     const key = this.activeKey();
     const transport = key === null ? null : this.transportFor(key);
-    if (!key || transport === null || !this.socketOpenFor(transport)) return;
+    if (!key || transport === null || !this.socketOpen()) return;
     if (!this.threads().some((thread) => this.keyOf(thread) === key)) return;
 
     const now = Date.now();
@@ -488,15 +490,14 @@ export class ChatService {
     this.lastTyping = { key, at: now };
   }
 
-  /** The socket is open, and this account's chat commands may go on it (an ADMIN's may not, D4). */
-  private socketOpenFor(transport: ChatTransport): boolean {
-    return transport.socket && this.socket !== null && this.socket.readyState === WebSocket.OPEN;
+  private socketOpen(): boolean {
+    return this.socket !== null && this.socket.readyState === WebSocket.OPEN;
   }
 
   markRead(key: string): void {
     const transport = this.transportFor(key);
     if (transport === null) return;
-    if (this.socketOpenFor(transport)) {
+    if (this.socketOpen()) {
       const command: ChatClientCommand = { type: 'read', ...transport.commandKey(key) };
       this.socket?.send(JSON.stringify(command));
     }
@@ -732,7 +733,7 @@ export class ChatService {
           this.messages.update((list) =>
             list.map((m) =>
               m.clientId === frame.clientId
-                ? { ...m, pending: false, failed: true, errorMessage: frame.message }
+                ? { ...m, pending: false, failed: true, errorMessage: frame.message, errorCode: frame.code }
                 : m,
             ),
           );

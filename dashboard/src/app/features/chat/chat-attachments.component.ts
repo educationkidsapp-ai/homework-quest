@@ -10,7 +10,7 @@ import { reserveTab } from '../../core/download/download';
 import { MediaService } from '../../core/media/media.service';
 import { AttachmentImageDirective, ButtonComponent, DialogComponent } from '../../ui';
 
-const THUMB_WIDTH = 600;
+const THUMB_WIDTH = 640;
 
 /**
  * **The files on one chat message** (D4): pictures drawn, documents opened.
@@ -165,7 +165,7 @@ export class ChatAttachmentsComponent {
 
   readonly attachments = input.required<readonly ChatAttachment[]>();
 
-  /** Twice the bubble's widest picture, for a sharp thumbnail on a 2x screen. */
+  /** One of the widths the server keeps (320/640/1280): about twice the bubble's widest picture. */
   protected readonly thumbWidth = THUMB_WIDTH;
   protected readonly images = computed(() => this.attachments().filter(isImageAttachment));
   protected readonly files = computed(() => this.attachments().filter((file) => !isImageAttachment(file)));

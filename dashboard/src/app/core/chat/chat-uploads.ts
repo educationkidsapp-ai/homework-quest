@@ -1,12 +1,14 @@
-import { HttpEventType } from '@angular/common/http';
+import { HttpErrorResponse, HttpEventType } from '@angular/common/http';
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import { Subscription, filter, take, tap } from 'rxjs';
-import { MediaApi } from '../../api';
+import { ChatApi } from '../../api';
+import { apiErrorCodeOf } from '../../api/api-error';
 import { silentErrors } from '../http/error.interceptor';
 import {
   ChatAttachment,
   ChatFileKind,
   ChatFileRefusal,
+  ChatUploadFailure,
   CHAT_PDF_TYPE,
   kindOfFile,
   refusalOf,
@@ -31,11 +33,22 @@ export interface StagedUpload {
 
 /** A sentence for the composer's band: what was refused, and the file it was about. */
 export interface UploadProblem {
-  readonly reason: ChatFileRefusal | 'failed';
+  readonly reason: ChatFileRefusal | ChatUploadFailure;
   readonly name: string;
 }
 
 let nextKey = 0;
+
+/**
+ * What the server's refusal means in her words (B5): 413 is a file over the size limit, which the
+ * client's own check should have caught; `image_too_large` a picture over 8192 px or 40 MP, which
+ * only the server can measure. Anything else — 411 included — is "could not be uploaded".
+ */
+function failureOf(error: unknown, kind: ChatFileKind): ChatUploadFailure {
+  if (error instanceof HttpErrorResponse && error.status === 413)
+    return kind === 'image' ? 'imageTooBig' : 'pdfTooBig';
+  return apiErrorCodeOf(error) === 'image_too_large' ? 'tooManyPixels' : 'failed';
+}
 
 /**
  * **The composer's staged files** (D4): picked, checked, uploaded at once with a progress bar,
@@ -48,7 +61,7 @@ let nextKey = 0;
  */
 @Injectable()
 export class ChatUploads {
-  private readonly media = inject(MediaApi);
+  private readonly chat = inject(ChatApi);
   private readonly running = new Map<string, Subscription>();
 
   readonly staged = signal<readonly StagedUpload[]>([]);
@@ -120,8 +133,10 @@ export class ChatUploads {
     ]);
     if (kind === 'image') this.preview(key, file);
 
-    const reading = this.media
-      .uploadAttachment(file, 'events', true, { context: silentErrors() })
+    // `POST /media/chat-attachments` (B5). The browser's `FormData` sends the Content-Length the
+    // server insists on; an Admin's request gets `X-School-Id` from the auth interceptor.
+    const reading = this.chat
+      .uploadChatAttachment(file, 'events', true, { context: silentErrors() })
       .pipe(
         tap((event) => {
           if (event.type === HttpEventType.UploadProgress && event.total) {
@@ -136,21 +151,21 @@ export class ChatUploads {
         next: (event) => {
           const id = event.body?.id ?? '';
           if (id === '') {
-            this.fail(key, file.name);
+            this.fail(key, file.name, 'failed');
             return;
           }
           this.patch(key, { id, progress: 100, state: 'done' });
         },
-        error: () => this.fail(key, file.name),
+        error: (error: unknown) => this.fail(key, file.name, failureOf(error, kind)),
         complete: () => this.running.delete(key),
       });
     this.running.set(key, reading);
   }
 
-  private fail(key: string, name: string): void {
+  private fail(key: string, name: string, reason: ChatUploadFailure): void {
     this.running.delete(key);
     this.patch(key, { state: 'failed' });
-    this.problem.set({ reason: 'failed', name });
+    this.problem.set({ reason, name });
   }
 
   private patch(key: string, change: Partial<StagedUpload>): void {

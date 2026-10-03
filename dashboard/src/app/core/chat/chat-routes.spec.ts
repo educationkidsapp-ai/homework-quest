@@ -281,8 +281,6 @@ describe('ChatRoutes', () => {
 
     expect(routes.transport()?.keyOf(staffThread)).toBe('th-2');
     expect(routes.transport()?.commandKey('th-2')).toEqual({ threadId: 'th-2' });
-    // D4: her token names no school, so her chat commands go over REST, never the socket.
-    expect(routes.transport()?.socket).toBe(false);
 
     chat.loadThreads();
     // S1: `mine=true` — her own inbox, not the whole school's chat.
