@@ -311,12 +311,6 @@ fun ParentHomeScreen(
             ParentButton(badged(s.announcements, state.unreadBroadcasts), onBroadcasts, primary = false, icon = "📣")
             Spacer(Modifier.height(10.dp))
         }
-        FeatureGate(Flags.CHAT) {
-            ParentButton(badged(s.messages, unreadMessages), onMessages, primary = false, icon = "💬")
-            Spacer(Modifier.height(10.dp))
-        }
-        ParentButton(s.settings, onSettings, primary = false, icon = "⚙️")
-        Spacer(Modifier.height(10.dp))
         ParentButton(s.signOut, { dispatch(ParentHomeContract.Intent.SignOut) }, primary = false)
         Spacer(Modifier.height(24.dp))
     }

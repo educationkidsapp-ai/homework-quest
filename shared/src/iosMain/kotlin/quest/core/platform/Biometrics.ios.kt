@@ -17,6 +17,7 @@ import kotlin.coroutines.resume
  */
 actual fun platformBiometricAuthenticator(): BiometricAuthenticator = object : BiometricAuthenticator {
     override val lockToSetUp = BiometricKind.PASSCODE
+    private var activeContext: LAContext? = null
 
     /**
      * Face ID / Touch ID while usable; [BiometricKind.PASSCODE] while it is not — none enrolled, locked out after
@@ -24,28 +25,55 @@ actual fun platformBiometricAuthenticator(): BiometricAuthenticator = object : B
      */
     override fun kind(): BiometricKind? {
         val context = LAContext()
-        if (!context.canEvaluatePolicy(LAPolicyDeviceOwnerAuthenticationWithBiometrics, error = null)) {
-            return if (context.canEvaluatePolicy(LAPolicyDeviceOwnerAuthentication, error = null)) BiometricKind.PASSCODE else null
+        val hasBiometrics = context.canEvaluatePolicy(LAPolicyDeviceOwnerAuthenticationWithBiometrics, error = null)
+        if (hasBiometrics) {
+            return when (context.biometryType) {
+                LABiometryTypeFaceID -> BiometricKind.FACE
+                LABiometryTypeTouchID -> BiometricKind.FINGERPRINT
+                else -> BiometricKind.GENERIC
+            }
         }
-        return when (context.biometryType) {
-            LABiometryTypeFaceID -> BiometricKind.FACE
-            LABiometryTypeTouchID -> BiometricKind.FINGERPRINT
-            else -> BiometricKind.GENERIC
-        }
+        val hasPasscode = context.canEvaluatePolicy(LAPolicyDeviceOwnerAuthentication, error = null)
+        return if (hasPasscode) BiometricKind.PASSCODE else null
     }
 
     /**
-     * The device-owner policy: Face ID / Touch ID when usable, otherwise — locked out, switched off, removed — the
-     * device passcode, on the same system sheet. [BiometricResult.UNAVAILABLE] only when the device has no passcode.
+     * The device-owner policy: Face ID / Touch ID when usable, with device passcode fallback on physical devices.
+     * When device passcode is not configured for LocalAuthentication (e.g. in iOS Simulator with Face ID enrolled),
+     * falls back to evaluating [LAPolicyDeviceOwnerAuthenticationWithBiometrics] so biometrics can still be tested and used.
      */
-    override suspend fun authenticate(reason: String): BiometricResult {
+    override suspend fun authenticate(reason: String): BiometricResult = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
         val context = LAContext()
-        if (!context.canEvaluatePolicy(LAPolicyDeviceOwnerAuthentication, error = null)) return BiometricResult.UNAVAILABLE
-        return suspendCancellableCoroutine { continuation ->
-            context.evaluatePolicy(LAPolicyDeviceOwnerAuthentication, localizedReason = reason) { success, _ ->
-                if (continuation.isActive) continuation.resume(if (success) BiometricResult.SUCCESS else BiometricResult.CANCELLED)
+        activeContext = context
+
+        val canBiometrics = context.canEvaluatePolicy(LAPolicyDeviceOwnerAuthenticationWithBiometrics, error = null)
+        val canPasscode = context.canEvaluatePolicy(LAPolicyDeviceOwnerAuthentication, error = null)
+
+        if (!canBiometrics && !canPasscode) {
+            activeContext = null
+            return@withContext BiometricResult.UNAVAILABLE
+        }
+
+        val policy = if (canPasscode) LAPolicyDeviceOwnerAuthentication else LAPolicyDeviceOwnerAuthenticationWithBiometrics
+
+        try {
+            suspendCancellableCoroutine { continuation ->
+                context.evaluatePolicy(policy, localizedReason = reason) { success, error ->
+                    if (error != null) {
+                        platform.Foundation.NSLog("Biometric authentication ended with error: code=%ld, localizedDescription=%@", error.code, error.localizedDescription)
+                    }
+                    if (continuation.isActive) {
+                        continuation.resume(if (success) BiometricResult.SUCCESS else BiometricResult.CANCELLED)
+                    }
+                }
+                continuation.invokeOnCancellation {
+                    context.invalidate()
+                }
             }
-            continuation.invokeOnCancellation { context.invalidate() }
+        } finally {
+            if (activeContext === context) {
+                activeContext = null
+            }
         }
     }
 }
