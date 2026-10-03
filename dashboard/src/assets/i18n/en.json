@@ -2491,6 +2491,12 @@
     "moveFailed": "The status did not change. Nothing was saved — try again.",
     "sendFailed": "Your reply was not sent. It is back in the box — try again.",
     "older": "Load older messages",
-    "olderFailed": "The older messages could not be loaded. Try again."
+    "olderFailed": "The older messages could not be loaded. Try again.",
+    "errors": {
+      "alreadySent": "Not sent: a file on this reply already went with another message. Attach it again to send it.",
+      "tooManyPixels": "Not sent: a picture is too large (over 8192 pixels or 40 megapixels). Attach a smaller one.",
+      "tooBig": "Not sent: a file is too large. Pictures may be up to 5 MB and PDFs up to 10 MB.",
+      "notUploaded": "Not sent: a file could not be uploaded. Remove it and attach it again."
+    }
   }
 }

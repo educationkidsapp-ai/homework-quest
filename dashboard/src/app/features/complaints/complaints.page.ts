@@ -244,8 +244,9 @@ export class ComplaintsPage {
     this.complaints.area() === 'admin' ? 'complaints.subtitle.admin' : 'complaints.subtitle.staff',
   );
 
-  protected readonly list = rxResource<ComplaintList, ComplaintFilter>({
-    params: () => this.status(),
+  protected readonly list = rxResource<ComplaintList, ComplaintFilter | undefined>({
+    // Undefined (idle) until the reads can be made — the Admin's school is resolved first.
+    params: () => (this.complaints.ready() ? this.status() : undefined),
     stream: ({ params }) => this.complaints.list(params),
   });
 

@@ -1,5 +1,6 @@
 import { HttpErrorResponse, HttpInterceptorFn, HttpRequest } from '@angular/common/http';
 import { inject } from '@angular/core';
+import { Router } from '@angular/router';
 import { throwError } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
 import { AuthService } from '../auth/auth.service';
@@ -27,10 +28,12 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const session = inject(SessionStore);
   const scope = inject(SchoolScopeStore);
   const auth = inject(AuthService);
+  const router = inject(Router);
 
   if (isAsset(request.url)) return next(request);
 
-  const authorized = withSession(request, session.accessToken(), adminScope(auth, scope, request.url));
+  const scoped = (url: string) => adminScope(auth, scope, url, router.url);
+  const authorized = withSession(request, session.accessToken(), scoped(request.url));
   if (NO_RETRY.some((path) => request.url.includes(path))) return next(authorized);
 
   return next(authorized).pipe(
@@ -38,7 +41,7 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
       if (!(error instanceof HttpErrorResponse) || error.status !== 401) return throwError(() => error);
       return auth
         .refresh()
-        .pipe(switchMap((token) => next(withSession(request, token, adminScope(auth, scope, request.url)))));
+        .pipe(switchMap((token) => next(withSession(request, token, scoped(request.url)))));
     }),
   );
 };
@@ -54,14 +57,24 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
  * routes: every other Admin read is deliberately cross-school with the flag off, and
  * scoping them all to the one school would be D13 undone by the back door.
  */
-function adminScope(auth: AuthService, scope: SchoolScopeStore, url: string): string | null {
+function adminScope(auth: AuthService, scope: SchoolScopeStore, url: string, screen: string): string | null {
   if (auth.role() !== 'ADMIN') return null;
-  return scope.schoolId() ?? (isSchoolScopedChat(url) ? scope.soleSchoolId() : null);
+  return scope.schoolId() ?? (isSchoolScopedChat(url, screen) ? scope.soleSchoolId() : null);
 }
 
-/** `/admin/chat/**`, and (D4) `POST /media/chat-attachments`, the upload a message's files take. */
-function isSchoolScopedChat(url: string): boolean {
-  return url.includes('/admin/chat/') || url.includes('/media/chat-attachments');
+/**
+ * `/admin/chat/**`, and (D4) `POST /media/chat-attachments`, the upload a message's files take.
+ * D5: `/admin/complaints/**` too — the support view of a school's complaints is read one school
+ * at a time like her chat — and the files on them, `GET /media/attachments/{id}`, when they are
+ * read **from that screen**: the same route serves files elsewhere, which stay cross-school.
+ */
+function isSchoolScopedChat(url: string, screen: string): boolean {
+  if (url.includes('/admin/chat/') || url.includes('/media/chat-attachments')) return true;
+  if (url.includes('/admin/complaints')) return true;
+  return (
+    url.includes('/media/attachments/') &&
+    (screen === '/admin/complaints' || screen.startsWith('/admin/complaints?'))
+  );
 }
 
 function withSession<T>(

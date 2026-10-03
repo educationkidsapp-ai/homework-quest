@@ -14,6 +14,7 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { rxResource, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { catchError, of, tap } from 'rxjs';
@@ -23,7 +24,7 @@ import {
   type ComplaintEvent,
   ChatMessageSenderEnum,
   ComplaintStatusEnum,
-  apiErrorOf,
+  apiErrorCodeOf,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
 import { CHAT_ACCEPT, CHAT_MAX_ATTACHMENTS, attachmentsOf } from '../../core/chat/chat-attachments';
@@ -214,7 +215,14 @@ interface LocalMessage extends ChatMessage {
               >
                 {{ 'chat.attachFile' | transloco }}
               </hq-button>
-              <input #fileInput type="file" multiple hidden [accept]="acceptedTypes" (change)="onFiles($event)" />
+              <input
+                #fileInput
+                type="file"
+                multiple
+                hidden
+                [accept]="acceptedTypes"
+                (change)="onFiles($event)"
+              />
               <hq-button variant="primary" type="submit" [disabled]="!canSend()" [loading]="sending()">
                 {{ 'complaints.send' | transloco }}
               </hq-button>
@@ -397,8 +405,8 @@ export class ComplaintConversationComponent {
   protected readonly hasOlder = signal(false);
   protected readonly loadingOlder = signal(false);
 
-  protected readonly detail = rxResource<ComplaintDetail, string>({
-    params: () => this.complaintId(),
+  protected readonly detail = rxResource<ComplaintDetail, string | undefined>({
+    params: () => (this.complaints.ready() ? this.complaintId() : undefined),
     stream: ({ params }) =>
       this.complaints.detail(params).pipe(
         tap((detail) => {
@@ -497,9 +505,18 @@ export class ComplaintConversationComponent {
       untracked(() => this.missing.emit());
     });
 
+    // Another complaint in the same component (the bell, a link) or another account: nothing
+    // she had picked, typed or been asked about belongs to it — the files are cancelled and
+    // dropped exactly as Messages drops them when the thread changes.
+    let owner: string | null | undefined;
     effect(() => {
       const id = this.complaintId();
-      untracked(() => this.complaints.viewing.set(id));
+      const user = this.auth.user()?.id ?? null;
+      untracked(() => {
+        this.complaints.viewing.set(id);
+        if (owner !== undefined) this.reset();
+        owner = user;
+      });
     });
     destroyRef.onDestroy(() => this.complaints.viewing.set(null));
 
@@ -625,6 +642,8 @@ export class ComplaintConversationComponent {
       )
       .subscribe({
         next: (message) => {
+          // She has moved on to another complaint: the reply landed, but not on this screen.
+          if (c.id !== this.complaintId()) return;
           this.sending.set(false);
           // The files went with it: the composer is empty only now, so a failure keeps them.
           this.uploads.clear();
@@ -634,9 +653,13 @@ export class ComplaintConversationComponent {
         // Rolled back: the bubble leaves, the words go back in the box (the files never left it),
         // and the band says why.
         error: (error: unknown) => {
+          if (c.id !== this.complaintId()) return;
           this.sending.set(false);
           this.patchMessages((list) => list.filter((m) => m.clientId !== clientId));
           if (this.draft() === '') this.draft.set(body);
+          // A file that already went with another message cannot go again: it leaves the
+          // composer, and the band says to attach it afresh.
+          if (apiErrorCodeOf(error) === 'attachment_already_sent') this.uploads.clear();
           this.failure.set(this.reason(error, 'complaints.sendFailed'));
         },
       });
@@ -729,8 +752,22 @@ export class ComplaintConversationComponent {
       .subscribe(() => this.changed.emit());
   }
 
+  /** Empty the composer and the bands: another complaint, or another account. */
+  private reset(): void {
+    this.uploads.clear();
+    this.draft.set('');
+    this.failure.set(null);
+    this.asking.set(null);
+    this.sending.set(false);
+    this.moving.set(false);
+  }
+
+  /**
+   * What went wrong, in her language. The server's own text is English, so it is never shown:
+   * the codes a reply's files can fail with have sentences of their own, the rest the fallback.
+   */
   private reason(error: unknown, fallback: string): string {
-    return apiErrorOf(error)?.message ?? this.transloco.translate<string>(fallback);
+    return this.transloco.translate<string>(reasonKeyOf(error) ?? fallback);
   }
 
   private locale(): string {
@@ -745,4 +782,14 @@ function scrollerOf(element: HTMLElement): Element {
     if ((overflow === 'auto' || overflow === 'scroll') && node.scrollHeight > node.clientHeight) return node;
   }
   return document.scrollingElement ?? document.documentElement;
+}
+
+/** The EN/AR sentence for a failure a reply's files can cause; null for any other. */
+export function reasonKeyOf(error: unknown): string | null {
+  const code = apiErrorCodeOf(error);
+  if (code === 'attachment_already_sent') return 'complaints.errors.alreadySent';
+  if (code === 'image_too_large') return 'complaints.errors.tooManyPixels';
+  if (error instanceof HttpErrorResponse && error.status === 413) return 'complaints.errors.tooBig';
+  if (error instanceof HttpErrorResponse && error.status === 411) return 'complaints.errors.notUploaded';
+  return null;
 }

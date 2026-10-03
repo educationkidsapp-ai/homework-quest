@@ -2,6 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { type APIRequestContext, type Page } from '@playwright/test';
 import {
+  ADMIN,
   COORDINATOR,
   MANAGER,
   expect,
@@ -203,6 +204,30 @@ test.describe('the coordinator’s messages, complaints and broadcasts', () => {
     await expect(page.getByRole('note')).toContainText('Only Rasha Kamal replies in this complaint');
     await expect(page.getByRole('button', { name: 'Mark resolved' })).toBeVisible();
     await shoot(page, `${SHOTS}/04-supervisor-en.png`, stream);
+  });
+
+  /**
+   * D5 review: the Admin's support view is read for the one school she is pinned to (D1) — the list,
+   * the complaint and the file on it, which all answer 400/404 without `X-School-Id`.
+   */
+  test('the Admin reads it, file included, with nothing to write', async ({ page }) => {
+    await signIn(page, ADMIN);
+    // Through the rail rather than a cold deep link: her flags are read for the pinned school,
+    // which a cold load has not resolved when the route's flag guard runs (reported separately).
+    await rail(page)
+      .getByRole('link', { name: /^Complaints/ })
+      .click();
+    await page.locator(`hq-table a[href*="open=${complaintId}"]`).click();
+    const stream = page.getByRole('list', { name: 'Conversation' });
+    await expect(stream).toContainText('Nobody has marked the homework');
+    await expect(stream).toContainText('marking-plan.pdf');
+    await expect(page.getByRole('textbox', { name: 'Reply' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Mark resolved' })).toHaveCount(0);
+    const file = page.waitForResponse((response) => response.url().includes('/media/attachments/'));
+    const opened = page.waitForEvent('popup');
+    await stream.getByRole('button', { name: /Open/ }).first().click();
+    expect((await file).status()).toBe(200);
+    await (await opened).close();
   });
 
   /**

@@ -12,6 +12,7 @@ import {
   ManagementChatApi,
 } from '../../api';
 import { AuthService, type Role } from '../auth/auth.service';
+import { SchoolScopeStore } from '../auth/school-scope.store';
 import { FLAGS, FlagService } from '../flags/flag.service';
 import { PermissionService } from '../permissions/permission.service';
 import { ComplaintFrames, type ComplaintSignal, type ComplaintStatus } from './complaint-frames';
@@ -62,16 +63,31 @@ export class ComplaintsService {
   private readonly coordinatorApi = inject(CoordinatorChatApi);
   private readonly managementApi = inject(ManagementChatApi);
   private readonly frames = inject(ComplaintFrames);
+  private readonly scope = inject(SchoolScopeStore);
 
   readonly area = computed<ComplaintArea | null>(() => {
     const role = this.auth.role();
     return role === null ? null : AREA_OF[role];
   });
 
+  /**
+   * The reads can be made: always for staff, whose token names her school; for the Admin once her
+   * school is known — `/admin/complaints/**` is read one school at a time (`400` without
+   * `X-School-Id`), and with the switcher hidden that is the sole school ChatRoutes resolves (D1).
+   */
+  readonly ready = computed(
+    () => this.area() !== 'admin' || (this.scope.schoolId() ?? this.scope.soleSchoolId()) !== null,
+  );
+
   /** The area's Complaints is in her rail: the `chat` flag the routes carry, and her key. */
   readonly enabled = computed(() => {
     const area = this.area();
-    return area !== null && this.flags.isOn(FLAGS.chat) && this.permissions.can(COMPLAINT_PERMISSION[area]);
+    return (
+      area !== null &&
+      this.ready() &&
+      this.flags.isOn(FLAGS.chat) &&
+      this.permissions.can(COMPLAINT_PERMISSION[area])
+    );
   });
 
   /**

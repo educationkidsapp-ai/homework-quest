@@ -1,8 +1,9 @@
-import { provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
+import { TranslocoService } from '@jsverse/transloco';
 import { fireEvent, screen } from '@testing-library/angular';
 import { BehaviorSubject, map } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -10,9 +11,11 @@ import { ADMIN_USER, COORDINATOR_USER, TEACHER_USER } from '../../../testing/fix
 import { renderHq } from '../../../testing/render';
 import { type Complaint, type ComplaintDetail, type DashboardUser, BASE_PATH } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
+import { SchoolScopeStore } from '../../core/auth/school-scope.store';
 import { ComplaintFrames } from '../../core/complaints/complaint-frames';
 import { FlagService } from '../../core/flags/flag.service';
 import { PermissionService } from '../../core/permissions/permission.service';
+import { reasonKeyOf } from './complaint-conversation.component';
 import { ComplaintsPage, filterComplaints } from './complaints.page';
 
 const OCT_3 = Date.UTC(2026, 9, 3, 9, 0);
@@ -103,7 +106,11 @@ describe('the Complaints page', () => {
     }
   }
 
+  /** The signed-in account, switchable mid-test. */
+  let account: ReturnType<typeof signal<DashboardUser>>;
+
   async function render(user: DashboardUser, permission: string) {
+    account = signal(user);
     const rendered = await renderHq(ComplaintsPage, {
       providers: [
         provideHttpClient(),
@@ -121,7 +128,7 @@ describe('the Complaints page', () => {
         },
         {
           provide: AuthService,
-          useValue: { role: signal(user.role), user: signal(user), signedIn: signal(true) },
+          useValue: { role: signal(user.role), user: account, signedIn: signal(true) },
         },
       ],
     });
@@ -257,6 +264,12 @@ describe('the Complaints page', () => {
 
   it('the Admin reads the school’s complaints with nothing to write or move', async () => {
     const { backend } = await render(ADMIN_USER, 'admin.complaints');
+    // `/admin/complaints/**` is read one school at a time: nothing is asked until hers is known.
+    expect(backend.match((r) => r.url.startsWith('/admin/complaints'))).toEqual([]);
+    const scope = TestBed.inject(SchoolScopeStore);
+    scope.setMultiSchool(false);
+    scope.setSoleSchool('school-a');
+    await settle();
     lists(backend, '/admin/complaints', [COMPLAINT]);
     await open('c-1');
     detailOf(backend, '/admin/complaints/c-1').flush({
@@ -512,5 +525,87 @@ describe('the Complaints page', () => {
     await settle();
     expect(screen.queryByRole('list', { name: 'Files on this message' })).toBeNull();
     expect(screen.getByRole('list', { name: 'Conversation' }).textContent).toContain('marks.pdf');
+  });
+
+  /** Pick a PDF in the open complaint's composer; answers nothing yet. */
+  async function pickPdf(name = 'marks.pdf') {
+    const picker = document.querySelector<HTMLInputElement>('hq-complaint-conversation input[type="file"]')!;
+    fireEvent.change(picker, {
+      target: { files: [new File(['%PDF-1.4'], name, { type: 'application/pdf' })] },
+    });
+    await settle();
+  }
+
+  it('drops and cancels the picked files when she opens another complaint or the account changes', async () => {
+    const { backend } = await render(TEACHER_USER, 'teacher.complaints');
+    lists(backend, '/teacher/complaints', [COMPLAINT, { ...COMPLAINT, id: 'c-2', title: 'Bus' }]);
+    await open('c-1');
+    detailOf(backend, '/teacher/complaints/c-1').flush({ ...DETAIL, complaint: { ...COMPLAINT, unread: 0 } });
+    await settle();
+
+    await pickPdf();
+    const upload = backend.expectOne('/media/chat-attachments');
+    fireEvent.input(screen.getByRole('textbox', { name: 'Reply' }), { target: { value: 'Half written' } });
+    await settle();
+
+    // The bell opens another complaint in the same component.
+    await open('c-2');
+    expect(upload.cancelled).toBe(true);
+    expect(screen.queryByRole('list', { name: 'Files on this message' })).toBeNull();
+    detailOf(backend, '/teacher/complaints/c-2').flush({
+      ...DETAIL,
+      complaint: { ...COMPLAINT, id: 'c-2', title: 'Bus', unread: 0 },
+    });
+    await settle();
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Reply' }).value).toBe('');
+
+    // Another account in the same tab: the composer starts empty for her too.
+    await pickPdf('other.pdf');
+    backend.expectOne('/media/chat-attachments').flush({ id: 'att-9' });
+    await settle();
+    expect(screen.getByRole('list', { name: 'Files on this message' }).textContent).toContain('other.pdf');
+    account.set({ ...TEACHER_USER, id: 'u-other' });
+    await settle();
+    expect(screen.queryByRole('list', { name: 'Files on this message' })).toBeNull();
+    backend.match(() => true).forEach((request) => request.flush({ complaints: [], open: 0, resolved: 0 }));
+  });
+
+  it('says in Arabic that a file already went, and takes it off the reply', async () => {
+    const { backend } = await render(TEACHER_USER, 'teacher.complaints');
+    lists(backend, '/teacher/complaints', [COMPLAINT]);
+    await open('c-1');
+    detailOf(backend, '/teacher/complaints/c-1').flush({ ...DETAIL, complaint: { ...COMPLAINT, unread: 0 } });
+    await settle();
+    TestBed.inject(TranslocoService).setActiveLang('ar');
+    await settle();
+
+    await pickPdf();
+    backend.expectOne('/media/chat-attachments').flush({ id: 'att-1' });
+    await settle();
+    screen.getByRole('button', { name: 'أرسل الرد' }).click();
+    await settle();
+    backend
+      .expectOne('/teacher/complaints/c-1/messages')
+      .flush(
+        { code: 'attachment_already_sent', message: 'That file was already sent in another message.' },
+        { status: 409, statusText: 'Conflict' },
+      );
+    await settle();
+
+    expect(document.body.textContent).toContain('أحد ملفات هذا الرد أُرسل مع رسالة أخرى');
+    expect(document.body.textContent).not.toContain('That file was already sent');
+    expect(document.querySelector('hq-chat-staged-files ul')).toBeNull();
+  });
+});
+
+describe('reasonKeyOf', () => {
+  it('names every upload failure in her language, never the server’s English', () => {
+    const http = (status: number, code?: string) =>
+      new HttpErrorResponse({ status, error: code ? { code, message: 'English text' } : null });
+    expect(reasonKeyOf(http(409, 'attachment_already_sent'))).toBe('complaints.errors.alreadySent');
+    expect(reasonKeyOf(http(400, 'image_too_large'))).toBe('complaints.errors.tooManyPixels');
+    expect(reasonKeyOf(http(413))).toBe('complaints.errors.tooBig');
+    expect(reasonKeyOf(http(411))).toBe('complaints.errors.notUploaded');
+    expect(reasonKeyOf(http(500, 'internal'))).toBeNull();
   });
 });

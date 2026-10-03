@@ -113,6 +113,30 @@ describe('interceptors', () => {
     expect(backend.expectOne('/admin/chat/threads').request.headers.has('X-School-Id')).toBe(false);
   });
 
+  /**
+   * D5: the Admin's support view of the school's complaints is read one school at a time too, and
+   * so are the files on them — but only when read from that screen: the same file route elsewhere
+   * stays cross-school.
+   */
+  it('scopes /admin/complaints/** and, from that screen only, its files to the one school', () => {
+    signedInAs(ADMIN_USER);
+    scope.setMultiSchool(false);
+    scope.setSoleSchool('school-a');
+    const router = TestBed.inject(Router);
+    vi.spyOn(router, 'url', 'get').mockReturnValue('/admin/home');
+
+    http.get('/admin/complaints').subscribe();
+    expect(backend.expectOne('/admin/complaints').request.headers.get('X-School-Id')).toBe('school-a');
+    http.get('/admin/complaints/c-1').subscribe();
+    expect(backend.expectOne('/admin/complaints/c-1').request.headers.get('X-School-Id')).toBe('school-a');
+    http.get('/media/attachments/a-1').subscribe();
+    expect(backend.expectOne('/media/attachments/a-1').request.headers.has('X-School-Id')).toBe(false);
+
+    vi.spyOn(router, 'url', 'get').mockReturnValue('/admin/complaints?open=c-1');
+    http.get('/media/attachments/a-1').subscribe();
+    expect(backend.expectOne('/media/attachments/a-1').request.headers.get('X-School-Id')).toBe('school-a');
+  });
+
   it('never sends X-School-Id for a teacher — her token already carries the claim', () => {
     signedInAs(TEACHER_USER);
     scope.select({ id: 'school-b', name: 'Someone else' });
