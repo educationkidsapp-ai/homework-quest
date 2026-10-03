@@ -199,7 +199,8 @@ private fun NavHostController.follow(step: PushNavigator.Step) {
     when (step) {
         PushNavigator.Step.Nothing -> Unit
         PushNavigator.Step.Gate -> navigate(Routes.ParentPin(push = true))
-        is PushNavigator.Step.Parent -> navigate(step.route)
+        // One page of a kind: a tap on a row of the Notifications tab (or on a second push) replaces the page, not stacks it.
+        is PushNavigator.Step.Parent -> navigate(step.route) { popUpTo(step.route::class) { inclusive = true } }
         is PushNavigator.Step.Child -> {
             navigate(Routes.WorldMap) { popUpTo(0) { inclusive = true } }
             step.route?.let { navigate(it) }

@@ -28,6 +28,11 @@ data class NotificationTap(
     val collapseKey: String? = null,
     /** A row's `lessonId` — the lesson, broadcast, announcement, question or thread the row is about. */
     val subjectId: String? = null,
+    /**
+     * Tapped in the system shade, outside the app: the gate is always shown (the owner, 2026-10-03 — "Face ID or the
+     * parent password must appear, then the specific page"). Only a row tapped inside an unlocked parent area skips it.
+     */
+    val outside: Boolean = false,
 ) {
     /** The id after `prefix:` in the collapse key, else the row's own subject id. */
     fun idFor(prefix: String): String? =
@@ -102,6 +107,12 @@ private val SHAPES = listOf(
 )
 
 fun linkShape(link: String?): LinkShape = link?.trim()?.let { path -> SHAPES.firstOrNull { it.first.matches(path) }?.second } ?: LinkShape.OTHER
+
+/**
+ * Whether a launch of the activity is a new tap. A recreation after process death and a relaunch from Recents carry
+ * the old intent again; following it would ask for the gate and reopen an old page with nobody having tapped.
+ */
+fun isNewLaunch(restored: Boolean, fromHistory: Boolean): Boolean = !restored && !fromHistory
 
 /** The child an app path names (`/children/{id}/…`). */
 fun childOf(link: String?): String? = link?.let { CHILD.find(it.trim())?.groupValues?.get(1) }

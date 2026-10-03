@@ -11,6 +11,7 @@ import quest.core.platform.AndroidTodaySnapshotStore
 import quest.core.platform.AppVisibility
 import quest.core.platform.BiometricHost
 import quest.core.platform.PushIntents
+import quest.feature.push.domain.isNewLaunch
 import quest.feature.today.domain.TodayLinks
 import quest.core.platform.applyNightMode
 import quest.feature.parent.domain.Appearance
@@ -33,7 +34,9 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         BiometricHost.attach(this)
         followWidgetTap(intent)
-        PushIntents.follow(intent)                      // M5: a tapped push that started the app (cold start)
+        // M5: a tapped push that started the app — but not the same old intent again after process death or from Recents.
+        val fromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
+        if (isNewLaunch(restored = savedInstanceState != null, fromHistory = fromHistory)) PushIntents.follow(intent)
         setContent { App() }
     }
 

@@ -97,7 +97,7 @@ object PushIntents {
         val extras = intent?.extras ?: return
         if (!extras.getBoolean(EXTRA_PUSH)) return
         fun s(key: String) = extras.getString(PREFIX + key)
-        PushLinks.open(NotificationTap(s("kind").orEmpty(), s("link"), s("notificationId"), s("broadcastId"), s("childId"), s("collapseKey")))
+        PushLinks.open(NotificationTap(s("kind").orEmpty(), s("link"), s("notificationId"), s("broadcastId"), s("childId"), s("collapseKey"), outside = true))
         // Followed once: a configuration change or a later onNewIntent must not open it again.
         intent.removeExtra(EXTRA_PUSH)
     }

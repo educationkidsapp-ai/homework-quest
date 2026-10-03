@@ -20,7 +20,8 @@ object Routes {
     @Serializable data class ParentPin(val lessonId: String? = null, val push: Boolean = false)
     @Serializable object ParentHome
     @Serializable object Calendar
-    @Serializable object Progress
+    /** [focusExam] (M5): a released exam a tapped notification is about, shown first and outlined. */
+    @Serializable data class Progress(val focusExam: String? = null)
     @Serializable object Settings
     @Serializable object ChangePin
     @Serializable data class LessonPanel(val lessonId: String)

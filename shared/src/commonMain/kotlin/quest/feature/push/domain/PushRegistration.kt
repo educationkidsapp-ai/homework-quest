@@ -16,7 +16,7 @@ import quest.api.dto.DevicePlatform
 import quest.api.dto.RegisterDeviceRequest
 import quest.core.runCancellable
 
-/** The server half: B4's `POST /me/devices` and `DELETE /me/devices/{token}`, with the parent's own bearer. */
+/** The server half: B4's `POST /me/devices` and `POST /me/devices/unregister`, the token in the body, with her own bearer. */
 interface PushRegistrar {
     suspend fun register(device: RegisterDeviceRequest)
     suspend fun unregister(token: String)
@@ -60,7 +60,7 @@ interface PushPreferences {
  * - **Registered after sign-in, at every launch of a signed-in app, on every new token and when the parent changes the
  *   app's language** (the server writes the push's title and body in [locale]'s language). The call is an upsert on the
  *   server, so repeating it costs nothing. A failure (offline) leaves [Status.PENDING]; the next launch tries again.
- * - **Withdrawn on sign-out** while the session can still say who it is (`DELETE /me/devices/{token}`), then deleted on
+ * - **Withdrawn on sign-out** while the session can still say who it is (`POST /me/devices/unregister {token}`), then deleted on
  *   the device. **On session expiry** the bearer is gone, so only the device copy is deleted — the server learns the
  *   token is dead from FCM on its next send.
  */

@@ -10,11 +10,12 @@ import quest.feature.push.domain.ParentGate
 /**
  * M5 — where a tap navigates, for a push and for a row of the Notifications tab alike (the owner, 2026-10-03):
  *
- * 1. **The parent gate first.** Unless the gate was passed a moment ago ([ParentGate]), the tap waits behind
+ * 1. **The parent gate first.** A tap from the system shade always meets it; a row tapped inside the parent area skips
+ *    it while the gate is still open ([ParentGate]). Otherwise the tap waits behind
  *    `Routes.ParentPin` — the biometric where the parent turned it on (M2), the PIN otherwise. Backing out of the gate
  *    drops the tap; the target is never shown. The app's own biometric lock sits over all of it, as for the widget.
  * 2. **Then the specific page**, found by [NotificationRouter]: [Step.Parent] opens on top of the parent home, and
- *    [Step.Child] replaces the stack with the child's home first (a lesson, an exam's card or result is hers).
+ *    [Step.Child] replaces the stack with the child's home (an exam's card is hers).
  */
 class PushNavigator(private val router: NotificationRouter, private val gate: ParentGate, private val signedIn: () -> Boolean) {
     sealed interface Step {
@@ -30,7 +31,7 @@ class PushNavigator(private val router: NotificationRouter, private val gate: Pa
     /** A tap arrived. */
     suspend fun follow(tap: NotificationTap): Step = when {
         !signedIn() -> Step.Nothing
-        !gate.isOpen -> Step.Gate
+        tap.outside || !gate.isOpen -> Step.Gate
         else -> step(router.resolve(tap))
     }
 
@@ -43,10 +44,11 @@ class PushNavigator(private val router: NotificationRouter, private val gate: Pa
             is Destination.WeeklyPlan -> Step.Parent(Routes.WeeklyPlan(focus = destination.planId))
             is Destination.Broadcast -> Step.Parent(Routes.Broadcasts(focusBroadcast = destination.broadcastId))
             is Destination.Notifications -> Step.Parent(Routes.Broadcasts(focusRow = destination.row, gone = destination.gone))
-            Destination.Progress -> Step.Parent(Routes.Progress)
-            is Destination.Lesson -> Step.Child(Routes.Journey(destination.lessonId))
+            Destination.Progress -> Step.Parent(Routes.Progress())
+            // The owner (2026-10-03): the parent's own view of the lesson and of the result — inside the parent area.
+            is Destination.Lesson -> Step.Parent(Routes.LessonPanel(destination.lessonId))
             Destination.ExamCard -> Step.Child(null)
-            is Destination.ExamResult -> Step.Child(Routes.ExamResult(destination.lessonId))
+            is Destination.ExamResult -> Step.Parent(Routes.Progress(focusExam = destination.lessonId))
         }
     }
 }

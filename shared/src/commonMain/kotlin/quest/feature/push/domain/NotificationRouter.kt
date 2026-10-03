@@ -17,13 +17,13 @@ sealed interface Destination {
     data class WeeklyPlan(val planId: String) : Destination
     /** An announcement or event from a manager or coordinator: opened on the Notifications tab. */
     data class Broadcast(val broadcastId: String) : Destination
-    /** `homework.published`: that lesson for that child. */
+    /** `homework.published`: the parent's view of that lesson (the lesson panel) for that child. */
     data class Lesson(val lessonId: String) : Destination
     /** `exam.published` (or any `…/map` link): the child's home, where the exam's card is — title and window, never the paper. */
     data object ExamCard : Destination
     /** The parent's Progress page — an `…/progress` link that names no exam. */
     data object Progress : Destination
-    /** `exam.released`: that exam's result for that child. */
+    /** `exam.released`: the parent's result for that exam, with its score (Progress, that result first). */
     data class ExamResult(val lessonId: String) : Destination
     /**
      * The Notifications tab with [row] opened and highlighted — a kind this build does not know, a teacher's class note

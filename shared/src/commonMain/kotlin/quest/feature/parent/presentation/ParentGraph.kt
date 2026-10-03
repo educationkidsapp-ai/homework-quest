@@ -39,7 +39,7 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
     }
     composable<Routes.ParentHome> {
         ParentHomeRoute(
-            onCalendar = { nav.navigate(Routes.Calendar) }, onProgress = { nav.navigate(Routes.Progress) }, onSettings = { nav.navigate(Routes.Settings) },
+            onCalendar = { nav.navigate(Routes.Calendar) }, onProgress = { nav.navigate(Routes.Progress()) }, onSettings = { nav.navigate(Routes.Settings) },
             onLessonPanel = { nav.navigate(Routes.LessonPanel(it)) },
             onSignedOut = { nav.navigate(Routes.SignIn) { popUpTo(0) { inclusive = true } } }, onExit = { nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } } },
             onMessages = { nav.navigate(Routes.ChatThreads) },
@@ -48,7 +48,7 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
         )
     }
     composable<Routes.Calendar> { CalendarRoute(onLessonPanel = { nav.navigate(Routes.LessonPanel(it)) }, onBack = { nav.popBackStack() }) }
-    composable<Routes.Progress> { ProgressRoute(onBack = { nav.popBackStack() }) }
+    composable<Routes.Progress> { entry -> ProgressRoute(focusExam = entry.toRoute<Routes.Progress>().focusExam, onBack = { nav.popBackStack() }) }
     composable<Routes.Settings> {
         SettingsRoute(
             onChangePin = { nav.navigate(Routes.ChangePin) },

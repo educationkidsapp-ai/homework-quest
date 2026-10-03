@@ -97,7 +97,8 @@ fun ExamCountdownRow(closesAt: Long, now: () -> Long, modifier: Modifier = Modif
     }
     val warning = ExamCountdown.warning(left)
     val clock = localDigits(ExamCountdown.clock(left), arabic)
-    val closes = localDigits(s.examClosesAt.replace("{time}", examTime(closesAt, closesAt, TimeZone.currentSystemDefault(), emptyList(), true)), arabic)
+    // Formatted once per window, not on every tick.
+    val closes = remember(closesAt, s, arabic) { localDigits(s.examClosesAt.replace("{time}", examTime(closesAt, closesAt, TimeZone.currentSystemDefault(), emptyList(), true)), arabic) }
     val shape = RoundedCornerShape(DashboardTokens.radiusSm)
     Row(
         modifier.fillMaxWidth()

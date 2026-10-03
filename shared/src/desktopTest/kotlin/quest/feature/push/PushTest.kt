@@ -38,6 +38,7 @@ import quest.api.dto.WeeklyPlanWeek
 import quest.feature.push.domain.NotificationRouter
 import quest.feature.push.domain.NotificationTap
 import quest.feature.push.domain.LinkShape
+import quest.feature.push.domain.isNewLaunch
 import quest.feature.push.domain.linkShape
 import quest.feature.push.domain.childOf
 import quest.feature.push.domain.staffOf
@@ -82,7 +83,7 @@ class PushTest {
         val devices = mutableMapOf<String, RegisterDeviceRequest>()
         val calls = mutableListOf<String>()
         override suspend fun register(device: RegisterDeviceRequest) { calls += "POST ${device.token}"; if (failing) error("offline"); devices[device.token] = device }
-        override suspend fun unregister(token: String) { calls += "DELETE $token"; devices.remove(token) }
+        override suspend fun unregister(token: String) { calls += "UNREGISTER $token"; devices.remove(token) }
     }
 
     private class Tokens(override val platform: DevicePlatform? = DevicePlatform.ANDROID, var current: String? = "fcm-1") : PushTokens {
@@ -137,7 +138,7 @@ class PushTest {
         val s = Setup()
         s.registration.signedIn()
         s.registration.newToken("fcm-2")
-        assertEquals(listOf("POST fcm-1", "POST fcm-2", "DELETE fcm-1"), s.server.calls)
+        assertEquals(listOf("POST fcm-1", "POST fcm-2", "UNREGISTER fcm-1"), s.server.calls)
         assertEquals(setOf("fcm-2"), s.server.devices.keys)
         assertEquals("fcm-2", s.prefs.token)
     }
@@ -157,7 +158,7 @@ class PushTest {
         val s = Setup()
         s.registration.signedIn()
         s.registration.signingOut()
-        assertEquals(listOf("POST fcm-1", "DELETE fcm-1"), s.server.calls)
+        assertEquals(listOf("POST fcm-1", "UNREGISTER fcm-1"), s.server.calls)
         assertEquals(1, s.tokens.deleted)
         assertNull(s.prefs.token)
         assertEquals(PushRegistration.Status.OFF, s.registration.status.value)
@@ -168,7 +169,7 @@ class PushTest {
         s.registration.signedIn()
         s.auth.flow.value = AuthState.SignedOut               // Firebase refused the refresh token
         s.registration.sessionExpired()
-        assertEquals(listOf("POST fcm-1"), s.server.calls, "no bearer is left to DELETE with")
+        assertEquals(listOf("POST fcm-1"), s.server.calls, "no bearer is left to unregister with")
         assertEquals(1, s.tokens.deleted)
         assertNull(s.prefs.token)
     }
@@ -331,13 +332,13 @@ class PushTest {
             assertEquals(PushNavigator.Step.Parent(Routes.Broadcasts(focusRow = "nt-7")), r)
         },
         NotificationTap("homework.published", "/children/c1/map", "nt-8", childId = "c1", collapseKey = "lesson:l1") to { r ->
-            assertEquals(PushNavigator.Step.Child(Routes.Journey("l1")), r)
+            assertEquals(PushNavigator.Step.Parent(Routes.LessonPanel("l1")), r, "the parent's view of that lesson")
         },
         NotificationTap("exam.published", "/children/c1/map", "nt-9", childId = "c1", collapseKey = "lesson:e1") to { r ->
             assertEquals(PushNavigator.Step.Child(null), r, "the child's home, where the exam's card is")
         },
         NotificationTap("exam.released", "/children/c1/progress", "nt-10", childId = "c1", collapseKey = "lesson:e1") to { r ->
-            assertEquals(PushNavigator.Step.Child(Routes.ExamResult("e1")), r)
+            assertEquals(PushNavigator.Step.Parent(Routes.Progress(focusExam = "e1")), r, "the parent's result, with its score")
         },
         NotificationTap("something.new", null, "nt-11", childId = "c1") to { r ->
             assertEquals(PushNavigator.Step.Parent(Routes.Broadcasts(focusRow = "nt-11")), r, "unknown: the Notifications page, that row highlighted")
@@ -374,6 +375,35 @@ class PushTest {
             assertEquals("c1", w.kids.currentChild.value?.id, "$label: switched to the child the tap is about")
             assertTrue(tap.notificationId!! in w.rows.read, "$label: the row is marked read")
         }
+    }
+
+    /** The owner's rule (2026-10-03): a tap in the system shade always shows the gate — even right after it was passed. */
+    @Test fun aTapFromOutsideTheAppAlwaysMeetsTheGate() = runTest {
+        for ((tap, expect) in table) {
+            val w = World()
+            w.gate.passed()                                                 // inside the parent area, gate open
+            val nav = w.navigator(listOf(teacherThread, complaintThread))
+            assertEquals(PushNavigator.Step.Gate, nav.follow(tap.copy(outside = true)), "${tap.kind}: no grace for a push")
+            w.gate.passed()
+            expect(nav.afterGate(tap.copy(outside = true)))
+        }
+    }
+
+    /** Homework and a released exam open the parent's own pages, inside the parent area — never the child's side. */
+    @Test fun homeworkAndResultsOpenTheParentsViewNotTheChilds() = runTest {
+        val w = World().apply { gate.passed() }
+        val nav = w.navigator(emptyList())
+        val homework = nav.follow(NotificationTap("homework.published", "/children/c1/map", "nt-8", childId = "c1", collapseKey = "lesson:l1"))
+        val result = nav.follow(NotificationTap("exam.released", "/children/c1/progress", "nt-10", childId = "c1", collapseKey = "lesson:e1"))
+        assertEquals(PushNavigator.Step.Parent(Routes.LessonPanel("l1")), homework)
+        assertEquals(PushNavigator.Step.Parent(Routes.Progress(focusExam = "e1")), result)
+        assertEquals("c1", w.kids.currentChild.value?.id, "for the right child")
+    }
+
+    @Test fun onlyANewLaunchFollowsTheIntent() {
+        assertTrue(isNewLaunch(restored = false, fromHistory = false), "a tap that started the activity")
+        assertFalse(isNewLaunch(restored = true, fromHistory = false), "recreated after process death: the old intent again")
+        assertFalse(isNewLaunch(restored = false, fromHistory = true), "relaunched from Recents: the old intent again")
     }
 
     @Test fun insideTheParentAreaATapGoesStraightToItsPage() = runTest {
@@ -444,7 +474,7 @@ class PushTest {
             "/children/c1/announcements?open=a1" to PushNavigator.Step.Parent(Routes.Broadcasts(focusRow = "nt-x")),
             "/children/c1/teacher-questions/q1" to PushNavigator.Step.Parent(Routes.Broadcasts(focusRow = "nt-x")),
             "/children/c1/map" to PushNavigator.Step.Child(null),
-            "/children/c1/progress" to PushNavigator.Step.Parent(Routes.Progress),
+            "/children/c1/progress" to PushNavigator.Step.Parent(Routes.Progress()),
         )
         for ((link, step) in expected) {
             val w = World().apply { gate.passed() }
