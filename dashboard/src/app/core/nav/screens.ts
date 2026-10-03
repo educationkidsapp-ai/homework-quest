@@ -183,6 +183,15 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.chat,
         permission: 'chat.support',
       },
+      // D5: every complaint of the school, read-only (`GET /admin/complaints`, B6) — support, not a
+      // party to any of them. `chat`, because a complaint is stored and delivered as a conversation.
+      {
+        id: 'complaints',
+        path: 'complaints',
+        labelKey: 'nav.complaints',
+        flag: FLAGS.chat,
+        permission: 'admin.complaints',
+      },
       // lessons (P3.2c/d): the new-lesson wizard and the review page. Neither has a `labelKey`
       // — the wizard is a quick action on her Home and the review page is what the Home's
       // "needs you" rows and the bell's notifications open, not rail items of their own. The
@@ -269,6 +278,15 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         labelKey: 'nav.messages',
         flag: FLAGS.chat,
         permission: 'teacher.chat',
+      },
+      // D5 (owner, 2026-10-03: "Complaints must be separate from messages"): the complaints parents
+      // address to her, on B6's `/teacher/complaints`, beside Messages and never inside it.
+      {
+        id: 'complaints',
+        path: 'complaints',
+        labelKey: 'nav.complaints',
+        flag: FLAGS.chat,
+        permission: 'teacher.complaints',
       },
       // T2 (the owner's list, 2026-10-01): **who she reports to, and how to reach them.** Both rows
       // carry `chat` and `teacher.chat`, which is what `GET /teacher/coordinators`,
@@ -365,9 +383,9 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.chat,
         permission: 'management.chat',
       },
-      // D2 (list 3): built. S1 gave her `GET /management/complaints` and the status PATCH, so the
-      // row MG2a hid is back — the coordinator's inbox component over her own routes, behind the
-      // `chat` flag those routes carry (a complaint is a thread wearing a label, DR3) and her key.
+      // D5: B6's `/management/complaints` — hers, and (read-only, but she may resolve or reopen)
+      // those to her department's teachers and coordinators. `?open={id}` opens one, so the
+      // phase-5 `complaints/:id` stub is gone.
       {
         id: 'complaints',
         path: 'complaints',
@@ -375,7 +393,6 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.chat,
         permission: 'management.complaints',
       },
-      { id: 'complaint', path: 'complaints/:id', flag: FLAGS.complaints, phase: 5 },
       // MG2a: built, on `GET /school/usage`. The key is the server's own (`usage.school`), which
       // is what `mySchoolUsage` is gated by — and the reason the screen says in words that the
       // numbers are the *school's*, not her department's.
@@ -455,9 +472,9 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         permission: 'coordinator.exams.read',
         readOnly: true,
       },
-      // R7 (DR3, DR4). All three carry the `chat` flag the server routes carry — `/coordinator/
-      // complaints` is chat, not N5.2's complaints store (DR3 keeps a complaint in the thread it
-      // arrived in) — plus her own key, so a school without chat has none of the three.
+      // R7 (DR4), D5. All three carry the `chat` flag the server routes carry — a complaint is its
+      // own conversation since B6, stored and delivered as one, not N5.2's complaints store — plus
+      // her own key, so a school without chat has none of the three.
       {
         id: 'messages',
         path: 'messages',

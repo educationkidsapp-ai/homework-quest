@@ -123,6 +123,15 @@ export function notificationTarget(item: NotificationView, role: Role | null): N
       return role === null
         ? INBOX
         : { path: MESSAGES[role], queryParams: entityId === '' ? null : { thread: entityId } };
+    // D5: B6 writes `/{area}/complaints?open={id}` for the recipient's role as it was then. A link
+    // that is not hers any more lands on her own Complaints, on the same complaint — never on
+    // Messages, which no longer carries one.
+    case NotificationViewKindEnum.COMPLAINT_NEW:
+    case NotificationViewKindEnum.COMPLAINT_MESSAGE:
+    case NotificationViewKindEnum.COMPLAINT_STATUS:
+      return area === null
+        ? INBOX
+        : { path: `${area}/complaints`, queryParams: entityId === '' ? null : { open: entityId } };
     default:
       return INBOX;
   }

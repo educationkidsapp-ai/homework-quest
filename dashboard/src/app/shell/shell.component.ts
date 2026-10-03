@@ -26,6 +26,7 @@ import {
 } from '../ui';
 import { AuthService } from '../core/auth/auth.service';
 import { ChatService } from '../core/chat/chat.service';
+import { ComplaintsService } from '../core/complaints/complaints.service';
 import { BandService } from '../core/band/band.service';
 import { FlagService } from '../core/flags/flag.service';
 import { activeLang } from '../core/i18n/active-lang';
@@ -269,6 +270,7 @@ export class ShellComponent {
   private readonly path = computed(() => this.url().split('?')[0] ?? '');
 
   private readonly chat = inject(ChatService);
+  private readonly complaints = inject(ComplaintsService);
 
   protected readonly items = computed<readonly NavItem[]>(() => {
     this.lang();
@@ -288,6 +290,10 @@ export class ShellComponent {
         // without it would be the one place in the shell that knows and does not say.
         ...(MESSAGE_ROWS.has(screen.id) && this.chat.totalUnread() > 0
           ? { badge: this.chat.totalUnread() }
+          : {}),
+        // D5: Complaints carries how many are still open — hers to act on, as the owner put it.
+        ...(screen.id === 'complaints' && this.complaints.counts().open > 0
+          ? { badge: this.complaints.counts().open }
           : {}),
       }));
     // `docs/teacher-flow.md` §5: the class she is inside joins the rail as a third item, and

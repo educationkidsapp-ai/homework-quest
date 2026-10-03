@@ -23,7 +23,6 @@ import {
   ChatMessageSenderEnum,
   ChatThread,
   ChatThreadPeerRoleEnum,
-  ChatThreadTopicEnum,
   ManagementApi,
   ManagementChatApi,
   ManagersApi,
@@ -252,7 +251,7 @@ interface ChatPreview {
               }
             </div>
             <!-- RM3b: the two roles whose inbox they can start a thread in. A teacher and a
-                 coordinator reach theirs from a roster row and from Complaints instead, so the
+                 coordinator reach theirs from a roster row instead, so the
                  button is not "hidden" for them — there is nothing here for it to open. -->
             @if (canStartThread()) {
               <hq-button variant="secondary" (pressed)="startingThread.set(true)">
@@ -311,11 +310,6 @@ interface ChatPreview {
                              row says who the other end is instead of pretending to a class. Plain
                              secondary text on the name's own start edge, not a pill. -->
                         <span class="thread-card__role">{{ role | transloco }}</span>
-                      }
-                      @if (thread.topic === topicComplaint) {
-                        <span class="thread-card__badge thread-card__badge--complaint">
-                          {{ 'chat.complaint' | transloco }}
-                        </span>
                       }
                       @if (thread.className) {
                         <span class="thread-card__class">{{ thread.className }}</span>
@@ -968,18 +962,6 @@ interface ChatPreview {
       overflow: hidden;
       white-space: nowrap;
       text-overflow: ellipsis;
-    }
-
-    .thread-card__badge--complaint {
-      border-radius: 0;
-      font-size: var(--hq-font-label-size);
-      font-weight: var(--hq-font-label-weight);
-      letter-spacing: var(--hq-font-letter-spacing-label);
-      text-transform: uppercase;
-    }
-
-    .thread-card__badge--complaint {
-      background: var(--hq-color-accent-strong);
     }
 
     .thread-card__badge {
@@ -1819,7 +1801,6 @@ export class ChatPage implements AfterViewChecked {
 
   readonly flag = FLAGS.chat;
   readonly senderTeacher = ChatMessageSenderEnum.TEACHER;
-  readonly topicComplaint = ChatThreadTopicEnum.COMPLAINT;
 
   /**
    * **What the header's pill says**, or `null` for no pill (T2 item d).

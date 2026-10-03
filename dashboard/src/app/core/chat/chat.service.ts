@@ -13,6 +13,7 @@ import { apiErrorCodeOf } from '../../api/api-error';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { SessionStore } from '../auth/session.store';
+import { ComplaintFrames, isComplaintKind } from '../complaints/complaint-frames';
 import { FlagService } from '../flags/flag.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { type ChatAttachment } from './chat-attachments';
@@ -45,6 +46,7 @@ export class ChatService {
   private readonly session = inject(SessionStore);
   private readonly flags = inject(FlagService);
   private readonly notifications = inject(NotificationsService);
+  private readonly complaints = inject(ComplaintFrames);
 
   private socket: WebSocket | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -663,6 +665,12 @@ export class ChatService {
         break;
 
       case 'message':
+        // D5: a complaint's message is named by the complaint's id, on this same socket. It is the
+        // Complaints page's, and never a Messages row — nor a reason to refetch the threads list.
+        if (this.complaints.claims(frame.message.threadId)) {
+          this.complaints.emit({ kind: 'message', message: frame.message, clientId: frame.clientId });
+          break;
+        }
         this.handleServerMessage(frame.message, frame.clientId);
         break;
 
@@ -670,8 +678,11 @@ export class ChatService {
         // T2 item (c): the toast is for a notification she is **not** already looking at. A
         // `chat.message` for the thread open on her screen is a bubble arriving in the same
         // second — a toast over it says the same thing twice and steals the focus ring.
+        // D5: the same holds for a complaint open on the Complaints page.
+        if (isComplaintKind(frame.notification.kind)) this.complaints.notified(frame.notification);
         this.notifications.receive(frame.notification, {
-          toast: !this.isViewingThread(frame.notification.link),
+          toast:
+            !this.isViewingThread(frame.notification.link) && !this.complaints.isViewing(frame.notification),
         });
         break;
 
@@ -702,6 +713,12 @@ export class ChatService {
       }
 
       case 'read':
+        if (this.complaints.claims(frame.threadId)) {
+          if (frame.readBy === 'parent') {
+            this.complaints.emit({ kind: 'read', complaintId: frame.threadId, readAt: frame.readAt });
+          }
+          break;
+        }
         if (frame.readBy === 'parent') {
           this.messages.update((list) =>
             list.map((m) =>
@@ -714,23 +731,14 @@ export class ChatService {
         break;
 
       case 'status':
-        // R4's `status` frame, which both parties hear. It updates this list and nothing else —
-        // there is no refetch — so every screen that *reads* this signal moves with it: the
-        // thread header, and the complaints inbox, whose rows take their status from here
-        // (`coordinator-complaints.page.ts`). A screen backed only by its own request would not,
-        // which is what the R7 review found.
-        this.threads.update((list) =>
-          list.map((t) =>
-            t.id === frame.threadId
-              ? {
-                  ...t,
-                  status:
-                    frame.status === 'resolved' ? ChatThreadStatusEnum.RESOLVED : ChatThreadStatusEnum.OPEN,
-                  resolvedAt: frame.status === 'resolved' ? frame.at : undefined,
-                }
-              : t,
-          ),
-        );
+        // B6: only a complaint has a status — a Messages thread is always open — so R4's frame is
+        // the Complaints page's: the conversation's buttons, its system line, the row and the badge.
+        this.complaints.emit({
+          kind: 'status',
+          complaintId: frame.threadId,
+          status: frame.status,
+          at: frame.at,
+        });
         break;
 
       case 'error':

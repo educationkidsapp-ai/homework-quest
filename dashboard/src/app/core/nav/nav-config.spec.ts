@@ -30,6 +30,7 @@ describe('the nav switch', () => {
       'workers',
       'children',
       'messages',
+      'complaints',
     ]);
   });
 

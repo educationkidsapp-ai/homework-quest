@@ -92,6 +92,8 @@ describe('the screen table', () => {
       'schools',
       'users',
       'messages',
+      // D5: the support view of every complaint, read-only.
+      'complaints',
     ]);
 
     const routes = childrenOf(areaRoutes('ADMIN'));
@@ -166,6 +168,8 @@ describe('the screen table', () => {
       'classes',
       'announcements',
       'chat',
+      // D5: Complaints beside Messages, never inside it.
+      'complaints',
       // T2 (the owner's list, 2026-10-01): who she reports to, with the phone numbers on it.
       'coordinators',
       'manager',
@@ -175,6 +179,7 @@ describe('the screen table', () => {
       '/teacher/classes',
       '/teacher/announcements',
       '/teacher/chat',
+      '/teacher/complaints',
       '/teacher/coordinators',
       '/teacher/manager',
     ]);
@@ -184,6 +189,9 @@ describe('the screen table', () => {
       expect(row?.flag).toBe('chat');
       expect(row?.permission).toBe('teacher.chat');
     }
+    const complaints = AREAS.TEACHER.screens.find((screen) => screen.id === 'complaints');
+    expect(complaints?.flag).toBe('chat');
+    expect(complaints?.permission).toBe('teacher.complaints');
     const chat = AREAS.TEACHER.screens.find((screen) => screen.id === 'chat');
     expect(chat?.flag).toBe('chat');
     expect(chat?.permission).toBe('teacher.chat');
@@ -367,7 +375,8 @@ describe('the screen table', () => {
 
   it('names the phase of a stub, including on a detail route', () => {
     expect(phaseOf('/admin/users')).toBe(3);
-    expect(phaseOf('/management/complaints/c-1')).toBe(5);
+    // D5: a complaint opens on the list's own route (`?open=`), so its phase-5 detail stub is gone.
+    expect(phaseOf('/management/complaints/c-1')).toBeUndefined();
     // Matched against the pattern, so a real id resolves.
     expect(phaseOf('/admin/schools/5c5bc15a-0e3b-4d87-b3a2-d04f7bc267e2')).toBe(3);
     // A still-stubbed detail route (school) stays stubbed with a query string on it.

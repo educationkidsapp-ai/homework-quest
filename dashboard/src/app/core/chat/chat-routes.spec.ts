@@ -19,6 +19,7 @@ import { SchoolScopeStore } from '../auth/school-scope.store';
 import { SessionStore } from '../auth/session.store';
 import { FlagService } from '../flags/flag.service';
 import { NAV_CONFIG } from '../nav/nav-config';
+import { ComplaintFrames, type ComplaintSignal } from '../complaints/complaint-frames';
 import { ChatRoutes } from './chat-routes';
 import { ChatService } from './chat.service';
 
@@ -40,7 +41,7 @@ describe('ChatRoutes', () => {
     teacherName: 'Rasha Kamal',
     unread: 3,
     staffRole: ChatThreadStaffRoleEnum.COORDINATOR,
-    topic: ChatThreadTopicEnum.COMPLAINT,
+    topic: ChatThreadTopicEnum.QUESTION,
     status: ChatThreadStatusEnum.OPEN,
   };
 
@@ -398,15 +399,35 @@ describe('ChatRoutes', () => {
     expect(routes.transport()).toBeNull();
   });
 
-  it('moves a thread to resolved on the status frame, without a refetch', () => {
+  /**
+   * D5: a complaint is its own conversation (B6). Its `status` frame and its messages arrive on this
+   * socket, named by the complaint's id, and leave it for the Complaints page — the Messages list
+   * neither changes nor refetches.
+   */
+  it('hands a complaint’s frames to Complaints and leaves the threads alone', () => {
     const { chat } = setup();
     chat.loadThreads();
+    const frames = TestBed.inject(ComplaintFrames);
+    frames.remember('c-9');
+    const heard: ComplaintSignal[] = [];
+    frames.signals.subscribe((signal) => heard.push(signal));
 
-    chat.receive({ type: 'status', threadId: 'th-1', status: 'resolved', at: 1700000009000 });
+    chat.receive({ type: 'status', threadId: 'c-9', status: 'resolved', at: 1700000009000 });
+    chat.receive({
+      type: 'message',
+      message: {
+        id: 'm-9',
+        threadId: 'c-9',
+        sender: ChatMessageSenderEnum.PARENT,
+        senderId: 'p-1',
+        body: 'Still waiting',
+        createdAt: 1700000010000,
+      },
+    });
 
-    const row = chat.threads().find((t) => t.id === 'th-1');
-    expect(row?.status).toBe(ChatThreadStatusEnum.RESOLVED);
-    expect(row?.resolvedAt).toBe(1700000009000);
+    expect(heard.map((signal) => signal.kind)).toEqual(['status', 'message']);
+    expect(chat.threads().map((t) => t.id)).toEqual(['th-1', 'th-2']);
+    expect(chat.threads().every((t) => t.lastMessage?.id !== 'm-9')).toBe(true);
     expect(coordinatorApi.coordinatorChatThreads).toHaveBeenCalledTimes(1);
   });
 });

@@ -121,6 +121,9 @@ function componentFor(screen: Screen, role: Role) {
   // everyone — the namespace it does *not* vary by is the whole reason it is one component.
   if (screen.id === 'announcements')
     return import('../../features/broadcasts/announcements.page').then((m) => m.AnnouncementsPage);
+  // D5: one Complaints page for all four areas; `ComplaintsService` picks the routes by role.
+  if (screen.id === 'complaints')
+    return import('../../features/complaints/complaints.page').then((m) => m.ComplaintsPage);
   // T2 (a)/(b): the staff directory cards, shared by the teacher and the coordinator the way
   // Announcements is — `StaffAreaService` picks the namespace inside the component and the route's
   // `screenId` picks the directory. `coordinators` is the **teacher's** row here; the Admin's row of
@@ -146,6 +149,8 @@ const SHARED_WITH_TEACHER = new Set([
   'announcements',
   // T2: Manager is the coordinator's row too, and the component reads her namespace itself.
   'manager',
+  // D5: so is Complaints — `ComplaintsService` reads the role's own `/{area}/complaints`.
+  'complaints',
 ]);
 
 /**
@@ -196,10 +201,6 @@ function supervisorComponentFor(screen: Screen, role: Role) {
   // R7: Messages is the teacher's chat screen over her own routes (`core/chat/chat-routes.ts`),
   // so it is the same chunk, not a copy of the list, the conversation and the composer.
   if (screen.id === 'messages') return import('../../features/chat/chat.page').then((m) => m.ChatPage);
-  if (screen.id === 'complaints')
-    return import('../../features/coordinator/coordinator-complaints.page').then(
-      (m) => m.CoordinatorComplaintsPage,
-    );
   if (screen.id === 'teachers')
     return import('../../features/coordinator/coordinator-teachers.page').then(
       (m) => m.CoordinatorTeachersPage,
