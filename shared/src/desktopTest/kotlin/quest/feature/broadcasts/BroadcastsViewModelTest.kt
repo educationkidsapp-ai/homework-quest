@@ -104,7 +104,7 @@ class BroadcastsViewModelTest {
         override suspend fun managers(childId: String): List<ChatThread> = managers.getOrThrow()
         override suspend fun messages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?) = emptyList<quest.api.dto.ChatMessage>()
         override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: quest.api.dto.ChatTopic?, attachmentIds: List<String>) = error("not used")
-        override suspend fun uploadAttachment(childId: String, file: quest.api.UploadFile, onProgress: (Float) -> Unit): quest.api.dto.AttachmentRef = error("not used")
+        override suspend fun uploadAttachment(childId: String, file: quest.feature.chat.domain.StagedUpload, onProgress: (Float) -> Unit): quest.api.dto.AttachmentRef = error("not used")
         override suspend fun markRead(childId: String, teacherId: String) {}
         override suspend fun sendTyping(childId: String, teacherId: String) {}
         override fun connect() {}

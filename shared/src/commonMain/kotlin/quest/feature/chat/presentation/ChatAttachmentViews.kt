@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -180,12 +181,14 @@ private fun DraftChip(
             )
         }
         if (draft.failed) {
-            Text(
-                "↻ ${strings.retry}",
-                style = MaterialTheme.typography.labelLarge, color = DashboardTokens.accentInk,
-                modifier = Modifier.padding(top = Dimens.s4).clip(shape).clickable(role = Role.Button) { onRetry(draft.localId) }
-                    .padding(horizontal = Dimens.s8, vertical = Dimens.s8),
-            )
+            // A 48 dp target, as the remove button beside it.
+            Box(
+                Modifier.padding(top = Dimens.s4).heightIn(min = 48.dp).clip(shape)
+                    .clickable(role = Role.Button) { onRetry(draft.localId) }.padding(horizontal = Dimens.s8),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Text("↻ ${strings.retry}", style = MaterialTheme.typography.labelLarge, color = DashboardTokens.accentInk)
+            }
         }
     }
 }

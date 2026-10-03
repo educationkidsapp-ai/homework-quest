@@ -32,6 +32,8 @@ import quest.feature.chat.domain.ChatPeer
 import quest.feature.chat.domain.ChatRepository
 import quest.feature.chat.domain.MAX_PHOTO_BYTES
 import quest.feature.chat.domain.PickedFile
+import quest.feature.chat.domain.StagedUpload
+import quest.feature.chat.domain.UploadStaging
 import quest.feature.chat.domain.TYPING_TIMEOUT_MS
 import quest.feature.chat.domain.asThumbnail
 import quest.feature.chat.domain.contentTypeOf
@@ -72,7 +74,7 @@ class ChatAttachmentsTypingTest {
 
         var rows: List<ChatThread> = emptyList()
         var threadsAsked = 0
-        val uploads = mutableListOf<UploadFile>()
+        val uploads = mutableListOf<StagedUpload>()
         val gates = mutableListOf<CompletableDeferred<Boolean>>()
         val sends = mutableListOf<Pair<String, List<String>>>()
         var uploadError: Throwable? = null
@@ -82,13 +84,13 @@ class ChatAttachmentsTypingTest {
         override suspend fun coordinators(childId: String): List<ChatThread> = emptyList()
         override suspend fun managers(childId: String): List<ChatThread> = emptyList()
         override suspend fun messages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?): List<ChatMessage> = emptyList()
-        override suspend fun uploadAttachment(childId: String, file: UploadFile, onProgress: (Float) -> Unit): AttachmentRef {
+        override suspend fun uploadAttachment(childId: String, file: StagedUpload, onProgress: (Float) -> Unit): AttachmentRef {
             uploads += file
             uploadError?.let { throw it }
             val gate = CompletableDeferred<Boolean>().also { gates += it }
             onProgress(0.5f)
             if (!gate.await()) error("upload failed")
-            return AttachmentRef("att-${uploads.size}", file.fileName, file.mimeType, file.bytes.size.toLong(), width = 800, height = 600)
+            return AttachmentRef("att-${uploads.size}", file.name, file.contentType, file.size, width = 800, height = 600)
         }
         override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic?, attachmentIds: List<String>): ChatMessage {
             sends += body to attachmentIds
@@ -107,6 +109,20 @@ class ChatAttachmentsTypingTest {
         }
     }
 
+    /** Staging in memory: what was staged, and which of it has been deleted again. */
+    private class MemoryStaging : UploadStaging {
+        val live = mutableMapOf<String, ByteArray>()
+        var count = 0
+        override suspend fun stage(file: UploadFile): StagedUpload {
+            val path = "staged-${++count}"
+            live[path] = file.bytes
+            return StagedUpload(path, file.fileName, file.mimeType, file.bytes.size.toLong())
+        }
+        override fun discard(staged: StagedUpload) { live.remove(staged.path) }
+    }
+
+    private val staging = MemoryStaging()
+
     private val built = mutableListOf<androidx.lifecycle.ViewModel>()
 
     @BeforeTest fun setUp() = Dispatchers.setMain(Dispatchers.Default)
@@ -120,7 +136,7 @@ class ChatAttachmentsTypingTest {
     private fun conversation(chat: FakeChat, threadId: String? = thread) =
         ChatConversationViewModel(
             ChatPeer(childId = "c1", staffId = manager, staffName = "Ms. Nour", staffRole = ChatStaffRole.MANAGERIAL, threadId = threadId),
-            chat,
+            chat, staging,
         ).also { built += it }
 
     private suspend fun <S> StateFlow<S>.await(timeoutMs: Long = 2_000, predicate: (S) -> Boolean): S {
@@ -144,12 +160,12 @@ class ChatAttachmentsTypingTest {
         assertEquals("image/webp", contentTypeOf("A.WEBP"))
     }
 
-    @Test fun aPhotoTheServerWouldRefuseIsReEncodedAndOneItTakesIsSentAsItIs() {
-        val small = ByteArray(10)
-        assertEquals("image/png", preparePhoto("a.png", small) { error("not needed") }!!.mimeType)
-        val heic = preparePhoto("IMG_0001.HEIC", small) { byteArrayOf(1, 2, 3) }!!
+    @Test fun everyPhotoIsReEncodedAsAJpeg() {
+        val png = preparePhoto("a.png", ByteArray(10)) { byteArrayOf(1, 2, 3) }!!
+        assertEquals("a.jpg" to "image/jpeg", png.fileName to png.mimeType)
+        val heic = preparePhoto("IMG_0001.HEIC", ByteArray(10)) { byteArrayOf(1, 2, 3) }!!
         assertEquals("IMG_0001.jpg" to "image/jpeg", heic.fileName to heic.mimeType)
-        assertNull(preparePhoto("broken.heic", small) { null })
+        assertNull(preparePhoto("broken.heic", ByteArray(10)) { null })
         assertEquals("1.5 MB", formatBytes(1_572_864))
         assertEquals("820 KB", formatBytes(820 * 1024))
     }
@@ -188,6 +204,7 @@ class ChatAttachmentsTypingTest {
         val sent = vm.state.await { s -> s.messages.singleOrNull()?.isPending == false }
 
         assertEquals("This is the homework" to listOf("att-1"), chat.sends.single())
+        assertTrue(staging.live.isEmpty(), "the staged copy goes as soon as the server has the file")
         assertTrue(sent.drafts.isEmpty())
         assertEquals(listOf("att-1"), sent.messages.single().attachments.map { it.id })
     }
@@ -239,6 +256,8 @@ class ChatAttachmentsTypingTest {
 
         vm.dispatch(ChatConversationContract.Intent.RemoveDraft(full.drafts.first().localId))
         vm.state.await { it.drafts.size == 4 && it.refusal == null }
+        assertEquals(4, staging.live.size, "a removed file's staged copy is deleted with it")
+        assertEquals(AttachmentRefusal.PHOTO_TOO_LARGE, refusalFor("huge.heic", 26L * 1024 * 1024, already = 0, photo = true))
     }
 
     @Test fun theServersRefusalsAreNamedAndOnlyARetryableFailureStays() = runBlocking<Unit> {
@@ -296,7 +315,9 @@ class ChatAttachmentsTypingTest {
         val vm = conversation(chat)
         chat.awaitCollectors()
         chat.frames.emit(ChatFrame.Typing(thread, ChatSender.PARENT))
-        delay(80)
+        // Frames are handled in order: once the presence frame behind it has landed, the typing frame was seen.
+        chat.frames.emit(ChatFrame.Presence(online = true, userId = manager))
+        vm.state.await { it.peerOnline == true }
         assertFalse(vm.state.value.isTeacherTyping)
     }
 
@@ -321,7 +342,7 @@ class ChatAttachmentsTypingTest {
             chat.rows = listOf(ChatThread(id = id, childId = "c1", childName = "Hala", teacherId = staff, teacherName = "X",
                 staffRole = case.role, peerRole = case.peerRole, withAdmin = if (case.admin) true else null))
             val vm = ChatConversationViewModel(
-                ChatPeer("c1", staff, "X", staffRole = case.role, threadId = null, peerRole = case.peerRole, withAdmin = case.admin), chat,
+                ChatPeer("c1", staff, "X", staffRole = case.role, threadId = null, peerRole = case.peerRole, withAdmin = case.admin), chat, staging,
             ).also { built += it }
             vm.dispatch(ChatConversationContract.Intent.Load)
             vm.state.await { it.threadId == id }
@@ -354,7 +375,9 @@ class ChatAttachmentsTypingTest {
         chat.awaitCollectors()
         chat.frames.emit(ChatFrame.Typing("th-math", ChatSender.TEACHER))
         chat.frames.emit(ChatFrame.Typing("th-math", ChatSender.TEACHER))
-        delay(120)
+        // Frames are handled in order: once the presence frame behind them has landed, both were.
+        chat.frames.emit(ChatFrame.Presence(online = true, userId = manager))
+        vm.state.await { it.peerOnline == true }
         assertFalse(vm.state.value.isTeacherTyping)
         assertEquals(1, chat.threadsAsked)
     }

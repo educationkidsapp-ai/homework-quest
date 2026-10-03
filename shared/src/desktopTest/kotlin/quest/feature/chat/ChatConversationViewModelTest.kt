@@ -78,7 +78,7 @@ class ChatConversationViewModelTest {
             return if (i < 0) emptyList() else history.drop(i + 1)
         }
 
-        override suspend fun uploadAttachment(childId: String, file: quest.api.UploadFile, onProgress: (Float) -> Unit): quest.api.dto.AttachmentRef = error("not used")
+        override suspend fun uploadAttachment(childId: String, file: quest.feature.chat.domain.StagedUpload, onProgress: (Float) -> Unit): quest.api.dto.AttachmentRef = error("not used")
         override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic?, attachmentIds: List<String>): ChatMessage {
             sends.add(body to topic)
             if (failNextSend) { failNextSend = false; throw IllegalStateException("boom") }
@@ -109,7 +109,7 @@ class ChatConversationViewModelTest {
     }
 
     private fun viewModel(peer: ChatPeer, chat: ChatRepository) =
-        ChatConversationViewModel(peer, chat).also { built.add(it) }
+        ChatConversationViewModel(peer, chat, NoStaging).also { built.add(it) }
 
     private fun peer(threadId: String? = OURS, topic: ChatTopic = ChatTopic.QUESTION) = ChatPeer(
         childId = "c1", staffId = COORDINATOR, staffName = "Ms. Lina",
@@ -352,4 +352,10 @@ class ChatConversationViewModelTest {
         assertNull(moved[1].peerOnline)
         assertEquals(true, ChatPeer.of(moved[0]).peerOnline)
     }
+}
+
+/** For view-model tests that attach nothing: staging is never reached. */
+internal object NoStaging : quest.feature.chat.domain.UploadStaging {
+    override suspend fun stage(file: quest.api.UploadFile): quest.feature.chat.domain.StagedUpload? = null
+    override fun discard(staged: quest.feature.chat.domain.StagedUpload) {}
 }
