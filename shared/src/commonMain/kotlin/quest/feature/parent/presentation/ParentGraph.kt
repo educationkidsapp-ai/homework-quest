@@ -1,5 +1,6 @@
 package quest.feature.parent.presentation
 
+import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
@@ -18,6 +19,7 @@ import quest.feature.broadcasts.presentation.BroadcastsRoute
 import quest.feature.broadcasts.presentation.WeeklyPlanRoute
 import quest.feature.push.domain.PushLinks
 import quest.feature.push.domain.ParentGate
+import quest.feature.lock.domain.AppLock
 import org.koin.compose.koinInject
 
 /** Parent-mode graph (behind the PIN). Nothing here is reachable from child screens except the PIN entry. */
@@ -38,6 +40,9 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
         })
     }
     composable<Routes.ParentHome> {
+        // M6: an account signed in before this version (or on a phone that had no screen lock then) is asked here.
+        val lock: AppLock = koinInject()
+        LaunchedEffect(lock) { lock.parentHomeOpened() }
         ParentHomeRoute(
             onCalendar = { nav.navigate(Routes.Calendar) }, onProgress = { nav.navigate(Routes.Progress()) }, onSettings = { nav.navigate(Routes.Settings) },
             onLessonPanel = { nav.navigate(Routes.LessonPanel(it)) },

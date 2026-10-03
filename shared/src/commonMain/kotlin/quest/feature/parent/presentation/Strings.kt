@@ -39,10 +39,14 @@ data class Strings(
     val teacherMarks: String = "Marked by the teacher",
     val examUndeliveredTitle: String = "Exam answers not delivered",
     val examUndeliveredBody: String = "{n} answers of “{title}” are on this device only and have not reached the school. Open the exam while online. If the exam has closed, ask the teacher to re-open it — the answers are kept and are sent then.",
-    // M2 — the biometric lock. {app} is the app's name and {with} one of the three biometric names below.
+    // M2 — the biometric lock. {app} is the app's name and {with} one of the four names below.
     val biometricFace: String = "Face ID",
     val biometricTouch: String = "Touch ID",
     val biometricGeneric: String = "fingerprint or face",
+    // M6 — an Android phone whose only usable unlock is its PIN, pattern or password.
+    val screenLock: String = "your phone's screen lock",
+    val screenLockOfferBody: String = "Use your phone's screen lock (PIN, pattern or password) to open {app} next time, instead of your password. You can change this in Settings.",
+    val screenLockNeeded: String = "Set a screen lock on your phone to use this.",
     val lockTitle: String = "{app} is locked",
     val lockBody: String = "Unlock with {with} or your device passcode.",
     val lockBodyPasscode: String = "Unlock with your device passcode, or sign in with your password.",
@@ -290,6 +294,9 @@ data class Strings(
             examUndeliveredTitle = "إجابات اختبار لم تُسلَّم",
             examUndeliveredBody = "{n} من إجابات «{title}» موجودة على هذا الجهاز فقط ولم تصل إلى المدرسة. افتح الاختبار مع اتصال بالإنترنت. إذا كان الاختبار قد أُغلق فاطلب من المعلّمة إعادة فتحه — الإجابات محفوظة وتُرسل عندها.",
             biometricFace = "بصمة الوجه", biometricTouch = "بصمة الإصبع", biometricGeneric = "البصمة",
+            screenLock = "قفل شاشة هاتفك",
+            screenLockOfferBody = "استخدم قفل شاشة هاتفك (الرمز أو النمط أو كلمة المرور) لفتح {app} في المرة القادمة بدلاً من كلمة المرور. يمكنك تغيير ذلك من الإعدادات.",
+            screenLockNeeded = "اضبط قفلاً لشاشة هاتفك لتستخدم هذه الميزة.",
             lockTitle = "{app} مقفل",
             lockBody = "افتح القفل باستخدام {with} أو رمز الجهاز.",
             lockBodyPasscode = "افتح القفل برمز الجهاز، أو سجّل الدخول بكلمة المرور.",

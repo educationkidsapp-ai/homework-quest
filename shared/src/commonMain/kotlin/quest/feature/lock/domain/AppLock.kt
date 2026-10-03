@@ -37,7 +37,8 @@ interface BiometricPreferences {
  * is opened, never whether it is shut: Face ID locked out after failed attempts, switched off for the app in
  * Settings, or removed from the device leaves the app locked, and the prompt falls back to the device passcode; where
  * even that is impossible the lock screen offers "Sign in with password". Availability matters for one thing only —
- * *offering* the lock, which is done where a biometric is enrolled.
+ * *offering* the lock, which is done on every device that can prompt: a biometric where one is usable, otherwise
+ * (M6, most Android phones, whose face unlock apps cannot use) the phone's own screen lock.
  *
  * Time away is measured on [elapsed], a monotonic clock that keeps counting while the device sleeps: the wall clock
  * can be set back by the user, which would otherwise keep an app unlocked for as long as she liked.
@@ -75,6 +76,8 @@ class AppLock(
     private var armedFor: String? = null
     private val armed: Boolean get() = armedFor != null && armedFor == uid()
     private var backgroundedAt: Long? = null
+    /** The offer is made at most once per sign-in or launch, whether right after the sign-in or on the parent home. */
+    private var offered = false
 
     private fun uid(): String? = (auth.state.value as? AuthState.SignedIn)?.uid
 
@@ -95,13 +98,30 @@ class AppLock(
         if (enabled()) _state.value = State(Stage.LOCKED, authenticator.kind())
     }
 
-    /** Just signed in with a password: offer the lock, and only where the device has a biometric to offer. */
+    /** Just signed in with a password: offer the lock, and only where the device can prompt for it. */
     suspend fun signedIn() {
         val uid = uid() ?: return
         val choice = preferences.choice(uid)
         arm(choice == BiometricChoice.ENABLED)            // never what an earlier session, or an earlier account, stored
+        offered = false                                   // every sign-in is asked afresh, even a second one this launch
+        offer(choice)
+    }
+
+    /**
+     * The parent home is open (M6). An account that was signed in before the lock existed — the app was updated, not
+     * signed in to — was never asked, and neither was one whose phone had no screen lock at sign-in; it is asked here,
+     * on the parent's side, once per launch, until it answers.
+     */
+    suspend fun parentHomeOpened() {
+        val uid = uid() ?: return
+        if (_state.value.stage == Stage.UNLOCKED) offer(preferences.choice(uid))
+    }
+
+    private fun offer(choice: BiometricChoice) {
+        if (choice != BiometricChoice.NOT_ASKED || offered) return
         val kind = authenticator.kind() ?: return
-        if (choice == BiometricChoice.NOT_ASKED) _state.value = State(Stage.OFFER, kind)
+        offered = true
+        _state.value = State(Stage.OFFER, kind)
     }
 
     /** "Turn on" in the offer: it counts only after a successful prompt. A cancelled one leaves the offer open. */
@@ -162,7 +182,7 @@ class AppLock(
     /** Interactive again (`ON_RESUME`): the plain cover comes down. A locked app keeps its lock screen. */
     fun uncover() { _state.update { it.copy(covered = false) } }
 
-    /** The Settings switch. Turning it on needs a biometric to offer and a successful prompt; turning it off does not. */
+    /** The Settings switch. Turning it on needs something to prompt with and a successful prompt; turning it off does not. */
     suspend fun setEnabled(on: Boolean, reason: String): Boolean {
         val uid = uid() ?: return false
         if (!on) { preferences.set(uid, BiometricChoice.DECLINED); arm(false); return false }

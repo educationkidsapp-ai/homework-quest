@@ -53,4 +53,7 @@ class LockScreensScreenshotTest {
     @Test fun offer() = shot("51-biometric-offer") { Offer(it, BiometricKind.FACE) }
     @Test fun offerDark() = shot("51b-biometric-offer-dark", dark = true) { Offer(it, BiometricKind.GENERIC) }
     @Test fun offerArabic() = shot("51c-biometric-offer-ar", strings = Strings.ar) { Offer(it, BiometricKind.FACE) }
+    /** M6: an Android phone whose face unlock apps cannot use — the offer names its screen lock. */
+    @Test fun offerScreenLock() = shot("51d-screen-lock-offer") { Offer(it, BiometricKind.SCREEN_LOCK) }
+    @Test fun offerScreenLockArabic() = shot("51e-screen-lock-offer-ar", strings = Strings.ar) { Offer(it, BiometricKind.SCREEN_LOCK) }
 }

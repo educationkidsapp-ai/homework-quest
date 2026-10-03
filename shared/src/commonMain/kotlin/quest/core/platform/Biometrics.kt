@@ -1,7 +1,11 @@
 package quest.core.platform
 
-/** What the device unlocks with — only so the copy can name it ("Face ID", "fingerprint"). */
-enum class BiometricKind { FACE, FINGERPRINT, GENERIC }
+/**
+ * What the device unlocks with — only so the copy can name it ("Face ID", "fingerprint or face", "your phone's screen
+ * lock"). [SCREEN_LOCK] is an Android phone whose only usable unlock is its PIN, pattern or password: most phones'
+ * face unlock is a Class 1 (convenience) biometric that apps cannot use, so the lock is opened with the screen lock.
+ */
+enum class BiometricKind { FACE, FINGERPRINT, GENERIC, SCREEN_LOCK }
 
 /** [CANCELLED] covers every way a prompt ends without the owner being confirmed: dismissed, failed, locked out. */
 enum class BiometricResult { SUCCESS, CANCELLED, UNAVAILABLE }
@@ -12,7 +16,10 @@ enum class BiometricResult { SUCCESS, CANCELLED, UNAVAILABLE }
  * passes through it; the session stays where `AuthProvider` keeps it.
  */
 interface BiometricAuthenticator {
-    /** Null when the device has no biometric hardware, none is enrolled, or the platform has no prompt at all. */
+    /**
+     * Null when the device has nothing the lock can be opened with: no biometric and no screen lock (Android), no
+     * biometric enrolled (iOS), or no prompt at all (desktop).
+     */
     fun kind(): BiometricKind?
 
     /** Shows the system prompt with [reason] and suspends until it ends. Never throws. */
@@ -20,6 +27,18 @@ interface BiometricAuthenticator {
 }
 
 expect fun platformBiometricAuthenticator(): BiometricAuthenticator
+
+/**
+ * M6 — what an Android phone's lock is opened with, from what `BiometricManager` answers: a Class 2+ biometric
+ * ([biometric], `BIOMETRIC_WEAK`) first, otherwise the screen lock when the phone has one ([secure],
+ * `BIOMETRIC_WEAK or DEVICE_CREDENTIAL`), otherwise nothing. Kept here, apart from the platform call, so every branch
+ * is tested without a device.
+ */
+fun androidLockKind(biometric: Boolean, secure: Boolean): BiometricKind? = when {
+    biometric -> BiometricKind.GENERIC
+    secure -> BiometricKind.SCREEN_LOCK
+    else -> null
+}
 
 /**
  * Milliseconds on a clock that only moves forward and **keeps counting while the device is asleep** — what "more than

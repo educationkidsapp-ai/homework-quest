@@ -404,6 +404,10 @@ class ParentScreensScreenshotTest {
     @Test fun signInDark() = shot("40b-sign-in-dark", dark = true) { s -> SignInScreen(SignInContract.State(email = "parent@example.com"), s, {}) }
     @Test fun childPickerDark() = shot("42d-child-picker-dark", dark = true) { s -> ChildPickerScreen(ChildrenContract.State(loading = false, children = listOf(maya, omar), currentId = "c1"), s) {} }
     @Test fun homeDark() = shot("44c-parent-home-dark", dark = true) { s -> ParentHomeScreen(ParentHomeContract.State(false, listOf(maya, omar), maya, listOf(CalendarDay(today, listOf(Subject.MATH, Subject.ENGLISH), listOf("l1", "l2"), listOf("l2")))), s, {}, {}, {}, {}, {}) }
+    // M6: the lock row on an Android phone without a usable biometric (its screen lock), and on one with no screen lock.
+    @Test fun settingsScreenLock() = shot("47d-settings-screen-lock") { s -> SettingsScreen(SettingsContract.State(false, ParentSettings("en"), biometricKind = quest.core.platform.BiometricKind.SCREEN_LOCK), s, {}, {}) }
+    @Test fun settingsNoScreenLock() = shot("47e-settings-no-screen-lock") { s -> SettingsScreen(SettingsContract.State(false, ParentSettings("en")), s, {}, {}) }
+    @Test fun settingsNoScreenLockArabic() = shot("47f-settings-no-screen-lock-ar", Strings.ar) { s -> SettingsScreen(SettingsContract.State(false, ParentSettings("ar")), s, {}, {}) }
     @Test fun settingsDark() = shot("47c-settings-dark", dark = true) { s -> SettingsScreen(SettingsContract.State(false, ParentSettings("en"), Appearance.DARK, phone = "+971501234567", phoneKnown = true), s, {}, {}) }
     @Test fun newMessageComplaintDark() = shot("57d-new-message-complaint-dark", dark = true) { s -> CoordinatorPickerScreen(newMessageState(true), s, {}) }
     @Test fun weeklyPlanPdfDark() = shot("56e-weekly-plan-pdf-dark", dark = true) { s ->

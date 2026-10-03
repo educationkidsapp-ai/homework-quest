@@ -15,6 +15,9 @@ import quest.api.dto.ApiError
 import quest.api.dashboard.ParentProfile
 import quest.core.db.Db
 import quest.core.db.SettingsStore
+import quest.core.platform.BiometricAuthenticator
+import quest.core.platform.BiometricKind
+import quest.core.platform.BiometricResult
 import quest.core.platform.DriverFactory
 import quest.feature.auth.data.FakeAuth
 import quest.feature.content.data.FakeContentApi
@@ -62,10 +65,30 @@ class SettingsPhoneTest {
     private fun api(stored: String? = null, onUpdate: () -> Unit = {}) =
         Api(FakeContentApi(FakeAuth(settings), delayMillis = 0), stored, onUpdate)
 
-    private fun viewModel(api: ContentApi) =
+    private fun viewModel(api: ContentApi, authenticator: BiometricAuthenticator = quest.core.platform.platformBiometricAuthenticator()) =
         SettingsViewModel(ParentRepositoryImpl(settings), api, quest.feature.lock.domain.AppLock(
-            FakeAuth(settings), quest.feature.lock.data.BiometricPreferencesImpl(settings), quest.core.platform.platformBiometricAuthenticator(), signOut = {}, elapsed = { 0L },
+            FakeAuth(settings), quest.feature.lock.data.BiometricPreferencesImpl(settings), authenticator, signOut = {}, elapsed = { 0L },
         )).also { built.add(it) }
+
+    /** M6: what the phone can unlock with, as the test sets it; the prompt is never reached here. */
+    private class Device(var kind: BiometricKind?) : BiometricAuthenticator {
+        override fun kind() = kind
+        override suspend fun authenticate(reason: String) = BiometricResult.UNAVAILABLE
+    }
+
+    /** M6: back from the phone's settings with a screen lock set, the row offers it — no reopening of Settings. */
+    @Test fun theLockRowFollowsThePhoneWhenSettingsIsShownAgain() = runBlocking {
+        val device = Device(kind = null)
+        val vm = viewModel(api(), device)
+        vm.dispatch(SettingsContract.Intent.Load)
+        settle(vm.state) { !it.loading }
+        assertEquals(null, vm.state.value.biometricKind, "no screen lock: the row says to set one")
+
+        device.kind = BiometricKind.SCREEN_LOCK
+        vm.dispatch(SettingsContract.Intent.RefreshLock)
+        settle(vm.state) { it.biometricKind == BiometricKind.SCREEN_LOCK }
+        assertFalse(vm.state.value.biometricOn)
+    }
 
     private suspend fun <S> settle(state: StateFlow<S>, predicate: (S) -> Boolean) {
         repeat(400) {
