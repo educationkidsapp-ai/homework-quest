@@ -18,8 +18,9 @@ import quest.server.grading.PaperSeal;
  *   <li>every option, tile, item, pair and hotspot id becomes {@link PaperSeal#opaque} and the lists are put in the
  *       order of those ids, so neither an id nor a position says anything;</li>
  *   <li>every key field keeps its shape with a meaningless value: `correctOptionId` and `correctIds` are the first
- *       options (or hotspot) sent — as many as a multi-select's `pick`, `trueFalse.answer` is `false`, `correctOrder` is the items in the order sent (an app
- *       sizes the order stop's slots by it), a word-tile sentence's `answer` is its first word;</li>
+ *       options (or hotspot) sent — as many as a multi-select's `pick` — `trueFalse.answer` is `false`, `correctOrder`
+ *       is the items in the order sent (an app sizes the order stop's slots by it), a word-tile sentence's `answer` is
+ *       its first word;</li>
  *   <li>a match stop's right-hand tiles are given to the pairs by {@link PaperSeal#rightOwners}, not by the pairing;</li>
  *   <li>`hint`, `modelAnswer` and `parentTip` say {@link #BLANK} (the schema wants them non-empty);
  *       `numberLine.highlight`, `teacherText`, and the panel's stop tips and model answers are emptied; each play
@@ -67,7 +68,7 @@ public class SealedPaper {
         }
         if (s.has("correctIds")) placeholder(s, s.path("options"), Math.max(1, s.path("pick").asInt(1)));
         if (s.get("tapTask") instanceof ObjectNode task) {
-            for (var hotspot : task.path("hotspots")) if (hotspot instanceof ObjectNode h) h.put("id", seal.opaque(id, h.path("id").asText()));
+            task.set("hotspots", objects((ArrayNode) task.path("hotspots"), id, seal));
             placeholder(task, task.path("hotspots"), 1);
         }
         switch (s.path("type").asText()) {

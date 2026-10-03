@@ -1004,6 +1004,7 @@ Names only — never paste a value into a PR, a commit, a log or a chat. Values 
 | `ADMIN_EMAIL` | every environment | seeds the platform ADMIN with `school_id = null` |
 | `ADMIN_PASSWORD` | every environment | re-applied on every boot; blank with `ADMIN_EMAIL` = no seeding |
 | `ADMIN_JWT_SECRET` | every environment | signing key, **≥ 32 bytes**; Terraform generates 48 random characters per project |
+| `EXAM_PAPER_SECRET` | QA, prod | B3: the key of a sealed exam paper's opaque ids, separate from `ADMIN_JWT_SECRET` so rotating that never changes the ids of a downloaded paper. Terraform generates it (`random_password.exam_paper`). **Fatal if missing in `prod`**; in `qa` an error line and a key derived from `ADMIN_JWT_SECRET`; elsewhere a fixed development key. Do not rotate it while an exam is open |
 | `MAIL_PROVIDER` | QA, prod | `log` (default) or `resend` |
 | `RESEND_API_KEY` | QA, prod | required when `MAIL_PROVIDER=resend`; empty falls back to the log mailer with an error line |
 | `MAIL_FROM` | QA, prod | the verified sender; default `no-reply@localhost` |
@@ -1027,7 +1028,7 @@ Names only — never paste a value into a PR, a commit, a log or a chat. Values 
 `ADMIN_JWT_SECRET` has a placeholder default in `application.yml` so a developer can boot without one. **Any deployed
 environment must set it** — Terraform does, from `random_password.jwt`.
 
-Terraform wires `DB_PASSWORD`, `ADMIN_JWT_SECRET`, `DEEPSEEK_API_KEY` and `ADMIN_PASSWORD` into Cloud Run as required
+Terraform wires `DB_PASSWORD`, `ADMIN_JWT_SECRET`, `EXAM_PAPER_SECRET`, `DEEPSEEK_API_KEY` and `ADMIN_PASSWORD` into Cloud Run as required
 secrets, plus `ANTHROPIC_API_KEY` and `FIREBASE_CREDENTIALS` once a value exists. `MAIL_PROVIDER`, `RESEND_API_KEY`,
 `MAIL_FROM` and `DASHBOARD_URL` have Terraform variables but no value in QA, so QA runs the log mailer and builds
 links from `PUBLIC_URL`. Setting them is an `infra` package (phase 5's `infra/mail-push` covers the mail three).
@@ -1248,8 +1249,8 @@ the ticket by itself. The first answer wins under concurrency as well: `attempts
 field meaningless**, in the shape every installed app decodes (`SealedPaperTest` runs a sealed copy of all 22 stop
 types through `Play.schema.json` and the shared-api decoder):
 
-- every option, tile, item, pair and hotspot id is opaque — `x` + 16 hex of an HMAC (key derived from
-  `ADMIN_JWT_SECRET`) over parent, exam, stop and id — and the lists are in the order of those ids. They are the
+- every option, tile, item, pair and hotspot id is opaque — `x` + 16 hex of an HMAC (keyed by
+  `EXAM_PAPER_SECRET`) over parent, exam, stop and id — and the lists are in the order of those ids. They are the
   same for the same parent and exam (`GET /lessons/{id}` names no child), so a resumed sitting and a re-download agree,
   and the server maps them back when it grades (`PaperSeal`); nothing is stored;
 - `correctOptionId` and `correctIds` are the first option / hotspot sent (a multiSelect's first `pick`),

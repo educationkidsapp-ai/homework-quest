@@ -103,10 +103,20 @@ class ExamIntegrityTest extends ExamTestSupport {
         assertThat(mine.get("needsMarking").asInt()).isEqualTo(2);
         assertThat(row("ei-yw:ei-q1").getAnswerJson()).isEqualTo(quest.server.grading.AnswerKey.PENDING);
 
+        var columns = json(mvc.perform(as(get("/teacher/lessons/" + EXAM + "/results"), sara)).andExpect(status().isOk()).andReturn()).get("stops");
+        assertThat(columns).filteredOn(c -> c.get("stopId").asText().startsWith("ei-q")).as("the page offers the mark on both")
+                .hasSize(2).allMatch(c -> c.get("open").asBoolean());
+        assertThat(columns).filteredOn(c -> c.get("stopId").asText().equals(stop(EXAM, 1))).allMatch(c -> !c.get("open").asBoolean());
+
         markStop("ei-q1", 3); markStop("ei-q2", 1);
         mine = child(results(), maya);
         assertThat(mine.get("needsMarking").asInt()).as("the teacher's marks settle them").isZero();
-        assertThat(mine.get("percent").asInt()).isLessThan(100);
+        int percent = mine.get("percent").asInt();
+        assertThat(percent).isLessThan(100);
+
+        release(true);
+        var result = parentGet("/children/" + maya + "/progress").get("results").get(0);
+        assertThat(result.get("score").asInt()).as("the released score counts the teacher's marks").isEqualTo(percent);
     }
 
     @Test void an_updated_apps_exit_ticket_is_one_attempt_per_question() throws Exception {

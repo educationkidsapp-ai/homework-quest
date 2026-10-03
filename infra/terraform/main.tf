@@ -101,12 +101,20 @@ resource "random_password" "jwt" {
   special = false
 }
 
+# B3: the key of a sealed exam paper's opaque ids — its own secret, so rotating ADMIN_JWT_SECRET never changes the ids
+# of a paper a child already downloaded (the server grades her answers through them).
+resource "random_password" "exam_paper" {
+  length  = 48
+  special = false
+}
+
 locals {
   generated_secrets = {
-    DB_PASSWORD      = random_password.db.result
-    ADMIN_JWT_SECRET = random_password.jwt.result
+    DB_PASSWORD       = random_password.db.result
+    ADMIN_JWT_SECRET  = random_password.jwt.result
+    EXAM_PAPER_SECRET = random_password.exam_paper.result
   }
-  required_secrets = ["DB_PASSWORD", "ADMIN_JWT_SECRET", "DEEPSEEK_API_KEY", "ADMIN_PASSWORD"]
+  required_secrets = ["DB_PASSWORD", "ADMIN_JWT_SECRET", "EXAM_PAPER_SECRET", "DEEPSEEK_API_KEY", "ADMIN_PASSWORD"]
   optional_secrets = ["ANTHROPIC_API_KEY", "FIREBASE_CREDENTIALS", "RESEND_API_KEY", "SEED_STAFF_PASSWORD"]
   # wired into Cloud Run: the required ones always, an optional one once its value has been provided (var.optional_secrets)
   runtime_secrets = concat(local.required_secrets, var.optional_secrets)

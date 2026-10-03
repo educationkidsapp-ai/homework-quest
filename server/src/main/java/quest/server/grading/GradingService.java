@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -148,12 +149,18 @@ public class GradingService {
                     score.band(), score.starsEarned(), score.starsTotal(), score.answered(), score.total(),
                     score.completion(), score.needsMarking(), lessonRow == null ? null : lessonRow.getComment(), stops));
         }
+        // B3: a column is markable when any child's answer in it waits for a mark — on an exam, an exit-ticket question
+        // the app sent without its answer — so the page offers the mark there too. Homework columns are unchanged.
+        var waiting = new HashSet<String>();
+        for (var row : rows) for (var s : row.stops()) if (s.needsMarking()) waiting.add(s.stopId());
+        var markable = columns.stream().map(c -> c.open() || !waiting.contains(c.stopId()) ? c
+                : new GradingDto.ResultStop(c.stopId(), c.title(), c.type(), c.level(), true)).toList();
         return new GradingDto.LessonResults(lessonId, lesson.getTitle(), lesson.getClassId(),
                 section == null ? null : section.getName(), lesson.getSubject(), lesson.getDate().toString(),
                 lesson.getType(), lesson.getReleasedAt() != null,
                 lesson.getReleasedAt() == null ? null : lesson.getReleasedAt().toEpochMilli(),
                 scored == 0 ? null : (int) Math.round(sum / scored), played, needsMarking,
-                List.copyOf(columns), List.copyOf(rows));
+                markable, List.copyOf(rows));
     }
 
     /**
