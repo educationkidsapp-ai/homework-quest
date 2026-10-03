@@ -4754,6 +4754,25 @@
         "required" : [ "refreshToken" ],
         "type" : "object"
       },
+      "RegisterDeviceRequest" : {
+        "properties" : {
+          "appVersion" : {
+            "type" : "string"
+          },
+          "locale" : {
+            "type" : "string"
+          },
+          "platform" : {
+            "enum" : [ "ANDROID", "IOS" ],
+            "type" : "string"
+          },
+          "token" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "platform", "token" ],
+        "type" : "object"
+      },
       "ReleaseRequest" : {
         "properties" : {
           "released" : {
@@ -13960,6 +13979,46 @@
         "tags" : [ "Broadcasts" ]
       }
     },
+    "/me/devices" : {
+      "post" : {
+        "operationId" : "registerDevice",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RegisterDeviceRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Registered, or refreshed"
+          }
+        },
+        "tags" : [ "Devices" ]
+      }
+    },
+    "/me/devices/{token}" : {
+      "delete" : {
+        "operationId" : "unregisterDevice",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "token",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Gone, or never hers"
+          }
+        },
+        "tags" : [ "Devices" ]
+      }
+    },
     "/me/home" : {
       "get" : {
         "operationId" : "home",
@@ -17199,6 +17258,9 @@
   }, {
     "description" : "Cache, usage and calendar",
     "name" : "Admin reports"
+  }, {
+    "description" : "The parent's phones for push notifications (Firebase Cloud Messaging)",
+    "name" : "Devices"
   }, {
     "description" : "Classes, school usage, billing, teachers and platform cost",
     "name" : "Dashboard data"

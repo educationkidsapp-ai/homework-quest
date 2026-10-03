@@ -35,7 +35,8 @@ enum class NotificationKind {
      * the bell shows what was said rather than that something was said; [NotificationView.link] is the recipient's
      * own broadcasts screen. [NotificationView.lessonId] carries the **broadcast's** id on these rows — the field is
      * "the row this is about", and it is what lets a re-posted weekly plan withdraw the bell entries of the plan it
-     * replaces. Parents have no bell and read `GET /children/{id}/broadcasts` instead.
+     * replaces. Parents have no row and read `GET /children/{id}/broadcasts` instead; since B4 they are pushed a
+     * [PushMessage] of this kind (no row behind it) when the broadcast reaches one of their children.
      */
     @SerialName("broadcast.posted") BROADCAST_POSTED,
     /**

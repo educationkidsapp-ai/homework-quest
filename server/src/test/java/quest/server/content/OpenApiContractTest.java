@@ -142,6 +142,9 @@ class OpenApiContractTest extends ApiTestSupport {
     static final List<String> NOTIFICATIONS_API = List.of(
             "/me/notifications", "/me/notifications/unread-count", "/me/notifications/{id}/read", "/me/notifications/read-all");
 
+    /** B4: the parent's phones for push (`quest.api.dto.Push.kt`, `ContentApi.registerDevice`/`unregisterDevice`). */
+    static final List<String> DEVICES_API = List.of("/me/devices", "/me/devices/{token}");
+
     /**
      * R2 and R3: the coordinator's read-only area and the Admin routes that create one
      * (`quest.api.dashboard.Coordinator.kt`, `docs/plan.md` phase R). Every path here is a GET except the two that
@@ -228,6 +231,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(CLASSES_API);
         assertThat(paths).containsAll(CHAT_API);
         assertThat(paths).containsAll(NOTIFICATIONS_API);
+        assertThat(paths).containsAll(DEVICES_API);
         assertThat(paths).containsAll(COORDINATOR_API);
         assertThat(paths).containsAll(MANAGEMENT_API);
         assertThat(paths).containsAll(BROADCASTS_API);
