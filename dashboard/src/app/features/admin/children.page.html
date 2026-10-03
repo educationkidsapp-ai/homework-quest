@@ -282,16 +282,16 @@
       [hint]="'form.phone.hint' | transloco"
       (valueChange)="parentPhone.set($event)"
     />
-    @if (!isEdit()) {
+    @if (!isEdit() || editingHasParent()) {
       <div class="families__password">
         <hq-input
-          [label]="'admin.children.form.password' | transloco"
+          [label]="(isEdit() ? 'admin.children.form.editPassword' : 'admin.children.form.password') | transloco"
           [type]="passwordType()"
           autocomplete="new-password"
           [value]="parentPassword()"
-          [required]="true"
+          [required]="!isEdit()"
           [error]="passwordError()"
-          [hint]="passwordStrength() ?? ('admin.children.form.passwordHint' | transloco)"
+          [hint]="passwordStrength() ?? ((isEdit() ? 'admin.children.form.editPasswordHint' : 'admin.children.form.passwordHint') | transloco)"
           (valueChange)="parentPassword.set($event)"
         />
         <hq-button variant="secondary" (pressed)="revealPassword.set(!revealPassword())">

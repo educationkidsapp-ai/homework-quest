@@ -45,12 +45,18 @@
 
 .families__password {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--hq-space-16);
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: var(--hq-space-8);
 
   hq-input {
-    flex: 1 1 14rem;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  hq-button {
+    flex-shrink: 0;
+    margin-block-start: calc(var(--hq-font-label-line, 20px) + var(--hq-space-4, 4px));
   }
 }
 

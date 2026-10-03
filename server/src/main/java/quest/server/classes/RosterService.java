@@ -43,15 +43,18 @@ public class RosterService {
     private final quest.server.teacher.TeacherQuestionAnswerRepository answers; private final quest.server.files.FileStore files;
     private final quest.server.chat.ChatThreadRepository chatThreads; private final quest.server.chat.ChatMessageRepository chatMessages;
     private final quest.server.auth.ParentRepository parents;
+    private final quest.server.auth.ParentAccounts accounts;
 
     public RosterService(ChildRepository children, TeacherScope scope, RosterImport reader, AuditService audit,
                          quest.server.children.ChildMediaRepository media,
                          quest.server.teacher.TeacherQuestionAnswerRepository answers, quest.server.files.FileStore files,
                          quest.server.chat.ChatThreadRepository chatThreads, quest.server.chat.ChatMessageRepository chatMessages,
-                         quest.server.auth.ParentRepository parents) {
+                         quest.server.auth.ParentRepository parents,
+                         quest.server.auth.ParentAccounts accounts) {
         this.children = children; this.scope = scope; this.reader = reader; this.audit = audit;
         this.media = media; this.answers = answers; this.files = files;
         this.chatThreads = chatThreads; this.chatMessages = chatMessages; this.parents = parents;
+        this.accounts = accounts;
     }
 
     /**
@@ -134,6 +137,15 @@ public class RosterService {
         if (request.classId() != null && !request.classId().equals(child.getClassId())) {
             var target = writable(caller, request.classId());                   // the destination has to be hers too
             child.setClassId(target.getId()); child.setCurriculum(target.getCurriculum()); child.setGrade(target.getGrade());
+        }
+        if (request.parentPassword() != null && !request.parentPassword().isBlank()) {
+            if (!caller.isAdmin()) throw ApiException.forbidden("Only an admin can change the parent password.");
+            String newPassword = request.parentPassword().trim();
+            if (newPassword.length() < 8) throw ApiException.badRequest("Password must be at least 8 characters.");
+            if (child.getParentId() == null) throw ApiException.badRequest("That child has no parent account yet.");
+            var parent = parents.findById(child.getParentId()).orElseThrow(() -> ApiException.notFound("parent"));
+            accounts.password(parent.getFirebaseUid(), newPassword);
+            audit.record(caller.userId(), "child.parentPassword", "child", child.getId(), child.getSchoolId(), Map.of());
         }
         children.save(child);
         audit.record(caller.userId(), "child.update", "child", child.getId(), child.getSchoolId(), Map.of("classId", child.getClassId()));

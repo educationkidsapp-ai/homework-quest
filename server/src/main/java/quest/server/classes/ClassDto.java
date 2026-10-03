@@ -60,7 +60,12 @@ public final class ClassDto {
     public record CreateRosterChildRequest(@NotBlank String name, String parentEmail, String photoUrl) {}
 
     public record UpdateRosterChildRequest(String name, String parentEmail, String photoUrl, Boolean active,
-                                           String classId, String parentPhone, String parentName) {}
+                                           String classId, String parentPhone, String parentName, String parentPassword) {
+        public UpdateRosterChildRequest(String name, String parentEmail, String photoUrl, Boolean active,
+                                        String classId, String parentPhone, String parentName) {
+            this(name, parentEmail, photoUrl, active, classId, parentPhone, parentName, null);
+        }
+    }
 
     // ------------------------------------------------------------------ MA1: children and their parents' accounts
 

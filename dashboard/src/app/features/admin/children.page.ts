@@ -423,9 +423,13 @@ export class ChildrenPage implements OnDestroy {
             this.formError.set(this.t('admin.children.notConfigured.message'));
             return;
           }
-          const message = apiErrorOf(error)?.message ?? this.t('band.unreachable');
+          const rawMessage = apiErrorOf(error)?.message ?? '';
+          const code = apiErrorCodeOf(error);
+          const message =
+            code === 'upstream_error' || rawMessage.includes('null') || rawMessage.includes('could not be')
+              ? this.t('admin.children.form.parentAccountError')
+              : rawMessage || this.t('band.unreachable');
           this.formError.set(message);
-          this.band.fail(message);
         },
       });
   }
@@ -498,6 +502,7 @@ export class ChildrenPage implements OnDestroy {
       ? this.name().trim() !== '' &&
         this.classId() !== '' &&
         (!this.editingHasParent() || this.parentName().trim() !== '') &&
+        this.passwordError() === null &&
         this.phoneError() === null
       : this.canAdmit(),
   );
@@ -547,6 +552,8 @@ export class ChildrenPage implements OnDestroy {
     this.classId.set(row.classId);
     this.parentName.set(row.parentName);
     this.parentPhone.set(row.parentPhone);
+    this.parentPassword.set('');
+    this.revealPassword.set(false);
     this.formOpen.set(true);
   }
 
@@ -554,25 +561,33 @@ export class ChildrenPage implements OnDestroy {
     const row = this.editing();
     if (!row || !this.canSave()) return;
     this.saving.set(true);
+    const newPassword = this.parentPassword().trim();
     this.classesApi
       .updateChild1(row.childId, {
         name: this.name().trim(),
         classId: this.classId(),
         parentPhone: this.parentPhone().trim(),
         ...(this.editingHasParent() ? { parentName: this.parentName().trim() } : {}),
+        ...(this.editingHasParent() && newPassword ? ({ parentPassword: newPassword } as Record<string, unknown>) : {}),
       })
       .subscribe({
         next: () => {
           this.saving.set(false);
           this.formOpen.set(false);
           this.editing.set(null);
+          this.parentPassword.set('');
+          this.revealPassword.set(false);
           this.families.reload();
         },
         error: (error: unknown) => {
           this.saving.set(false);
-          const message = apiErrorOf(error)?.message ?? this.t('band.unreachable');
+          const rawMessage = apiErrorOf(error)?.message ?? '';
+          const code = apiErrorCodeOf(error);
+          const message =
+            code === 'upstream_error' || rawMessage.includes('null') || rawMessage.includes('could not be')
+              ? this.t('admin.children.form.parentAccountError')
+              : rawMessage || this.t('band.unreachable');
           this.formError.set(message);
-          this.band.fail(message);
         },
       });
   }
