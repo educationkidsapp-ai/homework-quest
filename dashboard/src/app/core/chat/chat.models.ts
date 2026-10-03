@@ -5,8 +5,12 @@ import {
   NotificationView,
   SendChatMessageRequest,
 } from '../../api';
+import { type ChatAttachment } from './chat-attachments';
 
 export type { ChatMessage, ChatReadReceipt, ChatThread, SendChatMessageRequest };
+
+/** D4: a REST send with the files B5 added to it, by id. */
+export type ChatSendRequest = SendChatMessageRequest & { attachmentIds?: string[] };
 
 export type ChatConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 
@@ -22,7 +26,7 @@ export interface ChatCommandKey {
   threadId?: string;
 }
 export type ChatClientCommand =
-  | ({ type: 'message'; body: string; clientId: string } & ChatCommandKey)
+  | ({ type: 'message'; body: string; clientId: string; attachmentIds?: readonly string[] } & ChatCommandKey)
   | ({ type: 'typing' } & ChatCommandKey)
   | ({ type: 'read' } & ChatCommandKey)
   | { type: 'ping' }
@@ -73,6 +77,8 @@ export function peerIdsOf(thread: ChatThread, ownUserId: string | null): readonl
 }
 
 export interface LocalMessage extends ChatMessage {
+  /** D4 (B5): files on the message; the server's echo replaces the optimistic copy. */
+  attachments?: ChatAttachment[];
   pending?: boolean;
   failed?: boolean;
   errorMessage?: string;

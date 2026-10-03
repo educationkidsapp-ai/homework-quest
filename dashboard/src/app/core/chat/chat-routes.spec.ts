@@ -27,6 +27,9 @@ import { ChatService } from './chat.service';
  * **thread** and the teacher's by **child**, and the whole point of `ChatRoutes` is that the
  * screen never knows which — so these tests are about *which endpoint was called with what*.
  */
+
+/** D4: every REST send names its `clientId` now (a fresh UUID), so the echo settles the bubble. */
+const anyId: unknown = expect.any(String);
 describe('ChatRoutes', () => {
   const parentThread: ChatThread = {
     id: 'th-1',
@@ -155,7 +158,10 @@ describe('ChatRoutes', () => {
     chat.selectThread('th-2');
     expect(coordinatorApi.coordinatorChatMessages).toHaveBeenCalledWith('th-2', undefined, undefined);
     chat.sendMessage('About 3B');
-    expect(coordinatorApi.coordinatorSendChatMessage).toHaveBeenCalledWith('th-2', { body: 'About 3B' });
+    expect(coordinatorApi.coordinatorSendChatMessage).toHaveBeenCalledWith('th-2', {
+      body: 'About 3B',
+      clientId: anyId,
+    });
     expect(coordinatorApi.coordinatorMarkChatRead).toHaveBeenCalledWith('th-2');
   });
 
@@ -200,6 +206,7 @@ describe('ChatRoutes', () => {
     chat.sendMessage('Can we talk about grade 3?');
     expect(teacherApi.teacherSendStaffMessage).toHaveBeenCalledWith('th-2', {
       body: 'Can we talk about grade 3?',
+      clientId: anyId,
     });
 
     chat.selectThread('ch-1');
@@ -254,6 +261,7 @@ describe('ChatRoutes', () => {
     chat.sendMessage('I will look at it');
     expect(managementApi.managementSendChatMessage).toHaveBeenCalledWith('th-2', {
       body: 'I will look at it',
+      clientId: anyId,
     });
     expect(managementApi.managementMarkChatRead).toHaveBeenCalledWith('th-2');
   });
@@ -273,6 +281,8 @@ describe('ChatRoutes', () => {
 
     expect(routes.transport()?.keyOf(staffThread)).toBe('th-2');
     expect(routes.transport()?.commandKey('th-2')).toEqual({ threadId: 'th-2' });
+    // D4: her token names no school, so her chat commands go over REST, never the socket.
+    expect(routes.transport()?.socket).toBe(false);
 
     chat.loadThreads();
     // S1: `mine=true` — her own inbox, not the whole school's chat.
@@ -283,7 +293,10 @@ describe('ChatRoutes', () => {
     chat.selectThread('th-2');
     expect(teacherApi.supportChatMessages).toHaveBeenCalledWith('th-2', undefined, undefined);
     chat.sendMessage('Noted');
-    expect(teacherApi.supportSendChatMessage).toHaveBeenCalledWith('th-2', { body: 'Noted' });
+    expect(teacherApi.supportSendChatMessage).toHaveBeenCalledWith('th-2', {
+      body: 'Noted',
+      clientId: anyId,
+    });
     expect(teacherApi.supportMarkChatRead).toHaveBeenCalledWith('th-2');
   });
 

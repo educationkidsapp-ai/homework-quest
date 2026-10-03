@@ -18,7 +18,7 @@
  *   including `/me`.
  * - `hq.flags.*` — the last flag map per school, kept for a slow cold start. Keyed by school id,
  *   so a re-created school's would never be read again and only accumulate.
- * - `hq_chat_att_*` (session) — attachments staged in a conversation.
+ * - `hq_chat_att_*` (session) — left by the pre-D4 composer, which kept "attached" files here.
  *
  * **Not here:** the language, the colour scheme and the rail's collapsed state are the browser's
  * preferences rather than an account's, and `hq.course.<userId>` is keyed by the user it belongs

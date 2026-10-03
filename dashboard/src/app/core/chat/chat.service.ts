@@ -13,10 +13,12 @@ import { AuthService } from '../auth/auth.service';
 import { SessionStore } from '../auth/session.store';
 import { FlagService } from '../flags/flag.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { type ChatAttachment } from './chat-attachments';
 import { type ChatTransport, ChatRoutes } from './chat-routes';
 import {
   type ChatClientCommand,
   type ChatConnectionStatus,
+  type ChatSendRequest,
   type ChatServerFrame,
   type LocalMessage,
   peerIdsOf,
@@ -25,8 +27,15 @@ import {
 const MAX_RECONNECT_DELAY_MS = 30_000;
 /** `ChatSessions.SIGNED_OUT` — `CloseStatus.NORMAL.withReason("signed out")` (T1). */
 const SIGNED_OUT_REASON = 'signed out';
-const TYPING_TIMEOUT_MS = 3_000;
-const TYPING_THROTTLE_MS = 2_000;
+/** How long the other party's "typing" stays on screen after her last `typing` frame. */
+const TYPING_TIMEOUT_MS = 4_500;
+/**
+ * D4: at most one `typing` command per thread every 3 s while she types. The parent's app shows
+ * "typing" for 4.5 s after a frame (`ChatConversationScreen`), so a frame every 3 s keeps it on
+ * without a gap, and nothing at all is sent once she stops — the protocol has no "stopped" frame,
+ * the other side simply lets the indicator lapse.
+ */
+const TYPING_EVERY_MS = 3_000;
 
 @Injectable({ providedIn: 'root' })
 export class ChatService {
@@ -40,7 +49,8 @@ export class ChatService {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
   private typingClearTimer: ReturnType<typeof setTimeout> | null = null;
-  private lastTypingSentAt = 0;
+  /** The thread and the time of the last `typing` command actually written to an open socket. */
+  private lastTyping: { readonly key: string; readonly at: number } | null = null;
   private intentionalDisconnect = false;
 
   readonly threads = signal<ChatThread[]>([]);
@@ -53,7 +63,8 @@ export class ChatService {
   readonly messages = signal<LocalMessage[]>([]);
   readonly loadingMessages = signal<boolean>(false);
   readonly connectionStatus = signal<ChatConnectionStatus>('disconnected');
-  readonly isParentTyping = signal<boolean>(false);
+  /** The other party on the open thread is typing — the parent, or the staff member at the other end. */
+  readonly peerTyping = signal<boolean>(false);
 
   /**
    * Who the server says is connected, by user id (a `presence` frame's `userId` or `parentId`).
@@ -287,7 +298,7 @@ export class ChatService {
     this.activeKey.set(null);
     this.messages.set([]);
     this.pending.set(null);
-    this.isParentTyping.set(false);
+    this.peerTyping.set(false);
     this.chatDenied.set(false);
   }
 
@@ -324,7 +335,7 @@ export class ChatService {
     if (waiting !== null && (waiting.id ?? '') !== '' && this.keyOf(waiting) !== key) this.pending.set(null);
     this.activeGone.set(false);
     this.activeKey.set(key);
-    this.isParentTyping.set(false);
+    this.peerTyping.set(false);
     this.loadMessages(key);
     // Only a thread that exists can be marked read: `POST …/read` answers 404 without one, and
     // the error interceptor would put that 404 in a red band over a conversation she just opened.
@@ -384,11 +395,20 @@ export class ChatService {
       .subscribe();
   }
 
-  sendMessage(body: string): void {
+  /**
+   * Send what the composer holds: text, files already uploaded (D4), or both.
+   *
+   * Files travel by id (`attachmentIds`, B5) on the socket's `message` command and on the REST
+   * send alike; the server fills in the rest of each attachment and the echo carries them whole.
+   */
+  sendMessage(body: string, attachments: readonly ChatAttachment[] = []): void {
     const key = this.activeKey();
     const transport = key === null ? null : this.transportFor(key);
     const cleanBody = body.trim();
-    if (!key || transport === null || !cleanBody || cleanBody.length > 2000) return;
+    if (!key || transport === null || cleanBody.length > 2000) return;
+    if (cleanBody === '' && attachments.length === 0) return;
+    // A sent message ends the typing: the next keystroke is a new "typing", said at once.
+    this.lastTyping = null;
 
     const clientId =
       typeof crypto !== 'undefined' && crypto.randomUUID
@@ -404,23 +424,28 @@ export class ChatService {
       createdAt: Date.now(),
       pending: true,
       clientId,
+      ...(attachments.length > 0 ? { attachments: [...attachments] } : {}),
     };
 
     this.messages.update((list) => [...list, optimistic]);
 
-    // Try WebSocket send first
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+    const attachmentIds = attachments.map((attachment) => attachment.id);
+    // On the socket when it is open — the echo with this `clientId` is the ack — else over REST.
+    if (this.socketOpenFor(transport)) {
       const command: ChatClientCommand = {
         type: 'message',
         ...transport.commandKey(key),
         body: cleanBody,
         clientId,
+        ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
       };
-      this.socket.send(JSON.stringify(command));
+      this.socket?.send(JSON.stringify(command));
     } else {
       // Fall back to REST
+      const request: ChatSendRequest = { body: cleanBody, clientId };
+      if (attachmentIds.length > 0) request.attachmentIds = attachmentIds;
       transport
-        .send(key, cleanBody)
+        .send(key, request)
         .pipe(
           tap((msg) => {
             this.handleServerMessage(msg, clientId);
@@ -440,27 +465,40 @@ export class ChatService {
     }
   }
 
+  /**
+   * She typed in the open thread's composer: tell the other party, at most every
+   * {@link TYPING_EVERY_MS} per thread.
+   *
+   * The time is taken only when a frame is actually written. Before D4 it was taken first, so a
+   * keystroke made while the socket was reconnecting used up the window and the frames after it
+   * were skipped too. A thread with no row yet (a first message) has nobody to tell.
+   */
   sendTyping(): void {
     const key = this.activeKey();
     const transport = key === null ? null : this.transportFor(key);
-    if (!key || transport === null) return;
+    if (!key || transport === null || !this.socketOpenFor(transport)) return;
+    if (!this.threads().some((thread) => this.keyOf(thread) === key)) return;
 
     const now = Date.now();
-    if (now - this.lastTypingSentAt < TYPING_THROTTLE_MS) return;
-    this.lastTypingSentAt = now;
+    const last = this.lastTyping;
+    if (last !== null && last.key === key && now - last.at < TYPING_EVERY_MS) return;
 
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      const command: ChatClientCommand = { type: 'typing', ...transport.commandKey(key) };
-      this.socket.send(JSON.stringify(command));
-    }
+    const command: ChatClientCommand = { type: 'typing', ...transport.commandKey(key) };
+    this.socket?.send(JSON.stringify(command));
+    this.lastTyping = { key, at: now };
+  }
+
+  /** The socket is open, and this account's chat commands may go on it (an ADMIN's may not, D4). */
+  private socketOpenFor(transport: ChatTransport): boolean {
+    return transport.socket && this.socket !== null && this.socket.readyState === WebSocket.OPEN;
   }
 
   markRead(key: string): void {
     const transport = this.transportFor(key);
     if (transport === null) return;
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+    if (this.socketOpenFor(transport)) {
       const command: ChatClientCommand = { type: 'read', ...transport.commandKey(key) };
-      this.socket.send(JSON.stringify(command));
+      this.socket?.send(JSON.stringify(command));
     }
 
     // Call REST markRead as well for durability
@@ -636,18 +674,20 @@ export class ChatService {
         break;
       }
 
-      case 'typing':
-        if (frame.from === 'parent') {
-          const active = this.activeThread();
-          if (active && active.id === frame.threadId) {
-            this.isParentTyping.set(true);
-            if (this.typingClearTimer) clearTimeout(this.typingClearTimer);
-            this.typingClearTimer = setTimeout(() => {
-              this.isParentTyping.set(false);
-            }, TYPING_TIMEOUT_MS);
-          }
+      // The server sends `typing` to everybody on the thread *except* the person typing, on all
+      // of her sessions, so a frame for the open thread is always the other party — a parent, or
+      // (D4) the staff member at the other end of a staff thread, whose frames say `teacher`.
+      case 'typing': {
+        const active = this.activeThread();
+        if (active && active.id === frame.threadId) {
+          this.peerTyping.set(true);
+          if (this.typingClearTimer) clearTimeout(this.typingClearTimer);
+          this.typingClearTimer = setTimeout(() => {
+            this.peerTyping.set(false);
+          }, TYPING_TIMEOUT_MS);
         }
         break;
+      }
 
       case 'read':
         if (frame.readBy === 'parent') {
@@ -811,7 +851,7 @@ export class ChatService {
     this.connectionStatus.set('disconnected');
     // Presence is only as live as the socket that carries it (T2 item d).
     this.presence.set(new Map());
-    this.isParentTyping.set(false);
+    this.peerTyping.set(false);
   }
 
   /**
