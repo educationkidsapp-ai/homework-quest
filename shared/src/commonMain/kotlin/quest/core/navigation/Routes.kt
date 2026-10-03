@@ -16,7 +16,8 @@ object Routes {
     @Serializable data class ExamResult(val lessonId: String)
 
     // parent mode
-    @Serializable data class ParentPin(val lessonId: String? = null)
+    /** [push] (M5): a tapped notification's app path, followed once the gate has opened. */
+    @Serializable data class ParentPin(val lessonId: String? = null, val push: String? = null)
     @Serializable object ParentHome
     @Serializable object Calendar
     @Serializable object Progress

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- M5: debug builds only (src/debug) — never in a release APK. Lets adb play the part of FCM on an emulator. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <receiver android:name="quest.android.debug.PushDebugReceiver" android:exported="true" />
+    </application>
+</manifest>

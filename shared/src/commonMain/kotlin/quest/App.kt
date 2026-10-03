@@ -2,6 +2,9 @@ package quest
 
 import quest.feature.today.domain.TodayLinks
 import quest.feature.today.domain.TodayLink
+import quest.feature.push.domain.PushLinks
+import quest.feature.push.domain.PushRegistration
+import quest.feature.push.presentation.PushNavigator
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import quest.feature.lock.presentation.AppLockHost
@@ -76,6 +79,7 @@ fun App() {
 @Composable
 fun QuestNavHost(nav: NavHostController, start: Any) {
     val lock: AppLock = koinInject()
+    val pushRegistration: PushRegistration = koinInject()
     val scope = rememberCoroutineScope()   // outlives the sign-in screen, which is popped the moment it succeeds
     // M3: a tap on the home-screen widget. The navigation happens underneath the lock's cover, so a locked app still
     // asks for the biometric first and then shows where the tap pointed. Signed out, the tap just opens the app.
@@ -90,11 +94,31 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
             TodayLink.MESSAGES -> nav.navigate(Routes.ParentPin())      // messages are the parent's: her gate comes first
         }
     }
+    // M5: a tapped push. Like the widget, it is followed underneath the lock; a parent-area destination also goes
+    // through the parent gate, and only after it opens is the conversation (or Progress, or the feed) opened on top of
+    // the parent home. A link that leads nowhere any more — her child unlinked, the thread gone — ends on that home.
+    val push by PushLinks.pending.collectAsState()
+    val afterGate by PushLinks.afterGate.collectAsState()
+    val pushes: PushNavigator = koinInject()
+    LaunchedEffect(push) {
+        val open = push ?: return@LaunchedEffect
+        PushLinks.consumed()
+        when (val route = pushes.beforeGate(open)) {
+            null -> Unit
+            Routes.WorldMap -> nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } }
+            else -> nav.navigate(route)
+        }
+    }
+    LaunchedEffect(afterGate) {
+        val link = afterGate ?: return@LaunchedEffect
+        PushLinks.followed()
+        pushes.afterGate(link)?.let { nav.navigate(it) }
+    }
     NavHost(navController = nav, startDestination = start) {
         // After sign-in the parent sees every child the school linked to the account, and picks whose home to open.
         composable<Routes.SignIn> {
             // M2: a password sign-in is followed, once, by the offer to unlock with a biometric from now on.
-            SignInRoute(onSignedIn = { scope.launch { lock.signedIn() }; nav.navigate(Routes.ChildPicker) { popUpTo(Routes.SignIn) { inclusive = true } } })
+            SignInRoute(onSignedIn = { scope.launch { lock.signedIn() }; scope.launch { pushRegistration.signedIn() }; nav.navigate(Routes.ChildPicker) { popUpTo(Routes.SignIn) { inclusive = true } } })
         }
         composable<Routes.ChildPicker> {
             ChildPickerRoute(

@@ -390,6 +390,11 @@ class FakeContentApi(
 
     override suspend fun markAllNotificationsRead(): UnreadCount { net(); fakeNotificationReads += fakeNotifications().map { it.id }; return UnreadCount(0) }
 
+    /** B4: the push tokens the app registered, by token — what `/me/devices` would hold for this parent. */
+    val devices = mutableMapOf<String, quest.api.dto.RegisterDeviceRequest>()
+    override suspend fun registerDevice(request: quest.api.dto.RegisterDeviceRequest) { net(); devices[request.token] = request }
+    override suspend fun unregisterDevice(token: String) { net(); devices.remove(token) }
+
     override suspend fun childBroadcasts(childId: String): BroadcastFeed {
         net()
         val items = fakeBroadcasts()

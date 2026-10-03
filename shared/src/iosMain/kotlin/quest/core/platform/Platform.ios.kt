@@ -1,6 +1,8 @@
 package quest.core.platform
 
 import quest.feature.today.domain.ExamSittingPresenter
+import quest.feature.push.domain.NoPushTokens
+import quest.feature.push.domain.PushTokens
 import quest.feature.today.domain.TodaySnapshotStore
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.native.NativeSqliteDriver
@@ -39,5 +41,7 @@ actual fun platformModule(): Module = module {
     single<Speaker> { IosSpeaker() }
     single<TodaySnapshotStore> { IosTodaySnapshotStore() }
     single<ExamSittingPresenter> { IosExamSittingPresenter() }
+    // M5: no push here yet — iOS waits for an Apple developer account (APNs key); see docs/runbook.md.
+    single<PushTokens> { NoPushTokens }
 }
 

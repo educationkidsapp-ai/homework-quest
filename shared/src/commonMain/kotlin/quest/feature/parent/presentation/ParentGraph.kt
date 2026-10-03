@@ -16,14 +16,17 @@ import quest.feature.chat.presentation.ChatThreadsRoute
 import quest.feature.chat.presentation.CoordinatorPickerRoute
 import quest.feature.broadcasts.presentation.BroadcastsRoute
 import quest.feature.broadcasts.presentation.WeeklyPlanRoute
+import quest.feature.push.domain.PushLinks
 
 /** Parent-mode graph (behind the PIN). Nothing here is reachable from child screens except the PIN entry. */
 fun NavGraphBuilder.parentGraph(nav: NavHostController) {
     composable<Routes.ParentPin> { entry ->
-        val lessonId = entry.toRoute<Routes.ParentPin>().lessonId
+        val route = entry.toRoute<Routes.ParentPin>()
         PinRoute(onUnlocked = {
-            val target: Any = if (lessonId != null) Routes.LessonPanel(lessonId) else Routes.ParentHome
+            val target: Any = if (route.lessonId != null) Routes.LessonPanel(route.lessonId) else Routes.ParentHome
             nav.navigate(target) { popUpTo<Routes.ParentPin> { inclusive = true } }
+            // M5: a tapped notification goes on from the parent home, so Back from it lands there.
+            route.push?.let { PushLinks.unlocked(it) }
         }, onBack = { nav.popBackStack() })
     }
     composable<Routes.ParentHome> {
@@ -104,7 +107,7 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
  * R8: the row the parent tapped already knows the role, the subject, the topic and the status, so the conversation
  * opens with its header, its badge and its banner right rather than asking the server again for what it was just told.
  */
-private fun ChatThread.asConversation() = Routes.ChatConversation(
+internal fun ChatThread.asConversation() = Routes.ChatConversation(
     childId = childId,
     teacherId = teacherId,
     teacherName = teacherName,
