@@ -34,6 +34,7 @@ import quest.api.dto.MapResponse
 import quest.api.dto.Play
 import quest.api.dto.ProgressResponse
 import quest.api.dto.PublishedLesson
+import quest.api.dto.ReleasedResult
 import quest.api.dto.PublishedLessonSummary
 import quest.api.dto.StopCategory
 import quest.api.dto.Subject
@@ -60,6 +61,7 @@ import quest.feature.journey.presentation.LessonStrings
 import quest.feature.journey.presentation.PlayerContract
 import quest.feature.journey.presentation.PlayerContract.Phase
 import quest.feature.journey.presentation.StopPlayerViewModel
+import quest.feature.journey.presentation.ExamResultViewModel
 import quest.feature.journey.presentation.isExam
 import quest.feature.journey.presentation.playFor
 import quest.feature.map.presentation.ExamStatus
@@ -141,7 +143,8 @@ class ExamModeTest {
         override suspend fun pendingCount(childId: String, lessonId: String): Int = unsent
         override suspend fun pending(childId: String): Map<String, Int> = if (unsent > 0) mapOf(HotSoupSeed.lesson.id to unsent) else emptyMap()
         override suspend fun firstTryResults(childId: String, skillId: String, excludeLessons: Set<String>): List<Boolean> = emptyList()
-        override suspend fun progressReport(childId: String): ProgressResponse? = null
+        var report: ProgressResponse? = null
+        override suspend fun progressReport(childId: String): ProgressResponse? = report
     }
 
     private val db = Db(DriverFactory(null))
@@ -561,10 +564,14 @@ class ExamModeTest {
         assertNull(examCard(island(IslandState.DONE), opens, zone, en, months, true).left)
     }
 
-    private fun TestScope.home(island: Island, now: Long): Pair<MapViewModel, List<MapContract.Effect>> {
+    private var mapLoads = 0
+
+    private fun TestScope.home(island: Island, now: Long, journey: FakeJourney = FakeJourney()): Pair<MapViewModel, List<MapContract.Effect>> {
         val maps = object : MapRepository {
-            override suspend fun map(child: Child, from: LocalDate, to: LocalDate, today: LocalDate) =
-                MapResponse(child.id, HotSoupSeed.lesson.course, from, to, today, listOf(island))
+            override suspend fun map(child: Child, from: LocalDate, to: LocalDate, today: LocalDate): MapResponse {
+                mapLoads++
+                return MapResponse(child.id, HotSoupSeed.lesson.course, from, to, today, listOf(island))
+            }
         }
         val rewards = object : RewardsRepository {
             override suspend fun stickers(): List<Sticker> = emptyList()
@@ -572,7 +579,7 @@ class ExamModeTest {
             override suspend fun streak(): Streak = Streak(0, null)
             override suspend fun saveStreak(streak: Streak) {}
         }
-        val vm = MapViewModel(FakeChildren(maya), maps, FakeJourney(), rewards, copy, FakeLessons(exam), now = { now }).also { built.add(it) }
+        val vm = MapViewModel(FakeChildren(maya), maps, journey, rewards, copy, FakeLessons(exam), now = { now }).also { built.add(it) }
         val effects = mutableListOf<MapContract.Effect>()
         backgroundScope.launch { vm.effects.collect { effects += it } }
         vm.dispatch(MapContract.Intent.Load); runCurrent()
@@ -590,5 +597,59 @@ class ExamModeTest {
         val (vm, effects) = home(island(window = null), opens + 1)
         assertEquals(setOf(exam.id), vm.state.value.exams)
         assertEquals(listOf<MapContract.Effect>(MapContract.Effect.Speak(en.examNeedsConnection)), effects)
+    }
+
+    // ---------------------------------------------------------------- M4: the released result (D4), "Continue" (D9)
+
+    private val released = ReleasedResult(exam.id, exam.title, LocalDate(2026, 10, 2), Subject.ENGLISH, score = 60, band = "secure", comment = "Good effort, Hala.", releasedAt = 1_790_000_000_000L)
+    private fun report(vararg results: ReleasedResult) = ProgressResponse(maya.id, emptyList(), emptyList(), 0, null, emptyList(), results.toList())
+
+    @Test fun afterReleaseTheChildSeesHerResultOnTheCardAndOpensIt() = examTest {
+        val journey = FakeJourney().apply { report = report(released) }
+        val (vm, effects) = home(island(IslandState.DONE), opens + 1, journey)
+        assertEquals(released, vm.state.value.results[exam.id])
+        assertEquals(listOf<MapContract.Effect>(MapContract.Effect.OpenResult(exam.id)), effects)
+
+        val card = examCard(island(IslandState.DONE), opens + 1, TimeZone.UTC, en, emptyList(), true, result = released)
+        assertEquals(ExamStatus.RELEASED, card.status)
+        assertEquals("Score 60 · Secure", card.line)
+        assertEquals(en.examSeeResult, card.action)
+        assertFalse(card.status.canSit, "a released exam is never sat again")
+    }
+
+    @Test fun beforeReleaseTheCardStillSaysTheTeacherWillShareIt() = examTest {
+        val journey = FakeJourney().apply { report = report(released.copy(lessonId = "another-lesson")) }
+        val (vm, effects) = home(island(IslandState.DONE), opens + 1, journey)
+        assertTrue(vm.state.value.results.isEmpty(), "only this page's exams, and only released ones")
+        assertEquals(listOf<MapContract.Effect>(MapContract.Effect.Speak(en.examAlreadyTaken)), effects)
+    }
+
+    @Test fun theResultScreenShowsScoreLevelAndComment() = examTest {
+        val journey = FakeJourney().apply { report = report(released) }
+        val vm = ExamResultViewModel(exam.id, FakeChildren(maya), journey, copy).also { built.add(it) }
+        runCurrent()
+        assertEquals(released, vm.state.value.result)
+        val missing = ExamResultViewModel("nope", FakeChildren(maya), journey, copy).also { built.add(it) }
+        runCurrent()
+        assertNull(missing.state.value.result)
+        assertFalse(missing.state.value.loading)
+    }
+
+    @Test fun aPartlySatExamSaysContinue_aFreshOneSaysStart() = examTest {
+        val (fresh, _) = home(island(), opens + 1)
+        assertTrue(exam.id !in fresh.state.value.startedExams)
+        assertEquals(en.startExam, examCard(island(), opens + 1, TimeZone.UTC, en, emptyList(), true, started = false).action)
+
+        val (partly, _) = home(island(), opens + 1, answeredUpTo(2))
+        assertTrue(exam.id in partly.state.value.startedExams)
+        assertEquals(en.continueExam, examCard(island(), opens + 1, TimeZone.UTC, en, emptyList(), true, started = true).action)
+    }
+
+    @Test fun pullingDownLoadsTheHomePageAgain() = examTest {
+        val (vm, _) = home(island(), opens + 1)
+        val before = mapLoads
+        vm.dispatch(MapContract.Intent.Refresh); runCurrent()
+        assertEquals(before + 1, mapLoads)
+        assertFalse(vm.state.value.refreshing)
     }
 }

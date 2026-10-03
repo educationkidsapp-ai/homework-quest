@@ -35,6 +35,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import quest.feature.auth.presentation.SignInRoute
 import quest.feature.children.presentation.ChildPickerRoute
 import quest.feature.journey.presentation.JourneyRoute
+import quest.feature.journey.presentation.ExamResultRoute
 import quest.feature.journey.presentation.LessonCompleteRoute
 import quest.feature.journey.presentation.StopPlayerRoute
 import quest.feature.map.presentation.WorldMapRoute
@@ -108,6 +109,7 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
                     onSwitchChild = { nav.navigate(Routes.ChildPicker) },
                     onOpenLesson = { id, level, variant -> nav.navigate(Routes.Journey(id, level, variant)) },
                     onGrownUps = { nav.navigate(Routes.ParentPin()) },
+                    onOpenResult = { nav.navigate(Routes.ExamResult(it)) },
                     // Nobody linked yet: the children list is where the app says so.
                     onNeedsChild = { nav.navigate(Routes.ChildPicker) { popUpTo(0) { inclusive = true } } },
                 )
@@ -134,6 +136,10 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
                     onFinished = { id, level, variant -> nav.navigate(Routes.LessonComplete(id, level, variant)) { popUpTo(Routes.Journey(id, level, variant)) { inclusive = true } } },
                     onBack = { nav.popBackStack() })
             }
+        }
+        composable<Routes.ExamResult> { entry ->
+            val r = entry.toRoute<Routes.ExamResult>()
+            LessonTheme { ExamResultRoute(r.lessonId, onBack = { nav.popBackStack() }) }
         }
         composable<Routes.LessonComplete> { entry ->
             val r = entry.toRoute<Routes.LessonComplete>()

@@ -12,6 +12,8 @@ object Routes {
     @Serializable data class Journey(val lessonId: String, val level: Int = 1, val variant: Int = 0)
     @Serializable data class StopPlayer(val lessonId: String, val level: Int, val variant: Int, val index: Int)
     @Serializable data class LessonComplete(val lessonId: String, val level: Int, val variant: Int)
+    /** M4 (D4): an exam's released result. */
+    @Serializable data class ExamResult(val lessonId: String)
 
     // parent mode
     @Serializable data class ParentPin(val lessonId: String? = null)
