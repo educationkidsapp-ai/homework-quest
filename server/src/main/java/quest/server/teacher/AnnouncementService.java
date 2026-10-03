@@ -41,11 +41,13 @@ public class AnnouncementService {
     private final AnnouncementRepository announcements; private final ClassRepository classes;
     private final UserRepository users; private final TeacherAccess access; private final TenantContext tenant;
     private final quest.server.tenancy.StaffScopeRepository scopes;
+    private final quest.server.children.ChildRepository children; private final quest.server.notifications.NotificationService notifications;
 
     public AnnouncementService(AnnouncementRepository announcements, ClassRepository classes, UserRepository users,
-                               TeacherAccess access, TenantContext tenant, quest.server.tenancy.StaffScopeRepository scopes) {
+                               TeacherAccess access, TenantContext tenant, quest.server.tenancy.StaffScopeRepository scopes,
+                               quest.server.children.ChildRepository children, quest.server.notifications.NotificationService notifications) {
         this.announcements = announcements; this.classes = classes; this.users = users;
-        this.access = access; this.tenant = tenant; this.scopes = scopes;
+        this.access = access; this.tenant = tenant; this.scopes = scopes; this.children = children; this.notifications = notifications;
     }
 
     // ---------------------------------------------------------------- the teacher's side
@@ -87,7 +89,13 @@ public class AnnouncementService {
         row.setBodyAr(SafeText.plainText(request.bodyAr(), "bodyAr", MAX_BODY));
         row.setPublishedAt(now); row.setExpiresAt(expiresAt); row.setCreatedAt(now);
         announcements.save(row);
-        return dto(row, klass, users.findById(row.getTeacherId()).orElse(null));
+        var author = users.findById(row.getTeacherId()).orElse(null);
+        // B4: the parents `forChild` will show it to — the course's children, any section — are told, once each.
+        var reached = children.findBySchoolIdAndDeletedAtIsNullOrderByNameAsc(klass.getSchoolId()).stream()
+                .filter(c -> c.isActive() && klass.getGrade() == c.getGrade() && java.util.Objects.equals(klass.getCurriculum(), c.getCurriculum())).toList();
+        notifications.parentsOfAnnouncement(klass.getSchoolId(), reached, row.getId(),
+                author == null ? null : TeacherQuestionService.displayName(author.getDisplayName()), bodyEn, row.getBodyAr());
+        return dto(row, klass, author);
     }
 
     /**

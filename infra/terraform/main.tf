@@ -6,7 +6,11 @@ locals {
   apis = [
     "run.googleapis.com", "sqladmin.googleapis.com", "storage.googleapis.com", "secretmanager.googleapis.com",
     "artifactregistry.googleapis.com", "iam.googleapis.com", "iamcredentials.googleapis.com", "sts.googleapis.com",
-    "cloudresourcemanager.googleapis.com", "firebase.googleapis.com", "identitytoolkit.googleapis.com", # Firebase Auth only
+    "cloudresourcemanager.googleapis.com", "firebase.googleapis.com", "identitytoolkit.googleapis.com", # Firebase Auth
+    # B4: Firebase Cloud Messaging — the server sends with the HTTP v1 API (`fcm`); the app gets its token through
+    # Firebase Installations and the FCM registration API. Firebase enables all three with the project; listed here so a
+    # new project (production) has them too.
+    "fcm.googleapis.com", "fcmregistrations.googleapis.com", "firebaseinstallations.googleapis.com",
   ]
 }
 
@@ -151,6 +155,14 @@ resource "google_storage_bucket_iam_member" "runtime_bucket" {
   bucket = google_storage_bucket.files.name
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.runtime.email}"
+}
+
+# B4: parents' push notifications. The Admin SDK's `send` needs `cloudmessaging.messages.create`; this is the narrowest
+# predefined role that carries it (the rest is topic subscriptions and delivery data, which the server does not use).
+resource "google_project_iam_member" "runtime_fcm" {
+  project = var.project_id
+  role    = "roles/firebasecloudmessaging.admin"
+  member  = "serviceAccount:${google_service_account.runtime.email}"
 }
 
 resource "google_secret_manager_secret_iam_member" "runtime_secrets" {

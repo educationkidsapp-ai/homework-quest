@@ -90,6 +90,9 @@ class FeatureFlagCoverageTest {
      *       school may write from — is checked per request against `lessons.pdf|slides|images|manual` in
      *       {@code TeacherLessonService.create}, because which key applies depends on the body and a route carries
      *       one key.</li>
+     *   <li>{@code DeviceController} (B4) — a parent's phones for push. A phone is the parent's, not a school's (her
+     *       children may be in two), and sign-out has to take its token back whatever any school has switched off. What
+     *       a push is <em>about</em> is gated where that feature lives: no `chat`, no message, so no push.</li>
      * </ul>
      *
      * <p>Those are the only N1.1 and N2.1 additions here; every other controller those packages add is flagged.
@@ -106,7 +109,8 @@ class FeatureFlagCoverageTest {
             // password, {@code TeacherAdminController}'s argument exactly. `WorkerController` is the same screen
             // family one step further: a flag that could switch it off would leave an Admin able to create a teacher
             // but not to record the caretaker, and nobody could turn it back on without a database session.
-            "ChildAdmissionController", "WorkerController");
+            "ChildAdmissionController", "WorkerController",
+            "DeviceController");
 
     private static final JavaClasses SERVER = new ClassFileImporter()
             .withImportOption(new ImportOption.DoNotIncludeTests()).importPackages("quest.server");

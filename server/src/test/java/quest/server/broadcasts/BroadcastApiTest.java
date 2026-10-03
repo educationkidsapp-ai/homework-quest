@@ -28,6 +28,9 @@ import quest.server.auth.Entities.UserEntity;
 import quest.server.auth.TeacherRepository;
 import quest.server.auth.UserRepository;
 import quest.server.chat.ChatBus;
+import quest.server.push.ParentDeviceRepository;
+import quest.server.push.PushProbe;
+import quest.server.push.PushSender;
 import quest.server.chat.ChatEvent;
 import quest.server.chat.ChatMessageRepository;
 import quest.server.chat.ChatThreadRepository;
@@ -87,6 +90,8 @@ class BroadcastApiTest extends ApiTestSupport {
     @Autowired quest.server.files.AttachmentRepository attachmentRows;
     @Autowired quest.server.files.FileStore store;
     @Autowired quest.server.files.UploadRetention retention;
+    @Autowired PushSender pushes;
+    @Autowired ParentDeviceRepository devices;
 
     private String lina, omar, nour, sami, maya, rami, britishA, britishB, americanA;
     /** A British science coordinator whose only section is 1B, so a row naming 1A is one she must not hear about. */
@@ -837,6 +842,46 @@ class BroadcastApiTest extends ApiTestSupport {
                 .andExpect(status().isCreated()).andReturn()).get("id").asText();
     }
 
+    /**
+     * B4: a broadcast is pushed to the parents whose child's feed shows it — the grade's, here — in the phone's language,
+     * and to nobody else: not another grade, not the other department, not a parent of the same grade at another school.
+     */
+    @Test @Order(30) void a_grade_announcement_is_pushed_to_that_grades_parents_only() throws Exception {
+        var foreign = ClassFixtures.section(classes, assignments, OTHER_SCHOOL + ":british:2:art", OTHER_SCHOOL, "british", 2, "art", HALA);
+        child("Zed", foreign.getId(), "british", "bc-parent-foreign", 2, "BCAST2");
+        String grade2 = PushProbe.token("bc-grade2"), grade1 = PushProbe.token("bc-grade1"), american = PushProbe.token("bc-us"), abroad = PushProbe.token("bc-abroad");
+        PushProbe.register(mvc, bearer(BRITISH_2_PARENT), grade2, "ar");
+        PushProbe.register(mvc, bearer(BRITISH_PARENT), grade1, null);
+        PushProbe.register(mvc, bearer(AMERICAN_PARENT), american, null);
+        PushProbe.register(mvc, bearer("bc-parent-foreign"), abroad, null);
+
+        var posted = created(nour, "/management/broadcasts", "{\"kind\":\"announcement\",\"grade\":2,\"bodyEn\":\"Museum trip on Monday.\","
+                + "\"bodyAr\":\"رحلة إلى المتحف يوم الاثنين.\",\"audience\":[\"parents\"]}");
+        String id = posted.get("id").asText();
+
+        var pushed = PushProbe.await(pushes, grade2, 1);
+        assertThat(pushed).hasSize(1);
+        var push = pushed.get(0).message();
+        assertThat(push.getKind()).isEqualTo(quest.api.dto.NotificationKind.BROADCAST_POSTED);
+        assertThat(push.getTitle()).as("no title typed: the kind, in Arabic").isEqualTo("إعلان");
+        assertThat(push.getBody()).isEqualTo("رحلة إلى المتحف يوم الاثنين.");
+        var row = rowWith(parentGet(BRITISH_2_PARENT, "/me/notifications"), "kind", "broadcast.posted");
+        assertThat(push.getNotificationId()).as("her row, which the push is").isEqualTo(row.get("id").asText());
+        assertThat(row.get("childId").asText()).isEqualTo(childBritish2);
+        assertThat(row.get("link").asText()).isEqualTo("/children/" + childBritish2 + "/broadcasts?open=" + id);
+        assertThat(row.get("body").asText()).as("the row is English; the push is the phone's language").isEqualTo("Museum trip on Monday.");
+        assertThat(push.getBroadcastId()).isEqualTo(id);
+        assertThat(push.getChildId()).isEqualTo(childBritish2);
+        assertThat(push.getLink()).isEqualTo("/children/" + childBritish2 + "/broadcasts?open=" + id);
+        assertThat(push.getCollapseKey()).isEqualTo("broadcast:" + id);
+        for (String other : List.of(grade1, american, abroad))
+            assertThat(PushProbe.sentTo(pushes, other)).as("not this grade's, or not this school's").isEmpty();
+        assertThat(names(parentGet("bc-parent-foreign", "/me/notifications"), "kind")).doesNotContain("broadcast.posted");
+
+        for (String token : List.of(grade2, grade1, american, abroad)) devices.deleteByTokenValue(token);
+        assignments.deleteAll(assignments.findAll().stream().filter(a -> OTHER_SCHOOL.equals(a.getSchoolId())).toList());
+    }
+
     private MockHttpServletRequestBuilder as(MockHttpServletRequestBuilder b, String token) { return b.header("Authorization", "Bearer " + token); }
 
     private MockHttpServletRequestBuilder scoped(MockHttpServletRequestBuilder b) { return as(b, adminToken).header(TenantContext.HEADER, SCHOOL); }
@@ -916,9 +961,13 @@ class BroadcastApiTest extends ApiTestSupport {
 
     /** A child of a real parent: created through the parent API so her `parents` row exists, then placed by hand. */
     private String child(String name, String classId, String curriculum, String parentUid, int grade) throws Exception {
+        return child(name, classId, curriculum, parentUid, grade, "BCAST1");
+    }
+
+    private String child(String name, String classId, String curriculum, String parentUid, int grade, String schoolCode) throws Exception {
         String id = json(mvc.perform(post("/children").header("Authorization", bearer(parentUid)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"" + name + "\",\"avatarColor\":\"sun\",\"curriculum\":\"" + curriculum
-                                + "\",\"grade\":" + grade + ",\"schoolCode\":\"BCAST1\"}"))
+                                + "\",\"grade\":" + grade + ",\"schoolCode\":\"" + schoolCode + "\"}"))
                 .andExpect(status().is2xxSuccessful()).andReturn()).get("id").asText();
         childRows.findById(id).ifPresent(c -> { c.setClassId(classId); childRows.save(c); });
         return id;

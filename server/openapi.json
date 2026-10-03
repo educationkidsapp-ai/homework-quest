@@ -4120,7 +4120,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published" ],
+            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status" ],
             "type" : "string"
           },
           "lessonId" : {
@@ -4752,6 +4752,25 @@
           }
         },
         "required" : [ "refreshToken" ],
+        "type" : "object"
+      },
+      "RegisterDeviceRequest" : {
+        "properties" : {
+          "appVersion" : {
+            "type" : "string"
+          },
+          "locale" : {
+            "type" : "string"
+          },
+          "platform" : {
+            "enum" : [ "ANDROID", "IOS" ],
+            "type" : "string"
+          },
+          "token" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "platform", "token" ],
         "type" : "object"
       },
       "ReleaseRequest" : {
@@ -7038,6 +7057,15 @@
           }
         },
         "required" : [ "count" ],
+        "type" : "object"
+      },
+      "UnregisterDeviceRequest" : {
+        "properties" : {
+          "token" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "token" ],
         "type" : "object"
       },
       "Unsure" : {
@@ -13960,6 +13988,48 @@
         "tags" : [ "Broadcasts" ]
       }
     },
+    "/me/devices" : {
+      "post" : {
+        "operationId" : "registerDevice",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RegisterDeviceRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Registered, or refreshed"
+          }
+        },
+        "tags" : [ "Devices" ]
+      }
+    },
+    "/me/devices/unregister" : {
+      "post" : {
+        "operationId" : "unregisterDevice",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UnregisterDeviceRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Gone, or never hers"
+          }
+        },
+        "tags" : [ "Devices" ]
+      }
+    },
     "/me/home" : {
       "get" : {
         "operationId" : "home",
@@ -17205,6 +17275,9 @@
   }, {
     "description" : "Dashboard sign-in",
     "name" : "Auth"
+  }, {
+    "description" : "The parent's phones for push notifications (Firebase Cloud Messaging)",
+    "name" : "Devices"
   }, {
     "description" : "A teacher's own lessons: create, move, copy, publish and the pipeline",
     "name" : "Teacher lessons"

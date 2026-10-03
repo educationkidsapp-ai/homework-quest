@@ -186,6 +186,16 @@ interface ContentApi {
 
     /** `POST /me/notifications/read-all` — every unread row read; answers the new count (0). */
     suspend fun markAllNotificationsRead(): quest.api.dto.UnreadCount = quest.api.dto.UnreadCount(0)
+
+    // ---- B4: push (`docs/runbook.md` "Push notifications"). The FCM data map the app receives is
+    // `quest.api.dto.PushMessage`; every push is also a `/me/notifications` row. Both default to doing nothing: a fake
+    // or older backend sends no push.
+
+    /** `POST /me/devices` — register (or refresh) this phone's FCM token for the signed-in parent; 204. */
+    suspend fun registerDevice(request: quest.api.dto.RegisterDeviceRequest) {}
+
+    /** `POST /me/devices/unregister {token}` — on sign-out; 204, and 204 again for a token she does not hold. */
+    suspend fun unregisterDevice(token: String) {}
 }
 
 /**

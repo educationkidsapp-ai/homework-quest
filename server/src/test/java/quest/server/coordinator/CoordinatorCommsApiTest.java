@@ -80,6 +80,8 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
     @Autowired ChatThreadRepository threadRows;
     @Autowired ChatMessageRepository messageRows;
     @Autowired ChatSessions sessions;
+    @Autowired quest.server.push.PushSender pushes;
+    @Autowired quest.server.push.ParentDeviceRepository devices;
     @Autowired ChatBus bus;
     @Autowired AdminJwtService jwt;
     @Autowired quest.server.notifications.NotificationRepository notificationRows;
@@ -146,6 +148,8 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
     @Test @Order(3) void the_complaint_round_trip() throws Exception {
         // The socket key is the `parents` row id, not the Firebase uid: `Principals.Parent.parentId()` is the row's.
         var parentSocket = listen("parent:" + childRows.findById(childBritishA).orElseThrow().getParentId(), null);
+        String phone = quest.server.push.PushProbe.token("comms-phone");
+        quest.server.push.PushProbe.register(mvc, bearer(BRITISH_A_PARENT), phone, "ar");
         var opened = parentPostJson(BRITISH_A_PARENT, "/children/" + childBritishA + "/chat/threads/" + lina + "/messages",
                 "{\"body\":\"The homework is too long every night.\",\"topic\":\"complaint\"}");
         assertThat(opened.get("sender").asText()).isEqualTo("parent");
@@ -191,6 +195,22 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
         JsonNode named = null;
         for (var row : staffJson(lina, "/coordinator/complaints")) if (threadId.equals(row.get("id").asText())) named = row;
         assertThat(java.util.Objects.requireNonNull(named).get("parentName").asText()).contains("@");
+
+        // B4: the coordinator's reply and the resolution each reached her phone, and her notifications.
+        var pushed = quest.server.push.PushProbe.await(pushes, phone, 2);
+        assertThat(pushed).extracting(p -> p.message().getKind())
+                .containsExactly(quest.api.dto.NotificationKind.CHAT_MESSAGE, quest.api.dto.NotificationKind.COMPLAINT_STATUS);
+        assertThat(pushed.get(0).message().getTitle()).as("her phone is Arabic").startsWith("رسالة من ");
+        assertThat(pushed.get(1).message().getTitle()).isEqualTo("تم حل الشكوى");
+        assertThat(pushed.get(1).message().getBody()).as("the body too, not the English").endsWith("بعد حلها.");
+        assertThat(pushed.get(1).message().getCollapseKey()).isEqualTo("chat:" + threadId);
+        var status = rowWith(parentJson(BRITISH_A_PARENT, "/me/notifications"), "kind", "complaint.status");
+        assertThat(status.get("title").asText()).isEqualTo("Complaint resolved");
+        assertThat(status.get("link").asText()).isEqualTo("/children/" + childBritishA + "/chat/" + lina);
+        mvc.perform(as(patch("/coordinator/chat/threads/" + threadId + "/status")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"resolved\"}"), token(lina, "COORDINATOR", SCHOOL))).andExpect(status().isOk());
+        assertThat(quest.server.push.PushProbe.await(pushes, phone, 3)).as("resolving it again changes nothing").hasSize(2);
+        devices.deleteByTokenValue(phone);
     }
 
     @Test @Order(4) void an_american_parent_cannot_reach_the_british_math_coordinator() throws Exception {
@@ -296,6 +316,9 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
     // ---------------------------------------------------------------- announcements
 
     @Test @Order(8) void her_announcement_reaches_the_british_parents_only() throws Exception {
+        String phone = quest.server.push.PushProbe.token("comms-b-phone"), us = quest.server.push.PushProbe.token("comms-us-phone");
+        quest.server.push.PushProbe.register(mvc, bearer(BRITISH_B_PARENT), phone, null);
+        quest.server.push.PushProbe.register(mvc, bearer(AMERICAN_PARENT), us, null);
         var written = staffPostJson(lina, "/coordinator/announcements", "{\"bodyEn\":\"Times tables week starts Sunday.\"}");
         assertThat(names(written, "classId")).containsExactlyInAnyOrder(britishA, britishB);
 
@@ -308,6 +331,11 @@ class CoordinatorCommsApiTest extends ApiTestSupport {
                 .doesNotContain("Times tables week starts Sunday.");
 
         assertThat(names(staffJson(lina, "/coordinator/announcements"), "bodyEn")).contains("Times tables week starts Sunday.");
+        // B4: the older door onto the broadcast is told like the new one — once, as a broadcast, to her parents only.
+        assertThat(quest.server.push.PushProbe.await(pushes, phone, 1)).singleElement()
+                .satisfies(p -> assertThat(p.message().getKind()).isEqualTo(quest.api.dto.NotificationKind.BROADCAST_POSTED));
+        assertThat(quest.server.push.PushProbe.sentTo(pushes, us)).isEmpty();
+        devices.deleteByTokenValue(phone); devices.deleteByTokenValue(us);
 
         // A section of the other track is 403, and an empty body is 400: her scope is the audience, always.
         mvc.perform(as(post("/coordinator/announcements").contentType(MediaType.APPLICATION_JSON)

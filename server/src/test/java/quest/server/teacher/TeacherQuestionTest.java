@@ -27,6 +27,8 @@ class TeacherQuestionTest extends TeacherTestSupport {
 
     private String adminToken, teacherToken, otherTeacherToken;
     private String childInClass, childInAnotherGrade;
+    @org.springframework.beans.factory.annotation.Autowired quest.server.push.PushSender pushes;
+    @org.springframework.beans.factory.annotation.Autowired quest.server.push.ParentDeviceRepository devices;
 
     @BeforeEach void seed() throws Exception {
         school(A, "Question Academy", "TQSCHA");
@@ -73,6 +75,27 @@ class TeacherQuestionTest extends TeacherTestSupport {
                 .andExpect(status().isConflict()).andReturn()).get("code").asText()).isEqualTo("conflict");
         mvc.perform(as(put("/teacher/questions/" + id).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"title\":\"too late\"}"), teacherToken)).andExpect(status().isConflict());
+    }
+
+    /** B4: sending tells the parent of every child it is put to — a row and a push — and nobody else. */
+    @Test void a_sent_question_is_a_row_and_a_push_for_the_childs_parent() throws Exception {
+        String phone = quest.server.push.PushProbe.token("tq-phone");
+        quest.server.push.PushProbe.register(mvc, PARENT, phone, "ar");
+        String id = sendQuestion("Counting check", CLASS_A1, LocalDate.now(), LocalDate.now().plusDays(3));
+
+        var rows = parentGet("/me/notifications");
+        assertThat(rows).as("Maya is British/1; Omar is grade 3").hasSize(1);
+        assertThat(rows.get(0).get("kind").asText()).isEqualTo("question.sent");
+        assertThat(rows.get(0).get("childId").asText()).isEqualTo(childInClass);
+        assertThat(rows.get(0).get("link").asText()).isEqualTo("/children/" + childInClass + "/teacher-questions/" + id);
+        assertThat(rows.get(0).get("title").asText()).isEqualTo("New question from Ms Sara");
+        assertThat(quest.server.push.PushProbe.await(pushes, phone, 1)).singleElement().satisfies(p -> {
+            assertThat(p.message().getKind()).isEqualTo(quest.api.dto.NotificationKind.QUESTION_SENT);
+            assertThat(p.message().getCollapseKey()).isEqualTo("question:" + id);
+            assertThat(p.message().getTitle()).as("her phone is Arabic").isEqualTo("سؤال جديد من Ms Sara");
+            assertThat(p.message().getBody()).isEqualTo("لدى Maya سؤال للإجابة عنه: Counting check.");
+        });
+        devices.deleteByTokenValue(phone);
     }
 
     @Test void the_stops_are_validated_against_the_shared_schema() throws Exception {

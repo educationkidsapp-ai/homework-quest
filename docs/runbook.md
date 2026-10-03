@@ -1038,6 +1038,7 @@ Names only — never paste a value into a PR, a commit, a log or a chat. Values 
 | `QUEST_LLM_TIMEOUT_SECONDS`, `QUEST_LLM_CONNECT_TIMEOUT_SECONDS` | every environment | per model call: read (120 s, and 120 s is also the cap) and connect (10 s) — see [Stuck lessons](#stuck-lessons) |
 | `QUEST_PIPELINE_DEADLINE_GENERATE_SECONDS`, `QUEST_PIPELINE_DEADLINE_ANALYZE_SECONDS`, `QUEST_PIPELINE_DEADLINE_CONVERT_SECONDS` | every environment | how long one step may run before it is `error`/`timeout` (360 / 240 / 180 s) |
 | `QUEST_PIPELINE_WATCHDOG_ENABLED`, `QUEST_PIPELINE_WATCHDOG_INTERVAL_SECONDS`, `QUEST_PIPELINE_WATCHDOG_GRACE_SECONDS` | every environment | the sweep that recovers a job a recycled instance left behind (on, every 60 s, 60 s of slack) |
+| `QUEST_PUSH_ENABLED` | QA, prod | B4: send parents' push through Firebase Cloud Messaging. Defaults to on under the `qa` and `prod` profiles and off everywhere else (sends are recorded, not sent) — see [Push notifications](#push-notifications-b4) |
 | `quest.pipeline.convert.allow-builtin-fallback` | `h2`/`test` profiles only | not an environment variable: hard `false` in the base config, `true` only under those two profiles, and the code checks the profile too |
 
 `ADMIN_JWT_SECRET` has a placeholder default in `application.yml` so a developer can boot without one. **Any deployed
@@ -1688,14 +1689,21 @@ chat ones.
 | `chat.message` | a teacher, coordinator, manager or Admin wrote in her child's thread — one unread row per thread, read when she calls `…/chat/threads/{staffId}/read` | `/children/{childId}/chat/{staffId}` |
 | `exam.released` | the teacher released an exam (by hand or by the close-of-window sweep), one row per child of the section, once | `/children/{childId}/progress` |
 | `homework.published` | a homework was published to the child's section (its results are released with it), once | `/children/{childId}/map` |
+| `exam.published` | B4: an exam was published to the child's section — its title and window (in the school's zone), never its content — once | `/children/{childId}/map` |
+| `broadcast.posted` | B4: a manager's or a coordinator's weekly plan, announcement or event reached the child's feed (`/management/broadcasts`, `/coordinator/broadcasts` or the older `/coordinator/announcements`), once per parent | `/children/{childId}/broadcasts?open={broadcastId}` |
+| `announcement.posted` | B4: a teacher's class note (`POST /teacher/announcements`) reached the child's course, once per parent | `/children/{childId}/announcements?open={id}` |
+| `question.sent` | B4: a teacher sent the child a question to answer (`POST /teacher/questions/{id}/send`), once | `/children/{childId}/teacher-questions/{id}` |
+| `complaint.status` | B4: a coordinator or manager resolved her thread or opened it again (title "Complaint resolved" / "… reopened"; "Conversation …" on a question thread) — one row per real change | `/children/{childId}/chat/{staffId}` |
 
-`exam.released` and `homework.published` are written after the release (or publish) has committed, in a transaction
-of their own — a failure there is logged and never undoes the release — and only once per recipient, lesson and
+Every parent row except `chat.message` is written after the release, publish, post or status change has committed, in a
+transaction of its own — a failure there is logged and never undoes the release — and only once per recipient, lesson and
 child: `notifications.once_key` (V31) is unique and the row is inserted with `ON CONFLICT DO NOTHING`, so two instances
 sweeping the same exam cannot both tell her.
 
-Broadcasts stay on `GET /children/{id}/broadcasts`. The `notification` frame reaches her sockets as well (her socket
-is admitted while one of her children's schools has `chat` on).
+Broadcasts and notes stay readable on `GET /children/{id}/broadcasts` and `…/announcements`; since B4 they are rows here
+too. The `notification` frame reaches her sockets as well (her socket is admitted while one of her children's schools has
+`chat` on). With the app in the background or closed, each of these rows is also a push to her phone:
+[Push notifications](#push-notifications-b4).
 
 Two keys rather than one because the dashboard derives "what a read-only View-as session must hide" from the
 methods behind a key (`pnpm gen:permissions`): a single key covering the GETs and the POSTs would make the whole
@@ -1779,6 +1787,101 @@ coordinators and shows the R4 fields as chips (Complaint, Open/Resolved); `+ Mes
 switch puts `topic: "complaint"` on the **thread-creating** message only — `400 complaint_needs_coordinator` if the
 peer is a teacher. The `status` frame carries **`at`**, not `resolvedAt`, and moves the row and the conversation's
 banner without a refetch; a resolved thread still accepts the parent's reply, so the composer stays live.
+
+### Push notifications (B4)
+
+A parent is pushed what was just written for her, on every phone she registered, through **Firebase Cloud Messaging**.
+**Android only for now** — iOS needs the Apple steps at the end, and no code change. Contract:
+`shared-api/src/commonMain/kotlin/quest/api/dto/Push.kt` (`RegisterDeviceRequest`, `DevicePlatform`, `PushMessage`).
+
+| Route (parent's Firebase token) | Permission | What |
+|---|---|---|
+| `POST /me/devices` `{token, platform: ANDROID\|IOS, appVersion?, locale?}` | `parent.me.write` | **204.** Upsert by token: called after sign-in and whenever Firebase rotates the token. A token another parent registered **moves** to the caller (a shared phone shows only the signed-in parent's news). At most **10** phones per parent; the one seen longest ago is dropped. |
+| `POST /me/devices/unregister` `{token}` | `parent.me.write` | **204**, on sign-out — also for a token she does not hold, which is left alone. The token is in the body, never the path: request logs (Cloud Run's and `RequestLogging`) record every path. |
+
+Rows live in `parent_devices` (V32): not a tenant table (a parent belongs to no school; her children do), every read
+starts from the parent id in her token, and the rows go with the parent (`ON DELETE CASCADE`, so `SEED_RESET` clears
+them too).
+
+**What is pushed, and when.** **Every staff → parent event is a `/me/notifications` row and a push** — the parent rows
+in [Notifications](#notifications-e2-d26) above. The push leaves after the row's transaction **commits** (`ParentPush`,
+`@TransactionalEventListener(AFTER_COMMIT)`), so a push never goes out for work that rolled back and never slows or
+fails the request that caused it. A fan-out (a broadcast, a release) is **one** event and **one** read of all its
+parents' phones (`findByParentIdIn`); the sends then run on the push pool's own threads:
+
+| `kind` | From | `collapseKey` |
+|---|---|---|
+| `chat.message` | a teacher, coordinator, manager or the Admin writing in her child's thread, complaint threads included — a **new** unread row only (the bell's throttle: five messages before she opens the thread are one push; after she reads it, the next one pushes again) | `chat:{threadId}` |
+| `complaint.status` | a coordinator or manager resolving or reopening the thread | `chat:{threadId}` |
+| `broadcast.posted` | a manager or coordinator: weekly plan (image or PDF), announcement, event — the feed's own predicate decides who | `broadcast:{broadcastId}` |
+| `announcement.posted` | a teacher's class note | `announcement:{id}` |
+| `question.sent` | a teacher's question to the child | `question:{id}` |
+| `homework.published`, `exam.published`, `exam.released` | a teacher publishing a homework or an exam, releasing an exam's results (by hand or by the sweep) | `lesson:{lessonId}` |
+
+Found and **not** pushed: the attendance register (`/children/{id}/attendance`) is a record of every child every day,
+not a message, and pushing it would ring every parent every morning — an absence-only alert is a product decision.
+Lessons themselves reach the map through `homework.published`/`exam.published`.
+
+**The payload** is the FCM *data* map of `PushMessage`: `kind`, `title`, `body`, `notificationId` (the row), `childId`,
+`link` (the row's app path), `broadcastId` (on `broadcast.posted`), `opensAt`/`closesAt` (epoch ms, on `exam.published`)
+and `collapseKey`. On **Android it is data-only at high priority** (TTL two days, FCM `collapse_key` =
+`collapseKey`): `onMessageReceived` runs in the foreground, the background and after a swipe-away alike, and the app draws
+the notification itself — its own channel, wording localised from `kind` in the phone's current language, `collapseKey`
+as the tag so a newer push replaces the older one, a tap that opens `link`. A notification message would be drawn by the
+system tray with none of that. `title`/`body` are Arabic when the device's `locale` starts with `ar` **and** the server
+has Arabic (a broadcast's or note's `bodyAr`, an untitled broadcast's kind, a complaint's status), English otherwise;
+the row itself is always English. A force-stopped app receives nothing
+until it is opened again — Android's rule, not ours.
+
+**Failures.** FCM's `UNREGISTERED`, `INVALID_ARGUMENT` and `SENDER_ID_MISMATCH` delete the token. `UNAVAILABLE`,
+`INTERNAL` and `QUOTA_EXCEEDED` are retried — three attempts, 1 s then 4 s apart, each ±50 % jitter so a quota error does
+not bring a whole broadcast back at once (`quest.push.max-attempts`, `quest.push.backoff-millis`); a retry is
+rescheduled, never slept on — and then dropped; the row is still in `/me/notifications`.
+
+**Bounded.** At most `quest.push.concurrency` (8, capped at 16) sends run at once, on platform threads of their own —
+not the virtual-thread `applicationTaskExecutor`, which has no limit — and at most `quest.push.queue-capacity` (2000)
+wait, retries included. A fan-out that meets a full queue drops what does not fit and logs `push: queue full … N push(es)
+dropped`; the rows are written regardless. On shutdown the sends already running finish (10 s at most) and the ones still
+waiting are dropped with `push: shutting down — N waiting send(s) dropped`. Nothing is logged at INFO but
+"a dead device token was removed": never a token, never a title or body. A row that could not be written is logged
+and never fails the post, the message or the release.
+
+**Configuration.** `quest.push.enabled` (`QUEST_PUSH_ENABLED`) is on under `qa` and `prod`, off elsewhere: H2, the test
+profile and a laptop use `RecordingPushSender`, which keeps the last 500 sends in memory (tests read and script it).
+The sender is the Firebase app `FirebaseTokenFilter` initialises — on Cloud Run, Application Default Credentials, i.e. the
+runtime service account, which Terraform grants **`roles/firebasecloudmessaging.admin`** (`google_project_iam_member.runtime_fcm`;
+`cloudmessaging.messages.create` is what `send` needs). Terraform also lists `fcm`, `fcmregistrations` and
+`firebaseinstallations.googleapis.com`, which Firebase had already enabled on QA. With `FAKE_AUTH=true` there is no
+Firebase app, and an enabled sender logs one warning per push and sends nothing.
+
+**Testing on QA.** Sign the Android app in as a QA parent whose child sits in a section (the app registers its token); put
+it in the background; from the dashboard, as a teacher of that section, write in the child's thread. One notification
+arrives; a second message before opening the thread does not ring again. Releasing an exam or posting an announcement to
+the child's grade does the same. Without the app, with a token copied from a debug build:
+
+```bash
+curl -X POST "$API/me/devices" -H "Authorization: Bearer $PARENT_ID_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"token":"'"$FCM_TOKEN"'","platform":"ANDROID","locale":"en"}'          # 204
+curl -X POST "$API/me/devices/unregister" -H "Authorization: Bearer $PARENT_ID_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"token":"'"$FCM_TOKEN"'"}'                                                            # 204
+```
+
+No route carries a token in its path, and no log line holds a token or a request body.
+
+**iOS, when the Apple developer account exists.** No server change — the sender already builds an APNs alert (title,
+body, `apns-collapse-id`, `mutable-content`) beside the same data for `platform: IOS`, because iOS does not wake a closed
+app for a data-only push. The steps:
+
+1. In the Apple developer account: *Certificates, Identifiers & Profiles → Keys → +*, enable **Apple Push Notifications
+   service (APNs)**, download the `.p8` key once, note its Key ID and the Team ID.
+2. Enable the *Push Notifications* capability on the app's identifier (`app.homeworkquest`) and in Xcode (*Signing &
+   Capabilities*, plus *Background Modes → Remote notifications*).
+3. Firebase console → project `homework-quest-qa` (then production) → *Project settings → Cloud Messaging → Apple app
+   configuration* → upload the `.p8` with the Key ID and Team ID. One key serves sandbox and production.
+4. Add the iOS app to the Firebase project if it is not there yet, and ship `GoogleService-Info.plist` with the app; the
+   app registers with `platform: "IOS"`.
+
+Until then an iOS registration is accepted and its sends fail with `THIRD_PARTY_AUTH_ERROR`, which is logged and dropped.
 
 ### Broadcasts (RM2, DR6)
 

@@ -10,7 +10,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-/** Method, path, status, duration — never request bodies (slides) or tokens. */
+/**
+ * Method, path, status, duration — never request bodies (slides, FCM tokens) or query strings. A route must therefore
+ * never carry a secret in its path: B4's sign-out is `POST /me/devices/unregister` with the token in the body for that
+ * reason.
+ */
 @Component
 public class RequestLogging extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger("http");

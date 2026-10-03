@@ -35,7 +35,9 @@ enum class NotificationKind {
      * the bell shows what was said rather than that something was said; [NotificationView.link] is the recipient's
      * own broadcasts screen. [NotificationView.lessonId] carries the **broadcast's** id on these rows — the field is
      * "the row this is about", and it is what lets a re-posted weekly plan withdraw the bell entries of the plan it
-     * replaces. Parents have no bell and read `GET /children/{id}/broadcasts` instead.
+     * replaces. Since B4 a **parent** has one too, once per broadcast, when it reaches one of her children: it names
+     * that child, its [NotificationView.link] is `/children/{childId}/broadcasts?open={broadcastId}`, and the broadcast
+     * stays readable on `GET /children/{id}/broadcasts` as before.
      */
     @SerialName("broadcast.posted") BROADCAST_POSTED,
     /**
@@ -58,6 +60,30 @@ enum class NotificationKind {
      * with it, §7). [NotificationView.lessonId] is the homework's id. Written once per lesson and child.
      */
     @SerialName("homework.published") HOMEWORK_PUBLISHED,
+    /**
+     * B4 (parents only): an exam was published to the class of [NotificationView.childId] — its title and its window,
+     * never its content. [NotificationView.lessonId] is the exam's id, [NotificationView.link] `/children/{id}/map`;
+     * the push also carries the window as [PushMessage.opensAt] / [PushMessage.closesAt]. Once per exam and child.
+     */
+    @SerialName("exam.published") EXAM_PUBLISHED,
+    /**
+     * B4 (parents only): a teacher posted a note to the parents of a class her child's course sits in (§6 screen 16,
+     * `GET /children/{id}/announcements`). [NotificationView.lessonId] is the announcement's id and
+     * [NotificationView.link] `/children/{childId}/announcements?open={id}`. Once per announcement and parent.
+     */
+    @SerialName("announcement.posted") ANNOUNCEMENT_POSTED,
+    /**
+     * B4 (parents only): a teacher sent the child a question to answer in the app (§6 screen 14; the "Message pot"
+     * island on the map). [NotificationView.lessonId] is the question's id and [NotificationView.link]
+     * `/children/{childId}/teacher-questions/{id}`. Once per question and child.
+     */
+    @SerialName("question.sent") QUESTION_SENT,
+    /**
+     * B4 (parents only): a coordinator or a manager marked one of her threads resolved, or opened it again —
+     * [NotificationView.title] says which. [NotificationView.lessonId] is the **thread's** id and
+     * [NotificationView.link] the thread (`/children/{childId}/chat/{staffId}`). One row per change.
+     */
+    @SerialName("complaint.status") COMPLAINT_STATUS,
 }
 
 /**

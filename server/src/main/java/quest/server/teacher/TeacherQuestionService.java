@@ -66,12 +66,13 @@ public class TeacherQuestionService {
     private final TeacherQuestionRepository questions; private final TeacherQuestionAnswerRepository answers;
     private final ClassRepository classes; private final ChildRepository children; private final UserRepository users;
     private final TeacherAccess access; private final TenantContext tenant; private final Json json;
+    private final quest.server.notifications.NotificationService notifications;
 
     public TeacherQuestionService(TeacherQuestionRepository questions, TeacherQuestionAnswerRepository answers,
                                   ClassRepository classes, ChildRepository children, UserRepository users,
-                                  TeacherAccess access, TenantContext tenant, Json json) {
+                                  TeacherAccess access, TenantContext tenant, Json json, quest.server.notifications.NotificationService notifications) {
         this.questions = questions; this.answers = answers; this.classes = classes; this.children = children;
-        this.users = users; this.access = access; this.tenant = tenant; this.json = json;
+        this.users = users; this.access = access; this.tenant = tenant; this.json = json; this.notifications = notifications;
     }
 
     // ---------------------------------------------------------------- the teacher's side
@@ -152,7 +153,12 @@ public class TeacherQuestionService {
         if (classIdsOf(row).isEmpty()) throw ApiException.badRequest("Choose at least one class before sending.");
         row.setStopsJson(encode(stops));
         row.setSentAt(Instant.now());
-        return summaryOf(questions.save(row));
+        var sent = questions.save(row);
+        // B4: every child it is put to — `audience`, the map's own rule — and so her parent, once per child.
+        var reached = audience(sent, classesOf(sent.getSchoolId()), children.findBySchoolIdAndDeletedAtIsNullOrderByNameAsc(sent.getSchoolId()));
+        notifications.parentsOfQuestion(sent.getSchoolId(), reached, sent.getId(),
+                users.findById(sent.getTeacherId()).map(u -> displayName(u.getDisplayName())).orElse(null), sent.getTitle());
+        return summaryOf(sent);
     }
 
     /** `GET /teacher/questions/{id}/results`: every child of the chosen classes, answered or not. */

@@ -16,6 +16,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import quest.server.children.Entities.AttemptEntity;
 import quest.server.flags.FlagKeys;
+import quest.server.push.ParentDeviceRepository;
+import quest.server.push.PushProbe;
+import quest.server.push.PushSender;
 
 /**
  * B3, from the app end-to-end report (`docs/reports/app-parent-flows.md`): an exam is graded by the server and stays
@@ -25,6 +28,8 @@ class ExamIntegrityTest extends ExamTestSupport {
     private static final String A = "ei-school-a", SARA = "ei-teacher-sara", CLASS_1A = "ei-1a", EXAM = "ei-exam-1", TICKET = "ei-ticket";
 
     @Autowired ExamReleaseSweep sweep;
+    @Autowired PushSender pushes;
+    @Autowired ParentDeviceRepository devices;
 
     @Override public String prefix() { return "ei-"; }
 
@@ -217,6 +222,8 @@ class ExamIntegrityTest extends ExamTestSupport {
     // ---------------------------------------------------------------- D5: the parent is told
 
     @Test void releasing_an_exam_tells_each_childs_parent_once() throws Exception {
+        String phone = PushProbe.token("ei-phone");
+        PushProbe.register(mvc, PARENT, phone, "ar");
         publishedExam(-30, 30, ExamLevels.MANUAL);
         sit(maya);
         release(true);
@@ -226,10 +233,27 @@ class ExamIntegrityTest extends ExamTestSupport {
         assertThat(rows).extracting(r -> r.get("childId").asText()).containsExactlyInAnyOrder(maya, omar);
         assertThat(rows.get(0).get("lessonId").asText()).isEqualTo(EXAM);
         assertThat(rows.get(0).has("readAt")).isFalse();
-        assertThat(parentGet("/me/notifications/unread-count").get("count").asInt()).isEqualTo(2);
+        assertThat(parentGet("/me/notifications/unread-count").get("count").asInt()).as("and B4's two `exam.published`").isEqualTo(4);
+
+        // B4: one push per row, after the release committed, in her phone's language. The exam's publish has already pushed two `exam.published`, so four in all.
+        var pushed = PushProbe.await(pushes, phone, 4).stream()
+                .filter(p -> p.message().getKind() == quest.api.dto.NotificationKind.EXAM_RELEASED).toList();
+        assertThat(pushed).hasSize(2);
+        assertThat(pushed).extracting(p -> p.message().getChildId()).containsExactlyInAnyOrder(maya, omar);
+        assertThat(pushed).allSatisfy(p -> {
+            assertThat(p.message().getKind()).isEqualTo(quest.api.dto.NotificationKind.EXAM_RELEASED);
+            assertThat(p.message().getCollapseKey()).isEqualTo("lesson:" + EXAM);
+            assertThat(p.message().getLink()).isEqualTo("/children/" + p.message().getChildId() + "/progress");
+            assertThat(p.message().getTitle()).as("her phone is Arabic").startsWith("النتائج جاهزة: ");
+            assertThat(p.message().getBody()).contains(" جاهزة.");
+        });
+        assertThat(pushed).extracting(p -> p.message().getNotificationId())
+                .containsExactlyInAnyOrderElementsOf(rows.stream().map(r -> r.get("id").asText()).toList());
 
         release(false); release(true);
         assertThat(kinds("exam.released")).as("a release given again is not news").hasSize(2);
+        assertThat(PushProbe.await(pushes, phone, 5)).as("and pushes nothing").hasSize(4);
+        devices.deleteByTokenValue(phone);
         assertThat(parentPost("/me/notifications/read-all", "").get("count").asInt()).isZero();
         assertThat(parentGet("/me/notifications/unread-count").get("count").asInt()).isZero();
     }
@@ -241,14 +265,42 @@ class ExamIntegrityTest extends ExamTestSupport {
         assertThat(kinds("exam.released")).hasSize(2);
     }
 
-    @Test void a_published_homework_is_announced_and_an_exam_publish_is_not() throws Exception {
-        publishedExam(-30, 30, ExamLevels.MANUAL);
+    /** B3 + B4: a homework is announced with its results; an exam is announced as coming — its window, never its content. */
+    @Test void a_published_homework_and_a_published_exam_are_both_announced() throws Exception {
+        String phone = PushProbe.token("ei-phone"), arabic = PushProbe.token("ei-ar-phone");
+        PushProbe.register(mvc, PARENT, phone, null);
+        PushProbe.register(mvc, PARENT, arabic, "ar");
+        publishedExam(30, 90, ExamLevels.MANUAL);
         assertThat(kinds("homework.published")).as("publishing an exam releases nothing").isEmpty();
+        var exams = kinds("exam.published");
+        assertThat(exams).as("one per child of the section").hasSize(2);
+        assertThat(exams).allSatisfy(r -> {
+            assertThat(r.get("lessonId").asText()).isEqualTo(EXAM);
+            assertThat(r.get("link").asText()).isEqualTo("/children/" + r.get("childId").asText() + "/map");
+            assertThat(r.get("body").asText()).contains(", open ");
+        });
+        var examPushes = PushProbe.await(pushes, phone, 2);
+        assertThat(examPushes).hasSize(2).allSatisfy(p -> {
+            assertThat(p.message().getKind()).isEqualTo(quest.api.dto.NotificationKind.EXAM_PUBLISHED);
+            assertThat(p.message().getOpensAt()).isNotNull();
+            assertThat(p.message().getClosesAt()).isGreaterThan(p.message().getOpensAt());
+        });
+        assertThat(PushProbe.await(pushes, arabic, 2)).allSatisfy(p -> {
+            assertThat(p.message().getTitle()).startsWith("اختبار جديد: ");
+            assertThat(p.message().getBody()).contains("، من ").contains(" إلى ");
+        });
+        publish(EXAM);
+        assertThat(kinds("exam.published")).as("a re-publish is not news").hasSize(2);
         readyToPublish("ei-homework-1", A, section1a, LocalDate.now(), "homework");
         publish("ei-homework-1");
         var rows = kinds("homework.published");
         assertThat(rows).hasSize(2);
         assertThat(rows.get(0).get("lessonId").asText()).isEqualTo("ei-homework-1");
+        assertThat(PushProbe.await(pushes, phone, 4).stream().filter(p -> p.message().getKind() == quest.api.dto.NotificationKind.HOMEWORK_PUBLISHED))
+                .as("B4: one push per row").hasSize(2);
+        assertThat(PushProbe.await(pushes, arabic, 4).stream().filter(p -> p.message().getKind() == quest.api.dto.NotificationKind.HOMEWORK_PUBLISHED))
+                .hasSize(2).allSatisfy(p -> assertThat(p.message().getTitle()).startsWith("واجب جديد: "));
+        devices.deleteByTokenValue(phone); devices.deleteByTokenValue(arabic);
     }
 
     // ---------------------------------------------------------------- fixture

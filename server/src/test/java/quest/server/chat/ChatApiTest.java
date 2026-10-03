@@ -12,9 +12,14 @@ import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import quest.api.dto.NotificationKind;
 import quest.server.flags.FlagKeys;
+import quest.server.push.ParentDeviceRepository;
+import quest.server.push.PushProbe;
+import quest.server.push.PushSender;
 import quest.server.tenancy.TenantContext;
 
 /**
@@ -25,6 +30,8 @@ import quest.server.tenancy.TenantContext;
  */
 class ChatApiTest extends ChatTestSupport {
     private String maya, omar;
+    @Autowired PushSender pushes;
+    @Autowired ParentDeviceRepository devices;
 
     @BeforeEach void seed() throws Exception {
         seedSchools();
@@ -207,6 +214,48 @@ class ChatApiTest extends ChatTestSupport {
         assertThat(parentGet("/me/notifications/unread-count").get("count").asInt()).as("reading the thread reads its row").isZero();
         parentPost("/children/" + maya + "/chat/threads/" + SARA + "/messages", send("Will do", "c-9"));
         assertThat(parentGet("/me/notifications/unread-count").get("count").asInt()).as("her own message is not news to her").isZero();
+    }
+
+    /**
+     * B4: the bell's throttle is the push's — one push per new unread row, carrying that row, and none to another parent.
+     * Reading the thread re-arms it, and a push that fails fails nothing: the message is sent and the row written.
+     */
+    @Test void a_teachers_messages_push_the_parent_once_per_unread_row() throws Exception {
+        String phone = PushProbe.token("ch-phone"), arabic = PushProbe.token("ch-ar-phone"), others = PushProbe.token("ch-other-phone");
+        PushProbe.register(mvc, PARENT, phone, "en");
+        PushProbe.register(mvc, PARENT, arabic, "ar");
+        PushProbe.register(mvc, OTHER_PARENT, others, null);
+        var sent = json(mvc.perform(as(post("/teacher/chat/threads/" + maya + "/messages"), sara).contentType(MediaType.APPLICATION_JSON).content(send("Hello!")))
+                .andExpect(status().isCreated()).andReturn());
+        mvc.perform(as(post("/teacher/chat/threads/" + maya + "/messages"), sara).contentType(MediaType.APPLICATION_JSON).content(send("Bring a ruler."))).andExpect(status().isCreated());
+
+        var pushed = PushProbe.await(pushes, phone, 1);
+        assertThat(pushed).as("two messages, one unread row, one push").hasSize(1);
+        var push = pushed.get(0).message();
+        var row = parentGet("/me/notifications").get(0);
+        assertThat(push.getKind()).isEqualTo(NotificationKind.CHAT_MESSAGE);
+        assertThat(push.getNotificationId()).isEqualTo(row.get("id").asText());
+        assertThat(push.getChildId()).isEqualTo(maya);
+        assertThat(push.getLink()).isEqualTo("/children/" + maya + "/chat/" + SARA);
+        assertThat(push.getTitle()).isEqualTo("Message from Ms Sara");
+        assertThat(push.getBody()).as("the row as it was when it was new").isEqualTo("Hello!");
+        assertThat(push.getCollapseKey()).isEqualTo("chat:" + sent.get("threadId").asText());
+        assertThat(PushProbe.sentTo(pushes, others)).as("another parent hears nothing").isEmpty();
+        assertThat(PushProbe.await(pushes, arabic, 1)).singleElement().satisfies(p -> {
+            assertThat(p.message().getTitle()).as("her Arabic phone").isEqualTo("رسالة من Ms Sara");
+            assertThat(p.message().getBody()).as("the teacher's own words, as written").isEqualTo("Hello!");
+        });
+
+        parentPost("/children/" + maya + "/chat/threads/" + SARA + "/read", "");
+        PushProbe.script(pushes, phone, PushSender.Outcome.FAILED);
+        mvc.perform(as(post("/teacher/chat/threads/" + maya + "/messages"), sara).contentType(MediaType.APPLICATION_JSON).content(send("See you."))).andExpect(status().isCreated());
+        assertThat(PushProbe.await(pushes, phone, 2)).as("FCM failed: nothing delivered").hasSize(1);
+        assertThat(parentGet("/me/notifications/unread-count").get("count").asInt()).as("and the row is written all the same").isEqualTo(1);
+
+        parentPost("/children/" + maya + "/chat/threads/" + SARA + "/read", "");
+        mvc.perform(as(post("/teacher/chat/threads/" + maya + "/messages"), sara).contentType(MediaType.APPLICATION_JSON).content(send("Bye!"))).andExpect(status().isCreated());
+        assertThat(PushProbe.await(pushes, phone, 2)).as("read, then a new message: a new push").hasSize(2);
+        devices.deleteByTokenValue(phone); devices.deleteByTokenValue(arabic); devices.deleteByTokenValue(others);
     }
 
     // ---------------------------------------------------------------- helpers

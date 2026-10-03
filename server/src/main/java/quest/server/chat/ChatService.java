@@ -523,11 +523,15 @@ public class ChatService {
             default -> throw ApiException.badRequest("status must be " + OPEN + " or " + RESOLVED + ".");
         };
         Instant now = clock.instant();
+        boolean changed = !status.equals(t.getStatus());
         t.setStatus(status);
         t.setResolvedAt(RESOLVED.equals(status) ? now : null);
         t.setResolvedBy(RESOLVED.equals(status) ? me.userId() : null);
         threads.save(t);
         publish(ChatEvent.status(t.getSchoolId(), t.getId(), t.getChildId(), t.getTeacherId(), parentOf(t), t.getPeerUserId(), status, now.toEpochMilli()));
+        // B4: and a row and a push, so she hears it with the app closed too — only when it really changed.
+        if (changed) bells.complaintStatus(t.getSchoolId(), parentOf(t), t.getChildId(), t.getId(), t.getTeacherId(), COMPLAINT.equals(t.getTopic()),
+                RESOLVED.equals(status), users.findById(me.userId()).map(ChatService::name).orElse(null));
         return one(t, me.userId());
     }
 
