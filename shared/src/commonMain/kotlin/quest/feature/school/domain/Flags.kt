@@ -25,8 +25,11 @@ object Flags {
      */
     const val ANNOUNCEMENTS = "announcements"
 
+    /** §8: exams. M4 (D4) gates the student's result screen on it. */
+    const val EXAMS = "exams"
+
     /** Every key this app gates on. */
-    val used = listOf(RETELL_RECORDING, OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, CERTIFICATES, LEVEL_THREE, CHAT, ANNOUNCEMENTS)
+    val used = listOf(RETELL_RECORDING, OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, CERTIFICATES, LEVEL_THREE, CHAT, ANNOUNCEMENTS, EXAMS)
 
     /** True when the platform defines [key] at all — the contract's `DEFAULT_FLAGS` is the list of what exists. */
     fun isKnown(key: String): Boolean = key in DEFAULT_FLAGS

@@ -59,6 +59,7 @@ import quest.feature.content.domain.SchoolApi
 import quest.feature.journey.presentation.JourneyViewModel
 import quest.feature.journey.presentation.LessonCopy
 import quest.feature.journey.presentation.LessonCompleteViewModel
+import quest.feature.journey.presentation.ExamResultViewModel
 import quest.feature.journey.presentation.StopPlayerViewModel
 import quest.feature.map.presentation.MapViewModel
 import quest.feature.parent.data.ParentRepositoryImpl
@@ -176,6 +177,7 @@ val contentModule = module {
     viewModel { MapViewModel(get(), get(), get(), get(), get(), get(), publishToday = get()) }
     viewModel { (lessonId: String, level: Int, variant: Int) -> JourneyViewModel(lessonId, level, variant, get(), get(), get(), get()) }
     viewModel { (lessonId: String, level: Int, variant: Int, index: Int) -> StopPlayerViewModel(lessonId, level, variant, index, get(), get(), get(), get(), get(), sitting = get(), windows = get(), now = Today::epochMillis, sync = get()) }
+    viewModel { (lessonId: String) -> ExamResultViewModel(lessonId, get(), get(), get()) }
     viewModel { (lessonId: String, level: Int, variant: Int) -> LessonCompleteViewModel(lessonId, level, variant, get(), get(), get(), get(), get(), get()) }
 }
 
