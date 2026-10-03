@@ -4,6 +4,7 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import quest.api.dto.Island
+import quest.feature.content.domain.ChildResult
 import quest.api.dto.IslandState
 import quest.feature.journey.presentation.LessonStrings
 
@@ -19,13 +20,16 @@ import quest.feature.journey.presentation.LessonStrings
  * [UNAVAILABLE] is an exam the device knows about but has no window for — the map came from the cache — so there is
  * nothing from the server saying it may be sat; it stays shut until the app is online again.
  */
-enum class ExamStatus { OPEN, REOPENED, SUBMITTED, UNAVAILABLE }
+enum class ExamStatus { OPEN, REOPENED, SUBMITTED, RELEASED, UNAVAILABLE }
 
 /** Whether the card lets the student in. */
 val ExamStatus.canSit: Boolean get() = this == ExamStatus.OPEN || this == ExamStatus.REOPENED
 
-/** What the card shows: its [status], one formal [line] under the title, and — only while open — the time [left]. */
-data class ExamCard(val status: ExamStatus, val line: String, val left: String? = null)
+/**
+ * What the card shows: its [status], one formal [line] under the title, — only while open — the time [left], and the
+ * label of its button: "Start exam", "Continue exam" once a question is answered (M4, D9), "See result" once released.
+ */
+data class ExamCard(val status: ExamStatus, val line: String, val left: String? = null, val action: String? = null)
 
 /**
  * [loadedAt] is the device's clock when the server sent this island. `examWindow` carries the exam's own times, not
@@ -33,9 +37,11 @@ data class ExamCard(val status: ExamStatus, val line: String, val left: String? 
  * device's clock is shown as [ExamStatus.REOPENED]: open, with no closing time claimed. (A device whose clock runs
  * fast lands here too — it is equally open, and equally without a time the app could truthfully show.)
  */
-fun examStatus(island: Island, loadedAt: Long): ExamStatus {
+fun examStatus(island: Island, loadedAt: Long, released: Boolean = false): ExamStatus {
     val window = island.examWindow
     return when {
+        // M4 (D4): the teacher released the result — the card says so and opens it, whatever else it says.
+        released -> ExamStatus.RELEASED
         island.state == IslandState.DONE -> ExamStatus.SUBMITTED
         window == null -> ExamStatus.UNAVAILABLE
         loadedAt >= window.closesAt -> ExamStatus.REOPENED
@@ -43,16 +49,28 @@ fun examStatus(island: Island, loadedAt: Long): ExamStatus {
     }
 }
 
-fun examCard(island: Island, loadedAt: Long, zone: TimeZone, s: LessonStrings, months: List<String>, shortMonths: Boolean): ExamCard {
-    val status = examStatus(island, loadedAt)
+/** [marked] is the released result of this exam, if any; [started] is "at least one question answered" (M4, D9). */
+fun examCard(
+    island: Island, loadedAt: Long, zone: TimeZone, s: LessonStrings, months: List<String>, shortMonths: Boolean,
+    marked: ChildResult? = null, started: Boolean = false,
+): ExamCard {
+    val status = examStatus(island, loadedAt, released = marked != null)
     val window = island.examWindow
+    val sit = if (started) s.continueExam else s.startExam
     return when (status) {
+        ExamStatus.RELEASED -> ExamCard(status, examResultLine(marked!!, s), action = s.examSeeResult)
         ExamStatus.SUBMITTED -> ExamCard(status, s.examSubmittedNote)
         ExamStatus.UNAVAILABLE -> ExamCard(status, s.examNeedsConnection)
-        ExamStatus.REOPENED -> ExamCard(status, s.examReopened)
-        ExamStatus.OPEN -> ExamCard(status, s.examOpenUntil.replace("{time}", examTime(window!!.closesAt, loadedAt, zone, months, shortMonths)), examTimeLeft(window.closesAt - loadedAt, s))
+        ExamStatus.REOPENED -> ExamCard(status, s.examReopened, action = sit)
+        ExamStatus.OPEN -> ExamCard(status, s.examOpenUntil.replace("{time}", examTime(window!!.closesAt, loadedAt, zone, months, shortMonths)), examTimeLeft(window.closesAt - loadedAt, s), action = sit)
     }
 }
+
+/** "Marked by your teacher · Secure" — the level in words, never a number (§7); just "marked" when there is no band. */
+fun examResultLine(marked: ChildResult, s: LessonStrings): String =
+    marked.band?.let { s.examResultLine.replace("{band}", examBand(it, s)) } ?: s.examResultNoBand
+
+fun examBand(key: String, s: LessonStrings): String = s.examBands[key.lowercase()] ?: key
 
 /**
  * How long the window stays open, in words and rounded down — a statement made when the home page loads, not a clock

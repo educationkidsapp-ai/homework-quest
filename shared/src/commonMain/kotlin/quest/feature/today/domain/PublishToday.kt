@@ -14,7 +14,7 @@ import quest.feature.chat.domain.ChatRepository
  */
 class PublishTodayUseCase(private val store: TodaySnapshotStore, private val chat: ChatRepository, private val windows: ExamWindows) {
     suspend operator fun invoke(child: Child, islands: List<Island>, exams: Set<String>, now: Long, labels: TodayLabels, rtl: Boolean) {
-        windows.remember(islands.filter { it.lessonId in exams && it.examWindow != null }.associate { it.lessonId!! to it.examWindow!!.closesAt })
+        windows.remember(islands.filter { it.lessonId in exams && it.examWindow != null }.associate { it.lessonId!! to it.examWindow!!.closesAt }, at = now)
         val unread = runCancellable { chat.threads(child.id).sumOf { it.unread } }.getOrDefault(0)
         runCancellable { store.write(TodaySnapshots.of(child.name, islands, exams, unread, now, labels, rtl)) }
     }

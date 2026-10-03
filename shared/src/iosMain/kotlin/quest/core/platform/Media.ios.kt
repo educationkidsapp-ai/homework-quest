@@ -111,7 +111,7 @@ actual object DocumentViewer {
     }
 
     actual fun open(name: String, mimeType: String): Boolean {
-        val path = directory() + "/" + safeFileName(name)
+        val path = directory() + "/" + safeDocumentPath(name)
         if (!NSFileManager.defaultManager.fileExistsAtPath(path)) return false
         val root = activeKeyWindow()?.rootViewController ?: return false
         val preview = UIDocumentInteractionController.interactionControllerWithURL(NSURL.fileURLWithPath(path))

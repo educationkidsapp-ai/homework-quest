@@ -44,6 +44,13 @@ object PlayerContract {
         val childName: String = "", val error: String? = null, val exam: Boolean = false,
         /** Why the server would not take the sitting; set with [Phase.REFUSED]. */
         val refusal: SubmitOutcome? = null,
+        /**
+         * M4 (D8): when this sitting's window closes, by the server's clock — shown as a time of day ("Closes at
+         * 10:40"), never as a ticking timer (§7). Null for a homework, a re-opened sitting, or an end not known.
+         */
+        val closesAt: Long? = null,
+        /** Exam: the exit-ticket questions answered so far, so a resumed ticket starts at the next one. */
+        val answeredQuestions: Set<String> = emptySet(),
     ) : MviState {
         val stop: Stop? get() = play?.stops?.getOrNull(index)
         val total: Int get() = play?.stops?.size ?: 0
@@ -57,6 +64,10 @@ object PlayerContract {
         data object TryAgain : Intent
         /** [Phase.SENDING]: try to hand the queued answers in again. */
         data object SendAgain : Intent
+        /** Exam: one question inside an exit ticket was answered — its own attempt, by the question's id. */
+        data class QuestionAnswered(val questionId: String, val answer: String, val correct: Boolean, val stars: Int) : Intent
+        /** M4 (D8): the window's closing time has passed by the server's clock — no more answers are taken. */
+        data object WindowClosed : Intent
         data object Advance : Intent
         data object ReadAloud : Intent
         data class Speak(val text: String) : Intent

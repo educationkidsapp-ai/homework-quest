@@ -102,6 +102,10 @@ data class Strings(
     val statusOpen: String = "Open",
     val statusResolved: String = "Resolved",
     val resolvedBanner: String = "Resolved — the coordinator answered this. You can still write here.",
+    // M4 (D7): the banner names who the parent was talking to — a complaint the manager resolved is not the coordinator's.
+    val resolvedBannerTeacher: String = "Resolved — the teacher answered this. You can still write here.",
+    val resolvedBannerManager: String = "Resolved — the department manager answered this. You can still write here.",
+    val resolvedBannerAdmin: String = "Resolved — the school administration answered this. You can still write here.",
     val markAsComplaint: String = "This is a complaint",
     val markAsComplaintHint: String = "The coordinator sees it as an open complaint in her complaints list.",
     /**
@@ -125,6 +129,13 @@ data class Strings(
     // RM4 (DR4, DR6), split in two by MH3: the Weekly plan page and the Announcements page.
     val weeklyPlan: String = "Weekly plan",
     val announcements: String = "Announcements",
+    // M4 (D5): the Notifications tab — her own rows above the school's announcements and events.
+    val notificationsTitle: String = "Notifications",
+    val updatesGroup: String = "Updates",
+    val updateMessage: String = "Message",
+    val updateResult: String = "Result released",
+    val updateHomework: String = "New homework",
+    val updateOther: String = "Update",
     val thisWeeksPlan: String = "This week's plan",
     val earlierPlans: String = "Earlier weeks",
     /** `{date}` is replaced with the Sunday the plan's week starts on. */
@@ -329,6 +340,9 @@ data class Strings(
             statusOpen = "مفتوحة",
             statusResolved = "تم الحل",
             resolvedBanner = "تم الحل — ردّ المنسّق على هذه الرسالة. لا يزال بإمكانك الكتابة هنا.",
+            resolvedBannerTeacher = "تم الحل — ردّت المعلّمة على هذه الرسالة. لا يزال بإمكانك الكتابة هنا.",
+            resolvedBannerManager = "تم الحل — ردّ مدير القسم على هذه الرسالة. لا يزال بإمكانك الكتابة هنا.",
+            resolvedBannerAdmin = "تم الحل — ردّت إدارة المدرسة على هذه الرسالة. لا يزال بإمكانك الكتابة هنا.",
             markAsComplaint = "هذه شكوى",
             markAsComplaintHint = "ستظهر كشكوى مفتوحة في قائمة الشكاوى عند المنسّق.",
             subjectNames = mapOf(
@@ -342,6 +356,12 @@ data class Strings(
             markAsComplaintHintManager = "ستظهر كشكوى مفتوحة في قائمة الشكاوى عند مدير القسم.",
             weeklyPlan = "الخطة الأسبوعية",
             announcements = "الإعلانات",
+            notificationsTitle = "الإشعارات",
+            updatesGroup = "المستجدات",
+            updateMessage = "رسالة",
+            updateResult = "صدرت النتيجة",
+            updateHomework = "واجب جديد",
+            updateOther = "تحديث",
             thisWeeksPlan = "خطة هذا الأسبوع",
             earlierPlans = "أسابيع سابقة",
             weekOf = "أسبوع {date}",

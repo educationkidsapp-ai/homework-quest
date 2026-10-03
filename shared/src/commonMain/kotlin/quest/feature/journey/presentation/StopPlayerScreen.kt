@@ -1,5 +1,7 @@
 package quest.feature.journey.presentation
 
+import kotlinx.datetime.TimeZone
+import quest.feature.map.presentation.examTime
 import androidx.compose.ui.text.style.TextDirection
 import quest.ui.design.DashboardTokens
 import quest.ui.design.DashboardProgressBar
@@ -61,6 +63,7 @@ import quest.ui.design.NumberLineView
 import quest.ui.stops.StopContent
 import quest.ui.stops.StopEvent
 import quest.ui.stops.LocalExamMode
+import quest.ui.stops.LocalAnsweredQuestions
 import androidx.compose.runtime.CompositionLocalProvider
 import quest.ui.stops.LocalStopMedia
 import quest.core.platform.rememberStopMedia
@@ -106,7 +109,7 @@ fun StopPlayerScreen(state: State, dispatch: (Intent) -> Unit, onBack: () -> Uni
             // Every question is answered but the answers have not all reached the server: not "submitted" yet.
             Phase.SENDING -> SendingView(onRetry = { dispatch(Intent.SendAgain) }, onBack = onBack)
             // The stops read LocalExamMode: one answer each, and nothing that tells right from wrong.
-            else -> CompositionLocalProvider(LocalExamMode provides state.exam) { StopView(state, dispatch, onBack) }
+            else -> CompositionLocalProvider(LocalExamMode provides state.exam, LocalAnsweredQuestions provides state.answeredQuestions) { StopView(state, dispatch, onBack) }
         }
 
         AnimatedVisibility(state.phase == Phase.HINT, enter = fadeIn(), exit = fadeOut()) { Box(Modifier.fillMaxSize().background(DashboardTokens.inkStrong.copy(alpha = 0.35f))) }
@@ -135,6 +138,12 @@ private fun StopView(state: State, dispatch: (Intent) -> Unit, onBack: () -> Uni
             Spacer(Modifier.height(Dimens.s4))
             // How many steps are done, as a bar: no percentage and no clock (§7).
             DashboardProgressBar(if (state.total == 0) 0f else state.doneCount.toFloat() / state.total)
+            // M4 (D8): an exam says when it closes — a still time of day, not a timer — in the same quiet ink.
+            state.closesAt?.takeIf { state.exam }?.let { closes ->
+                val line = s.examClosesAt.replace("{time}", examTime(closes, closes, TimeZone.currentSystemDefault(), emptyList(), true))
+                Spacer(Modifier.height(Dimens.s4))
+                Text(line, style = MaterialTheme.typography.labelMedium, color = DashboardTokens.inkSoft, modifier = Modifier.semantics { contentDescription = line })
+            }
         }
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
             DashboardCard(Modifier.padding(horizontal = Dimens.s16)) {
@@ -147,6 +156,7 @@ private fun StopView(state: State, dispatch: (Intent) -> Unit, onBack: () -> Uni
                     is StopEvent.Wrong -> dispatch(Intent.Wrong(e.attempt, e.hint, e.numberLine, e.answer))
                     is StopEvent.Completed -> dispatch(Intent.Completed(e.stars, e.answer, e.mistakes, e.recording, e.drawing, e.correct))
                     is StopEvent.Speak -> dispatch(Intent.Speak(e.text))
+                    is StopEvent.QuestionAnswered -> dispatch(Intent.QuestionAnswered(e.questionId, e.answer, e.correct, e.stars))
                 }
             }, childName = state.childName)
             Spacer(Modifier.height(Dimens.s32))

@@ -12,6 +12,8 @@ object Routes {
     @Serializable data class Journey(val lessonId: String, val level: Int = 1, val variant: Int = 0)
     @Serializable data class StopPlayer(val lessonId: String, val level: Int, val variant: Int, val index: Int)
     @Serializable data class LessonComplete(val lessonId: String, val level: Int, val variant: Int)
+    /** M4 (D4): an exam's released result. */
+    @Serializable data class ExamResult(val lessonId: String)
 
     // parent mode
     @Serializable data class ParentPin(val lessonId: String? = null)
@@ -49,5 +51,9 @@ object Routes {
         val complaint: Boolean = false,
         /** S1: a thread the school administration opened (`ChatThread.withAdmin`). */
         val admin: Boolean = false,
+        /** M4 (D6): `ChatThread.peerOnline` as `"true"`/`"false"`, null when the row said nothing. */
+        val peerOnline: String? = null,
+        /** M4 (D7): `ChatThread.peerRole`'s wire name, null when absent. */
+        val peerRole: String? = null,
     )
 }

@@ -58,6 +58,9 @@ import quest.api.samples.Seeds
 import quest.api.samples.summary
 import quest.core.platform.Ids
 import quest.core.platform.Today
+import quest.api.dto.NotificationKind
+import quest.api.dto.NotificationView
+import quest.api.dto.UnreadCount
 
 /**
  * In-app stand-in for the Spring Boot API: serves the §6 seed lessons, keeps children and attempts in
@@ -160,7 +163,8 @@ class FakeContentApi(
 
     override suspend fun lesson(id: String, version: Int?): PublishedLesson {
         net()
-        return Seeds.byId(id) ?: FakeExam.lesson.takeIf { it.id == id } ?: throw ApiException(ApiError(ApiError.NOT_FOUND, "No lesson $id"))
+        // B3 parity: the exam is never released on the fake server, so its paper always arrives sealed.
+        return Seeds.byId(id) ?: FakeExam.lesson.takeIf { it.id == id }?.sealedForChild() ?: throw ApiException(ApiError(ApiError.NOT_FOUND, "No lesson $id"))
     }
 
     override suspend fun uploadAttempts(childId: String, attempts: List<AttemptUpload>): AttemptAck {
@@ -362,6 +366,29 @@ class FakeContentApi(
             ),
         )
     }
+
+    // ---- B3 parity: the parent's notification rows, so the Notifications tab runs without a server.
+    private val fakeNotificationReads = mutableSetOf<String>()
+    private fun fakeNotifications(): List<NotificationView> = listOf(
+        NotificationView("nt-result", NotificationKind.EXAM_RELEASED, "Exam result released", "Autumn maths test", "/children/c1/progress", lessonId = "exam-1", createdAt = 1_758_460_000_000L),
+        NotificationView("nt-msg", NotificationKind.CHAT_MESSAGE, "Message from Ms. Sara", "Hala did very well today.", "/children/c1/chat/t-sara", createdAt = 1_758_450_000_000L),
+        NotificationView("nt-hw", NotificationKind.HOMEWORK_PUBLISHED, "New homework", "Counting by 2s", "/children/c1/map", lessonId = "l1", createdAt = 1_758_440_000_000L),
+    ).map { if (it.id in fakeNotificationReads) it.copy(readAt = 1_758_470_000_000L) else it }
+
+    override suspend fun notifications(unread: Boolean?, limit: Int?): List<NotificationView> {
+        net()
+        return fakeNotifications().filter { unread != true || it.readAt == null }.take(limit ?: 20)
+    }
+
+    override suspend fun unreadNotificationCount(): UnreadCount { net(); return UnreadCount(fakeNotifications().count { it.readAt == null }) }
+
+    override suspend fun markNotificationRead(id: String): NotificationView {
+        net()
+        fakeNotificationReads += id
+        return fakeNotifications().firstOrNull { it.id == id } ?: throw ApiException(ApiError(ApiError.NOT_FOUND, "No such notification."))
+    }
+
+    override suspend fun markAllNotificationsRead(): UnreadCount { net(); fakeNotificationReads += fakeNotifications().map { it.id }; return UnreadCount(0) }
 
     override suspend fun childBroadcasts(childId: String): BroadcastFeed {
         net()

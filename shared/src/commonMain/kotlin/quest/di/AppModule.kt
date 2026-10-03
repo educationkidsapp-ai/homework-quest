@@ -38,6 +38,19 @@ import quest.api.ContentApi
 import quest.core.db.Db
 import quest.core.db.SettingsStore
 import quest.core.platform.platformModule
+import quest.core.platform.connectivityModule
+import quest.core.platform.ServerClock
+import quest.feature.content.domain.PendingAnswersSync
+import quest.feature.content.domain.ChildResultsUseCase
+import quest.feature.notifications.data.ParentUnreadSource
+import quest.feature.notifications.domain.ParentBadges
+import quest.feature.notifications.domain.UnreadSource
+import quest.feature.notifications.domain.NotificationsRepository
+import quest.feature.notifications.data.NotificationsRepositoryImpl
+import quest.feature.school.domain.Flags
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import quest.feature.auth.data.FakeAuth
 import quest.feature.auth.data.FirebaseAuth
 import quest.feature.auth.data.SessionRestorer
@@ -57,6 +70,7 @@ import quest.feature.content.domain.SchoolApi
 import quest.feature.journey.presentation.JourneyViewModel
 import quest.feature.journey.presentation.LessonCopy
 import quest.feature.journey.presentation.LessonCompleteViewModel
+import quest.feature.journey.presentation.ExamResultViewModel
 import quest.feature.journey.presentation.StopPlayerViewModel
 import quest.feature.map.presentation.MapViewModel
 import quest.feature.parent.data.ParentRepositoryImpl
@@ -139,7 +153,7 @@ val coreModule = module {
     single { Db(get()) }
     single { SettingsStore(get()) }
     single { quest.feature.journey.data.LessonImages(get()) }
-    single { AppInitializer(get(), get(), get()) }
+    single { AppInitializer(get(), get(), get(), get()) }
 }
 
 /**
@@ -158,6 +172,8 @@ val contentModule = module {
     single<LessonRepository> { LessonRepositoryImpl(get(), get()) }
     single<JourneyRepository> { JourneyRepositoryImpl(get(), get()) }
     single<MapRepository> { MapRepositoryImpl(get(), get(), get()) }
+    // M4 (D3): one for the app — started by `AppInitializer`, nudged when the app comes to the front.
+    single { PendingAnswersSync(get(), get(), get()) }
     viewModel { SignInViewModel(get()) }
     // Signing out also turns the biometric lock off (M2) and empties the home-screen widget and any exam activity (M3).
     factory { SignOutUseCase(get(), get(), get(), alsoForget = { get<BiometricPreferences>().signedOut(); get<TodaySnapshotStore>().write(null); get<ExamSittingPresenter>().end() }) }
@@ -169,9 +185,11 @@ val contentModule = module {
     single { AppLock(get(), get(), get(), signOut = { get<SignOutUseCase>()() }, elapsed = ::elapsedRealtimeMillis) }
     viewModel { ChildrenViewModel(get(), get()) }
     factory { LessonCopy(get(), get()) }
-    viewModel { MapViewModel(get(), get(), get(), get(), get(), get(), publishToday = get()) }
+    viewModel { MapViewModel(get(), get(), get(), get(), get(), get(), now = ServerClock::now, publishToday = get(), childResults = get()) }
     viewModel { (lessonId: String, level: Int, variant: Int) -> JourneyViewModel(lessonId, level, variant, get(), get(), get(), get()) }
-    viewModel { (lessonId: String, level: Int, variant: Int, index: Int) -> StopPlayerViewModel(lessonId, level, variant, index, get(), get(), get(), get(), get(), sitting = get(), windows = get(), now = Today::epochMillis) }
+    viewModel { (lessonId: String, level: Int, variant: Int, index: Int) -> StopPlayerViewModel(lessonId, level, variant, index, get(), get(), get(), get(), get(), sitting = get(), windows = get(), now = ServerClock::now, sync = get()) }
+    factory { ChildResultsUseCase(get()) }
+    viewModel { (lessonId: String) -> ExamResultViewModel(lessonId, get(), get(), get()) }
     viewModel { (lessonId: String, level: Int, variant: Int) -> LessonCompleteViewModel(lessonId, level, variant, get(), get(), get(), get(), get(), get()) }
 }
 
@@ -204,8 +222,15 @@ val chatModule = module {
 /** RM4: the parent's broadcasts feed. Its own module — the feed is not chat, and it is read behind its own flag. */
 val broadcastsModule = module {
     single<BroadcastsRepository> { BroadcastsRepositoryImpl(get(), get()) }
-    viewModel { BroadcastsViewModel(get(), get()) }
+    // M4 (D5): the bottom bar's badges, one for the app, moved live by `/ws/chat`.
+    single<UnreadSource> {
+        val flags = get<FlagStore>()
+        ParentUnreadSource(get(), get(), get(), announcementsOn = { flags.isEnabled(Flags.ANNOUNCEMENTS) }, chatOn = { flags.isEnabled(Flags.CHAT) })
+    }
+    single { ParentBadges(get(), get()).also { it.start(CoroutineScope(SupervisorJob() + Dispatchers.Default), get<ChatRepository>().incomingFrames) } }
+    single<NotificationsRepository> { NotificationsRepositoryImpl(get()) }
+    viewModel { BroadcastsViewModel(get(), get(), get<ChatRepository>().incomingFrames, get(), get()) }
     viewModel { WeeklyPlanViewModel(get(), get()) }
 }
 
-fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), apiModule(config), coreModule, schoolModule, contentModule, rewardsModule, parentModule, chatModule, broadcastsModule)
+fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), connectivityModule(), apiModule(config), coreModule, schoolModule, contentModule, rewardsModule, parentModule, chatModule, broadcastsModule)

@@ -1,5 +1,6 @@
 package quest.feature.chat.presentation
 
+import quest.core.text.isolate
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -74,6 +75,8 @@ import quest.core.platform.Ids
 import quest.core.platform.Today
 import quest.feature.chat.domain.ChatConnectionState
 import quest.feature.chat.domain.ChatPeer
+import quest.feature.chat.domain.Resolver
+import quest.feature.chat.domain.resolverOf
 import quest.feature.chat.domain.ChatRepository
 import quest.feature.parent.domain.ParentRepository
 import quest.feature.parent.presentation.Chip
@@ -132,6 +135,14 @@ object ChatConversationContract {
          * coordinator resolving the Math complaint flips the banner inside an open English conversation.
          */
         val threadId: String? = null,
+        /**
+         * M4 (D6): whether the person on the other end is online — T1's `peerOnline` from the row, then the `presence`
+         * frames about her. Null is unknown, and the header then says nothing; this app's own socket being connected
+         * says nothing about her.
+         */
+        val peerOnline: Boolean? = null,
+        /** M4 (D7): who resolves this thread, and so who the Resolved banner says answered. */
+        val resolver: Resolver = Resolver.COORDINATOR,
     ) : MviState {
         /**
          * The toggle is offered on any thread that is not a complaint already — to a teacher, a coordinator or a
@@ -168,6 +179,8 @@ class ChatConversationViewModel(
         markAsComplaint = peer.startAsComplaint && !peer.withAdmin && peer.topic == ChatTopic.QUESTION,
         withAdmin = peer.withAdmin,
         threadId = peer.threadId,
+        peerOnline = peer.peerOnline,
+        resolver = resolverOf(peer.peerRole, peer.staffRole, peer.withAdmin),
     )
 ) {
     private val childId get() = peer.childId
@@ -193,7 +206,8 @@ class ChatConversationViewModel(
             val history = chat.messages(childId, teacherId)
             val uiList = history.map { it.toUiMessage() }
             reduce { copy(loading = false, messages = uiList, threadId = history.firstOrNull()?.threadId ?: threadId) }
-            chat.markRead(childId, teacherId)
+            // M4 (D11): a thread nobody has written in yet does not exist on the server, and `…/read` on it is a 404.
+            if (current.threadId != null) chat.markRead(childId, teacherId)
         } catch (e: Throwable) {
             reduce { copy(loading = false, errorMessage = e.message) }
         }
@@ -367,6 +381,11 @@ class ChatConversationViewModel(
                             reduce { copy(resolved = frame.status == ChatThreadStatus.RESOLVED) }
                         }
                     }
+                    // T1: the staff member on this thread came online or went offline. A frame about anybody else —
+                    // the socket carries every thread of the parent's — leaves the header alone.
+                    is ChatFrame.Presence -> {
+                        if (frame.userId != null && frame.userId == teacherId) reduce { copy(peerOnline = frame.online) }
+                    }
                     is ChatFrame.Error -> {
                         if (frame.clientId != null) {
                             reduce {
@@ -436,6 +455,22 @@ fun ChatConversationRoute(
             }
         }
     }
+}
+
+/** The header's presence line and whether its dot is lit; null when nothing is known about the other person. */
+fun presenceLine(state: ChatConversationContract.State, strings: Strings): Pair<String, Boolean>? = when {
+    state.isTeacherTyping -> strings.isTyping to true
+    state.peerOnline == true -> strings.online to true
+    state.peerOnline == false -> strings.offline to false
+    else -> null
+}
+
+/** M4 (D7): "Resolved — the … answered this", naming whoever the parent was writing to. */
+fun resolvedBanner(resolver: Resolver, strings: Strings): String = when (resolver) {
+    Resolver.TEACHER -> strings.resolvedBannerTeacher
+    Resolver.COORDINATOR -> strings.resolvedBanner
+    Resolver.MANAGER -> strings.resolvedBannerManager
+    Resolver.ADMIN -> strings.resolvedBannerAdmin
 }
 
 data class AttachedFile(
@@ -581,23 +616,18 @@ fun ChatConversationScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = DashboardTokens.inkSoft,
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val isOnline = state.connectionState == ChatConnectionState.CONNECTED
-                    Box(
-                        Modifier.size(8.dp).clip(CircleShape).background(
-                            if (state.isTeacherTyping) DashboardTokens.success
-                            else if (isOnline) DashboardTokens.success
-                            else DashboardTokens.inkSoft
+                // M4 (D6): presence is the peer's, from `peerOnline` and the `presence` frame — never this app's own
+                // connection. Unknown shows nothing rather than a guess.
+                presenceLine(state, strings)?.let { (label, live) ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(if (live) DashboardTokens.success else DashboardTokens.inkSoft))
+                        Spacer(Modifier.width(Dimens.s4))
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (state.isTeacherTyping) DashboardTokens.success else DashboardTokens.inkSoft,
                         )
-                    )
-                    Spacer(Modifier.width(Dimens.s4))
-                    Text(
-                        text = if (state.isTeacherTyping) strings.isTyping
-                               else if (isOnline) strings.online
-                               else strings.offline,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (state.isTeacherTyping) DashboardTokens.success else DashboardTokens.inkSoft,
-                    )
+                    }
                 }
             }
         }
@@ -608,7 +638,7 @@ fun ChatConversationScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = strings.resolvedBanner,
+                    text = resolvedBanner(state.resolver, strings),
                     style = MaterialTheme.typography.bodySmall,
                     color = DashboardTokens.ink,
                 )
@@ -920,7 +950,8 @@ private fun MessageBubble(
 
             if (parsed.text.isNotBlank()) {
                 Text(
-                    text = parsed.text,
+                    // M4 (D12): a message keeps its own direction inside the other language's screen.
+                    text = isolate(parsed.text),
                     style = MaterialTheme.typography.bodyLarge,
                     color = textColor,
                 )

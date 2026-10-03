@@ -50,6 +50,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import quest.feature.parent.domain.ParentRepository
+import quest.feature.notifications.domain.ParentBadges
+import quest.feature.chat.domain.ChatRepository
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.FeatureGate
 import quest.feature.school.presentation.featureEnabled
@@ -80,6 +85,14 @@ fun ParentShell(
     val arabic = featureEnabled(Flags.PARENT_PANEL_ARABIC)
     val strings = if (arabic) Strings.forLanguage(language) else Strings.en
     val scope = rememberCoroutineScope()
+    // M4 (D5): the badges are asked again whenever a parent screen is shown and whenever the app comes back to the
+    // front; while she is here the chat socket moves them live (a message, a read, a notification row).
+    val badges: ParentBadges = koinInject()
+    val counts by badges.counts.collectAsStateWithLifecycle()
+    val chatOn = featureEnabled(Flags.CHAT)
+    val chat: ChatRepository = koinInject()
+    LaunchedEffect(Unit) { if (chatOn) chat.connect(); badges.refresh() }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { scope.launch { badges.refresh() } }
     ParentTheme(rtl = strings.isRtl) {
         CompositionLocalProvider(LocalStrings provides strings) {
             Column(
@@ -127,6 +140,8 @@ fun ParentShell(
                         onTabSelected = onTabSelected,
                         isRtl = strings.isRtl,
                         showNotifications = featureEnabled(Flags.ANNOUNCEMENTS),
+                        unreadNotifications = counts.notifications,
+                        unreadMessages = counts.messages,
                     )
                 }
             }

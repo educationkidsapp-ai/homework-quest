@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -165,7 +166,8 @@ fun OrderStop(stop: Stop.Order, onEvent: (StopEvent) -> Unit, modifier: Modifier
         PromptText(stop.prompt); Spacer(Modifier.height(Dimens.s12))
         // slots
         Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            stop.correctOrder.indices.forEach { i ->
+            // One slot per card. A sealed exam paper (B3) carries no `correctOrder`, so the cards, not the key, size it.
+            stop.items.indices.forEach { i ->
                 val id = placed.getOrNull(i)
                 Row(Modifier.fillMaxWidth().height(60.dp).background(if (i < locked) DashboardTokens.successBg else DashboardTokens.bgSubtle, RoundedCornerShape(DashboardTokens.radiusMd))
                     .clickable(enabled = id != null && i >= locked && !done) { placed = placed.filterIndexed { j, _ -> j != i } }
@@ -187,12 +189,13 @@ fun OrderStop(stop: Stop.Order, onEvent: (StopEvent) -> Unit, modifier: Modifier
                 }
             }
         }
-        CheckButton(enabled = placed.size == stop.correctOrder.size && !done) {
+        CheckButton(enabled = placed.size == stop.items.size && !done) {
             attempts += 1
             val prefix = quest.api.dto.MultiAnswerLogic.lockedPrefix(placed, stop.correctOrder)
             if (exam) {
-                // The order as placed is the answer; nothing is locked or sent back.
-                val right = prefix == stop.correctOrder.size
+                // The order as placed is the answer; nothing is locked or sent back. The server grades it — a sealed
+                // paper has no key here, and then nothing local claims it was right.
+                val right = stop.correctOrder.size == stop.items.size && prefix == stop.correctOrder.size
                 done = true
                 onEvent(StopEvent.Completed(if (right) StopScoring.byAttempts(1) else 0, answer = placed.joinToString(","), mistakes = if (right) 0 else 1, correct = right))
                 return@CheckButton
@@ -278,10 +281,16 @@ private fun RecorderControls(r: RecorderHandle) {
 /** Three questions in a row; stars = average of the three. */
 @Composable
 fun ExitTicketStop(stop: Stop.ExitTicket, onEvent: (StopEvent) -> Unit, modifier: Modifier = Modifier) {
-    var index by rememberSaveable(stop.id) { mutableIntStateOf(0) }
-    var stars by rememberSaveable(stop.id) { mutableStateOf(listOf<Int>()) }
-    val q = stop.questions.getOrNull(index) ?: return
     val exam = LocalExamMode.current
+    val answered = LocalAnsweredQuestions.current
+    // An exam ticket resumes at its first unanswered question (or, every one answered, is finished at once below).
+    var index by rememberSaveable(stop.id) { mutableIntStateOf(if (exam) stop.questions.indexOfFirst { it.id !in answered }.let { if (it < 0) stop.questions.size else it } else 0) }
+    var stars by rememberSaveable(stop.id) { mutableStateOf(listOf<Int>()) }
+    if (exam && index >= stop.questions.size) {
+        LaunchedEffect(stop.id) { onEvent(StopEvent.Completed(0, mistakes = 0, correct = false)) }
+        return
+    }
+    val q = stop.questions.getOrNull(index) ?: return
     var wrongAnswers by rememberSaveable(stop.id) { mutableIntStateOf(0) }
     // Exam: each of the three takes one answer and the ticket moves on in silence; the player hears only that the
     // whole stop is finished, so nothing between the questions says which were right.
@@ -298,9 +307,10 @@ fun ExitTicketStop(stop: Stop.ExitTicket, onEvent: (StopEvent) -> Unit, modifier
         }
         StopContent(q, onEvent = { e ->
             when {
-                exam && e is StopEvent.Correct -> examNext(StopScoring.singleAnswer(1), right = true)
-                exam && e is StopEvent.Wrong -> examNext(0, right = false)
-                exam && e is StopEvent.Completed -> examNext(e.stars, right = e.correct)
+                // Each question reports its own answer first (the server scores the ticket by its questions), then moves on.
+                exam && e is StopEvent.Correct -> { onEvent(StopEvent.QuestionAnswered(q.id, e.answer, true, StopScoring.singleAnswer(1))); examNext(StopScoring.singleAnswer(1), right = true) }
+                exam && e is StopEvent.Wrong -> { onEvent(StopEvent.QuestionAnswered(q.id, e.answer, false, 0)); examNext(0, right = false) }
+                exam && e is StopEvent.Completed -> { onEvent(StopEvent.QuestionAnswered(q.id, e.answer, e.correct, e.stars)); examNext(e.stars, right = e.correct) }
                 e is StopEvent.Correct -> { val s = stars + StopScoring.singleAnswer(e.attempt); stars = s; onEvent(e); if (index == stop.questions.lastIndex) onEvent(StopEvent.Completed(quest.api.dto.MultiAnswerLogic.exitTicketStars(s))) else index += 1 }
                 e is StopEvent.Completed -> { val s = stars + e.stars; stars = s; if (index == stop.questions.lastIndex) onEvent(StopEvent.Completed(quest.api.dto.MultiAnswerLogic.exitTicketStars(s))) else { index += 1; onEvent(StopEvent.Speak(stop.questions[index].speak)) } }
                 else -> onEvent(e)

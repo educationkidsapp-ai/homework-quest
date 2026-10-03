@@ -15,6 +15,7 @@ import quest.core.mvi.MviViewModel
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.content.domain.JourneyRepository
 import quest.feature.content.domain.LessonRepository
+import quest.feature.content.domain.PendingAnswersSync
 import quest.feature.content.domain.SubmitOutcome
 import quest.feature.journey.presentation.JourneyContract.Effect
 import quest.feature.journey.presentation.JourneyContract.Intent
@@ -81,12 +82,22 @@ class StopPlayerViewModel(
     private val lessons: LessonRepository, private val journey: JourneyRepository, private val children: ChildrenRepository, private val media: ContentApi, private val copy: LessonCopy,
     /** M3: the sitting as the system shows it outside the app (Live Activity / ongoing notification). */
     private val sitting: ExamSittingPresenter = NoExamSittingPresenter, private val windows: ExamWindows = ExamWindows(), private val now: () -> Long = { 0L },
+    /** M4 (D3): delivers what is kept offline as soon as the network is back; the screen listens for its answer. */
+    private val sync: PendingAnswersSync? = null,
 ) : MviViewModel<PlayerContract.State, PlayerContract.Intent, PlayerContract.Effect>(PlayerContract.State(index = startIndex)) {
 
     private var childId = ""
-    init { dispatch(PlayerContract.Intent.Load) }
+    init {
+        dispatch(PlayerContract.Intent.Load)
+        // "Sending your answers…" no longer waits for a tap: once the sync has had an answer from the server about this
+        // paper, the screen asks again, and only a delivered paper becomes "Submitted".
+        sync?.let { s -> launch { s.settled.collect { if (lessonId in it && current.phase == PlayerContract.Phase.SENDING) dispatch(PlayerContract.Intent.SendAgain) } } }
+    }
 
-    companion object { /** How long "Answer saved" stays up — one value for every answer. */ const val EXAM_ACKNOWLEDGE_MILLIS = 1_200L }
+    companion object {
+        /** How long "Answer saved" stays up — one value for every answer. */ const val EXAM_ACKNOWLEDGE_MILLIS = 1_200L
+        /** How often the closing time is re-measured against the clock while a sitting is open. */ const val WINDOW_CHECK_MILLIS = 15_000L
+    }
 
     override suspend fun handle(intent: PlayerContract.Intent) {
         when (intent) {
@@ -97,6 +108,8 @@ class StopPlayerViewModel(
             PlayerContract.Intent.TryAgain -> if (!current.exam) { reduce { copy(phase = PlayerContract.Phase.STOP) }; current.stop?.let { effect(PlayerContract.Effect.Speak(it.speak)) } }
             PlayerContract.Intent.Advance -> advance()
             PlayerContract.Intent.SendAgain -> if (current.phase == PlayerContract.Phase.SENDING) finish()
+            PlayerContract.Intent.WindowClosed -> windowClosed()
+            is PlayerContract.Intent.QuestionAnswered -> questionAnswered(intent)
             PlayerContract.Intent.ReadAloud -> effect(PlayerContract.Effect.Speak(if (current.phase == PlayerContract.Phase.HINT) current.hint else current.stop?.speak ?: ""))
             is PlayerContract.Intent.Speak -> effect(PlayerContract.Effect.Speak(intent.text))
         }
@@ -115,9 +128,11 @@ class StopPlayerViewModel(
         val progress = journey.progress(child.id, lessonId, play.level, play.variant)
         // §8: a sitting resumes at the first unanswered question, wherever the route pointed — an answered one is never reopened.
         val index = if (exam) play.stops.indexOfFirst { it.id !in progress.stops } else startIndex
-        reduce { copy(phase = PlayerContract.Phase.STOP, lesson = lesson, play = play, index = index.coerceAtLeast(0), stopStars = progress.stops, childName = child.name, exam = exam) }
+        // Known before the first question is drawn: a half-done exit ticket opens at its next question, not its first.
+        val answeredQuestions = if (exam) journey.answeredQuestions(child.id, lessonId) else emptySet()
+        reduce { copy(phase = PlayerContract.Phase.STOP, lesson = lesson, play = play, index = index.coerceAtLeast(0), stopStars = progress.stops, childName = child.name, exam = exam, answeredQuestions = answeredQuestions) }
         if (exam && index < 0) { finish(); return }
-        if (exam) showSitting()
+        if (exam) { showSitting(); watchWindow() }
         current.stop?.let { effect(PlayerContract.Effect.Speak(it.speak)) }
     }
 
@@ -151,7 +166,9 @@ class StopPlayerViewModel(
     private suspend fun onCompleted(stars: Int, answer: String, mistakes: Int, recording: ByteArray?, drawing: String?, correct: Boolean) {
         val stop = current.stop ?: return
         if (current.exam && (current.phase != PlayerContract.Phase.STOP || stop.id in current.stopStars)) return
-        record(stop.id, stars, answer, correct || !current.exam, 1, mistakes, recording, drawing)
+        // A sealed paper's answers, and an exam's exit ticket (graded by its questions), claim nothing locally.
+        if (sealed || (current.exam && stop.category == StopCategory.EXIT)) record(stop.id, 0, answer, false, 1, 0, recording, drawing)
+        else record(stop.id, stars, answer, correct || !current.exam, 1, mistakes, recording, drawing)
         if (recording != null) launch { runCatching { media.uploadStopMedia(childId, stop.id, UploadFile("${stop.id}.m4a", "audio/mp4", recording), MediaKind.RECORDING) } }
         if (drawing != null) launch { runCatching { media.uploadStopMedia(childId, stop.id, UploadFile("${stop.id}.json", "application/json", drawing.encodeToByteArray()), MediaKind.DRAWING) } }
         if (current.exam) { acknowledge(); return }
@@ -160,10 +177,31 @@ class StopPlayerViewModel(
         launch { delay(1400); dispatch(PlayerContract.Intent.Advance) }
     }
 
+    /**
+     * An exam's exit ticket is scored by the server question by question (`AnswerKey.index`, `Scoring` flattens the
+     * ticket), so each of its questions goes up as an attempt of its own — the wrapper's completion follows when the
+     * ticket is finished. Nothing changes on screen: the ticket moves on in silence.
+     */
+    private suspend fun questionAnswered(i: PlayerContract.Intent.QuestionAnswered) {
+        val stop = current.stop ?: return
+        val lesson = current.lesson ?: return; val play = current.play ?: return
+        if (!current.exam || stop.category != StopCategory.EXIT || current.phase != PlayerContract.Phase.STOP || stop.id in current.stopStars) return
+        if (i.questionId in current.answeredQuestions) return
+        reduce { copy(answeredQuestions = answeredQuestions + i.questionId) }
+        // Recorded neutrally, like every exam answer the server grades: the ticket's own right/wrong is not sent.
+        journey.recordAnswer(childId, lesson, play, i.questionId, i.answer, correct = false, stars = 0)
+    }
+
+    /**
+     * B3: a sealed paper's key fields are placeholders, so nothing the stop worked out about right or wrong means
+     * anything — the answer is recorded with no claim (`correct` false, no stars) and the server grades it.
+     */
+    private val sealed: Boolean get() = current.exam && current.play?.sealed == true
+
     /** One answer of a single-answer exam question; a second tap on the same question is ignored. */
     private suspend fun examAnswer(stopId: String, stars: Int, answer: String, correct: Boolean) {
         if (current.phase != PlayerContract.Phase.STOP || stopId in current.stopStars) return
-        record(stopId, stars, answer, correct, 1, if (correct) 0 else 1)
+        if (sealed) record(stopId, 0, answer, false, 1, 0) else record(stopId, stars, answer, correct, 1, if (correct) 0 else 1)
         acknowledge()
     }
 
@@ -183,6 +221,37 @@ class StopPlayerViewModel(
             SubmitOutcome.CLOSED -> { sitting.end(); reduce { copy(phase = PlayerContract.Phase.DONE, refusal = outcome) }; effect(PlayerContract.Effect.Finished(lessonId, level, variant)) }
             SubmitOutcome.SENT, SubmitOutcome.QUEUED -> launch { delay(EXAM_ACKNOWLEDGE_MILLIS); dispatch(PlayerContract.Intent.Advance) }
         }
+    }
+
+    /**
+     * M4 (D8): the window's end, from the same [ExamWindows] the Live Activity reads, judged by the server's clock. The
+     * screen shows it as a time of day; when it has passed, the sitting stops taking answers and ends on the submitted
+     * screen. The wait is re-measured against the clock in steps, so a device that slept does not answer late.
+     */
+    private fun watchWindow() {
+        val closes = windows.closesAt(lessonId, now()) ?: return
+        reduce { copy(closesAt = closes) }
+        launch {
+            while (true) {
+                val left = closes - now()
+                if (left <= 0) break
+                delay(left.coerceAtMost(WINDOW_CHECK_MILLIS))
+            }
+            dispatch(PlayerContract.Intent.WindowClosed)
+        }
+    }
+
+    /**
+     * The window has shut. Whatever is on screen is left unanswered; what was given goes up once more — a server that
+     * still takes it (its clock, not this one, decides) gets it, and one that refuses keeps it queued for a re-opening
+     * — and the sitting ends on the submitted screen, which says the exam closed and what did not reach the teacher.
+     */
+    private suspend fun windowClosed() {
+        if (!current.exam || current.phase == PlayerContract.Phase.DONE || current.phase == PlayerContract.Phase.REFUSED) return
+        reduce { copy(phase = PlayerContract.Phase.DONE, refusal = SubmitOutcome.CLOSED) }
+        journey.submit(childId, lessonId)
+        sitting.end()
+        effect(PlayerContract.Effect.Finished(lessonId, level, variant))
     }
 
     /** Title, student, how many are answered — never how — and, when the window's end is known, the time it closes. */
@@ -208,7 +277,7 @@ class StopPlayerViewModel(
         if (current.exam) {
             reduce { copy(phase = PlayerContract.Phase.DONE) }
             when (val outcome = journey.submit(childId, lessonId)) {
-                SubmitOutcome.QUEUED -> { reduce { copy(phase = PlayerContract.Phase.SENDING) }; return }
+                SubmitOutcome.QUEUED -> { reduce { copy(phase = PlayerContract.Phase.SENDING) }; sync?.nudge(); return }
                 SubmitOutcome.CLOSED -> { sitting.end(); reduce { copy(refusal = outcome) }; effect(PlayerContract.Effect.Finished(lessonId, level, variant)); return }
                 SubmitOutcome.SENT, SubmitOutcome.ALREADY_TAKEN -> sitting.end()
             }
@@ -236,6 +305,8 @@ class StopPlayerViewModel(
         val next = play.stops.indices.firstOrNull { it > current.index && play.stops[it].id !in current.stopStars }
             ?: play.stops.indices.firstOrNull { play.stops[it].id !in current.stopStars }
         if (current.phase == PlayerContract.Phase.REFUSED) return
+        // The window shut while "Answer saved" was up: the sitting is over, nothing more opens.
+        if (current.phase == PlayerContract.Phase.DONE && current.refusal == SubmitOutcome.CLOSED) return
         if (next == null) finish() else {
             reduce { copy(phase = PlayerContract.Phase.STOP, index = next) }
             effect(PlayerContract.Effect.Speak(play.stops[next].speak))

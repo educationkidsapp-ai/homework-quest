@@ -22,6 +22,8 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import io.ktor.http.fromHttpToGmtDate
+import quest.core.platform.ServerClock
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.datetime.LocalDate
 import quest.api.ApiException
@@ -120,6 +122,16 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
     override suspend fun markBroadcastRead(childId: String, broadcastId: String): BroadcastView =
         call { client.post("$baseUrl/children/$childId/broadcasts/$broadcastId/read") { authed() } }
 
+    // ---- B3: the parent's own notification rows — the same `/me/notifications` routes as the dashboard bell.
+    override suspend fun notifications(unread: Boolean?, limit: Int?): List<quest.api.dto.NotificationView> =
+        call { client.get("$baseUrl/me/notifications") { authed(); unread?.let { parameter("unread", it) }; limit?.let { parameter("limit", it) } } }
+
+    override suspend fun unreadNotificationCount(): quest.api.dto.UnreadCount = call { client.get("$baseUrl/me/notifications/unread-count") { authed() } }
+
+    override suspend fun markNotificationRead(id: String): quest.api.dto.NotificationView = call { client.post("$baseUrl/me/notifications/$id/read") { authed() } }
+
+    override suspend fun markAllNotificationsRead(): quest.api.dto.UnreadCount = call { client.post("$baseUrl/me/notifications/read-all") { authed() } }
+
     // ---- MH1/MH3: the weekly-plan archive and the parent's own account
     override suspend fun childWeeklyPlans(childId: String, from: String?, to: String?): quest.api.dto.WeeklyPlanArchive =
         call {
@@ -185,6 +197,8 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
 
     private suspend inline fun <reified T> call(block: () -> HttpResponse): T {
         val response = try { block() } catch (e: ApiException) { throw e } catch (e: Exception) { throw ApiException(ApiError(ApiError.NETWORK, e.message ?: "network"), e) }
+        // M4 (D8): every answer carries the server's time; the exam window is judged against it, not the tablet's clock.
+        response.headers[HttpHeaders.Date]?.let { runCatching { it.fromHttpToGmtDate().timestamp }.getOrNull() }?.let { ServerClock.observe(it) }
         if (!response.status.isSuccess()) throw response.toException()
         return response.body()
     }

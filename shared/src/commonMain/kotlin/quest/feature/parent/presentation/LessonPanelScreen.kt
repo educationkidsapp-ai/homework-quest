@@ -112,8 +112,12 @@ fun LessonPanelScreen(lesson: PublishedLesson, s: Strings, media: List<StopMedia
             play.stops.forEach { stop ->
                 ParentCard(Modifier.padding(top = Dimens.s8)) {
                     Text(stop.title, style = MaterialTheme.typography.titleMedium, color = DashboardTokens.ink)
-                    Text(if (ar) stop.parentTip.ar else stop.parentTip.en, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft)
-                    panel.modelAnswers.firstOrNull { it.stopId == stop.id }?.let { Spacer(Modifier.height(Dimens.s4)); Text("✔ ${it.en}", style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.ink) }
+                    // A sealed exam paper (B3) carries placeholders ("…") for the tips and model answers until release:
+                    // nothing of them is drawn while `sealed`, and an empty one is not drawn either.
+                    if (play.sealed != true) {
+                        (if (ar) stop.parentTip.ar else stop.parentTip.en).takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft) }
+                        panel.modelAnswers.firstOrNull { it.stopId == stop.id && it.en.isNotBlank() }?.let { Spacer(Modifier.height(Dimens.s4)); Text("✔ ${it.en}", style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.ink) }
+                    }
                     result?.stops?.firstOrNull { it.stopId == stop.id }?.let { sr ->
                         Spacer(Modifier.height(Dimens.s4))
                         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {

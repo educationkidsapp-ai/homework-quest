@@ -34,6 +34,9 @@ import quest.feature.parent.domain.ProgressReportUseCase
 import quest.feature.parent.domain.ReleasedResultsUseCase
 import quest.feature.parent.domain.SkillReport
 import quest.feature.parent.domain.epochToDate
+import quest.core.platform.Today
+import quest.core.text.isolate
+import quest.core.text.longDate
 import quest.ui.design.DashboardPill
 import quest.ui.design.DashboardPillVariant
 import quest.ui.design.DashboardTokens
@@ -140,7 +143,7 @@ fun ProgressScreen(state: ProgressContract.State, s: Strings) {
                     )
                 }
                 Text(
-                    "${r.attempts} ${s.attempts}" + (r.lastPractised?.let { " · ${s.lastPractised} ${epochToDate(it).dayOfMonth}/${epochToDate(it).monthNumber}" } ?: ""),
+                    "${r.attempts} ${s.attempts}" + (r.lastPractised?.let { " · ${s.lastPractised} ${longDate(epochToDate(it), s.months, Today.date().year)}" } ?: ""),
                     style = MaterialTheme.typography.bodySmall,
                     color = DashboardTokens.inkSoft,
                 )
@@ -166,8 +169,8 @@ private fun ReleasedResults(results: List<ReleasedResult>, s: Strings) {
                     Text(meta.emoji, fontSize = 20.sp)
                     Spacer(Modifier.width(8.dp))
                     Column {
-                        Text(r.title ?: s.lessonPanel, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), color = DashboardTokens.inkStrong)
-                        Text("${r.date.dayOfMonth}/${r.date.monthNumber}", style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
+                        Text(r.title?.let(::isolate) ?: s.lessonPanel, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), color = DashboardTokens.inkStrong)
+                        Text(longDate(r.date, s.months, Today.date().year), style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
                     }
                 }
                 r.score?.let {
@@ -188,7 +191,7 @@ private fun ReleasedResults(results: List<ReleasedResult>, s: Strings) {
             }
             r.comment?.takeIf { it.isNotBlank() }?.let {
                 Spacer(Modifier.height(8.dp))
-                Text(it, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.ink)
+                Text(isolate(it), style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.ink)
             }
             val stopNotesOrFaults = r.stops.filter { !it.comment.isNullOrBlank() || !it.correct }
             if (stopNotesOrFaults.isNotEmpty()) {
@@ -203,13 +206,13 @@ private fun ReleasedResults(results: List<ReleasedResult>, s: Strings) {
                         Spacer(Modifier.width(6.dp))
                         Column {
                             Text(
-                                stop.title,
+                                isolate(stop.title),
                                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                                 color = DashboardTokens.inkStrong,
                             )
                             stop.comment?.takeIf { it.isNotBlank() }?.let { note ->
                                 Text(
-                                    note,
+                                    isolate(note),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = DashboardTokens.inkSoft,
                                 )

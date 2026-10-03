@@ -32,6 +32,7 @@ import quest.core.mvi.MviState
 import quest.core.mvi.MviViewModel
 import quest.feature.chat.domain.ChatRepository
 import quest.feature.chat.domain.applyStatus
+import quest.feature.chat.domain.applyPresence
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.parent.presentation.ParentButton
 import quest.feature.parent.presentation.ParentCard
@@ -107,6 +108,8 @@ class ChatThreadsViewModel(
             chat.incomingFrames.collect { frame ->
                 when (frame) {
                     is ChatFrame.Status -> reduce { copy(threads = applyStatus(threads, frame.threadId, frame.status, frame.at)) }
+                    // M4 (D6): keeps the snapshot a conversation opens with current.
+                    is ChatFrame.Presence -> frame.userId?.let { id -> reduce { copy(threads = applyPresence(threads, id, frame.online)) } }
                     is ChatFrame.Message, is ChatFrame.Read -> {
                         val child = children.currentChild.value ?: return@collect
                         runCatching {

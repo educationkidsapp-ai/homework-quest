@@ -34,6 +34,7 @@ import quest.api.dto.MapResponse
 import quest.api.dto.Play
 import quest.api.dto.ProgressResponse
 import quest.api.dto.PublishedLesson
+import quest.api.dto.ReleasedResult
 import quest.api.dto.PublishedLessonSummary
 import quest.api.dto.StopCategory
 import quest.api.dto.Subject
@@ -49,6 +50,11 @@ import quest.feature.content.domain.JourneyRepository
 import quest.feature.content.domain.LessonRepository
 import quest.feature.content.domain.LevelProgress
 import quest.feature.content.domain.MapRepository
+import quest.feature.content.domain.PendingAnswersSync
+import quest.feature.today.domain.ExamWindows
+import quest.feature.content.domain.ChildResult
+import quest.feature.content.domain.ChildResultsUseCase
+import quest.core.platform.ManualConnectivity
 import quest.feature.content.domain.StopMediaRecord
 import quest.feature.content.domain.SubmitOutcome
 import quest.feature.journey.presentation.JourneyContract
@@ -58,6 +64,7 @@ import quest.feature.journey.presentation.LessonStrings
 import quest.feature.journey.presentation.PlayerContract
 import quest.feature.journey.presentation.PlayerContract.Phase
 import quest.feature.journey.presentation.StopPlayerViewModel
+import quest.feature.journey.presentation.ExamResultViewModel
 import quest.feature.journey.presentation.isExam
 import quest.feature.journey.presentation.playFor
 import quest.feature.map.presentation.ExamStatus
@@ -137,9 +144,10 @@ class ExamModeTest {
         var unsent = 0
         override suspend fun submit(childId: String, lessonId: String): SubmitOutcome { submits++; if (outcome == SubmitOutcome.SENT || outcome == SubmitOutcome.ALREADY_TAKEN) unsent = 0; return outcome }
         override suspend fun pendingCount(childId: String, lessonId: String): Int = unsent
-        override suspend fun pending(childId: String): Map<String, Int> = if (unsent > 0) mapOf("exam" to unsent) else emptyMap()
+        override suspend fun pending(childId: String): Map<String, Int> = if (unsent > 0) mapOf(HotSoupSeed.lesson.id to unsent) else emptyMap()
         override suspend fun firstTryResults(childId: String, skillId: String, excludeLessons: Set<String>): List<Boolean> = emptyList()
-        override suspend fun progressReport(childId: String): ProgressResponse? = null
+        var report: ProgressResponse? = null
+        override suspend fun progressReport(childId: String): ProgressResponse? = report
     }
 
     private val db = Db(DriverFactory(null))
@@ -160,8 +168,11 @@ class ExamModeTest {
         block()
     }
 
-    private fun TestScope.player(journey: FakeJourney, lesson: PublishedLesson = exam, startIndex: Int = 0): Pair<StopPlayerViewModel, MutableList<PlayerContract.Effect>> {
-        val vm = StopPlayerViewModel(lesson.id, 1, 0, startIndex, FakeLessons(lesson), journey, FakeChildren(maya), media, copy).also { built.add(it) }
+    private fun TestScope.player(
+        journey: FakeJourney, lesson: PublishedLesson = exam, startIndex: Int = 0, sync: PendingAnswersSync? = null,
+        windows: ExamWindows = ExamWindows(), now: () -> Long = { 0L },
+    ): Pair<StopPlayerViewModel, MutableList<PlayerContract.Effect>> {
+        val vm = StopPlayerViewModel(lesson.id, 1, 0, startIndex, FakeLessons(lesson), journey, FakeChildren(maya), media, copy, windows = windows, now = now, sync = sync).also { built.add(it) }
         val effects = mutableListOf<PlayerContract.Effect>()
         backgroundScope.launch { vm.effects.collect { effects += it } }
         runCurrent()
@@ -457,6 +468,28 @@ class ExamModeTest {
         assertFalse(state.examClosed); assertEquals(0, state.undelivered)
     }
 
+    /** M4 (D3): back online, the paper is handed in by itself — "Sending your answers…" waits for no tap. */
+    @Test fun aPaperLeftSendingIsSubmittedByItselfWhenTheNetworkReturns() = examTest {
+        val last = paper.stops.lastIndex
+        val journey = answeredUpTo(last).apply { outcome = SubmitOutcome.QUEUED }
+        val net = ManualConnectivity(initial = false)
+        val sync = PendingAnswersSync(net, journey, FakeChildren(maya))
+        sync.start(backgroundScope)
+        val (vm, effects) = player(journey, sync = sync)
+        vm.dispatch(PlayerContract.Intent.Completed(stars = 2, answer = "x", mistakes = 0, correct = true))
+        advanceTimeBy(10_000); runCurrent()
+        assertEquals(Phase.SENDING, vm.state.value.phase)
+        assertEquals(0, journey.completed)
+
+        journey.outcome = SubmitOutcome.SENT                      // the network comes back; nobody taps anything
+        net.set(true)
+        advanceTimeBy(1_000); runCurrent()
+
+        assertEquals(Phase.DONE, vm.state.value.phase)
+        assertEquals(1, journey.completed, "handed in once, and only after the server took the answers")
+        assertEquals(PlayerContract.Effect.Finished(exam.id, 1, 0), effects.last())
+    }
+
     @Test fun theWindowClosingOnUnsentAnswersSaysHowManyWereNotDelivered() = examTest {
         val last = paper.stops.lastIndex
         val journey = answeredUpTo(last).apply { outcome = SubmitOutcome.QUEUED; unsent = 2 }      // two earlier answers given offline
@@ -537,10 +570,14 @@ class ExamModeTest {
         assertNull(examCard(island(IslandState.DONE), opens, zone, en, months, true).left)
     }
 
-    private fun TestScope.home(island: Island, now: Long): Pair<MapViewModel, List<MapContract.Effect>> {
+    private var mapLoads = 0
+
+    private fun TestScope.home(island: Island, now: Long, journey: FakeJourney = FakeJourney()): Pair<MapViewModel, List<MapContract.Effect>> {
         val maps = object : MapRepository {
-            override suspend fun map(child: Child, from: LocalDate, to: LocalDate, today: LocalDate) =
-                MapResponse(child.id, HotSoupSeed.lesson.course, from, to, today, listOf(island))
+            override suspend fun map(child: Child, from: LocalDate, to: LocalDate, today: LocalDate): MapResponse {
+                mapLoads++
+                return MapResponse(child.id, HotSoupSeed.lesson.course, from, to, today, listOf(island))
+            }
         }
         val rewards = object : RewardsRepository {
             override suspend fun stickers(): List<Sticker> = emptyList()
@@ -548,7 +585,7 @@ class ExamModeTest {
             override suspend fun streak(): Streak = Streak(0, null)
             override suspend fun saveStreak(streak: Streak) {}
         }
-        val vm = MapViewModel(FakeChildren(maya), maps, FakeJourney(), rewards, copy, FakeLessons(exam), now = { now }).also { built.add(it) }
+        val vm = MapViewModel(FakeChildren(maya), maps, journey, rewards, copy, FakeLessons(exam), now = { now }, childResults = ChildResultsUseCase(journey)).also { built.add(it) }
         val effects = mutableListOf<MapContract.Effect>()
         backgroundScope.launch { vm.effects.collect { effects += it } }
         vm.dispatch(MapContract.Intent.Load); runCurrent()
@@ -566,5 +603,125 @@ class ExamModeTest {
         val (vm, effects) = home(island(window = null), opens + 1)
         assertEquals(setOf(exam.id), vm.state.value.exams)
         assertEquals(listOf<MapContract.Effect>(MapContract.Effect.Speak(en.examNeedsConnection)), effects)
+    }
+
+    // ---------------------------------------------------------------- M4: the released result (D4), "Continue" (D9)
+
+    private val released = ReleasedResult(exam.id, exam.title, LocalDate(2026, 10, 2), Subject.ENGLISH, score = 60, band = "secure", comment = "Good effort, Hala.", releasedAt = 1_790_000_000_000L)
+    private fun report(vararg results: ReleasedResult) = ProgressResponse(maya.id, emptyList(), emptyList(), 0, null, emptyList(), results.toList())
+
+    @Test fun afterReleaseTheChildSeesHerResultOnTheCardAndOpensIt() = examTest {
+        val journey = FakeJourney().apply { report = report(released) }
+        val (vm, effects) = home(island(IslandState.DONE), opens + 1, journey)
+        val marked = vm.state.value.marked.getValue(exam.id)
+        assertEquals("secure", marked.band); assertEquals("Good effort, Hala.", marked.comment)
+        assertEquals(listOf<MapContract.Effect>(MapContract.Effect.OpenResult(exam.id)), effects)
+
+        val card = examCard(island(IslandState.DONE), opens + 1, TimeZone.UTC, en, emptyList(), true, marked = marked)
+        assertEquals(ExamStatus.RELEASED, card.status)
+        assertEquals("Marked by your teacher · Secure", card.line)
+        assertFalse(card.line.contains("60"), "§7: no score out of 100 on a child's screen")
+        assertEquals(en.examSeeResult, card.action)
+        assertFalse(card.status.canSit, "a released exam is never sat again")
+    }
+
+    @Test fun beforeReleaseTheCardStillSaysTheTeacherWillShareIt() = examTest {
+        val journey = FakeJourney().apply { report = report(released.copy(lessonId = "another-lesson")) }
+        val (vm, effects) = home(island(IslandState.DONE), opens + 1, journey)
+        assertTrue(vm.state.value.marked.isEmpty(), "only this page's exams, and only released ones")
+        assertEquals(listOf<MapContract.Effect>(MapContract.Effect.Speak(en.examAlreadyTaken)), effects)
+    }
+
+    @Test fun theResultScreenShowsLevelAndComment_neverTheScore() = examTest {
+        val journey = FakeJourney().apply { report = report(released) }
+        val vm = ExamResultViewModel(exam.id, FakeChildren(maya), ChildResultsUseCase(journey), copy).also { built.add(it) }
+        runCurrent()
+        assertEquals(ChildResult(exam.id, exam.title, Subject.ENGLISH, LocalDate(2026, 10, 2), "secure", "Good effort, Hala.", released.releasedAt), vm.state.value.result)
+        val missing = ExamResultViewModel("nope", FakeChildren(maya), ChildResultsUseCase(journey), copy).also { built.add(it) }
+        runCurrent()
+        assertNull(missing.state.value.result)
+        assertFalse(missing.state.value.loading)
+    }
+
+    @Test fun aPartlySatExamSaysContinue_aFreshOneSaysStart() = examTest {
+        val (fresh, _) = home(island(), opens + 1)
+        assertTrue(exam.id !in fresh.state.value.startedExams)
+        assertEquals(en.startExam, examCard(island(), opens + 1, TimeZone.UTC, en, emptyList(), true, started = false).action)
+
+        val (partly, _) = home(island(), opens + 1, answeredUpTo(2))
+        assertTrue(exam.id in partly.state.value.startedExams)
+        assertEquals(en.continueExam, examCard(island(), opens + 1, TimeZone.UTC, en, emptyList(), true, started = true).action)
+    }
+
+    @Test fun pullingDownLoadsTheHomePageAgain() = examTest {
+        val (vm, _) = home(island(), opens + 1)
+        val before = mapLoads
+        vm.dispatch(MapContract.Intent.Refresh); runCurrent()
+        assertEquals(before + 1, mapLoads)
+        assertFalse(vm.state.value.refreshing)
+    }
+
+    // ---------------------------------------------------------------- M4 (D8): the window's end, by the server's clock
+
+    private val serverBase = 1_790_000_000_000L
+    private fun TestScope.serverNow(): () -> Long = { serverBase + testScheduler.currentTime }
+
+    @Test fun anOpenSittingSaysWhenItCloses_andStopsTakingAnswersWhenItHas() = examTest {
+        val closesAt = serverBase + 10 * 60_000L
+        val windows = ExamWindows().apply { remember(mapOf(exam.id to closesAt), at = serverBase) }
+        val journey = answeredUpTo(firstSingle)
+        val (vm, effects) = player(journey, windows = windows, now = serverNow())
+        assertEquals(closesAt, vm.state.value.closesAt, "the same window the Live Activity reads")
+        assertEquals(Phase.STOP, vm.state.value.phase)
+
+        advanceTimeBy(10 * 60_000L - 1); runCurrent()
+        assertEquals(Phase.STOP, vm.state.value.phase, "still open a moment before")
+        advanceTimeBy(1); runCurrent()
+
+        assertEquals(Phase.DONE, vm.state.value.phase)
+        assertEquals(SubmitOutcome.CLOSED, vm.state.value.refusal)
+        assertEquals(PlayerContract.Effect.Finished(exam.id, 1, 0), effects.last())
+        assertEquals(0, journey.completed, "not marked handed in: the teacher can still re-open it")
+
+        vm.dispatch(PlayerContract.Intent.Correct(1, "a")); runCurrent()       // a tap that arrives too late
+        assertTrue(journey.recorded.isEmpty(), "no answer is taken after the window has closed")
+    }
+
+    @Test fun aReopenedSittingClaimsNoClosingTime_andIsNotClosedByTheApp() = examTest {
+        val closedEarlier = serverBase - 60_000L
+        val windows = ExamWindows().apply { remember(mapOf(exam.id to closedEarlier), at = serverBase) }
+        val (vm, _) = player(answeredUpTo(firstSingle), windows = windows, now = serverNow())
+        assertNull(vm.state.value.closesAt)
+        advanceTimeBy(3 * 60 * 60_000L); runCurrent()
+        assertEquals(Phase.STOP, vm.state.value.phase, "the server, not the app, ends a re-opened sitting")
+    }
+
+    /** Review of #197: the home page judges an exam window by the server's clock, so a tablet six hours fast still sees it open. */
+    @Test fun aFastDeviceClockDoesNotCloseAnOpenExam() = examTest {
+        val device = quest.core.platform.Today.epochMillis()
+        val server = device - 6 * 3_600_000L
+        quest.core.platform.ServerClock.observe(serverMillis = server, deviceMillis = device)
+        try {
+            val window = ExamWindow(server - 3_600_000L, server + 90 * 60_000L)
+            val maps = object : MapRepository {
+                override suspend fun map(child: Child, from: LocalDate, to: LocalDate, today: LocalDate) =
+                    MapResponse(child.id, HotSoupSeed.lesson.course, from, to, today, listOf(island(window = window)))
+            }
+            val rewards = object : RewardsRepository {
+                override suspend fun stickers(): List<Sticker> = emptyList()
+                override suspend fun addSticker(key: String): Sticker = Sticker("s", key, 0)
+                override suspend fun streak(): Streak = Streak(0, null)
+                override suspend fun saveStreak(streak: Streak) {}
+            }
+            // No clock passed: the view model's own default must be the server's.
+            val vm = MapViewModel(FakeChildren(maya), maps, FakeJourney(), rewards, copy, FakeLessons(exam)).also { built.add(it) }
+            vm.dispatch(MapContract.Intent.Load); runCurrent()
+            val loadedAt = vm.state.value.now
+            assertTrue(kotlin.math.abs(loadedAt - server) < 60_000, "loaded at the server's time, not the device's")
+            assertEquals(ExamStatus.OPEN, examStatus(island(window = window), loadedAt))
+            assertEquals(en.examOneHourLeft, examCard(island(window = window), loadedAt, TimeZone.UTC, en, emptyList(), true).left)
+        } finally {
+            quest.core.platform.ServerClock.observe(serverMillis = quest.core.platform.Today.epochMillis())
+        }
     }
 }

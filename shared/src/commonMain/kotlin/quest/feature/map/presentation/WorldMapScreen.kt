@@ -30,6 +30,8 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -84,6 +86,7 @@ fun WorldMapRoute(
     onOpenLesson: (String, Int, Int) -> Unit,
     onGrownUps: () -> Unit,
     onNeedsChild: () -> Unit,
+    onOpenResult: (String) -> Unit = {},
     onNotifications: () -> Unit = {},
     onMessages: () -> Unit = {},
     onSettings: () -> Unit = {},
@@ -105,6 +108,7 @@ fun WorldMapRoute(
                 is Effect.Speak -> speaker.speak(e.text)
                 is Effect.OpenLesson -> onOpenLesson(e.lessonId, e.level, e.variant)
                 Effect.NeedsChild -> onNeedsChild()
+                is Effect.OpenResult -> onOpenResult(e.lessonId)
             }
         }
     }
@@ -148,6 +152,7 @@ fun WorldMapScreen(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FormalStudentScreen(
     state: State,
@@ -161,6 +166,8 @@ fun FormalStudentScreen(
 ) {
     var selectedSubject by remember { mutableStateOf<Subject?>(null) }
     val rtl = strings.isRtl
+    // The result screen sits behind `exams`; without the flag the card keeps saying the teacher will share it.
+    val examsEnabled = featureEnabled(Flags.EXAMS)
 
     AcademicTheme(rtl = rtl) {
         if (state.loading) {
@@ -318,6 +325,8 @@ fun FormalStudentScreen(
                             }
                         }
                     } else {
+                        // M4 (D9): a pull asks the server again — a newly published exam appears without leaving the page.
+                        PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = { dispatch(Intent.Refresh) }, modifier = Modifier.fillMaxSize()) {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -326,7 +335,10 @@ fun FormalStudentScreen(
                             items(filteredIslands, key = { it.id }) { island ->
                                 if (island.lessonId in state.exams) ExamCourseworkCard(
                                     island = island,
-                                    card = examCard(island, state.now, TimeZone.currentSystemDefault(), if (strings.isRtl) LessonStrings.ar else LessonStrings.en, strings.months, shortMonths = !strings.isRtl),
+                                    card = examCard(
+                                        island, state.now, TimeZone.currentSystemDefault(), if (strings.isRtl) LessonStrings.ar else LessonStrings.en, strings.months, shortMonths = !strings.isRtl,
+                                        marked = state.marked[island.lessonId]?.takeIf { examsEnabled }, started = island.lessonId in state.startedExams,
+                                    ),
                                     strings = strings,
                                     onOpen = { dispatch(Intent.TapIsland(island.id)) },
                                 ) else FormalCourseworkCard(
@@ -335,6 +347,7 @@ fun FormalStudentScreen(
                                     onOpen = { dispatch(Intent.TapIsland(island.id)) },
                                 )
                             }
+                        }
                         }
                     }
                 }
@@ -465,17 +478,18 @@ private fun FormalCourseworkCard(
 
 /**
  * §8: an exam on the student home. It says when the window closes and roughly how long is left, opens only while the
- * window is open, and once handed in says so and nothing else — no stars, no score: the result is the teacher's to
- * release, and it is shown in the parent area.
+ * window is open, and once handed in says so and nothing else — no stars, no score until the teacher releases the
+ * result. M4 (D4): after the release it shows the level in words (never a score — §7) and opens the result screen.
  */
 @Composable
 private fun ExamCourseworkCard(island: Island, card: ExamCard, strings: Strings, onOpen: () -> Unit) {
     val ls = if (strings.isRtl) LessonStrings.ar else LessonStrings.en
     val meta = SubjectMeta.of(island.subject)
     val open = card.status.canSit
+    val released = card.status == ExamStatus.RELEASED
     DashboardCard(
         modifier = Modifier.semantics(mergeDescendants = true) {},
-        onClick = if (open) onOpen else null,
+        onClick = if (open || released) onOpen else null,
         borderColor = if (open) DashboardTokens.secondary else MaterialTheme.colorScheme.outline,
     ) {
         Column {
@@ -489,20 +503,24 @@ private fun ExamCourseworkCard(island: Island, card: ExamCard, strings: Strings,
                     ExamStatus.OPEN -> card.left?.let { DashboardPill(text = it, variant = DashboardPillVariant.INFO) }
                     ExamStatus.REOPENED -> DashboardPill(text = ls.examReopenedShort, variant = DashboardPillVariant.INFO)
                     ExamStatus.SUBMITTED -> DashboardPill(text = ls.examSubmittedShort, variant = DashboardPillVariant.NEUTRAL)
+                    ExamStatus.RELEASED -> DashboardPill(text = ls.examMarkedShort, variant = DashboardPillVariant.SUCCESS)
                     ExamStatus.UNAVAILABLE -> DashboardPill(text = ls.examClosedShort, variant = DashboardPillVariant.NEUTRAL)
                 }
             }
             Spacer(Modifier.height(10.dp))
             Text(
                 island.title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 16.sp),
-                color = if (open) DashboardTokens.inkStrong else DashboardTokens.inkMuted, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                color = if (open || released) DashboardTokens.inkStrong else DashboardTokens.inkMuted, maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(card.line, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft, modifier = Modifier.weight(1f))
-                if (open) {
+                card.action?.let { action ->
                     Spacer(Modifier.width(8.dp))
-                    DashboardButton(text = ls.startExam, onClick = onOpen, variant = DashboardButtonVariant.PRIMARY, modifier = Modifier.width(130.dp), height = 36.dp)
+                    DashboardButton(
+                        text = action, onClick = onOpen, variant = if (released) DashboardButtonVariant.SECONDARY else DashboardButtonVariant.PRIMARY,
+                        modifier = Modifier.width(150.dp), height = 36.dp,
+                    )
                 }
             }
         }
