@@ -165,7 +165,8 @@ fun OrderStop(stop: Stop.Order, onEvent: (StopEvent) -> Unit, modifier: Modifier
         PromptText(stop.prompt); Spacer(Modifier.height(Dimens.s12))
         // slots
         Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            stop.correctOrder.indices.forEach { i ->
+            // One slot per card. A sealed exam paper (B3) carries no `correctOrder`, so the cards, not the key, size it.
+            stop.items.indices.forEach { i ->
                 val id = placed.getOrNull(i)
                 Row(Modifier.fillMaxWidth().height(60.dp).background(if (i < locked) DashboardTokens.successBg else DashboardTokens.bgSubtle, RoundedCornerShape(DashboardTokens.radiusMd))
                     .clickable(enabled = id != null && i >= locked && !done) { placed = placed.filterIndexed { j, _ -> j != i } }
@@ -187,12 +188,13 @@ fun OrderStop(stop: Stop.Order, onEvent: (StopEvent) -> Unit, modifier: Modifier
                 }
             }
         }
-        CheckButton(enabled = placed.size == stop.correctOrder.size && !done) {
+        CheckButton(enabled = placed.size == stop.items.size && !done) {
             attempts += 1
             val prefix = quest.api.dto.MultiAnswerLogic.lockedPrefix(placed, stop.correctOrder)
             if (exam) {
-                // The order as placed is the answer; nothing is locked or sent back.
-                val right = prefix == stop.correctOrder.size
+                // The order as placed is the answer; nothing is locked or sent back. The server grades it — a sealed
+                // paper has no key here, and then nothing local claims it was right.
+                val right = stop.correctOrder.size == stop.items.size && prefix == stop.correctOrder.size
                 done = true
                 onEvent(StopEvent.Completed(if (right) StopScoring.byAttempts(1) else 0, answer = placed.joinToString(","), mistakes = if (right) 0 else 1, correct = right))
                 return@CheckButton
