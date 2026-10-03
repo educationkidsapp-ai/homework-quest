@@ -13,6 +13,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.time.Instant;
+import java.util.List;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -243,6 +244,11 @@ class ChatAttachmentsApiTest extends ChatTestSupport {
                 .andExpect(status().isPayloadTooLarge());
         mvc.perform(as(chatUpload(png(2, 2), "x.png"), sara).with(r -> { r.setContent(null); return r; }))
                 .andExpect(status().isLengthRequired());
+        // the path as route matching sees it, not as it was typed: percent-encoded, or with a trailing slash
+        for (String path : List.of("/media/chat%2Dattachments", "/media/chat-attachments/", "/children/" + maya + "/chat/attachments/"))
+            mvc.perform(as(multipart(java.net.URI.create(path)).file(file(png(2, 2), "x.png")), sara)
+                    .with(r -> { r.setContent(new byte[11 * 1024 * 1024]); return r; }))
+                    .andExpect(status().isPayloadTooLarge());
         assertThat(attachmentRows.findAll().stream().filter(a -> a.getSchoolId().startsWith(prefix()))).isEmpty();
     }
 

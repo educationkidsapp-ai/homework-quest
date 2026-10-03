@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.UrlPathHelper;
 import quest.server.files.AttachmentService;
 
 /**
@@ -31,11 +32,18 @@ public class ChatUploadLimit extends OncePerRequestFilter {
     static final long MAX_BODY = AttachmentService.MAX_PDF_BYTES + 512 * 1024;
     private static final Pattern PARENT_ROUTE = Pattern.compile("^/children/[^/]+/chat/attachments$");
 
+    /**
+     * B5 review: matched on the decoded, normalised path inside the application — the one route matching sees — never
+     * on the raw request URI, so `/media/chat%2Dattachments` and `/media/chat-attachments/` are caught as well.
+     */
     @Override protected boolean shouldNotFilter(HttpServletRequest request) {
-        if (!"POST".equals(request.getMethod())) return true;
-        String path = request.getRequestURI();
+        if (!"POST".equalsIgnoreCase(request.getMethod())) return true;
+        String path = PATHS.getPathWithinApplication(request);
+        while (path.length() > 1 && path.endsWith("/")) path = path.substring(0, path.length() - 1);
         return !"/media/chat-attachments".equals(path) && !PARENT_ROUTE.matcher(path).matches();
     }
+
+    private static final UrlPathHelper PATHS = new UrlPathHelper();
 
     @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {

@@ -1643,8 +1643,9 @@ the sender's browser-local id, never an `attachments` row). From B5 a message ca
    `AttachmentRef {id, name, type, sizeBytes, width?, height?}`; an image's `width` and `height` are as the viewer sees it
    (an EXIF-rotated phone photo is measured upright). **Limits checked before anything is parsed or held:** a body
    whose `Content-Length` passes 10.5 MB is `413 too_large` and one without a `Content-Length` is `411` (filter
-   `ChatUploadLimit`, ahead of the multipart parser — the application's own multipart limits are the lesson pipeline's
-   25 MB / 120 MB); the type is sniffed from the first bytes and the per-type size checked before the file is read into
+   `ChatUploadLimit`, ahead of the multipart parser, matched on the decoded path so `%2D` or a trailing slash does not slip
+   past it — the application's own multipart limits are the lesson pipeline's 25 MB / 120 MB, and
+   `spring.servlet.multipart.resolve-lazily` means no body is parsed before a handler asks for it); the type is sniffed from the first bytes and the per-type size checked before the file is read into
    memory; an image past 8192 px on a side or 40 megapixels is `400 image_too_large`; and the stored name loses line
    breaks and every bidi/format character (`Cf`), so no RTL override can disguise it.
 2. **Send** — `attachmentIds: [id…]` (at most 5) on any `POST …/messages` body or the socket's `message` command. Each must
