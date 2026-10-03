@@ -40,7 +40,7 @@ import quest.server.tenancy.TenantContext;
  */
 @Service
 public class TeachingStaffService {
-    private static final List<String> SUBJECTS = List.of("math", "english");
+    private static final List<String> SUBJECTS = List.of("math", "english", "french", "science", "religion", "arabic");
     private static final List<String> CURRICULA = List.of("american", "british");
 
     private final UserRepository users; private final TeacherRepository profiles; private final TeachingAssignmentRepository assignments;

@@ -32,7 +32,7 @@ import quest.server.tenancy.Entities.ClassEntity;
 @Service
 public class SchoolClassService {
     private static final List<String> CURRICULA = List.of("american", "british");
-    private static final List<String> SUBJECTS = List.of("math", "english");
+    private static final List<String> SUBJECTS = List.of("math", "english", "french", "science", "religion", "arabic");
 
     private final ClassRepository classes; private final UserRepository users; private final SchoolService schools;
     private final AuditService audit;

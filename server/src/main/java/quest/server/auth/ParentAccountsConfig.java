@@ -9,6 +9,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -35,6 +37,8 @@ public class ParentAccountsConfig {
 
     /** Firebase Admin: `getUserByEmail`, `createUser`, `updateUser`. Needs a credential with user-management rights. */
     static final class Firebase implements ParentAccounts {
+        private static final Logger log = LoggerFactory.getLogger(Firebase.class);
+
         @Override public Optional<Account> byEmail(String email) {
             try { return Optional.of(account(auth().getUserByEmail(email))); }
             catch (FirebaseAuthException e) {
@@ -68,8 +72,10 @@ public class ParentAccountsConfig {
 
         /** The provider's message is not the caller's business and may name the project; only the code travels. */
         private static ApiException failed(FirebaseAuthException e) {
+            log.error("Firebase auth operation failed: errorCode={}, authErrorCode={}, message={}",
+                    e.getErrorCode(), e.getAuthErrorCode(), e.getMessage(), e);
             return new ApiException(HttpStatus.BAD_GATEWAY, "upstream_error",
-                    "The parent account could not be written (" + e.getAuthErrorCode() + ").");
+                    "Could not create parent account. Please check the details and try again.");
         }
 
         private static Account account(UserRecord record) { return new Account(record.getUid(), record.getEmail()); }

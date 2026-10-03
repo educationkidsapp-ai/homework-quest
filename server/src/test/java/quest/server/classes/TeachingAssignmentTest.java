@@ -66,6 +66,20 @@ class TeachingAssignmentTest extends ClassesTestSupport {
         assertThat(renamed.get("subjects").toString()).contains("english");
     }
 
+    @Test void all_six_subjects_can_be_taught_and_assigned() throws Exception {
+        var created = json(mvc.perform(scoped(post("/admin/teachers").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"fullName\":\"Noura Science\",\"email\":\"noura@school.test\",\"subjects\":[\"science\",\"arabic\",\"french\",\"religion\"],\"curriculum\":\"british\"}"), admin, A))
+                .andExpect(status().isCreated()).andReturn());
+        String teacherId = created.get("teacher").get("userId").asText();
+        assertThat(created.get("teacher").get("subjects").toString()).contains("science", "arabic", "french", "religion");
+
+        var assigned = json(mvc.perform(scoped(put("/admin/teachers/" + teacherId + "/assignments").contentType(MediaType.APPLICATION_JSON)
+                .content(assignments(oneA + ":science", oneB + ":french")), admin, A)).andExpect(status().isOk()).andReturn());
+        assertThat(assigned).hasSize(2);
+        assertThat(assigned.get(0).get("subject").asText()).isEqualTo("science");
+        assertThat(assigned.get(1).get("subject").asText()).isEqualTo("french");
+    }
+
     /** §2's one-teacher-per-subject-per-class rule, and the refusal that names who holds the slot. */
     @Test void a_taken_class_and_subject_is_refused_by_name() throws Exception {
         String sara = teacher("Sara Al Harbi", "sara2@school.test");

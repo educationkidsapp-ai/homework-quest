@@ -7305,6 +7305,9 @@
           "parentName" : {
             "type" : "string"
           },
+          "parentPassword" : {
+            "type" : "string"
+          },
           "parentPhone" : {
             "type" : "string"
           },

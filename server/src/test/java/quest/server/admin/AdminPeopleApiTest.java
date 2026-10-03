@@ -245,6 +245,12 @@ class AdminPeopleApiTest extends ApiTestSupport {
         mvc.perform(scoped(patch("/admin/children/" + childId).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"parentName\":\" \"}"), admin, SCHOOL)).andExpect(status().isBadRequest());
 
+        // Admin updates parent password via PATCH /admin/children/{id}
+        mvc.perform(scoped(patch("/admin/children/" + childId).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"parentPassword\":\"newSecret123\"}"), admin, SCHOOL)).andExpect(status().isOk());
+        mvc.perform(scoped(patch("/admin/children/" + childId).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"parentPassword\":\"short\"}"), admin, SCHOOL)).andExpect(status().isBadRequest());
+
         // S1 (owner's item 7): she signs in to the app for the first time and both children are simply there — the
         // account `POST /admin/children` minted is the one her token resolves to, with no join code and no "add child".
         String uid = parents.findById(parentId).orElseThrow().getFirebaseUid();

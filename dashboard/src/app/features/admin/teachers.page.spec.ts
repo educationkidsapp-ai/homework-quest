@@ -131,6 +131,27 @@ describe('Teachers', () => {
     expect(screen.getByText(/shown once and cannot be read again/)).toBeInTheDocument();
   });
 
+  it('allows creating a teacher with any subject including science and religion', async () => {
+    const { rendered, backend } = await renderSignedIn([]);
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Add teacher' })[0]!);
+    await userEvent.type(screen.getByLabelText('Full name'), 'Noura');
+    await userEvent.type(screen.getByLabelText('Email'), 'noura@alnoor.test');
+    await userEvent.click(screen.getByLabelText('Science'));
+    await userEvent.click(screen.getByLabelText('Religion'));
+    await settle(rendered);
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    const post = backend.expectOne('/admin/teachers');
+    expect(post.request.body.subjects).toEqual(expect.arrayContaining(['science', 'religion']));
+    post.flush({
+      teacher: { ...SARA, fullName: 'Noura', subjects: ['science', 'religion'] },
+      temporaryPassword: 'secret-pass-1',
+    });
+    await settle(rendered);
+    backend.expectOne('/admin/teachers').flush([]);
+  });
+
   /**
    * "Shown once" has to mean once. Nothing writes it down, so leaving the screen is enough to
    * lose it — this asserts the screen does not quietly hold it for the next visit.

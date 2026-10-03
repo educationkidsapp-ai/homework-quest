@@ -159,7 +159,7 @@ describe('Children & parents', () => {
     await userEvent.click(screen.getAllByRole('button', { name: 'Admit a child' })[0]!);
     await settle(rendered);
     await fillAdmission(rendered, 'Sunflower-91');
-    await userEvent.click(screen.getByRole('button', { name: 'Admit' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add a Child' }));
 
     const admitted = backend.expectOne('/admin/children');
     expect(admitted.request.method).toBe('POST');
@@ -197,7 +197,7 @@ describe('Children & parents', () => {
     await userEvent.click(screen.getAllByRole('button', { name: 'Admit a child' })[0]!);
     await settle(rendered);
     await fillAdmission(rendered, 'Sunflower-91');
-    await userEvent.click(screen.getByRole('button', { name: 'Admit' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add a Child' }));
 
     backend
       .expectOne('/admin/children')
@@ -221,7 +221,7 @@ describe('Children & parents', () => {
     await userEvent.click(screen.getAllByRole('button', { name: 'Admit a child' })[0]!);
     await settle(rendered);
     await fillAdmission(rendered, 'Sunflower-91');
-    await userEvent.click(screen.getByRole('button', { name: 'Admit' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add a Child' }));
 
     backend
       .expectOne('/admin/children')
@@ -251,7 +251,7 @@ describe('Children & parents', () => {
     await settle(rendered);
 
     expect(screen.getByText(/Between 7 and 15 digits/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Admit' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Add a Child' })).toBeDisabled();
   });
 
   /** A section with no name would be a blank line she can pick and cannot tell from the placeholder. */
@@ -288,7 +288,7 @@ describe('Children & parents', () => {
     await userEvent.click(screen.getAllByRole('button', { name: 'Admit a child' })[0]!);
     await settle(rendered);
     await fillAdmission(rendered, 'Sunflower-91');
-    await userEvent.click(screen.getByRole('button', { name: 'Admit' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add a Child' }));
     backend
       .expectOne('/admin/children')
       .flush({ childId: 'ch-hala', parentId: 'p-ahmed', parentCreated: true, passwordApplied: true });
@@ -370,6 +370,49 @@ describe('Children & parents', () => {
 
     const patch = backend.expectOne('/admin/children/ch-hala');
     expect(patch.request.body).toEqual({ name: 'Hala A. Ahmed', classId: 'c-1a', parentPhone: '' });
+  });
+
+  it('allows editing the parent password in edit mode when a parent exists', async () => {
+    const { rendered, backend } = await renderSignedIn([HALA]);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Hala Ahmed' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
+    await settle(rendered);
+
+    const passwordInput = screen.getByLabelText(/^Change parent password/);
+    expect(passwordInput).toBeInTheDocument();
+    await userEvent.type(passwordInput, 'NewPass1234');
+    await settle(rendered);
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    const patch = backend.expectOne('/admin/children/ch-hala');
+    expect(patch.request.body).toEqual({
+      name: 'Hala Ahmed',
+      classId: 'c-1a',
+      parentPhone: '0501002030',
+      parentName: 'Ahmed Ali',
+      parentPassword: 'NewPass1234',
+    });
+  });
+
+  it('shows friendly error in dialog when admission fails with upstream_error', async () => {
+    const { rendered, backend } = await renderSignedIn([]);
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Admit a child' })[0]!);
+    await settle(rendered);
+    await fillAdmission(rendered, 'Sunflower-91');
+    await userEvent.click(screen.getByRole('button', { name: 'Add a Child' }));
+
+    backend
+      .expectOne('/admin/children')
+      .flush(
+        { code: 'upstream_error', message: 'The parent account could not be written (null).' },
+        { status: 502, statusText: 'Bad Gateway' },
+      );
+    await settle(rendered);
+
+    const dialog = within(screen.getByRole('dialog'));
+    expect(dialog.getByText(/Could not create parent account/)).toBeInTheDocument();
   });
 
   it('shows the parent\u2019s name in the table', async () => {
