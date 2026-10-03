@@ -1,0 +1,200 @@
+package quest.server.files;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import javax.imageio.ImageIO;
+import org.junit.jupiter.api.Test;
+import quest.server.config.ApiException;
+
+/** B5b: a chat photo keeps its pixels and its orientation, and loses everything the camera wrote about who and where. */
+public class ImageMetadataTest {
+    private static final String[] TELLTALES = {"GPS", "Pixel 9", "xap/1.0", "Photoshop", "a private comment", "SECOND-PICTURE"};
+
+    @Test void a_phone_jpeg_loses_its_exif_xmp_iptc_comment_and_appendix_and_stays_upright() throws Exception {
+        byte[] photo = phonePhoto(6);
+        assertThat(text(photo)).contains(TELLTALES);                                     // the fixture carries all of it
+
+        byte[] clean = ImageMetadata.strip(photo, "image/jpeg");
+
+        assertThat(text(clean)).doesNotContain(TELLTALES);
+        assertThat(ImageInfo.orientation(clean)).as("the turn survives, alone").isEqualTo(6);
+        assertThat(ImageInfo.size(clean, "image/jpeg")).isEqualTo(new ImageInfo.Size(300, 400));
+        assertThat(text(clean).split("Exif", -1)).as("one EXIF, the orientation's").hasSize(2);
+        var pixels = ImageIO.read(new ByteArrayInputStream(clean));
+        assertThat(pixels.getWidth()).isEqualTo(400);
+        assertThat(pixels.getHeight()).isEqualTo(300);
+    }
+
+    @Test void an_upright_jpeg_keeps_no_exif_at_all() throws Exception {
+        byte[] clean = ImageMetadata.strip(phonePhoto(1), "image/jpeg");
+        assertThat(text(clean)).doesNotContain("Exif").doesNotContain(TELLTALES);
+        assertThat(ImageIO.read(new ByteArrayInputStream(clean)).getWidth()).isEqualTo(400);
+    }
+
+    @Test void a_png_loses_its_text_exif_and_time_chunks() throws Exception {
+        var out = new ByteArrayOutputStream();
+        ImageIO.write(new BufferedImage(20, 10, BufferedImage.TYPE_INT_RGB), "png", out);
+        byte[] png = out.toByteArray();
+        byte[] dirty = withChunksAfterHeader(png, chunk("tEXt", "Comment\0GPS 51.5,-0.1"), chunk("eXIf", "MM\0*GPS"), chunk("tIME", "1234567"));
+        byte[] clean = ImageMetadata.strip(dirty, "image/png");
+        assertThat(text(clean)).doesNotContain("GPS").doesNotContain("tEXt").doesNotContain("eXIf").doesNotContain("tIME");
+        assertThat(ImageIO.read(new ByteArrayInputStream(clean)).getWidth()).isEqualTo(20);
+    }
+
+    @Test void a_webp_loses_its_exif_and_xmp_chunks_and_their_flags() {
+        byte[] riff = webp();
+        byte[] clean = ImageMetadata.strip(riff, "image/webp");
+        assertThat(text(clean)).doesNotContain("GPS").doesNotContain("EXIF").doesNotContain("XMP ");
+        assertThat(clean[20] & 0x0C).as("the EXIF and XMP flags").isZero();
+        assertThat((clean[4] & 0xFF) | (clean[5] & 0xFF) << 8).as("the RIFF size").isEqualTo(clean.length - 8);
+        assertThat(ImageInfo.size(clean, "image/webp")).isEqualTo(new ImageInfo.Size(640, 480));
+    }
+
+    @Test void a_file_whose_containers_cannot_be_walked_is_refused() {
+        byte[] broken = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE1, 0x7F, 0x7F, 'E', 'x'};
+        assertThatThrownBy(() -> ImageMetadata.strip(broken, "image/jpeg")).isInstanceOf(ApiException.class);
+        assertThat(ImageMetadata.strip("%PDF-1.7".getBytes(), "application/pdf")).as("a PDF is not an image").isEqualTo("%PDF-1.7".getBytes());
+    }
+
+    /**
+     * Review: everything a camera can hide a picture in — a JFIF thumbnail, a JFXX thumbnail, an EXIF thumbnail (in a
+     * little-endian EXIF), an MPF index and the secondary image it points at — goes; the colour profile stays.
+     */
+    @Test void a_camera_jpeg_loses_every_thumbnail_and_secondary_image() throws Exception {
+        byte[] photo = cameraPhoto();
+        String[] hidden = {"THUMBJFIF", "THUMBJFXX", "THUMBEXIF", "MPF\0", "SECONDARY", "GPS"};
+        assertThat(text(photo)).contains(hidden);
+
+        byte[] clean = ImageMetadata.strip(photo, "image/jpeg");
+
+        assertThat(text(clean)).doesNotContain(hidden).doesNotContain("JFXX").contains("ICC_PROFILE");
+        assertThat(ImageInfo.orientation(clean)).as("read from a little-endian EXIF, written back alone").isEqualTo(8);
+        assertThat(java.util.Arrays.copyOfRange(clean, 2, 20)).as("a JFIF header with a 0 x 0 thumbnail")
+                .containsExactly(0xFF - 256, 0xE0 - 256, 0, 16, 'J', 'F', 'I', 'F', 0, 1, 2, 1, 0, 72, 0, 72, 0, 0);
+        assertThat(ImageIO.read(new ByteArrayInputStream(clean)).getWidth()).isEqualTo(400);
+    }
+
+    /** Review: a PNG or a WebP whose chunk lengths lie, or that ends mid-chunk, is refused rather than stored as it came. */
+    @Test void a_png_or_webp_with_lying_or_truncated_chunks_is_refused() throws Exception {
+        var out = new ByteArrayOutputStream();
+        ImageIO.write(new BufferedImage(20, 10, BufferedImage.TYPE_INT_RGB), "png", out);
+        byte[] png = out.toByteArray();
+        byte[] lying = png.clone(); lying[33] = 0x7F;                                  // the chunk after IHDR claims 2 GB
+        byte[] truncated = java.util.Arrays.copyOf(png, png.length - 6);              // IEND cut short
+        byte[] noEnd = java.util.Arrays.copyOf(png, png.length - 12);                 // no IEND at all
+        for (byte[] bad : new byte[][] {lying, truncated, noEnd})
+            assertThatThrownBy(() -> ImageMetadata.strip(bad, "image/png")).isInstanceOf(ApiException.class);
+
+        byte[] webp = webp();
+        byte[] lyingWebp = webp.clone(); lyingWebp[34] = 0x7F;                       // the EXIF chunk claims more than there is
+        byte[] cutWebp = java.util.Arrays.copyOf(webp, webp.length - 3);             // the XMP chunk ends early
+        for (byte[] bad : new byte[][] {lyingWebp, cutWebp})
+            assertThatThrownBy(() -> ImageMetadata.strip(bad, "image/webp")).isInstanceOf(ApiException.class);
+    }
+
+    // ---------------------------------------------------------------- fixtures
+
+    /**
+     * A 400 × 300 JPEG as a phone writes it: EXIF with an orientation, a camera model and a GPS block, an XMP packet, a
+     * Photoshop/IPTC block and a comment before the image, and a second picture appended after its end.
+     */
+    public static byte[] phonePhoto(int orientation) throws Exception {
+        var out = new ByteArrayOutputStream();
+        ImageIO.write(new BufferedImage(400, 300, BufferedImage.TYPE_INT_RGB), "jpg", out);
+        byte[] jpeg = out.toByteArray();
+        int app0 = 2 + 2 + (((jpeg[4] & 0xFF) << 8) | (jpeg[5] & 0xFF));
+        var exif = new ByteArrayOutputStream();
+        exif.writeBytes(new byte[] {'E', 'x', 'i', 'f', 0, 0, 'M', 'M', 0, 0x2A, 0, 0, 0, 8, 0, 3,
+                0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, (byte) orientation, 0, 0,          // Orientation
+                0x01, 0x0F, 0, 2, 0, 0, 0, 4, 'P', 'i', 'x', 0,                       // Make
+                (byte) 0x88, 0x25, 0, 4, 0, 0, 0, 1, 0, 0, 0, 50,                     // GPSInfo
+                0, 0, 0, 0});
+        exif.writeBytes("GPS 51.5007N 0.1246W Pixel 9".getBytes(StandardCharsets.US_ASCII));
+        var dirty = new ByteArrayOutputStream();
+        dirty.write(jpeg, 0, app0);
+        dirty.writeBytes(segment(0xE1, exif.toByteArray()));
+        dirty.writeBytes(segment(0xE1, "http://ns.adobe.com/xap/1.0/\0<x:xmpmeta exif:GPSLatitude='51'/>".getBytes(StandardCharsets.US_ASCII)));
+        dirty.writeBytes(segment(0xED, "Photoshop 3.0\0 IPTC city".getBytes(StandardCharsets.US_ASCII)));
+        dirty.writeBytes(segment(0xFE, "a private comment".getBytes(StandardCharsets.US_ASCII)));
+        dirty.write(jpeg, app0, jpeg.length - app0);
+        dirty.writeBytes("SECOND-PICTURE with its own GPS".getBytes(StandardCharsets.US_ASCII));
+        return dirty.toByteArray();
+    }
+
+    /**
+     * A camera's JPEG: a JFIF APP0 with a 2 × 2 thumbnail, a JFXX APP0, a little-endian EXIF (orientation 8, an EXIF
+     * thumbnail, a GPS note), an ICC profile, an MPF index, the picture, and the MPF secondary image after it.
+     */
+    private static byte[] cameraPhoto() throws Exception {
+        var out = new ByteArrayOutputStream();
+        ImageIO.write(new BufferedImage(400, 300, BufferedImage.TYPE_INT_RGB), "jpg", out);
+        byte[] jpeg = out.toByteArray();
+        int app0 = 2 + 2 + (((jpeg[4] & 0xFF) << 8) | (jpeg[5] & 0xFF));
+        var dirty = new ByteArrayOutputStream();
+        dirty.write(0xFF); dirty.write(0xD8);
+        var jfif = new ByteArrayOutputStream();
+        jfif.writeBytes(new byte[] {'J', 'F', 'I', 'F', 0, 1, 2, 1, 0, 72, 0, 72, 2, 2});
+        jfif.writeBytes("THUMBJFIF..".getBytes(StandardCharsets.US_ASCII)); jfif.write(0);   // 12 bytes of "RGB"
+        dirty.writeBytes(segment(0xE0, jfif.toByteArray()));
+        dirty.writeBytes(segment(0xE0, "JFXX\0\u0010THUMBJFXX".getBytes(StandardCharsets.ISO_8859_1)));
+        var exif = new ByteArrayOutputStream();
+        exif.writeBytes(new byte[] {'E', 'x', 'i', 'f', 0, 0, 'I', 'I', 0x2A, 0, 8, 0, 0, 0, 2, 0,
+                0x12, 0x01, 3, 0, 1, 0, 0, 0, 8, 0, 0, 0,                                // Orientation 8, little-endian
+                0x01, 0x02, 4, 0, 1, 0, 0, 0, 40, 0, 0, 0,                               // JPEGInterchangeFormat
+                0, 0, 0, 0});
+        exif.writeBytes("THUMBEXIF GPS 51.5N".getBytes(StandardCharsets.US_ASCII));
+        dirty.writeBytes(segment(0xE1, exif.toByteArray()));
+        dirty.writeBytes(segment(0xE2, "ICC_PROFILE\0\u0001\u0001fake-profile".getBytes(StandardCharsets.ISO_8859_1)));
+        dirty.writeBytes(segment(0xE2, "MPF\0MM\0*index-of-the-second-picture".getBytes(StandardCharsets.ISO_8859_1)));
+        dirty.write(jpeg, app0, jpeg.length - app0);
+        dirty.writeBytes(new byte[] {(byte) 0xFF, (byte) 0xD8});
+        dirty.writeBytes("SECONDARY image, its own GPS".getBytes(StandardCharsets.US_ASCII));
+        return dirty.toByteArray();
+    }
+
+    private static byte[] segment(int marker, byte[] payload) {
+        int len = payload.length + 2;
+        var out = new ByteArrayOutputStream();
+        out.write(0xFF); out.write(marker); out.write(len >> 8); out.write(len & 0xFF); out.writeBytes(payload);
+        return out.toByteArray();
+    }
+
+    private static byte[] chunk(String type, String data) {
+        byte[] d = data.getBytes(StandardCharsets.ISO_8859_1);
+        var out = new ByteArrayOutputStream();
+        out.write(d.length >>> 24); out.write(d.length >>> 16); out.write(d.length >>> 8); out.write(d.length);
+        out.writeBytes(type.getBytes(StandardCharsets.US_ASCII)); out.writeBytes(d);
+        var crc = new java.util.zip.CRC32(); crc.update(type.getBytes(StandardCharsets.US_ASCII)); crc.update(d);
+        long c = crc.getValue(); out.write((int) (c >>> 24)); out.write((int) (c >>> 16)); out.write((int) (c >>> 8)); out.write((int) c);
+        return out.toByteArray();
+    }
+
+    /** The chunks after IHDR (8-byte signature + 25-byte IHDR chunk). */
+    private static byte[] withChunksAfterHeader(byte[] png, byte[]... chunks) {
+        var out = new ByteArrayOutputStream();
+        out.write(png, 0, 33);
+        for (byte[] c : chunks) out.writeBytes(c);
+        out.write(png, 33, png.length - 33);
+        return out.toByteArray();
+    }
+
+    /** An extended WebP header (640 × 480, EXIF and XMP flags set), then an EXIF and an XMP chunk. */
+    private static byte[] webp() {
+        var out = new ByteArrayOutputStream();
+        out.writeBytes(new byte[] {'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P', 'V', 'P', '8', 'X', 10, 0, 0, 0, 0x0C, 0, 0, 0,
+                0x7F, 0x02, 0x00, (byte) 0xDF, 0x01, 0x00});
+        out.writeBytes(new byte[] {'E', 'X', 'I', 'F', 7, 0, 0, 0, 'G', 'P', 'S', ' ', '5', '1', '!', 0});   // odd length, padded
+        out.writeBytes(new byte[] {'X', 'M', 'P', ' ', 4, 0, 0, 0, 'G', 'P', 'S', '!'});
+        byte[] b = out.toByteArray();
+        int riff = b.length - 8;
+        b[4] = (byte) riff; b[5] = (byte) (riff >> 8);
+        return b;
+    }
+
+    private static String text(byte[] b) { return new String(b, StandardCharsets.ISO_8859_1); }
+}
