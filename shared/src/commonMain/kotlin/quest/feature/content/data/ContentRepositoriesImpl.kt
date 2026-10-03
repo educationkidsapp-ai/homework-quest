@@ -114,6 +114,10 @@ class JourneyRepositoryImpl(private val api: ContentApi, private val db: Db) : J
         db.write { insertAttempt(Ids.random(), childId, stopId, lesson.id, play.level.toLong(), lesson.skills.joinToString(",") { it.id }, answer, 0, attemptNumber.toLong(), 0, 0, Today.epochMillis()) }
     }
 
+    override suspend fun recordAnswer(childId: String, lesson: PublishedLesson, play: Play, questionId: String, answer: String, correct: Boolean, stars: Int) {
+        db.write { insertAttempt(Ids.random(), childId, questionId, lesson.id, play.level.toLong(), lesson.skills.joinToString(",") { it.id }, answer, if (correct) 1 else 0, 1, if (correct) 0 else 1, stars.toLong(), Today.epochMillis()) }
+    }
+
     override suspend fun completeLevel(childId: String, lesson: PublishedLesson, play: Play): LevelProgress {
         val p = progress(childId, lesson.id, play.level, play.variant)
         val stars = p.starsFor(play)

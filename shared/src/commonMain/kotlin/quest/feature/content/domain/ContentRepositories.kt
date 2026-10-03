@@ -34,6 +34,12 @@ interface JourneyRepository {
     /** Saved recordings / drawings for the parent panel. */
     suspend fun media(childId: String, lessonId: String): List<StopMediaRecord>
     suspend fun recordWrongAttempt(childId: String, lesson: PublishedLesson, play: Play, stopId: String, answer: String, attemptNumber: Int)
+
+    /**
+     * One answer to a question inside an exam's exit ticket, as an attempt named by [questionId] and queued for upload
+     * with the rest — no stop completion of its own (the ticket's comes when it is finished).
+     */
+    suspend fun recordAnswer(childId: String, lesson: PublishedLesson, play: Play, questionId: String, answer: String, correct: Boolean, stars: Int) {}
     suspend fun completeLevel(childId: String, lesson: PublishedLesson, play: Play): LevelProgress
     suspend fun completions(childId: String): List<quest.api.dto.LessonCompletionInfo>
     suspend fun parentUnlocks(childId: String): Map<String, List<Int>>

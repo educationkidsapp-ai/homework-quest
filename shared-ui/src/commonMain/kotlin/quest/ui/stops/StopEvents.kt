@@ -18,6 +18,12 @@ sealed interface StopEvent {
      */
     data class Completed(val stars: Int, val answer: String = "", val mistakes: Int = 0, val recording: ByteArray? = null, val drawing: String? = null, val correct: Boolean = true) : StopEvent
     data class Speak(val text: String) : StopEvent
+    /**
+     * Exam only: one question inside an exit ticket was answered. The server grades an exit ticket by the questions in
+     * it, so each goes up as its own attempt named by [questionId], with [answer] in the stop's exam format; the
+     * ticket itself still finishes with [Completed].
+     */
+    data class QuestionAnswered(val questionId: String, val answer: String, val correct: Boolean, val stars: Int) : StopEvent
 }
 
 /**

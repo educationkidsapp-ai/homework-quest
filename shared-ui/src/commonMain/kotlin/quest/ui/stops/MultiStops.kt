@@ -298,9 +298,10 @@ fun ExitTicketStop(stop: Stop.ExitTicket, onEvent: (StopEvent) -> Unit, modifier
         }
         StopContent(q, onEvent = { e ->
             when {
-                exam && e is StopEvent.Correct -> examNext(StopScoring.singleAnswer(1), right = true)
-                exam && e is StopEvent.Wrong -> examNext(0, right = false)
-                exam && e is StopEvent.Completed -> examNext(e.stars, right = e.correct)
+                // Each question reports its own answer first (the server scores the ticket by its questions), then moves on.
+                exam && e is StopEvent.Correct -> { onEvent(StopEvent.QuestionAnswered(q.id, e.answer, true, StopScoring.singleAnswer(1))); examNext(StopScoring.singleAnswer(1), right = true) }
+                exam && e is StopEvent.Wrong -> { onEvent(StopEvent.QuestionAnswered(q.id, e.answer, false, 0)); examNext(0, right = false) }
+                exam && e is StopEvent.Completed -> { onEvent(StopEvent.QuestionAnswered(q.id, e.answer, e.correct, e.stars)); examNext(e.stars, right = e.correct) }
                 e is StopEvent.Correct -> { val s = stars + StopScoring.singleAnswer(e.attempt); stars = s; onEvent(e); if (index == stop.questions.lastIndex) onEvent(StopEvent.Completed(quest.api.dto.MultiAnswerLogic.exitTicketStars(s))) else index += 1 }
                 e is StopEvent.Completed -> { val s = stars + e.stars; stars = s; if (index == stop.questions.lastIndex) onEvent(StopEvent.Completed(quest.api.dto.MultiAnswerLogic.exitTicketStars(s))) else { index += 1; onEvent(StopEvent.Speak(stop.questions[index].speak)) } }
                 else -> onEvent(e)

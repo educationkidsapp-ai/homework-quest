@@ -62,6 +62,8 @@ object PlayerContract {
         data object TryAgain : Intent
         /** [Phase.SENDING]: try to hand the queued answers in again. */
         data object SendAgain : Intent
+        /** Exam: one question inside an exit ticket was answered — its own attempt, by the question's id. */
+        data class QuestionAnswered(val questionId: String, val answer: String, val correct: Boolean, val stars: Int) : Intent
         /** M4 (D8): the window's closing time has passed by the server's clock — no more answers are taken. */
         data object WindowClosed : Intent
         data object Advance : Intent

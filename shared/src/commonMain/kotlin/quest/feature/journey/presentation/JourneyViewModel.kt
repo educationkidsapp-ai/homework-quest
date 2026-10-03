@@ -109,6 +109,7 @@ class StopPlayerViewModel(
             PlayerContract.Intent.Advance -> advance()
             PlayerContract.Intent.SendAgain -> if (current.phase == PlayerContract.Phase.SENDING) finish()
             PlayerContract.Intent.WindowClosed -> windowClosed()
+            is PlayerContract.Intent.QuestionAnswered -> questionAnswered(intent)
             PlayerContract.Intent.ReadAloud -> effect(PlayerContract.Effect.Speak(if (current.phase == PlayerContract.Phase.HINT) current.hint else current.stop?.speak ?: ""))
             is PlayerContract.Intent.Speak -> effect(PlayerContract.Effect.Speak(intent.text))
         }
@@ -170,6 +171,18 @@ class StopPlayerViewModel(
         reduce { copy(phase = PlayerContract.Phase.STEP_DONE) }
         effect(PlayerContract.Effect.Speak(doneText()))
         launch { delay(1400); dispatch(PlayerContract.Intent.Advance) }
+    }
+
+    /**
+     * An exam's exit ticket is scored by the server question by question (`AnswerKey.index`, `Scoring` flattens the
+     * ticket), so each of its questions goes up as an attempt of its own — the wrapper's completion follows when the
+     * ticket is finished. Nothing changes on screen: the ticket moves on in silence.
+     */
+    private suspend fun questionAnswered(i: PlayerContract.Intent.QuestionAnswered) {
+        val stop = current.stop ?: return
+        val lesson = current.lesson ?: return; val play = current.play ?: return
+        if (!current.exam || stop.category != StopCategory.EXIT || current.phase != PlayerContract.Phase.STOP || stop.id in current.stopStars) return
+        journey.recordAnswer(childId, lesson, play, i.questionId, i.answer, i.correct, i.stars)
     }
 
     /** One answer of a single-answer exam question; a second tap on the same question is ignored. */
