@@ -4,6 +4,7 @@ import quest.core.navigation.Routes
 import quest.feature.parent.presentation.asConversation
 import quest.feature.push.domain.FollowPushUseCase
 import quest.feature.push.domain.PushOpen
+import quest.feature.push.domain.NOTIFICATIONS_PATH
 import quest.feature.push.domain.PushTarget
 import quest.feature.push.domain.pushTarget
 
@@ -15,7 +16,8 @@ import quest.feature.push.domain.pushTarget
  * 1. [beforeGate]: the child's home for a homework (no gate — it is the child's own screen); otherwise the parent
  *    gate, carrying the link. A signed-out app goes nowhere.
  * 2. [afterGate]: once the gate has opened onto the parent home, the screen on top of it — the conversation, Progress
- *    or the school's news — or nothing when the thread is gone, which leaves the parent on her home without an error.
+ *    or the Notifications tab (also where a kind or link this build does not know leads) — or nothing when the thread
+ *    is gone, which leaves the parent on her home without an error.
  */
 class PushNavigator(private val follow: FollowPushUseCase, private val signedIn: () -> Boolean) {
     suspend fun beforeGate(open: PushOpen): Any? {
@@ -23,14 +25,14 @@ class PushNavigator(private val follow: FollowPushUseCase, private val signedIn:
         return when (follow.prepare(open)) {
             is PushTarget.ChildHome -> Routes.WorldMap
             PushTarget.ParentHome -> Routes.ParentPin()
-            else -> Routes.ParentPin(push = open.link)
+            else -> Routes.ParentPin(push = open.link ?: NOTIFICATIONS_PATH)
         }
     }
 
     suspend fun afterGate(link: String): Any? = when (val target = pushTarget(link)) {
         is PushTarget.Conversation -> follow.thread(target)?.asConversation()
         is PushTarget.Progress -> Routes.Progress
-        is PushTarget.Broadcasts -> Routes.Broadcasts
+        is PushTarget.Notifications -> Routes.Broadcasts
         is PushTarget.ChildHome, PushTarget.ParentHome -> null
     }
 }

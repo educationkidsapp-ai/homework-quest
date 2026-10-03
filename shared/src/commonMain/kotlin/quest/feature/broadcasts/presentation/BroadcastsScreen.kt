@@ -66,9 +66,6 @@ import quest.feature.parent.presentation.ParentCard
 import quest.feature.parent.presentation.ParentShell
 import quest.feature.parent.presentation.SectionTitle
 import quest.feature.parent.presentation.Strings
-import quest.feature.school.domain.Flags
-import quest.feature.school.presentation.FeatureGate
-import quest.feature.school.presentation.GateFallback
 import quest.ui.design.Dimens
 
 /**
@@ -118,6 +115,8 @@ class BroadcastsViewModel(
     frames: Flow<ChatFrame> = emptyFlow(),
     private val badges: ParentBadges? = null,
     private val notifications: NotificationsRepository? = null,
+    /** M5: the school's `announcements` flag. Off, the tab still lists her notification rows; only the feed is not read. */
+    private val feedOn: () -> Boolean = { true },
 ) : MviViewModel<BroadcastsContract.State, BroadcastsContract.Intent, BroadcastsContract.Effect>(BroadcastsContract.State()) {
 
     init {
@@ -143,6 +142,10 @@ class BroadcastsViewModel(
         // Best effort and independent of the feed: an older server without parent rows simply has none.
         val updates = notifications?.let { repo -> runCatching { repo.rows(child.id) }.getOrNull() } ?: current.updates
         reduce { copy(updates = updates) }
+        if (!feedOn()) {
+            reduce { copy(loading = false, refreshing = false, notEnabled = true, childNotPlaced = false, errorMessage = null, groups = BroadcastGroups()) }
+            return
+        }
         try {
             val feed = broadcasts.feed(child.id)
             reduce {
@@ -207,46 +210,43 @@ fun BroadcastsRoute(
 ) {
     val vm: BroadcastsViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
-    // Inside the gate, so a deep link into a school without the flag fires no request at all, and `GateFallback`
-    // sends it back where it came from rather than leaving the route composed over nothing.
-    GateFallback(Flags.ANNOUNCEMENTS, onBack)
-    FeatureGate(Flags.ANNOUNCEMENTS) {
-        LaunchedEffect(vm) {
-            vm.dispatch(BroadcastsContract.Intent.Load)
-            vm.effects.collect { e ->
-                when (e) {
-                    is BroadcastsContract.Effect.Follow -> when (e.target) {
-                        NotificationTarget.MESSAGES -> onMessages()
-                        NotificationTarget.PROGRESS -> onProgress()
-                        NotificationTarget.CHILD_HOME -> onChildHome()
-                        NotificationTarget.NONE -> Unit
-                    }
+    // hq-flag: none (M5, the owner 2026-10-03: the Notifications tab is always in the parent's bottom bar)
+    // Her own rows and pushes land here whatever the school bought; the `announcements` feed inside is read only while on.
+    LaunchedEffect(vm) {
+        vm.dispatch(BroadcastsContract.Intent.Load)
+        vm.effects.collect { e ->
+            when (e) {
+                is BroadcastsContract.Effect.Follow -> when (e.target) {
+                    NotificationTarget.MESSAGES -> onMessages()
+                    NotificationTarget.PROGRESS -> onProgress()
+                    NotificationTarget.CHILD_HOME -> onChildHome()
+                    NotificationTarget.NONE -> Unit
                 }
             }
         }
-        // M4 (D5): back in front with the tab open — what was posted meanwhile is shown without a pull.
-        LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.dispatch(BroadcastsContract.Intent.Load) }
-        ParentShell(
-            title = { it.notificationsTitle },
-            onBack = onBack,
-            currentTab = quest.ui.design.DashboardTab.NOTIFICATION,
-            onTabSelected = { tab ->
-                when (tab) {
-                    quest.ui.design.DashboardTab.HOME -> onHome()
-                    quest.ui.design.DashboardTab.NOTIFICATION -> {}
-                    quest.ui.design.DashboardTab.MESSAGES -> onMessages()
-                    quest.ui.design.DashboardTab.SETTINGS -> onSettings()
-                }
-            },
-        ) { strings ->
-            BroadcastsScreen(
-                state = state,
-                strings = strings,
-                onRefresh = { vm.dispatch(BroadcastsContract.Intent.Refresh) },
-                onOpen = { vm.dispatch(BroadcastsContract.Intent.Open(it.id)) },
-                onOpenUpdate = { vm.dispatch(BroadcastsContract.Intent.OpenUpdate(it.id)) },
-            )
-        }
+    }
+    // M4 (D5): back in front with the tab open — what was posted meanwhile is shown without a pull.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.dispatch(BroadcastsContract.Intent.Load) }
+    ParentShell(
+        title = { it.notificationsTitle },
+        onBack = onBack,
+        currentTab = quest.ui.design.DashboardTab.NOTIFICATION,
+        onTabSelected = { tab ->
+            when (tab) {
+                quest.ui.design.DashboardTab.HOME -> onHome()
+                quest.ui.design.DashboardTab.NOTIFICATION -> {}
+                quest.ui.design.DashboardTab.MESSAGES -> onMessages()
+                quest.ui.design.DashboardTab.SETTINGS -> onSettings()
+            }
+        },
+    ) { strings ->
+        BroadcastsScreen(
+            state = state,
+            strings = strings,
+            onRefresh = { vm.dispatch(BroadcastsContract.Intent.Refresh) },
+            onOpen = { vm.dispatch(BroadcastsContract.Intent.Open(it.id)) },
+            onOpenUpdate = { vm.dispatch(BroadcastsContract.Intent.OpenUpdate(it.id)) },
+        )
     }
 }
 
@@ -272,7 +272,8 @@ fun BroadcastsScreen(
             }
 
             val problem = when {
-                state.notEnabled -> strings.broadcastsDisabled
+                // M5: without `announcements` there is simply no feed — the tab is still hers.
+                state.notEnabled -> strings.noBroadcasts
                 state.childNotPlaced -> strings.childNotPlaced
                 state.errorMessage != null -> strings.somethingWrong
                 state.isEmpty -> strings.noBroadcasts

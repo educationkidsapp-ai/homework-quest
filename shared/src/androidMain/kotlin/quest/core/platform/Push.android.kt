@@ -79,23 +79,25 @@ object AppVisibility {
 
 /** The extras a tapped push carries into `MainActivity`, and the one way they are read back. */
 object PushIntents {
+    const val EXTRA_PUSH = "quest.push"
     const val EXTRA_LINK = "quest.push.link"
+    const val EXTRA_CHILD_ID = "quest.push.childId"
     const val EXTRA_NOTIFICATION_ID = "quest.push.notificationId"
     const val EXTRA_BROADCAST_ID = "quest.push.broadcastId"
 
     /** Hands a tap to the shared UI, which follows it underneath the lock and through the parent area's gate. */
     fun follow(intent: Intent?) {
         val extras = intent?.extras ?: return
-        if (!extras.containsKey(EXTRA_LINK) && !extras.containsKey(EXTRA_NOTIFICATION_ID)) return
-        PushLinks.open(PushOpen(extras.getString(EXTRA_LINK), extras.getString(EXTRA_NOTIFICATION_ID), extras.getString(EXTRA_BROADCAST_ID)))
+        if (!extras.getBoolean(EXTRA_PUSH)) return
+        PushLinks.open(PushOpen(extras.getString(EXTRA_LINK), extras.getString(EXTRA_NOTIFICATION_ID), extras.getString(EXTRA_BROADCAST_ID), extras.getString(EXTRA_CHILD_ID)))
         // Followed once: a configuration change or a later onNewIntent must not open it again.
-        intent.removeExtra(EXTRA_LINK); intent.removeExtra(EXTRA_NOTIFICATION_ID); intent.removeExtra(EXTRA_BROADCAST_ID)
+        listOf(EXTRA_PUSH, EXTRA_LINK, EXTRA_NOTIFICATION_ID, EXTRA_BROADCAST_ID, EXTRA_CHILD_ID).forEach(intent::removeExtra)
     }
 }
 
 /**
- * M5: a received push becomes a notification the app draws itself — B4's messages are data-only — on one of four
- * channels named in the app's language, with the monochrome mark, the server's title and body exactly as sent, and the
+ * M5: a received push becomes a notification the app draws itself — B4's messages are data-only — on one of five
+ * channels named in the app's language (an unknown kind on School news, never dropped), with the monochrome mark, the server's title and body exactly as sent, and the
  * collapse key as its tag so a newer word about the same thread or lesson replaces the older one. While the app is on
  * screen nothing is posted: the badges are refreshed instead (the socket already moves the open screen).
  */
@@ -114,16 +116,19 @@ class AndroidPushNotifier(
 
     fun post(notice: PushNotice) {
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
-        createChannels(PushStrings.forLanguage(language()))
+        val strings = PushStrings.forLanguage(language())
+        createChannels(strings)
         val open = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            putExtra(PushIntents.EXTRA_LINK, notice.open.link)
+            putExtra(PushIntents.EXTRA_PUSH, true)
+            notice.open.link?.let { putExtra(PushIntents.EXTRA_LINK, it) }
+            notice.open.childId?.let { putExtra(PushIntents.EXTRA_CHILD_ID, it) }
             notice.open.notificationId?.let { putExtra(PushIntents.EXTRA_NOTIFICATION_ID, it) }
             notice.open.broadcastId?.let { putExtra(PushIntents.EXTRA_BROADCAST_ID, it) }
         }
         val builder = NotificationCompat.Builder(context, notice.channel.id)
             .setSmallIcon(context.resources.getIdentifier("ic_launcher_monochrome", "drawable", context.packageName).takeIf { it != 0 } ?: context.applicationInfo.icon)
-            .setContentTitle(notice.title)
+            .setContentTitle(notice.title ?: strings.genericTitle)
             .setAutoCancel(true)
             .setCategory(if (notice.channel == PushChannel.MESSAGES) NotificationCompat.CATEGORY_MESSAGE else NotificationCompat.CATEGORY_EVENT)
             .setContentIntent(open?.let { PendingIntent.getActivity(context, notice.tag.hashCode(), it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE) })
@@ -136,8 +141,9 @@ class AndroidPushNotifier(
         PushChannel.entries.forEach { channel ->
             val name = when (channel) {
                 PushChannel.MESSAGES -> s.channelMessages
-                PushChannel.EXAM_RESULTS -> s.channelExamResults
+                PushChannel.EXAMS -> s.channelExams
                 PushChannel.HOMEWORK -> s.channelHomework
+                PushChannel.COMPLAINTS -> s.channelComplaints
                 PushChannel.SCHOOL_NEWS -> s.channelSchoolNews
             }
             manager.createNotificationChannel(NotificationChannel(channel.id, name, NotificationManager.IMPORTANCE_DEFAULT))

@@ -240,7 +240,7 @@ val broadcastsModule = module {
     }
     single { ParentBadges(get(), get()).also { it.start(CoroutineScope(SupervisorJob() + Dispatchers.Default), get<ChatRepository>().incomingFrames) } }
     single<NotificationsRepository> { NotificationsRepositoryImpl(get()) }
-    viewModel { BroadcastsViewModel(get(), get(), get<ChatRepository>().incomingFrames, get(), get()) }
+    viewModel { BroadcastsViewModel(get(), get(), get<ChatRepository>().incomingFrames, get(), get(), feedOn = { get<FlagStore>().isEnabled(Flags.ANNOUNCEMENTS) }) }
     viewModel { WeeklyPlanViewModel(get(), get()) }
 }
 

@@ -404,11 +404,9 @@ enum class DashboardTab(val labelEn: String, val labelAr: String) {
 }
 
 /**
- * Modern TailAdmin bottom navigation bar for the Home student/parent experience.
- *
- * [showNotifications] is the `announcements` gate reaching the tab bar: §4's rule is that a school without a feature
- * never learns it exists, so a tab whose route would bounce straight back is not drawn at all. `shared-ui` knows no
- * flags, so the caller (`ParentShell`) decides.
+ * Modern TailAdmin bottom navigation bar for the Home student/parent experience. Every tab is always drawn — M5, the
+ * owner (2026-10-03): the Notifications tab is never hidden, because pushes and the school's rows land there whatever
+ * the school's flags.
  */
 @Composable
 fun DashboardBottomNavigation(
@@ -418,7 +416,6 @@ fun DashboardBottomNavigation(
     isRtl: Boolean = false,
     unreadNotifications: Int = 0,
     unreadMessages: Int = 0,
-    showNotifications: Boolean = true,
 ) {
     Surface(
         modifier = modifier
@@ -434,8 +431,7 @@ fun DashboardBottomNavigation(
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val tabs = DashboardTab.entries.filter { showNotifications || it != DashboardTab.NOTIFICATION }
-            tabs.forEach { tab ->
+            DashboardTab.entries.forEach { tab ->
                 val isSelected = tab == currentTab
                 val icon = when (tab) {
                     DashboardTab.HOME -> Icons.Default.Home

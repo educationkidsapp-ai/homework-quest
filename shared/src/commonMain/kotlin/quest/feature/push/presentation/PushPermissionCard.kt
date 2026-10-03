@@ -25,12 +25,15 @@ import quest.feature.parent.presentation.ParentCard
 import quest.feature.push.domain.PushPrompts
 import quest.ui.design.DashboardTokens
 
-/** M5: the words of push — the four system channels and the parent home's card — in the app's two languages. */
+/** M5: the words of push — the system channels and the parent home's card — in the app's two languages. */
 data class PushStrings(
     val channelMessages: String = "Messages",
-    val channelExamResults: String = "Exam results",
+    val channelExams: String = "Exams",
     val channelHomework: String = "Homework",
+    val channelComplaints: String = "Complaints",
     val channelSchoolNews: String = "School news",
+    /** Shown only when a push arrives with no title at all. */
+    val genericTitle: String = "News from the school",
     val cardTitle: String = "Turn on notifications",
     val cardBody: String = "Hear from the school when a teacher writes to you, a result is released or homework is set — even when the app is closed.",
     val turnOn: String = "Turn on",
@@ -40,9 +43,11 @@ data class PushStrings(
         val en = PushStrings()
         val ar = PushStrings(
             channelMessages = "الرسائل",
-            channelExamResults = "نتائج الاختبارات",
+            channelExams = "الاختبارات",
             channelHomework = "الواجبات",
+            channelComplaints = "الشكاوى",
             channelSchoolNews = "أخبار المدرسة",
+            genericTitle = "جديد من المدرسة",
             cardTitle = "تفعيل الإشعارات",
             cardBody = "تصلك أخبار المدرسة عندما يراسلك المعلّم أو تُعلن نتيجة أو يُنشر واجب — حتى والتطبيق مغلق.",
             turnOn = "تفعيل",

@@ -199,12 +199,22 @@ class PushTest {
         assertEquals("chat:th-1", chat.tag)
         assertEquals("Message from Ms Maya", chat.title, "shown exactly as the server sent it")
         assertEquals("Hala did well today.", chat.body)
-        assertEquals(PushOpen("/children/c1/chat/t-maya", "nt-1"), chat.open)
-        assertEquals(PushChannel.EXAM_RESULTS, PushPayload.parse(data(NotificationKind.EXAM_RELEASED, "/children/c1/progress", "lesson:e1"))!!.channel)
+        assertEquals(PushOpen("/children/c1/chat/t-maya", "nt-1", childId = "c1"), chat.open)
+        assertEquals(PushChannel.EXAMS, PushPayload.parse(data(NotificationKind.EXAM_RELEASED, "/children/c1/progress", "lesson:e1"))!!.channel)
         assertEquals(PushChannel.HOMEWORK, PushPayload.parse(data(NotificationKind.HOMEWORK_PUBLISHED, "/children/c1/map", "lesson:l1"))!!.channel)
         val news = PushPayload.parse(data(NotificationKind.BROADCAST_POSTED, "/children/c1/broadcasts?open=b1", "broadcast:b1", id = null, broadcast = "b1"))!!
         assertEquals(PushChannel.SCHOOL_NEWS, news.channel)
-        assertEquals(PushOpen("/children/c1/broadcasts?open=b1", null, "b1"), news.open)
+        assertEquals(PushOpen("/children/c1/broadcasts?open=b1", null, "b1", "c1"), news.open)
+    }
+
+    /** B4 is adding kinds; each lands on a sensible channel by its wire name, including ones this build has not seen. */
+    @Test fun newerKindsFindTheirChannel() {
+        fun channel(kind: String) = PushPayload.parse(mapOf("kind" to kind, "title" to "t", "collapseKey" to "k"))!!.channel
+        assertEquals(PushChannel.EXAMS, channel("exam.published"))
+        assertEquals(PushChannel.COMPLAINTS, channel("complaint.resolved"))
+        assertEquals(PushChannel.COMPLAINTS, channel("complaint.reopened"))
+        assertEquals(PushChannel.MESSAGES, channel("admin.message"))
+        assertEquals(PushChannel.SCHOOL_NEWS, channel("event.posted"))
     }
 
     @Test fun aSecondMessageInTheSameThreadReplacesTheFirst() {
@@ -213,9 +223,15 @@ class PushTest {
         assertEquals(first.tag, second.tag)
     }
 
-    @Test fun aMapThatIsNotOursShowsNothing() {
-        assertNull(PushPayload.parse(mapOf("kind" to "something.else", "title" to "x", "collapseKey" to "k")))
-        assertNull(PushPayload.parse(mapOf("kind" to "chat.message", "collapseKey" to "k")), "no title")
+    @Test fun anUnknownKindIsStillShownAndOpensTheNotificationsTab() {
+        val unknown = PushPayload.parse(mapOf("kind" to "something.new", "title" to "Sports day moved", "childId" to "c1"))!!
+        assertEquals(PushChannel.SCHOOL_NEWS, unknown.channel)
+        assertEquals("Sports day moved", unknown.title)
+        assertEquals("kind:something.new", unknown.tag)
+        assertEquals(PushTarget.Notifications("c1"), pushTarget(unknown.open.link, unknown.open.childId))
+        val untitled = PushPayload.parse(mapOf("kind" to "chat.message", "body" to "Hello", "collapseKey" to "chat:t"))!!
+        assertNull(untitled.title, "the notifier puts the app's generic title on it")
+        assertEquals("Hello", untitled.body)
         assertNull(PushPayload.parse(emptyMap()))
     }
 
@@ -223,9 +239,9 @@ class PushTest {
         assertEquals(PushTarget.Conversation("c1", "t-maya"), pushTarget("/children/c1/chat/t-maya"))
         assertEquals(PushTarget.Progress("c1"), pushTarget("/children/c1/progress"))
         assertEquals(PushTarget.ChildHome("c1"), pushTarget("/children/c1/map"))
-        assertEquals(PushTarget.Broadcasts("c1"), pushTarget("/children/c1/broadcasts?open=b1"))
-        assertEquals(PushTarget.ParentHome, pushTarget("/teacher/chat?thread=1"))
-        assertEquals(PushTarget.ParentHome, pushTarget(null))
+        assertEquals(PushTarget.Notifications("c1"), pushTarget("/children/c1/broadcasts?open=b1"))
+        assertEquals(PushTarget.Notifications(null), pushTarget("/teacher/chat?thread=1"), "a path this build cannot read")
+        assertEquals(PushTarget.Notifications("c2"), pushTarget(null, childId = "c2"))
     }
 
     // ---- following a tap -----------------------------------------------------------------------------------------
@@ -306,7 +322,14 @@ class PushTest {
         val nav = navigator(threads = emptyList())
         assertNull(nav.afterGate("/children/c1/chat/t-gone"), "the thread is gone: stay on the parent home")
         assertEquals(Routes.ParentPin(), nav.beforeGate(PushOpen("/children/c9/chat/t-maya", "nt-1")), "not her child any more")
-        assertEquals(Routes.ParentPin(), nav.beforeGate(PushOpen("/somewhere/else", null)))
+    }
+
+    @Test fun aPushWithoutALinkOpensTheNotificationsTabBehindTheGate() = runTest {
+        val kids = Kids(hala, omar)
+        val nav = navigator(kids)
+        assertEquals(Routes.ParentPin(push = "/notifications"), nav.beforeGate(PushOpen(null, childId = "c1")))
+        assertEquals("c1", kids.currentChild.value?.id)
+        assertEquals(Routes.Broadcasts, nav.afterGate("/notifications"))
     }
 
     @Test fun aSignedOutAppFollowsNothing() = runTest {
