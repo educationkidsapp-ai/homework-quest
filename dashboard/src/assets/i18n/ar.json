@@ -1458,10 +1458,6 @@
     "failed": "فشل الإرسال",
     "attachFile": "إرفاق صورة أو PDF",
     "addEmoji": "إضافة رمز تعبيري",
-    "removeAttachment": "إزالة المرفق",
-    "viewImage": "عرض الصورة",
-    "downloadFile": "تحميل",
-    "pdfDocument": "ملف PDF",
     "close": "إغلاق",
     "messagesTitle": "الرسائل",
     "managementSubtitle": "أولياء أمور قسمك ومنسقوك والمشرف.",
@@ -1495,7 +1491,32 @@
     "supportNoSchool": "اختر مدرسة من الأعلى أولاً — تُقرأ المحادثات مدرسة واحدة في كل مرة.",
     "threadGone": "هذه المحادثة لم تعد في قائمتك.",
     "away": "غير متصل",
-    "schoolAdministration": "إدارة المدرسة"
+    "schoolAdministration": "إدارة المدرسة",
+    "peerTyping": "{{name}} يكتب الآن…",
+    "attachment": {
+      "viewImage": "فتح {{name}} بالحجم الكامل",
+      "open": "فتح",
+      "openNamed": "فتح {{name}}",
+      "openFailed": "تعذّر فتح هذا الملف. حاول مرة أخرى.",
+      "staged": "الملفات المرفقة بهذه الرسالة",
+      "uploading": "جارٍ رفع {{name}}",
+      "cancel": "إلغاء رفع {{name}}",
+      "remove": "إزالة {{name}}"
+    },
+    "upload": {
+      "type": "لا يمكن إرفاق {{name}}. أرفق صورة بصيغة JPEG أو PNG أو WebP، أو ملف PDF.",
+      "imageTooBig": "حجم {{name}} أكبر من 5 ميغابايت. أرفق صورة أصغر.",
+      "pdfTooBig": "حجم {{name}} أكبر من 10 ميغابايت. أرفق ملف PDF أصغر.",
+      "tooMany": "يمكن أن تحمل الرسالة 5 ملفات كحد أقصى. أرسل هذه أولًا ثم أرفق الباقي.",
+      "failed": "تعذّر رفع {{name}}. أزله وحاول مرة أخرى.",
+      "tooManyPixels": "أبعاد الصورة {{name}} كبيرة جدًا (أكثر من 8192 بكسل أو 40 ميغابكسل). أرفق صورة أصغر."
+    },
+    "preview": {
+      "photo": "📷 صورة",
+      "photos": "📷 صور ({{count}})",
+      "file": "📄 {{name}}"
+    },
+    "attachmentAlreadySent": "لم تُرسل: هذه الملفات أُرسلت في رسالة أخرى. أرفقها من جديد."
   },
   "profile": {
     "title": "ملفك الشخصي",

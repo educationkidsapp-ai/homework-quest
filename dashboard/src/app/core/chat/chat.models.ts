@@ -22,7 +22,7 @@ export interface ChatCommandKey {
   threadId?: string;
 }
 export type ChatClientCommand =
-  | ({ type: 'message'; body: string; clientId: string } & ChatCommandKey)
+  | ({ type: 'message'; body: string; clientId: string; attachmentIds?: readonly string[] } & ChatCommandKey)
   | ({ type: 'typing' } & ChatCommandKey)
   | ({ type: 'read' } & ChatCommandKey)
   | { type: 'ping' }
@@ -76,5 +76,7 @@ export interface LocalMessage extends ChatMessage {
   pending?: boolean;
   failed?: boolean;
   errorMessage?: string;
+  /** The server's code for a refused send, when the screen has words of its own for it (D4). */
+  errorCode?: string;
   clientId?: string;
 }

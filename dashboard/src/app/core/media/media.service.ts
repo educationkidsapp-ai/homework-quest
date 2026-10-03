@@ -3,6 +3,7 @@ import { Observable, throwError } from 'rxjs';
 import { catchError, shareReplay, switchMap, tap } from 'rxjs/operators';
 import { MediaApi } from '../../api';
 import { silentErrors } from '../http/error.interceptor';
+import { MEDIA_WIDTH } from '../http/media-width.interceptor';
 import { MediaQueue } from './media-queue.service';
 
 /**
@@ -110,10 +111,14 @@ export class MediaService {
    * `url` the DTO carries cannot go in an `<img src>`: it would answer 401 and draw a broken-image
    * glyph on every card of the Weekly plans screen. Keyed `att:` for the reason `child:` is keyed
    * apart — three id spaces, three tables, and a collision would serve a page crop for a plan.
+   *
+   * `width` (D4) asks for a JPEG no wider than that — a chat bubble's thumbnail rather than the
+   * photograph — and is cached apart from the full picture, which the lightbox still reads.
    */
-  attachmentImage(id: string): Observable<string> {
-    return this.remember(`att:${id}`, (key) =>
-      this.read(key, this.media.attachment(id, 'body', false, { context: silentErrors() }), true),
+  attachmentImage(id: string, width: number | null = null): Observable<string> {
+    const context = silentErrors().set(MEDIA_WIDTH, width);
+    return this.remember(width === null ? `att:${id}` : `att:${id}@${width}`, (key) =>
+      this.read(key, this.media.attachment(id, 'body', false, { context }), true),
     );
   }
 

@@ -19,6 +19,8 @@ import { FlagService } from '../flags/flag.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ChatService } from './chat.service';
 
+/** D4: every REST send names its `clientId` now (a fresh UUID), so the echo settles the bubble. */
+const anyId: unknown = expect.any(String);
 describe('ChatService', () => {
   let service: ChatService;
   let mockApi: Partial<ChatApi>;
@@ -127,7 +129,10 @@ describe('ChatService', () => {
     service.selectThread('ch-1');
 
     service.sendMessage('Hello parent');
-    expect(mockApi.teacherSendChatMessage).toHaveBeenCalledWith('ch-1', { body: 'Hello parent' });
+    expect(mockApi.teacherSendChatMessage).toHaveBeenCalledWith('ch-1', {
+      body: 'Hello parent',
+      clientId: anyId,
+    });
   });
 
   /**
@@ -146,7 +151,10 @@ describe('ChatService', () => {
     expect(mockApi.teacherMarkChatRead).not.toHaveBeenCalled();
 
     service.sendMessage('Good afternoon');
-    expect(mockApi.teacherSendChatMessage).toHaveBeenCalledWith('ch-9', { body: 'Good afternoon' });
+    expect(mockApi.teacherSendChatMessage).toHaveBeenCalledWith('ch-9', {
+      body: 'Good afternoon',
+      clientId: anyId,
+    });
   });
 
   it('prefers the server’s own thread over the placeholder once it exists', () => {
@@ -521,6 +529,150 @@ describe('ChatService', () => {
       latest().onclose?.({ code: 1000, reason: 'idle' } as CloseEvent);
 
       expect(service.connectionStatus()).toBe('reconnecting');
+    });
+  });
+
+  /**
+   * D4: what the dashboard writes on `/ws/chat` for files and for typing. Before D4 a file was a
+   * tag in the body and the parent's app received its name; "typing" was stamped before the socket
+   * was checked, so a keystroke made while it reconnected swallowed the frames after it.
+   */
+  describe('files and typing on the socket (D4)', () => {
+    class OpenSocket {
+      static readonly OPEN = 1;
+      static last: OpenSocket | undefined = undefined;
+      readyState = 1;
+      onopen: (() => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      onclose: ((event: CloseEvent) => void) | null = null;
+      onerror: (() => void) | null = null;
+      readonly sent: string[] = [];
+      constructor() {
+        OpenSocket.last = this;
+      }
+      send(frame: string): void {
+        this.sent.push(frame);
+      }
+      close(): void {
+        this.readyState = 3;
+      }
+    }
+
+    let original: typeof WebSocket;
+    const socket = (): OpenSocket => OpenSocket.last as OpenSocket;
+    const frames = (type: string): Record<string, unknown>[] =>
+      socket()
+        .sent.map((frame) => JSON.parse(frame) as Record<string, unknown>)
+        .filter((frame) => frame['type'] === type);
+    const photo = { id: 'att-1', contentType: 'image/jpeg', name: 'board.jpg', size: 120_000 };
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      original = window.WebSocket;
+      (window as unknown as { WebSocket: unknown }).WebSocket = OpenSocket;
+      OpenSocket.last = undefined;
+      service.connect();
+      socket().onopen?.();
+      service.loadThreads();
+      service.selectThread('ch-1');
+    });
+
+    afterEach(() => {
+      (window as unknown as { WebSocket: unknown }).WebSocket = original;
+      vi.useRealTimers();
+    });
+
+    it('sends the files by id on the message command, with or without words', () => {
+      service.sendMessage('', [photo]);
+
+      expect(frames('message')).toEqual([
+        {
+          type: 'message',
+          childId: 'ch-1',
+          body: '',
+          clientId: anyId,
+          attachmentIds: ['att-1'],
+        },
+      ]);
+      // The bubble she sees at once already carries the file.
+      expect(service.messages().at(-1)).toMatchObject({ pending: true, attachments: [photo] });
+    });
+
+    it('sends the files by id over REST when the socket is down', () => {
+      socket().readyState = 3;
+      service.sendMessage('Homework', [photo]);
+
+      expect(mockApi.teacherSendChatMessage).toHaveBeenCalledWith('ch-1', {
+        body: 'Homework',
+        clientId: anyId,
+        attachmentIds: ['att-1'],
+      });
+    });
+
+    it('tries a failed send again with the same words and the same files', () => {
+      socket().readyState = 3;
+      mockApi.teacherSendChatMessage = vi.fn().mockReturnValue(throwError(() => new Error('offline')));
+      service.sendMessage('Homework', [photo]);
+      const failed = service.messages().at(-1)!;
+      expect(failed.failed).toBe(true);
+
+      socket().readyState = 1;
+      service.retry(failed.clientId!);
+
+      expect(frames('message')).toEqual([
+        {
+          type: 'message',
+          childId: 'ch-1',
+          body: 'Homework',
+          clientId: anyId,
+          attachmentIds: ['att-1'],
+        },
+      ]);
+      expect(service.messages().filter((message) => message.failed)).toEqual([]);
+    });
+
+    it('says "typing" at once, then at most every 3 s while she types, in the server’s shape', () => {
+      service.sendTyping();
+      service.sendTyping();
+      vi.advanceTimersByTime(2_900);
+      service.sendTyping();
+      expect(frames('typing')).toEqual([{ type: 'typing', childId: 'ch-1' }]);
+
+      vi.advanceTimersByTime(200);
+      service.sendTyping();
+      expect(frames('typing')).toHaveLength(2);
+
+      // She stopped: nothing more is written, and the other side lets the indicator lapse.
+      vi.advanceTimersByTime(30_000);
+      expect(frames('typing')).toHaveLength(2);
+    });
+
+    it('does not use up the 3 s on a keystroke the closed socket could not carry', () => {
+      socket().readyState = 0;
+      service.sendTyping();
+      socket().readyState = 1;
+      service.sendTyping();
+
+      expect(frames('typing')).toHaveLength(1);
+    });
+
+    it('says "typing" again straight after a send', () => {
+      service.sendTyping();
+      service.sendMessage('Done');
+      service.sendTyping();
+
+      expect(frames('typing')).toHaveLength(2);
+    });
+
+    it('shows the other party typing on the open thread, whichever side she is on', () => {
+      service.receive({ type: 'typing', threadId: 'th-1', from: 'teacher' });
+      expect(service.peerTyping()).toBe(true);
+
+      vi.advanceTimersByTime(4_500);
+      expect(service.peerTyping()).toBe(false);
+
+      service.receive({ type: 'typing', threadId: 'th-other', from: 'parent' });
+      expect(service.peerTyping()).toBe(false);
     });
   });
 });

@@ -5,6 +5,7 @@ import { screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { BehaviorSubject, map, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { scrollIntoView } from '../../../testing/intersection';
 import { renderHq } from '../../../testing/render';
 import {
   ChatApi,
@@ -22,6 +23,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { LocalMessage } from '../../core/chat/chat.models';
 import { ChatService } from '../../core/chat/chat.service';
 import { FlagService } from '../../core/flags/flag.service';
+import { MediaService } from '../../core/media/media.service';
 import { ChatPage } from './chat.page';
 
 describe('ChatPage', () => {
@@ -75,7 +77,7 @@ describe('ChatPage', () => {
       // T2 item (d): the header's pill reads the peer's presence, not this tab's own socket.
       // `undefined` is "the server has not said", which draws no pill at all.
       activePeerOnline: peerOnlineSig,
-      isParentTyping: signal(false),
+      peerTyping: signal(false),
       totalUnread: signal(1),
       loadThreads: vi.fn(),
       selectThread: vi.fn((childId: string) => {
@@ -94,6 +96,7 @@ describe('ChatPage', () => {
       canWrite: canWriteSig,
       sendMessage: vi.fn(),
       sendTyping: vi.fn(),
+      retry: vi.fn(),
       markRead: vi.fn(),
     };
 
@@ -102,10 +105,15 @@ describe('ChatPage', () => {
     };
   });
 
+  const PIXEL = 'data:image/png;base64,iVBORw0KGgo=';
+  /** D4: every upload is accepted at once as `att-9`. */
+  const uploadChatAttachment = vi.fn(() => of({ id: 'att-9' }));
+
   /** MG2b: a teacher's chooser asks for the department managers, so the page needs the API stubbed. */
   const chatApi = {
     teacherManagers: vi.fn().mockReturnValue(of([])),
     teacherStaffThread: vi.fn().mockReturnValue(of({ id: 'th-2' })),
+    uploadChatAttachment,
   };
 
   async function renderPage(
@@ -133,6 +141,11 @@ describe('ChatPage', () => {
           useValue: { role: signal(role), user: signal({ id: 'u-sara' }) },
         },
         { provide: FlagService, useValue: mockFlags },
+        // D4: the bubbles read files through the media cache and the composer uploads through the client.
+        {
+          provide: MediaService,
+          useValue: { attachmentImage: () => of(PIXEL), attachmentFile: () => of(new Blob()) },
+        },
         ...(query === null
           ? []
           : [
@@ -224,7 +237,167 @@ describe('ChatPage', () => {
     expect((sendBtn as HTMLButtonElement).disabled).toBe(false);
 
     await userEvent.click(sendBtn);
-    expect(mockChatService.sendMessage).toHaveBeenCalledWith('Welcome to class');
+    expect(mockChatService.sendMessage).toHaveBeenCalledWith('Welcome to class', []);
+  });
+
+  /** D4: what she types is "typing" for the other party; emptying the box is not. */
+  it('says "typing" while she writes, and not when she empties the box', async () => {
+    activeKeySig.set('ch-1');
+    activeThreadSig.set(sampleThread);
+    await renderPage();
+
+    const input = screen.getByPlaceholderText('Write a message...');
+    await userEvent.type(input, 'Hi');
+    expect(mockChatService.sendTyping).toHaveBeenCalledTimes(2);
+
+    await userEvent.clear(input);
+    expect(mockChatService.sendTyping).toHaveBeenCalledTimes(2);
+  });
+
+  describe('files (D4)', () => {
+    const user = userEvent.setup({ applyAccept: false });
+
+    beforeEach(() => {
+      activeKeySig.set('ch-1');
+      activeThreadSig.set(sampleThread);
+      uploadChatAttachment.mockClear();
+    });
+
+    function picker(): HTMLInputElement {
+      return document.querySelector('input[type=file]') as HTMLInputElement;
+    }
+
+    it('uploads a picked picture and sends it by itself, with no words', async () => {
+      const rendered = await renderPage();
+      const picture = new File(['x'], 'board.png', { type: 'image/png' });
+
+      await user.upload(picker(), picture);
+      rendered.fixture.detectChanges();
+
+      expect(uploadChatAttachment).toHaveBeenCalledWith(picture, 'body', false, expect.anything());
+      expect(screen.getByText('board.png')).toBeTruthy();
+      await user.click(screen.getByRole('button', { name: 'Send' }));
+      expect(mockChatService.sendMessage).toHaveBeenCalledWith('', [
+        { id: 'att-9', contentType: 'image/png', name: 'board.png', size: 1 },
+      ]);
+      // The composer is empty again for the next message.
+      expect(screen.queryByText('board.png')).toBeNull();
+    });
+
+    it('drops the files staged for one conversation when another is opened', async () => {
+      const rendered = await renderPage();
+      await user.upload(picker(), new File(['x'], 'board.png', { type: 'image/png' }));
+      rendered.fixture.detectChanges();
+      expect(screen.getByText('board.png')).toBeTruthy();
+
+      activeKeySig.set('ch-2');
+      rendered.fixture.detectChanges();
+
+      expect(screen.queryByText('board.png')).toBeNull();
+    });
+
+    it('offers to try a failed send again, with the same words and files', async () => {
+      messagesSig.set([
+        {
+          id: 'temp-c1',
+          threadId: 'th-1',
+          sender: ChatMessageSenderEnum.TEACHER,
+          senderId: 'u-sara',
+          body: 'Homework',
+          createdAt: 1700000000000,
+          failed: true,
+          clientId: 'c1',
+          attachments: [{ id: 'att-9', contentType: 'image/png', name: 'board.png', size: 1 }],
+        },
+      ]);
+      await renderPage();
+
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(mockChatService.retry).toHaveBeenCalledWith('c1');
+    });
+
+    it('refuses a file of another type in a band, in her words, and uploads nothing', async () => {
+      const rendered = await renderPage();
+
+      await user.upload(picker(), new File(['x'], 'clip.gif', { type: 'image/gif' }));
+      rendered.fixture.detectChanges();
+
+      expect(uploadChatAttachment).not.toHaveBeenCalled();
+      expect(screen.getByRole('alert').textContent).toContain(
+        'clip.gif cannot be attached. Attach a JPEG, PNG or WebP picture, or a PDF.',
+      );
+    });
+
+    it('draws the files on a message, and shows a pre-D4 attachment tag as the text it is', async () => {
+      messagesSig.set([
+        {
+          id: 'msg-2',
+          threadId: 'th-1',
+          sender: ChatMessageSenderEnum.PARENT,
+          senderId: 'parent-1',
+          body: '',
+          createdAt: 1700000000000,
+          attachments: [{ id: 'att-1', contentType: 'image/jpeg', name: 'homework.jpg', size: 9000 }],
+        },
+        {
+          id: 'msg-3',
+          threadId: 'th-1',
+          sender: ChatMessageSenderEnum.TEACHER,
+          senderId: 'u-sara',
+          body: '[attachment:att-old:image:old.png:2 KB]',
+          createdAt: 1700000000001,
+        },
+      ]);
+      const rendered = await renderPage();
+
+      const image = screen.getByRole('img', { name: 'homework.jpg' });
+      scrollIntoView(image);
+      rendered.fixture.detectChanges();
+      expect(image.getAttribute('src')).toBe(PIXEL);
+      expect(screen.getByText('[attachment:att-old:image:old.png:2 KB]')).toBeTruthy();
+      expect(screen.queryByRole('img', { name: 'old.png' })).toBeNull();
+    });
+
+    it('says why a send with files was refused when the files were already sent', async () => {
+      messagesSig.set([
+        {
+          id: 'temp-1',
+          threadId: 'th-1',
+          sender: ChatMessageSenderEnum.TEACHER,
+          senderId: 'u-sara',
+          body: '',
+          createdAt: 1700000000000,
+          failed: true,
+          clientId: 'c2',
+          errorCode: 'attachment_already_sent',
+        },
+      ]);
+      await renderPage();
+
+      expect(screen.getByText(/these files were already sent in another message/)).toBeTruthy();
+      // Those files are bound to the other message: sending them again cannot succeed.
+      expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    });
+
+    it('names a files-only last message "Photo" or by the document in the list', async () => {
+      const photoOnly = {
+        ...sampleThread.lastMessage!,
+        body: '',
+        attachments: [{ id: 'a', contentType: 'image/webp', name: 'x.webp', size: 1 }],
+      };
+      const pdfOnly = {
+        ...photoOnly,
+        attachments: [{ id: 'b', contentType: 'application/pdf', name: 'week 3.pdf', size: 1 }],
+      };
+      (mockChatService as { threads: unknown }).threads = signal([
+        { ...sampleThread, lastMessage: photoOnly },
+        { ...sampleThread, id: 'th-2', childId: 'ch-2', childName: 'Omar', lastMessage: pdfOnly },
+      ]);
+      await renderPage();
+
+      expect(screen.getByText('📷 Photo')).toBeTruthy();
+      expect(screen.getByText('📄 week 3.pdf')).toBeTruthy();
+    });
   });
 
   /**

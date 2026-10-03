@@ -1458,10 +1458,6 @@
     "failed": "Failed to send",
     "attachFile": "Attach image or PDF",
     "addEmoji": "Add emoji",
-    "removeAttachment": "Remove attachment",
-    "viewImage": "View image",
-    "downloadFile": "Download",
-    "pdfDocument": "PDF Document",
     "close": "Close",
     "messagesTitle": "Messages",
     "managementSubtitle": "Parents of your department, your coordinators, and the admin.",
@@ -1495,7 +1491,32 @@
     "supportNoSchool": "Pick a school from the header first — chat is read one school at a time.",
     "threadGone": "That conversation is not in your list any more.",
     "away": "Away",
-    "schoolAdministration": "School administration"
+    "schoolAdministration": "School administration",
+    "peerTyping": "{{name}} is typing…",
+    "attachment": {
+      "viewImage": "Open {{name}} full size",
+      "open": "Open",
+      "openNamed": "Open {{name}}",
+      "openFailed": "This file could not be opened. Try again.",
+      "staged": "Files on this message",
+      "uploading": "Uploading {{name}}",
+      "cancel": "Cancel uploading {{name}}",
+      "remove": "Remove {{name}}"
+    },
+    "upload": {
+      "type": "{{name}} cannot be attached. Attach a JPEG, PNG or WebP picture, or a PDF.",
+      "imageTooBig": "{{name}} is larger than 5 MB. Attach a smaller picture.",
+      "pdfTooBig": "{{name}} is larger than 10 MB. Attach a smaller PDF.",
+      "tooMany": "A message can carry up to 5 files. Send these first, then attach the rest.",
+      "failed": "{{name}} could not be uploaded. Remove it and try again.",
+      "tooManyPixels": "{{name}} is too large a picture (over 8192 pixels or 40 megapixels). Attach a smaller one."
+    },
+    "preview": {
+      "photo": "📷 Photo",
+      "photos": "📷 {{count}} photos",
+      "file": "📄 {{name}}"
+    },
+    "attachmentAlreadySent": "Not sent: these files were already sent in another message. Attach them again."
   },
   "profile": {
     "title": "Your profile",

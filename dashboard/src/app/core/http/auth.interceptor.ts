@@ -50,12 +50,18 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
  * answers `400 Send X-School-Id` without the header, so with `multiSchool` off — where D13 masks
  * her stored scope and hides the switcher — it falls back to the single school
  * ({@link SchoolScopeStore.soleSchoolId}), resolved from the server rather than from storage.
- * Only these routes: every other Admin read is deliberately cross-school with the flag off, and
+ * D4 adds the chat upload, which is behind the same flag and read for the same school. Only these
+ * routes: every other Admin read is deliberately cross-school with the flag off, and
  * scoping them all to the one school would be D13 undone by the back door.
  */
 function adminScope(auth: AuthService, scope: SchoolScopeStore, url: string): string | null {
   if (auth.role() !== 'ADMIN') return null;
-  return scope.schoolId() ?? (url.includes('/admin/chat/') ? scope.soleSchoolId() : null);
+  return scope.schoolId() ?? (isSchoolScopedChat(url) ? scope.soleSchoolId() : null);
+}
+
+/** `/admin/chat/**`, and (D4) `POST /media/chat-attachments`, the upload a message's files take. */
+function isSchoolScopedChat(url: string): boolean {
+  return url.includes('/admin/chat/') || url.includes('/media/chat-attachments');
 }
 
 function withSession<T>(

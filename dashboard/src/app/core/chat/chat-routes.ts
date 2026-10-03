@@ -9,6 +9,7 @@ import {
   CoordinatorChatApi,
   ManagementChatApi,
   SchoolsApi,
+  SendChatMessageRequest,
 } from '../../api';
 import { AuthService } from '../auth/auth.service';
 import { SchoolScopeStore } from '../auth/school-scope.store';
@@ -59,7 +60,8 @@ export interface ChatTransport {
   commandKey(key: string): ChatCommandKey;
   threads(): Observable<ChatThread[]>;
   messages(key: string, since?: string): Observable<ChatMessage[]>;
-  send(key: string, body: string): Observable<ChatMessage>;
+  /** D4: a REST send carries the request whole — the body, the client id and the attachments. */
+  send(key: string, request: SendChatMessageRequest): Observable<ChatMessage>;
   read(key: string): Observable<ChatReadReceipt>;
 }
 
@@ -137,7 +139,7 @@ export class ChatRoutes {
       commandKey: (key) => ({ threadId: key }),
       threads: () => this.teacher.teacherStaffThreads(),
       messages: (key, since) => this.teacher.teacherStaffMessages(key, undefined, since),
-      send: (key, body) => this.teacher.teacherSendStaffMessage(key, { body }),
+      send: (key, request) => this.teacher.teacherSendStaffMessage(key, request),
       read: (key) => this.teacher.teacherMarkStaffRead(key),
     };
   });
@@ -171,7 +173,7 @@ export class ChatRoutes {
           commandKey: (key) => ({ childId: key }),
           threads: () => this.teacher.teacherChatThreads(),
           messages: (key, since) => this.teacher.teacherChatMessages(key, undefined, since),
-          send: (key, body) => this.teacher.teacherSendChatMessage(key, { body }),
+          send: (key, request) => this.teacher.teacherSendChatMessage(key, request),
           read: (key) => this.teacher.teacherMarkChatRead(key),
         };
       case 'COORDINATOR':
@@ -181,7 +183,7 @@ export class ChatRoutes {
           commandKey: (key) => ({ threadId: key }),
           threads: () => this.coordinator.coordinatorChatThreads(),
           messages: (key, since) => this.coordinator.coordinatorChatMessages(key, undefined, since),
-          send: (key, body) => this.coordinator.coordinatorSendChatMessage(key, { body }),
+          send: (key, request) => this.coordinator.coordinatorSendChatMessage(key, request),
           read: (key) => this.coordinator.coordinatorMarkChatRead(key),
         };
       case 'MANAGERIAL':
@@ -191,7 +193,7 @@ export class ChatRoutes {
           commandKey: (key) => ({ threadId: key }),
           threads: () => this.management.managementChatThreads(),
           messages: (key, since) => this.management.managementChatMessages(key, undefined, since),
-          send: (key, body) => this.management.managementSendChatMessage(key, { body }),
+          send: (key, request) => this.management.managementSendChatMessage(key, request),
           read: (key) => this.management.managementMarkChatRead(key),
         };
       // The Admin's own threads — with a manager, a coordinator, a teacher or a parent (S1's
@@ -210,7 +212,7 @@ export class ChatRoutes {
           // Her inbox: her threads and her unread, so the badge on her rail counts only hers.
           threads: () => this.teacher.supportChatThreads(true),
           messages: (key, since) => this.teacher.supportChatMessages(key, undefined, since),
-          send: (key, body) => this.teacher.supportSendChatMessage(key, { body }),
+          send: (key, request) => this.teacher.supportSendChatMessage(key, request),
           read: (key) => this.teacher.supportMarkChatRead(key),
         };
       default:

@@ -47,6 +47,8 @@ export class AttachmentImageDirective {
   readonly hqAttachmentImage = input.required<string | null | undefined>();
   /** Load on sight rather than on scroll — for a picture that is the point of the screen. */
   readonly eager = input(false);
+  /** D4: ask the server for a picture no wider than this many pixels (a thumbnail), or the original. */
+  readonly downscale = input<number | null>(null);
   /**
    * `pending` until it is near the viewport, then `loading` / `ready` / `error`.
    *
@@ -59,6 +61,7 @@ export class AttachmentImageDirective {
     effect((onCleanup) => {
       const id = this.hqAttachmentImage();
       const eager = this.eager();
+      const width = this.downscale();
       this.paint(BLANK_PIXEL, 'pending');
       if (!id) return;
 
@@ -67,7 +70,7 @@ export class AttachmentImageDirective {
 
       const load = (): void => {
         timer = setTimeout(() => this.paint(BLANK_PIXEL, 'loading'), SKELETON_DELAY_MS);
-        reading = this.media.attachmentImage(id).subscribe({
+        reading = this.media.attachmentImage(id, width).subscribe({
           next: (data) => {
             if (timer !== null) clearTimeout(timer);
             this.paint(data, 'ready');
