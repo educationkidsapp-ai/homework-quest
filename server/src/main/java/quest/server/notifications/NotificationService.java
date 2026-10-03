@@ -121,14 +121,14 @@ public class NotificationService {
             case LESSON_NEEDS_SKILLS -> "Skills to confirm";
             case LESSON_READY -> "Questions ready";
             case LESSON_FAILED -> "Generation stopped";
-            case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
+            case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         String name = lesson.getTitle() == null || lesson.getTitle().isBlank() ? "Your lesson" : lesson.getTitle().trim();
         String body = switch (kind) {
             case LESSON_NEEDS_SKILLS -> name + " has been analysed. Confirm the skills to start writing the questions.";
             case LESSON_READY -> name + " is ready to review.";
             case LESSON_FAILED -> lesson.getErrorMessage() == null || lesson.getErrorMessage().isBlank() ? name + " stopped before it finished." : lesson.getErrorMessage();
-            case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
+            case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         try {
             notify(lesson.getSchoolId(), recipient, kind, title, body, link(roleOf(recipient), lesson.getId()), lesson.getId());
@@ -237,7 +237,7 @@ public class NotificationService {
     /** B4: the row as a push — after this transaction commits, on its own thread (`ParentPush`). English only: the server has no other text for these kinds. */
     private void pushTo(String parentId, NotificationEntity row, String collapseKey) {
         push.toParent(parentId, new PushMessage(kind(row.getKind()), row.getTitle(), row.getBody(), row.getId(), row.getChildId(),
-                row.getLink(), null, collapseKey), null);
+                row.getLink(), null, collapseKey, null, null), null);
     }
 
     /** T1: she opened the thread, so its bell entry is read too — one statement, whatever put the row there. */

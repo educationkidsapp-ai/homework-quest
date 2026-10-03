@@ -70,7 +70,7 @@
    "required": ["id", "kind", "title", "createdAt"],
    "properties": {
     "id": { "type": "string", "minLength": 1 },
-    "kind": { "type": "string", "enum": ["lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published"] },
+    "kind": { "type": "string", "enum": ["lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status"] },
     "title": { "type": "string", "minLength": 1 },
     "body": { "type": ["string", "null"] },
     "link": { "type": ["string", "null"] },

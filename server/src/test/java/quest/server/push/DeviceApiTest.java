@@ -137,6 +137,6 @@ class DeviceApiTest extends ApiTestSupport {
     }
 
     private static PushMessage message(String title) {
-        return new PushMessage(NotificationKind.CHAT_MESSAGE, title, null, "n-1", "c-1", "/children/c-1/chat/t-1", null, "chat:th-1");
+        return new PushMessage(NotificationKind.CHAT_MESSAGE, title, null, "n-1", "c-1", "/children/c-1/chat/t-1", null, "chat:th-1", null, null);
     }
 }

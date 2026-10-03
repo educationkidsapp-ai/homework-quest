@@ -438,9 +438,9 @@ public class BroadcastService {
         for (var kid : children.findBySchoolIdAndDeletedAtIsNullOrderByNameAsc(schoolId)) {
             if (kid.getParentId() == null || kid.getClassId() == null || !kid.isActive() || !forChild(row, kid) || !told.add(kid.getParentId())) continue;
             String link = "/children/" + kid.getId() + "/broadcasts?open=" + row.getId(), collapse = "broadcast:" + row.getId();
-            var english = new PushMessage(NotificationKind.BROADCAST_POSTED, headline(row), pushBody(row.getBodyEn()), null, kid.getId(), link, row.getId(), collapse);
+            var english = new PushMessage(NotificationKind.BROADCAST_POSTED, headline(row), pushBody(row.getBodyEn()), null, kid.getId(), link, row.getId(), collapse, null, null);
             var arabic = blank(row.getBodyAr()) ? null
-                    : new PushMessage(NotificationKind.BROADCAST_POSTED, headlineAr(row), pushBody(row.getBodyAr()), null, kid.getId(), link, row.getId(), collapse);
+                    : new PushMessage(NotificationKind.BROADCAST_POSTED, headlineAr(row), pushBody(row.getBodyAr()), null, kid.getId(), link, row.getId(), collapse, null, null);
             push.toParent(kid.getParentId(), english, arabic);
         }
     }

@@ -18,9 +18,17 @@ class PushMessageTest {
         assertEquals(push, PushMessage.fromData(data))
     }
 
+    @Test fun anExamPushCarriesItsWindow() {
+        val push = PushMessage(NotificationKind.EXAM_PUBLISHED, "New exam: Maths", notificationId = "n2", childId = "c1",
+            link = "/children/c1/map", collapseKey = "lesson:e1", opensAt = 1_700_000_000_000, closesAt = 1_700_003_600_000)
+        assertEquals("1700000000000", push.toData()[PushMessage.OPENS_AT])
+        assertEquals(push, PushMessage.fromData(push.toData()))
+    }
+
     @Test fun everyKindHasItsWireName() {
         assertEquals("broadcast.posted", PushMessage.kindName(NotificationKind.BROADCAST_POSTED))
         assertEquals("exam.released", PushMessage.kindName(NotificationKind.EXAM_RELEASED))
+        assertEquals("complaint.status", PushMessage.kindName(NotificationKind.COMPLAINT_STATUS))
     }
 
     @Test fun aMapThatIsNotOursIsNull() {
