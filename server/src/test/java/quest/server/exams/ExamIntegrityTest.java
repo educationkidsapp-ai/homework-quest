@@ -22,7 +22,7 @@ import quest.server.flags.FlagKeys;
  * sealed until the teacher releases it (D1, D2), and the parent hears about the release (D5).
  */
 class ExamIntegrityTest extends ExamTestSupport {
-    private static final String A = "ei-school-a", SARA = "ei-teacher-sara", CLASS_1A = "ei-1a", EXAM = "ei-exam-1";
+    private static final String A = "ei-school-a", SARA = "ei-teacher-sara", CLASS_1A = "ei-1a", EXAM = "ei-exam-1", TICKET = "ei-ticket";
 
     @Autowired ExamReleaseSweep sweep;
 
@@ -77,6 +77,79 @@ class ExamIntegrityTest extends ExamTestSupport {
         assertThat(attempts.findById("ei-f2")).isEmpty();
         assertThat(attempts.findById("ei-f3")).isEmpty();
         assertThat(row("ei-f1").isCorrect()).isFalse();
+    }
+
+    // ---------------------------------------------------------------- review: exit tickets, races, the key
+
+    @Test void a_released_apps_exit_ticket_with_answers_is_graded_question_by_question() throws Exception {
+        ticketExam();
+        parentPost("/children/" + maya + "/attempts", batch(
+                answer("ei-x1", EXAM, stop(EXAM, 1), "a", false, 0),
+                answer("ei-xw", EXAM, TICKET, "{\\\"ei-q1\\\":\\\"a\\\",\\\"ei-q2\\\":\\\"false\\\"}", true, 3)));
+        assertThat(row("ei-xw:ei-q1").isCorrect()).isTrue();
+        assertThat(row("ei-xw:ei-q2").isCorrect()).as("the statement is true").isFalse();
+        assertThat(examSittings.findOne(maya, EXAM).orElseThrow().getState()).isEqualTo("submitted");
+        assertThat(child(results(), maya).get("percent").asInt()).as("(100 + 100 + 0) / 3").isEqualTo(67);
+    }
+
+    @Test void a_released_apps_bare_exit_ticket_hands_the_paper_in_with_its_questions_unanswered() throws Exception {
+        ticketExam();
+        parentPost("/children/" + maya + "/attempts", batch(answer("ei-yw", EXAM, TICKET, "", true, 3)));
+        assertThat(examSittings.findOne(maya, EXAM).orElseThrow().getState()).as("one question still to go").isEqualTo("started");
+        parentPost("/children/" + maya + "/attempts", batch(answer("ei-y1", EXAM, stop(EXAM, 1), "a", true, 3)));
+        assertThat(examSittings.findOne(maya, EXAM).orElseThrow().getState()).isEqualTo("submitted");
+        assertThat(child(results(), maya).get("percent").asInt()).as("(100 + 0 + 0) / 3 — nothing was sent for them").isEqualTo(33);
+    }
+
+    @Test void an_updated_apps_exit_ticket_is_one_attempt_per_question() throws Exception {
+        ticketExam();
+        parentPost("/children/" + maya + "/attempts", batch(
+                answer("ei-z1", EXAM, stop(EXAM, 1), "a", true, 3),
+                answer("ei-zq1", EXAM, "ei-q1", "a", true, 3),
+                answer("ei-zq2", EXAM, "ei-q2", "true", true, 3)));
+        assertThat(examSittings.findOne(maya, EXAM).orElseThrow().getState()).as("the ticket's questions complete it").isEqualTo("submitted");
+        assertThat(child(results(), maya).get("percent").asInt()).isEqualTo(100);
+    }
+
+    @Test void two_uploads_racing_on_one_question_store_only_one_answer() throws Exception {
+        publishedExam(-30, 30, ExamLevels.MANUAL);
+        parentPost("/children/" + maya + "/attempts", batch(answer("ei-r0", EXAM, stop(EXAM, 1), "a", true, 3)));
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        var go = new java.util.concurrent.CountDownLatch(1);
+        var statuses = new java.util.ArrayList<java.util.concurrent.Future<Integer>>();
+        for (String answer : List.of("a", "b"))
+            statuses.add(pool.submit(() -> {
+                go.await();
+                return mvc.perform(post("/children/" + maya + "/attempts").header("Authorization", PARENT).contentType(MediaType.APPLICATION_JSON)
+                        .content(batch(answer("ei-r-" + answer, EXAM, stop(EXAM, 2), answer, true, 3)))).andReturn().getResponse().getStatus();
+            }));
+        go.countDown();
+        for (var f : statuses) assertThat(f.get(30, java.util.concurrent.TimeUnit.SECONDS)).isLessThan(500);
+        pool.shutdown();
+        assertThat(attempts.findByChildIdAndLessonIdIn(maya, List.of(EXAM)).stream().filter(a -> a.getStopId().equals(stop(EXAM, 2))))
+                .as("the first answer is the answer, even under a race").hasSize(1);
+
+        var twin = row("ei-r0");
+        twin.setId("ei-r0-twin");
+        assertThat(attempts.insertExamAnswer(twin)).as("the database refuses a second answer by itself").isZero();
+    }
+
+    @Test void the_paper_carries_no_answer_key_until_the_results_are_released() throws Exception {
+        ticketExam();
+        var sealed = parentGet("/lessons/" + EXAM);
+        var stops = sealed.get("examPlay").get("stops");
+        assertThat(stops.get(0).get("correctOptionId").asText()).isEmpty();
+        assertThat(stops.get(0).get("hint").asText()).isEmpty();
+        assertThat(stops.get(0).get("parentTip").get("en").asText()).isEmpty();
+        var q2 = stops.get(1).get("questions").get(1);
+        assertThat(q2.get("type").asText()).isEqualTo("trueFalse");
+        assertThat(q2.has("answer")).isFalse();
+        assertThat(sealed.get("plays").get(0).get("stops").get(0).get("correctOptionId").asText()).as("the level plays too").isEmpty();
+
+        release(true);
+        var open = parentGet("/lessons/" + EXAM).get("examPlay").get("stops");
+        assertThat(open.get(0).get("correctOptionId").asText()).isEqualTo("a");
+        assertThat(open.get(1).get("questions").get(1).get("answer").asBoolean()).isTrue();
     }
 
     // ---------------------------------------------------------------- D1: sealed until released
@@ -147,6 +220,20 @@ class ExamIntegrityTest extends ExamTestSupport {
         readyToPublish(EXAM, A, section1a, LocalDate.now(), "exam");
         exam(EXAM, A, ExamLevels.ONE, opensIn, closesIn, releaseMode);
         publish(EXAM);
+    }
+
+    /** The fixture exam with its Level 1 play ending in an exit ticket — what every generated play does. */
+    private void ticketExam() throws Exception {
+        publishedExam(-30, 30, ExamLevels.MANUAL);
+        var tip = new quest.api.dto.Bilingual("Count together.", "Count together.");
+        var ing = new quest.api.dto.Ingredient("C", "carrot");
+        var tiles = List.of(new quest.api.dto.Tile("a", "A", null, null), new quest.api.dto.Tile("b", "B", null, null));
+        var ticket = new quest.api.dto.Stop.ExitTicket(TICKET, "Exit", "Three to finish", ing, tip, List.of(
+                new quest.api.dto.Stop.Choice("ei-q1", "Q1", "Which?", ing, tip, "Count first.", "Which?", tiles, "a", null, null),
+                new quest.api.dto.Stop.TrueFalse("ei-q2", "Q2", "True?", ing, tip, "Look again.", "Two is more than one.", true, null, null)), null, null);
+        var first = new quest.api.dto.Stop.Choice(stop(EXAM, 1), "S1", "Which?", ing, tip, "Count first.", "Which?", tiles, "a", null, null);
+        store.savePlay(EXAM, new quest.api.dto.Play(1, 0, quest.api.dto.SourceKind.MATH, new quest.api.dto.Theme("Pot", "Soup", "S", "Served!"),
+                List.of(first, ticket), null), "v1", 1);
     }
 
     private void publish(String lessonId) throws Exception {

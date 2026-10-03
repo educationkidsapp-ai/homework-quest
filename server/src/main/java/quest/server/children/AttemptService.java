@@ -27,10 +27,10 @@ public class AttemptService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AttemptService.class);
     private final AttemptRepository attempts; private final StopCompletionRepository stopCompletions; private final LessonCompletionRepository lessonCompletions;
     private final StreakRepository streaks; private final StickerRepository stickers; private final LessonRepository lessons; private final LessonStore store;
-    private final quest.server.exams.ExamAttemptService exams;
+    private final quest.server.exams.ExamAttemptService exams; private final quest.server.config.Json json;
 
-    public AttemptService(AttemptRepository attempts, StopCompletionRepository stopCompletions, LessonCompletionRepository lessonCompletions, StreakRepository streaks, StickerRepository stickers, LessonRepository lessons, LessonStore store, quest.server.exams.ExamAttemptService exams) {
-        this.attempts = attempts; this.stopCompletions = stopCompletions; this.lessonCompletions = lessonCompletions; this.streaks = streaks; this.stickers = stickers; this.lessons = lessons; this.store = store; this.exams = exams;
+    public AttemptService(AttemptRepository attempts, StopCompletionRepository stopCompletions, LessonCompletionRepository lessonCompletions, StreakRepository streaks, StickerRepository stickers, LessonRepository lessons, LessonStore store, quest.server.exams.ExamAttemptService exams, quest.server.config.Json json) {
+        this.attempts = attempts; this.stopCompletions = stopCompletions; this.lessonCompletions = lessonCompletions; this.streaks = streaks; this.stickers = stickers; this.lessons = lessons; this.store = store; this.exams = exams; this.json = json;
     }
 
     /**
@@ -42,7 +42,8 @@ public class AttemptService {
      * <p><strong>B3 (D2): an exam answer is graded here, not on the tablet.</strong> The client's `correct`, `stars`,
      * `attemptNumber` and `mistakes` are ignored for it: {@link AnswerKey} grades the answer against the stop of the
      * paper the server derived, a question with no machine-checkable key is stored unscored for the teacher to mark,
-     * a second answer to a question she already answered is dropped (the first answer is the answer), and an answer
+     * a second answer to a question she already answered is dropped (the first answer is the answer — V31's unique
+     * `exam_key` holds that across concurrent uploads too), and an answer
      * naming a stop that is not on the paper is not an answer to this exam. A <strong>homework</strong> attempt keeps
      * the app's values — retries, hints and stars-by-mistakes happen on the device and older apps send no answer for
      * some stops — but a single-answer one is cross-checked against the key and a disagreement is logged.
@@ -59,34 +60,75 @@ public class AttemptService {
         Map<String, Map<String, Stop>> homework = new HashMap<>();
         for (var a : uploads) {
             if (attempts.existsById(a.getId())) continue;
-            var e = new Entities.AttemptEntity();
-            e.setId(a.getId()); e.setChildId(child.getId()); e.setStopId(a.getStopId()); e.setLessonId(a.getLessonId()); e.setLevel(a.getLevel());
-            e.setAnswerJson(a.getAnswerJson());
+            var at = Instant.ofEpochMilli(a.getAnsweredAt());
             var sitting = sittings.get(a.getLessonId());
             if (sitting != null) {
                 var paper = papers.computeIfAbsent(a.getLessonId(), id -> exams.paper(child, sitting));
                 var stop = paper.stops().get(a.getStopId());
-                if (stop == null || !paper.answered().add(a.getStopId())) continue;
-                var graded = AnswerKey.grade(stop, a.getAnswerJson());
-                e.setCorrect(graded.correct()); e.setAttemptNumber(1); e.setMistakes(graded.mistakes()); e.setStars(graded.stars());
+                if (stop == null) continue;
+                String salt = quest.server.exams.ExamPlays.sealed(sitting.lesson()) ? AnswerKey.salt(sitting.lesson()) : null;
+                var rows = new ArrayList<Entities.AttemptEntity>();
+                rows.add(examRow(a, child, stop, a.getId(), a.getAnswerJson(), salt, at));
+                // A released app answers an exit ticket with one attempt on the wrapper. When its answer carries the
+                // questions' answers (`{"<questionId>":"<answer>",…}`) they are graded as the questions' own attempts;
+                // when it carries none, the questions stay unanswered and score as unreached once the paper is in.
+                if (stop instanceof Stop.ExitTicket ticket) {
+                    var perQuestion = questionAnswers(a.getAnswerJson());
+                    for (Stop q : ticket.getQuestions())
+                        if (perQuestion.containsKey(q.getId())) rows.add(examRow(a, child, q, a.getId() + ":" + q.getId(), perQuestion.get(q.getId()), salt, at));
+                }
+                for (var row : rows) {
+                    if (!paper.answered().add(row.getStopId()) || attempts.insertExamAnswer(row) == 0) continue;
+                    if (row.getId().equals(a.getId())) accepted++;
+                    completed(child, row, at, touchedLessons);
+                }
             } else {
                 crossCheck(a, homework.computeIfAbsent(a.getLessonId(), this::stopsOf));
+                var e = new Entities.AttemptEntity();
+                e.setId(a.getId()); e.setChildId(child.getId()); e.setStopId(a.getStopId()); e.setLessonId(a.getLessonId()); e.setLevel(a.getLevel());
+                e.setAnswerJson(a.getAnswerJson()); e.setAnsweredAt(at);
                 e.setCorrect(a.getCorrect()); e.setAttemptNumber(a.getAttemptNumber()); e.setMistakes(a.getMistakes()); e.setStars(a.getStars());
-            }
-            var at = Instant.ofEpochMilli(a.getAnsweredAt()); e.setAnsweredAt(at);
-            attempts.save(e); accepted++;
-            touchedLessons.merge(a.getLessonId(), at, (x, y) -> x.isAfter(y) ? x : y);
-
-            var sc = stopCompletions.findById(new Entities.StopCompletionId(child.getId(), a.getStopId())).orElse(null);
-            if (sc == null || sc.getStars() < e.getStars()) {
-                if (sc == null) { sc = new Entities.StopCompletionEntity(); sc.setChildId(child.getId()); sc.setStopId(a.getStopId()); }
-                sc.setLessonId(a.getLessonId()); sc.setLevel(a.getLevel()); sc.setStars(e.getStars()); sc.setCompletedAt(at);
-                stopCompletions.save(sc);
+                attempts.save(e); accepted++;
+                completed(child, e, at, touchedLessons);
             }
         }
         for (var entry : touchedLessons.entrySet()) { deriveLessonCompletions(child, entry.getKey(), entry.getValue()); touchStreak(child, entry.getValue()); }
         exams.settle(child, sittings, now);
         return accepted;
+    }
+
+    /**
+     * One exam answer as the server grades it — the app's `correct`, `stars`, `attemptNumber` and `mistakes` play no
+     * part — carrying the `exam_key` that makes it the only answer to that question (V31).
+     */
+    private static Entities.AttemptEntity examRow(AttemptUpload a, Entities.ChildEntity child, Stop stop, String id, String answer, String salt, Instant at) {
+        var graded = AnswerKey.grade(stop, answer, salt);
+        var e = new Entities.AttemptEntity();
+        e.setId(id); e.setChildId(child.getId()); e.setStopId(stop.getId()); e.setLessonId(a.getLessonId()); e.setLevel(a.getLevel());
+        e.setAnswerJson(answer == null ? "" : answer); e.setAnsweredAt(at);
+        e.setCorrect(graded.correct()); e.setAttemptNumber(1); e.setMistakes(graded.mistakes()); e.setStars(graded.stars());
+        e.setExamKey(child.getId() + "|" + a.getLessonId() + "|" + stop.getId());
+        return e;
+    }
+
+    /** `{"q1":"a","q2":"true"}` → its string values by question id; anything else → none. */
+    private Map<String, String> questionAnswers(String answer) {
+        Map<String, String> out = new HashMap<>();
+        if (answer == null || !answer.trim().startsWith("{")) return out;
+        try { json.tree(answer).properties().forEach(f -> { if (f.getValue().isTextual()) out.put(f.getKey(), f.getValue().asText()); }); }
+        catch (IllegalArgumentException malformed) { return Map.of(); }
+        return out;
+    }
+
+    /** The stop's completion and the lesson it touches, after one stored attempt. */
+    private void completed(Entities.ChildEntity child, Entities.AttemptEntity e, Instant at, Map<String, Instant> touchedLessons) {
+        touchedLessons.merge(e.getLessonId(), at, (x, y) -> x.isAfter(y) ? x : y);
+        var sc = stopCompletions.findById(new Entities.StopCompletionId(child.getId(), e.getStopId())).orElse(null);
+        if (sc == null || sc.getStars() < e.getStars()) {
+            if (sc == null) { sc = new Entities.StopCompletionEntity(); sc.setChildId(child.getId()); sc.setStopId(e.getStopId()); }
+            sc.setLessonId(e.getLessonId()); sc.setLevel(e.getLevel()); sc.setStars(e.getStars()); sc.setCompletedAt(at);
+            stopCompletions.save(sc);
+        }
     }
 
     /** Every stop of a homework's plays (its "Again" variant included) by id; empty for an id no lesson has. */

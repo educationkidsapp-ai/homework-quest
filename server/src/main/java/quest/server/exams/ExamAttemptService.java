@@ -102,12 +102,22 @@ public class ExamAttemptService {
             var answered = new HashSet<String>();
             for (var a : attempts.findByChildIdAndLessonIdIn(child.getId(), List.of(sitting.lesson().getId())))
                 answered.add(a.getStopId());
-            if (!paper.stream().map(Stop::getId).allMatch(answered::contains)) continue;
+            if (!paper.stream().allMatch(stop -> answered(stop, answered))) continue;
             row.setState(Entities.ExamAttemptEntity.SUBMITTED);
             row.setSubmittedAt(now);
             row.setSecondsTaken((int) Math.max(0, java.time.Duration.between(row.getStartedAt(), now).toSeconds()));
             sittings.save(row);
         }
+    }
+
+    /**
+     * B3: a question of the paper she has answered. An exit ticket is answered by an attempt on the ticket itself (what
+     * a released app sends) or by one on each of its questions (what an updated one sends).
+     */
+    private static boolean answered(Stop stop, java.util.Set<String> answered) {
+        if (answered.contains(stop.getId())) return true;
+        return stop instanceof Stop.ExitTicket ticket && !ticket.getQuestions().isEmpty()
+                && ticket.getQuestions().stream().map(Stop::getId).allMatch(answered::contains);
     }
 
     /**

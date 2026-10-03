@@ -29,6 +29,8 @@ public final class Entities {
         @Column private String link;
         @Column(name = "lesson_id") private String lessonId;
         @Column(name = "child_id") private String childId;
+        /** B3 (V31): `recipient|kind|lesson|child` on a once-only parent row, null otherwise — unique. */
+        @Column(name = "once_key") private String onceKey;
         @Column(name = "read_at") private Instant readAt;
         @Column(name = "created_at", nullable = false) private Instant createdAt;
         public String getId() { return id; } public void setId(String v) { id = v; }
@@ -40,6 +42,7 @@ public final class Entities {
         public String getLink() { return link; } public void setLink(String v) { link = v; }
         public String getLessonId() { return lessonId; } public void setLessonId(String v) { lessonId = v; }
         public String getChildId() { return childId; } public void setChildId(String v) { childId = v; }
+        public String getOnceKey() { return onceKey; } public void setOnceKey(String v) { onceKey = v; }
         public Instant getReadAt() { return readAt; } public void setReadAt(Instant v) { readAt = v; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
     }

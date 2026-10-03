@@ -1235,6 +1235,23 @@ the server derives, three stars or none. A retell, an open answer, free writing 
 unscored, waiting for the teacher's mark (`openStopMarking`, as for homework); a second answer to a question already
 answered and an answer to a stop not on the paper are dropped (not counted in `accepted`). Homework keeps the app's
 values; a single-answer one whose answer disagrees with the key is logged as `attempt … the app reports correct=…`.
+A released app answers an exit ticket with one attempt on the ticket's own id: when its `answerJson` is
+`{"<questionId>":"<answer>",…}` each question is graded as its own attempt (`<attemptId>:<questionId>`), and when it
+carries nothing the questions stay unanswered and score as unreached once the paper is in; an updated app sends one
+attempt per question, which completes the ticket by itself. The first answer wins under concurrency as well:
+`attempts.exam_key` (V31, `child|lesson|stop`) is unique and an exam answer is inserted with `ON CONFLICT DO NOTHING`.
+
+**The paper carries no answer key until release.** `GET /lessons/{id}` for a sealed exam (`type = exam`, no
+`released_at`) answers under the ETag `"<id>-v<n>-sealed"` with every stop of `plays`, `variant` and `examPlay`
+(exit-ticket questions included) stripped of: `correctOptionId` → `""`, `trueFalse.answer` → absent,
+`correctIds` / `tapTask.correctIds` / `correctOrder` / `numberLine.highlight` → `[]`, `hint`, `modelAnswer` and the
+word-tile `writeSentence.answer` → `""`, `parentTip` → `{"en":"","ar":""}`, `teacherText` dropped, and
+`parentPanel.stopTips` / `modelAnswers` → `[]`. An order stop's `items` and a match stop's right-hand tiles are
+shuffled by a hash keyed on server-only lesson fields (`AnswerKey.shuffled`), and a match answer on a sealed paper is
+graded against that shuffle. A homework and a released exam are sent exactly as stored. App builds older than the
+contract change fail to decode a sealed paper that has a true/false question, and cannot press Check on an order
+stop (they sized it by `correctOrder`).
+
 Until `released_at` is set, nothing derived from an exam's answers reaches a parent or child route: the island on
 `GET /children/{id}/map` is `done` but has no `starsEarned` / `starsTotal`, its skill contributes no first tries to
 `/progress` (`attempts` 0, no band, no review island), and `results` omits it. Releasing shows all of it at once.
@@ -1643,6 +1660,11 @@ chat ones.
 | `chat.message` | a teacher, coordinator, manager or Admin wrote in her child's thread — one unread row per thread, read when she calls `…/chat/threads/{staffId}/read` | `/children/{childId}/chat/{staffId}` |
 | `exam.released` | the teacher released an exam (by hand or by the close-of-window sweep), one row per child of the section, once | `/children/{childId}/progress` |
 | `homework.published` | a homework was published to the child's section (its results are released with it), once | `/children/{childId}/map` |
+
+`exam.released` and `homework.published` are written after the release (or publish) has committed, in a transaction
+of their own — a failure there is logged and never undoes the release — and only once per recipient, lesson and
+child: `notifications.once_key` (V31) is unique and the row is inserted with `ON CONFLICT DO NOTHING`, so two instances
+sweeping the same exam cannot both tell her.
 
 Broadcasts stay on `GET /children/{id}/broadcasts`. The `notification` frame reaches her sockets as well (her socket
 is admitted while one of her children's schools has `chat` on).

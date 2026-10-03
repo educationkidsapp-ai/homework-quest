@@ -23,8 +23,10 @@ import quest.server.config.ApiException;
 @Tag(name = "Lessons", description = "Published lesson content for the app")
 public class LessonController {
     private final LessonRepository lessons; private final LessonStore store; private final ChildRepository children;
-    private final quest.server.exams.ExamPlays exams;
-    public LessonController(LessonRepository lessons, LessonStore store, ChildRepository children, quest.server.exams.ExamPlays exams) { this.lessons = lessons; this.store = store; this.children = children; this.exams = exams; }
+    private final quest.server.exams.ExamPlays exams; private final quest.server.exams.SealedPaper sealer;
+    public LessonController(LessonRepository lessons, LessonStore store, ChildRepository children, quest.server.exams.ExamPlays exams, quest.server.exams.SealedPaper sealer) {
+        this.lessons = lessons; this.store = store; this.children = children; this.exams = exams; this.sealer = sealer;
+    }
 
     @PreAuthorize("@permit.has('lesson.play')")
     @GetMapping(value = "/lessons/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -41,7 +43,11 @@ public class LessonController {
         var assembled = store.assemble(lesson);
         if (assembled == null) throw ApiException.notFound("lesson content");
         String body = store.encode(exams.decorate(assembled, lesson));
-        return ResponseEntity.ok().cacheControl(cacheFor(lesson)).eTag("\"" + lesson.getId() + "-v" + lesson.getVersion() + "\"").body(body);
+        // B3: until its results are released an exam is sent without its answer key — a downloaded paper must not be
+        // answerable perfectly — and under its own ETag, so a revalidation can never mix the two bodies.
+        boolean sealed = quest.server.exams.ExamPlays.sealed(lesson);
+        if (sealed) body = sealer.seal(body, quest.server.grading.AnswerKey.salt(lesson));
+        return ResponseEntity.ok().cacheControl(cacheFor(lesson)).eTag("\"" + lesson.getId() + "-v" + lesson.getVersion() + (sealed ? "-sealed" : "") + "\"").body(body);
     }
 
     /**

@@ -68,6 +68,30 @@ class AnswerKeyTest {
         assertThat(Scoring.isOpen(trace, false)).as("a homework tracing keeps its stars rule").isFalse();
     }
 
+    /** B3: a sealed paper shuffles a match stop's right tiles; the child's pairing is graded against what she saw. */
+    @Test void a_match_answered_on_the_sealed_paper_is_graded_against_the_tiles_it_showed() {
+        var pairs = List.of(new MatchPair("p1", tile("l1"), tile("r1")), new MatchPair("p2", tile("l2"), tile("r2")),
+                new MatchPair("p3", tile("l3"), tile("r3")), new MatchPair("p4", tile("l4"), tile("r4")));
+        var match = new Stop.Match("m1", "t", "s", I, TIP, "Match", pairs, null, null);
+        String salt = "lesson|2026-10-01T00:00:00Z|hash";
+        assertThat(AnswerKey.shuffled(salt, "m1", List.of("p1", "p2", "p3", "p4"))).as("this salt really shuffles").isNotEqualTo(List.of("p1", "p2", "p3", "p4"));
+
+        var codec = quest.api.validation.SchemaValidator.INSTANCE.getJson();
+        String paper = "{\"examPlay\":{\"stops\":[" + codec.encodeToString(Stop.Companion.serializer(), match) + "]}}";
+        var json = new quest.server.config.Json(new com.fasterxml.jackson.databind.ObjectMapper());
+        var sealedJson = json.tree(new quest.server.exams.SealedPaper(json).seal(paper, salt)).get("examPlay").get("stops").get(0).toString();
+        var sealed = (Stop.Match) codec.decodeFromString(Stop.Companion.serializer(), sealedJson);
+
+        var honest = new StringBuilder();       // she pairs each left with the pair whose shown right tile is its own
+        for (var p : pairs) {
+            var shownAt = sealed.getPairs().stream().filter(q -> q.getRight().getId().equals(p.getRight().getId())).findFirst().orElseThrow();
+            honest.append(honest.isEmpty() ? "" : ",").append(p.getId()).append('=').append(shownAt.getId());
+        }
+        assertThat(AnswerKey.grade(match, honest.toString(), salt).correct()).isTrue();
+        assertThat(AnswerKey.grade(match, "p1=p1,p2=p2,p3=p3,p4=p4", salt).correct()).as("the pairing the paper no longer shows").isFalse();
+        assertThat(AnswerKey.grade(match, "p1=p1,p2=p2,p3=p3,p4=p4").correct()).as("unsealed, ids pair as stored").isTrue();
+    }
+
     private static void assertRight(Stop stop, String answer) {
         var g = AnswerKey.grade(stop, answer);
         assertThat(g.correct()).as(answer).isTrue(); assertThat(g.stars()).isEqualTo(3); assertThat(g.mistakes()).isZero();

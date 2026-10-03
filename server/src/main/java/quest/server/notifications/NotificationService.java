@@ -59,12 +59,15 @@ public class NotificationService {
 
     private final NotificationRepository rows; private final UserRepository users; private final ChatBus bus;
     private final Json json; private final Clock clock; private final NotificationRows upserts;
-    private final quest.server.children.ChildRepository children;
+    private final quest.server.children.ChildRepository children; private final org.springframework.transaction.support.TransactionTemplate own;
 
     public NotificationService(NotificationRepository rows, UserRepository users, ChatBus bus, Json json, Clock clock,
-                              NotificationRows upserts, quest.server.children.ChildRepository children) {
+                              NotificationRows upserts, quest.server.children.ChildRepository children,
+                              org.springframework.transaction.PlatformTransactionManager transactions) {
         this.rows = rows; this.users = users; this.bus = bus; this.json = json; this.clock = clock; this.upserts = upserts;
         this.children = children;
+        this.own = new org.springframework.transaction.support.TransactionTemplate(transactions);
+        this.own.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     /** The recipient key of a parent's rows. */
@@ -179,38 +182,44 @@ public class NotificationService {
 
     /**
      * B3 (D5): one row for the parent of every child on the lesson's section — `exam.released` when an exam's results
-     * are released (by the teacher or by the close-of-window sweep), `homework.published` when a homework goes out. A
-     * parent is told once per lesson and child: a release withdrawn and given again, or a re-publish, writes nothing
-     * new. Never fails the release or the publish it rides on.
+     * are released (by the teacher or by the close-of-window sweep), `homework.published` when a homework goes out.
+     *
+     * <p><strong>After the release commits, in a transaction of its own</strong>: nothing here can roll the release
+     * or the publish back, and a release that did roll back tells nobody. <strong>Once per lesson and child</strong>,
+     * decided by V31's unique `once_key` rather than by a read — a release withdrawn and given again, a re-publish, or
+     * two instances sweeping the same exam write nothing new.
      */
-    @Transactional
-    public int parentsOf(LessonEntity lesson, NotificationKind kind) {
-        if (lesson == null || lesson.getClassId() == null) return 0;
-        try {
-            String k = key(kind), name = lesson.getTitle() == null || lesson.getTitle().isBlank() ? "the lesson" : lesson.getTitle().trim();
-            var told = new java.util.HashSet<String>();
-            for (var row : rows.about(k, lesson.getId())) told.add(row.getUserId() + "|" + row.getChildId());
-            int written = 0;
-            for (var child : children.findByClassIdAndDeletedAtIsNullOrderByNameAsc(lesson.getClassId())) {
-                if (child.getParentId() == null || !told.add(parentRecipient(child.getParentId()) + "|" + child.getId())) continue;
-                var e = new NotificationEntity();
-                e.setId(UUID.randomUUID().toString()); e.setSchoolId(lesson.getSchoolId()); e.setUserId(parentRecipient(child.getParentId()));
-                e.setKind(k); e.setLessonId(lesson.getId()); e.setChildId(child.getId()); e.setCreatedAt(clock.instant());
-                if (kind == NotificationKind.EXAM_RELEASED) {
-                    e.setTitle(clip("Results ready: " + name, TITLE_MAX)); e.setBody(clip(child.getName() + "'s result for " + name + " is ready.", BODY_MAX));
-                    e.setLink("/children/" + child.getId() + "/progress");
-                } else {
-                    e.setTitle(clip("New homework: " + name, TITLE_MAX)); e.setBody(clip(child.getName() + " has new homework for " + lesson.getDate() + ".", BODY_MAX));
-                    e.setLink("/children/" + child.getId() + "/map");
-                }
-                rows.save(e);
-                publishAfterCommit(e.getSchoolId(), e.getUserId(), view(e));
-                written++;
+    public void parentsOf(LessonEntity lesson, NotificationKind kind) {
+        if (lesson == null || lesson.getClassId() == null) return;
+        String lessonId = lesson.getId(), classId = lesson.getClassId(), schoolId = lesson.getSchoolId();
+        String name = lesson.getTitle() == null || lesson.getTitle().isBlank() ? "the lesson" : lesson.getTitle().trim();
+        String day = String.valueOf(lesson.getDate());
+        Runnable fanOut = () -> {
+            try { own.executeWithoutResult(status -> tellParents(lessonId, classId, schoolId, name, day, kind)); }
+            catch (RuntimeException e) { log.warn("notifications: could not tell the parents of lesson {} ({}): {}", lessonId, key(kind), e.toString()); }
+        };
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) { fanOut.run(); return; }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() { fanOut.run(); }
+        });
+    }
+
+    private void tellParents(String lessonId, String classId, String schoolId, String name, String day, NotificationKind kind) {
+        String k = key(kind);
+        for (var child : children.findByClassIdAndDeletedAtIsNullOrderByNameAsc(classId)) {
+            if (child.getParentId() == null) continue;
+            var e = new NotificationEntity();
+            e.setId(UUID.randomUUID().toString()); e.setSchoolId(schoolId); e.setUserId(parentRecipient(child.getParentId()));
+            e.setKind(k); e.setLessonId(lessonId); e.setChildId(child.getId()); e.setCreatedAt(clock.instant());
+            e.setOnceKey(e.getUserId() + "|" + k + "|" + lessonId + "|" + child.getId());
+            if (kind == NotificationKind.EXAM_RELEASED) {
+                e.setTitle(clip("Results ready: " + name, TITLE_MAX)); e.setBody(clip(child.getName() + "'s result for " + name + " is ready.", BODY_MAX));
+                e.setLink("/children/" + child.getId() + "/progress");
+            } else {
+                e.setTitle(clip("New homework: " + name, TITLE_MAX)); e.setBody(clip(child.getName() + " has new homework for " + day + ".", BODY_MAX));
+                e.setLink("/children/" + child.getId() + "/map");
             }
-            return written;
-        } catch (RuntimeException e) {
-            log.warn("notifications: could not tell the parents of lesson {} ({}): {}", lesson.getId(), key(kind), e.toString());
-            return 0;
+            if (rows.insertOnce(e) == 1) publishAfterCommit(schoolId, e.getUserId(), view(e));
         }
     }
 

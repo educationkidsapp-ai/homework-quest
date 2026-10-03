@@ -56,7 +56,7 @@ public final class StopText {
                 }
             }
             case Stop.Choice s -> { line(sb, pad, "Question: " + s.getQuestion()); tiles(sb, pad, s.getOptions(), List.of(s.getCorrectOptionId())); hint(sb, pad, s.getHint()); }
-            case Stop.TrueFalse s -> { line(sb, pad, "Statement: " + s.getStatement()); line(sb, pad, "The statement is " + (s.getAnswer() ? "true" : "false") + "."); hint(sb, pad, s.getHint()); }
+            case Stop.TrueFalse s -> { line(sb, pad, "Statement: " + s.getStatement()); line(sb, pad, "The statement is " + (Boolean.TRUE.equals(s.getAnswer()) ? "true" : "false") + "."); hint(sb, pad, s.getHint()); }
             case Stop.Sequence s -> {
                 line(sb, pad, "The sequence: " + s.getChips().stream().map(c -> c == null ? "___" : String.valueOf(c)).collect(Collectors.joining(", ")));
                 options(sb, pad, labels(s.getOptions()), ids(s.getOptions()), s.getCorrectOptionId());

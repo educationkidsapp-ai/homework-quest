@@ -69,7 +69,7 @@ public class MapService {
         }
         // B3 (D1): an unreleased exam keeps its completion — the island is `done`, which is how the app knows the
         // paper was handed in — but none of its stars, and no "most stops two stars" level unlock derived from them.
-        var sealed = lessons.stream().filter(ProgressService::unreleasedExam).map(quest.server.content.Entities.LessonEntity::getId).collect(java.util.stream.Collectors.toSet());
+        var sealed = lessons.stream().filter(quest.server.exams.ExamPlays::sealed).map(quest.server.content.Entities.LessonEntity::getId).collect(java.util.stream.Collectors.toSet());
         var done = completions.findByChildId(child.getId()).stream().map(c -> sealed.contains(c.getLessonId())
                 ? new LessonCompletionInfo(c.getLessonId(), c.getLevel(), 0, 0, false)
                 : new LessonCompletionInfo(c.getLessonId(), c.getLevel(), c.getStarsEarned(), c.getStarsTotal(), c.isMostStopsTwoStars())).toList();

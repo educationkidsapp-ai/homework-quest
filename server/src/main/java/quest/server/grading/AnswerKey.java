@@ -45,22 +45,49 @@ public final class AnswerKey {
         return stop.getCategory() == StopCategory.INFO ? Kind.INFO : Kind.UNKEYED;
     }
 
-    public static Graded grade(Stop stop, String answer) {
+    public static Graded grade(Stop stop, String answer) { return grade(stop, answer, null); }
+
+    /**
+     * The same, for an answer given on a <strong>sealed</strong> paper when `salt` is set (B3): a match stop was sent
+     * with its right-hand tiles shuffled across the pairs by {@link #shuffled}, so `left=q` names the pair whose
+     * <em>shown</em> right tile she chose, and it is right when that tile is the left's own.
+     */
+    public static Graded grade(Stop stop, String answer, String salt) {
         var kind = kind(stop);
         if (kind == Kind.INFO) return new Graded(kind, true, StopScoring.INFO, 0);
         if (kind == Kind.UNKEYED) return new Graded(kind, false, 0, 0);
-        boolean right = right(stop, answer == null ? "" : answer.trim());
+        boolean right = right(stop, answer == null ? "" : answer.trim(), salt);
         return new Graded(kind, right, right ? FULL : 0, right ? 0 : 1);
     }
 
+    /**
+     * B3: the order a sealed paper shows a stop's ids in — by a hash of a server-only `salt`, the stop and the id, so
+     * it is the same on every read and at grading time and says nothing about the key to someone without the salt.
+     */
+    public static List<String> shuffled(String salt, String stopId, List<String> ids) {
+        return ids.stream().sorted(java.util.Comparator.comparing((String id) -> hash(salt + "|" + stopId + "|" + id)).thenComparing(id -> id)).toList();
+    }
+
+    /** The salt of one lesson's sealed paper: two server-side values a parent's download never carries. */
+    public static String salt(quest.server.content.Entities.LessonEntity lesson) {
+        return lesson.getId() + "|" + lesson.getCreatedAt() + "|" + lesson.getSourceHash();
+    }
+
+    private static String hash(String s) {
+        try { return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(s.getBytes(java.nio.charset.StandardCharsets.UTF_8))); }
+        catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+    }
+
     /** Whether the answer is the key, for a {@link Kind#KEYED} stop. */
-    static boolean right(Stop stop, String answer) {
-        if (stop instanceof Stop.SingleAnswer s) return s.getCorrectId().equals(answer);
+    static boolean right(Stop stop, String answer) { return right(stop, answer, null); }
+
+    static boolean right(Stop stop, String answer, String salt) {
+        if (stop instanceof Stop.SingleAnswer s) return !s.getCorrectId().isEmpty() && s.getCorrectId().equals(answer);
         if (stop instanceof Stop.WriteSentence w) return w.getAnswer().trim().equals(answer);
-        if (stop instanceof Stop.MultiSelect m) return set(answer).equals(Set.copyOf(m.getCorrectIds()));
-        if (stop instanceof Stop.SelectAll s) return set(answer).equals(Set.copyOf(s.getCorrectIds()));
-        if (stop instanceof Stop.Order o) return list(answer).equals(o.getCorrectOrder());
-        if (stop instanceof Stop.ReadPage p) return set(answer).equals(Set.copyOf(p.getTapTask().getCorrectIds()));
+        if (stop instanceof Stop.MultiSelect m) return same(set(answer), m.getCorrectIds());
+        if (stop instanceof Stop.SelectAll s) return same(set(answer), s.getCorrectIds());
+        if (stop instanceof Stop.Order o) return !o.getCorrectOrder().isEmpty() && list(answer).equals(o.getCorrectOrder());
+        if (stop instanceof Stop.ReadPage p) return same(set(answer), p.getTapTask().getCorrectIds());
         if (stop instanceof Stop.Match m) {
             Map<String, String> paired = new HashMap<>();
             for (String pair : list(answer)) {
@@ -68,7 +95,13 @@ public final class AnswerKey {
                 if (eq <= 0 || paired.put(pair.substring(0, eq), pair.substring(eq + 1)) != null) return false;
             }
             if (paired.size() != m.getPairs().size()) return false;
-            for (var p : m.getPairs()) if (!p.getId().equals(paired.get(p.getId()))) return false;
+            var ids = m.getPairs().stream().map(quest.api.dto.MatchPair::getId).toList();
+            // on a sealed paper the right tile shown at pair i is pair `shown[i]`'s own
+            var shown = salt == null ? ids : shuffled(salt, m.getId(), ids);
+            for (var p : m.getPairs()) {
+                int at = ids.indexOf(paired.get(p.getId()));
+                if (at < 0 || !p.getId().equals(shown.get(at))) return false;
+            }
             return true;
         }
         return false;
@@ -94,4 +127,7 @@ public final class AnswerKey {
     }
 
     private static Set<String> set(String answer) { return Set.copyOf(list(answer)); }
+
+    /** A key with nothing in it (a sealed copy) is never matched — not even by an empty answer. */
+    private static boolean same(Set<String> answer, List<String> key) { return !key.isEmpty() && answer.equals(Set.copyOf(key)); }
 }
