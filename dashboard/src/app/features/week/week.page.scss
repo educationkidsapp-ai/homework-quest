@@ -302,7 +302,12 @@
 }
 
 .em-select-filter {
-  padding: 8px 14px;
+  display: inline-flex;
+  align-items: center;
+  block-size: 36px;
+  padding: 8px 38px 8px 14px;
+  padding-inline-start: 14px;
+  padding-inline-end: 38px;
   border-radius: 12px;
   font-size: 13px;
   font-weight: 500;
@@ -381,15 +386,23 @@
   gap: 12px;
 }
 
+.week__nav {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hq-space-8, 8px);
+}
+
 .em-nav-btn {
   inline-size: 34px;
   block-size: 34px;
+  flex-shrink: 0;
   border-radius: 10px;
   border: 1px solid var(--hq-color-rule, #e2e8f0);
   background: var(--hq-color-surface, #ffffff);
   color: var(--hq-color-ink, #334155);
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition: background-color 0.15s ease;
 
@@ -400,18 +413,35 @@
   svg {
     inline-size: 16px;
     block-size: 16px;
+    display: block;
+    transition: transform 0.15s ease;
+  }
+
+  :host-context([dir="rtl"]) & svg,
+  [dir="rtl"] & svg {
+    transform: rotate(180deg);
   }
 }
 
 .em-nav-range {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  block-size: 34px;
+  line-height: 1;
   font-size: 13px;
   font-weight: 700;
   color: var(--hq-color-ink, #1e293b);
-  padding-inline: 4px;
+  padding-inline: 8px;
+  white-space: nowrap;
 }
 
 .em-btn-today {
-  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  block-size: 34px;
+  padding: 0 12px;
   border-radius: 10px;
   border: 1px solid var(--hq-color-rule, #e2e8f0);
   background: var(--hq-color-surface-sunken, #f1f5f9);
@@ -819,7 +849,8 @@
 }
 
 .week__nav {
-  display: flex;
+  display: inline-flex;
+  align-items: center;
   gap: var(--hq-space-8);
 }
 

@@ -221,11 +221,23 @@
 
             <div class="em-nav-actions-row">
               <div class="week__nav">
-                <button type="button" class="em-nav-btn" (click)="shift(-1)" title="Previous Week">
+                <button
+                  type="button"
+                  class="em-nav-btn"
+                  (click)="shift(-1)"
+                  [attr.aria-label]="'week.prev' | transloco"
+                  [title]="'week.prev' | transloco"
+                >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6" /></svg>
                 </button>
                 <span class="em-nav-range">{{ rangeLabel() }}</span>
-                <button type="button" class="em-nav-btn" (click)="shift(1)" title="Next Week">
+                <button
+                  type="button"
+                  class="em-nav-btn"
+                  (click)="shift(1)"
+                  [attr.aria-label]="'week.next' | transloco"
+                  [title]="'week.next' | transloco"
+                >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6" /></svg>
                 </button>
                 <button type="button" class="em-btn-today" (click)="goToday()">
