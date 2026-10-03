@@ -168,6 +168,24 @@ interface ContentApi {
 
     /** `GET /children/{id}/attendance/today` — child today's attendance record. */
     suspend fun todayAttendance(childId: String): ChildAttendanceRecord? = null
+
+    // ---- B3: the parent's own notifications (`docs/runbook.md` "Notifications"). The same four `/me/notifications`
+    // routes the dashboard bell uses, answering the signed-in parent's rows: `chat.message` (one unread per thread,
+    // read when she opens it), `exam.released` and `homework.published`, each naming the child in `childId`.
+    // Broadcasts stay on `childBroadcasts`. The live half is the `notification` frame on `/ws/chat`.
+
+    /** `GET /me/notifications?unread=&limit=` — newest first; `limit` 1–100 (default 20). */
+    suspend fun notifications(unread: Boolean? = null, limit: Int? = null): List<quest.api.dto.NotificationView> = emptyList()
+
+    /** `GET /me/notifications/unread-count` — the badge. */
+    suspend fun unreadNotificationCount(): quest.api.dto.UnreadCount = quest.api.dto.UnreadCount(0)
+
+    /** `POST /me/notifications/{id}/read` — one row read (idempotent); 404 when it is not hers. */
+    suspend fun markNotificationRead(id: String): quest.api.dto.NotificationView =
+        throw NotImplementedError("markNotificationRead needs a backend")
+
+    /** `POST /me/notifications/read-all` — every unread row read; answers the new count (0). */
+    suspend fun markAllNotificationsRead(): quest.api.dto.UnreadCount = quest.api.dto.UnreadCount(0)
 }
 
 /**

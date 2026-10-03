@@ -6,7 +6,9 @@ import kotlinx.serialization.Serializable
 /**
  * E2 `backend/notifications` (D26) — the dashboard bell. A notification is written server-side when something a
  * dashboard user was waiting for happened while she was not looking, read back over `/me/notifications` and pushed
- * live as a [ChatFrame.Notification] on `/ws/chat`. Parents have none: they have the app.
+ * live as a [ChatFrame.Notification] on `/ws/chat`. Since B3 a parent has rows too, read over the same routes with
+ * her Firebase token: a staff member's `chat.message`, `exam.released` and `homework.published`, each with
+ * [NotificationView.childId]; their [NotificationView.link] is an app path (`/children/{id}/…`), not a dashboard one.
  *
  * The rows belong to one user; a caller only ever reads and writes her own, and another user's id is 404 rather
  * than 403 — the row is not hers to know about. `docs/runbook.md` "Chat and notifications" is the client contract.
@@ -45,6 +47,17 @@ enum class NotificationKind {
      * it read. [NotificationView.lessonId] carries the **thread's** id on these rows.
      */
     @SerialName("chat.message") CHAT_MESSAGE,
+    /**
+     * B3 (parents only): the teacher released an exam's results — by hand or by the close-of-window sweep — and the
+     * child named by [NotificationView.childId] sat in that class. [NotificationView.lessonId] is the exam's id; the
+     * score itself is read from `GET /children/{id}/progress` (`results`), never carried here.
+     */
+    @SerialName("exam.released") EXAM_RELEASED,
+    /**
+     * B3 (parents only): a homework was published to the class of [NotificationView.childId] (its results are released
+     * with it, §7). [NotificationView.lessonId] is the homework's id. Written once per lesson and child.
+     */
+    @SerialName("homework.published") HOMEWORK_PUBLISHED,
 }
 
 /**
@@ -61,6 +74,8 @@ data class NotificationView(
     val lessonId: String? = null,
     val readAt: Long? = null,
     val createdAt: Long,
+    /** B3: on a parent's row, the child it is about (a parent may have several); null on every dashboard row. */
+    val childId: String? = null,
 )
 
 /** `GET /me/notifications/unread-count` — the badge, on its own so the bell need not page the list to draw it. */
