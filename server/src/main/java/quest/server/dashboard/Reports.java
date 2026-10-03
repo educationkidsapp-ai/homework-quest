@@ -34,11 +34,19 @@ final class Reports {
 
     private Reports() {}
 
-    /** An inclusive day range. `to` is the last day counted; {@link #toExclusive} turns it into an instant. */
+    /**
+     * An inclusive day range. `to` is the last day counted; {@link #toExclusive} turns it into an instant.
+     *
+     * <p>Both bounds are handed to the queries as {@link Instant}s, never as a `LocalDateTime`: Hibernate turns a
+     * `LocalDateTime` into a `java.sql.Timestamp` through the JVM's default zone and then binds it in
+     * `hibernate.jdbc.time_zone` (UTC), so on a UTC+3 machine every window slid back three hours and the last three
+     * hours of `to` fell out — the reason `SchoolDataTest` failed on Friday and Saturday evenings. An `Instant` has
+     * no such round trip; `UsageWindowBoundaryTest` pins the edges under a non-UTC JVM.
+     */
     record Window(LocalDate from, LocalDate to) {
-        Instant fromInstant() { return from.atStartOfDay(ZoneOffset.UTC).toInstant(); }
+        Instant fromInstant() { return startOf(from); }
         /** The first instant *after* the window, so a query can say `>= from AND < to` and include all of `to`. */
-        Instant toExclusive() { return to.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(); }
+        Instant toExclusive() { return startOf(to.plusDays(1)); }
         int days() { return (int) (to.toEpochDay() - from.toEpochDay()) + 1; }
     }
 
@@ -60,6 +68,9 @@ final class Reports {
         try { return LocalDate.parse(value.trim()); }
         catch (RuntimeException e) { throw ApiException.badRequest(field + " must be a date like 2026-09-16"); }
     }
+
+    /** Midnight UTC at the start of `day` — the only form a report may bind a day boundary in; see {@link Window}. */
+    static Instant startOf(LocalDate day) { return day.atStartOfDay(ZoneOffset.UTC).toInstant(); }
 
     /** The Monday of the ISO week a day falls in — how the per-week series is bucketed. */
     static LocalDate weekOf(LocalDate day) { return day.with(WeekFields.ISO.dayOfWeek(), 1); }
@@ -95,6 +106,11 @@ final class Reports {
         return value == null ? null : LocalDate.parse(value.toString().substring(0, 10));
     }
 
+    /**
+     * A `TIMESTAMP` column comes back as `java.sql.Timestamp` on both drivers. Hibernate extracts it with a calendar in
+     * `hibernate.jdbc.time_zone` (UTC), so the `Timestamp`'s instant is the stored UTC wall time and {@code toInstant()}
+     * is exact whatever zone the JVM runs in; {@code toLocalDateTime()} would re-render it in the JVM's zone.
+     */
     static Instant instant(Object value) {
         if (value instanceof java.sql.Timestamp t) return t.toInstant();
         if (value instanceof Instant i) return i;
