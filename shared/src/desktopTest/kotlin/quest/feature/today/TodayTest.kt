@@ -256,7 +256,7 @@ class TodayTest {
             override suspend fun select(id: String) {}
             override suspend fun clear() {}
         }
-        val vm = StopPlayerViewModel(exam.id, 1, 0, 0, Lessons(exam), journey, children, FakeContentApi(FakeAuth(settings), delayMillis = 0), copy, sitting = presenter, windows = windows, now = { now })
+        val vm = StopPlayerViewModel(exam.id, 1, 0, 0, Lessons(exam), journey, children, FakeContentApi(FakeAuth(settings), delayMillis = 0), copy, sitting = presenter, windows = windows, now = { now + testScheduler.currentTime })
         built.add(vm); runCurrent()
         return vm
     }
@@ -279,6 +279,8 @@ class TodayTest {
         assertEquals(a.key, a.copy(title = "Renamed", answered = 4, closesAt = now).key, "the count, title and window do not change which sitting it is")
         assertNotEquals(a.key, a.copy(lessonId = "exam-b").key, "another paper")
         assertNotEquals(a.key, a.copy(childId = "c2").key, "a sibling's sitting of the same paper")
+        assertFalse(a.key.contains(a.childId) || a.key.contains(a.lessonId), "no raw ids leave the app")
+        assertEquals(16, a.key.length)
     }
 
     @Test fun aSittingIsTakenDownAtItsWindowsEndOrAfterTheCapWhenTheEndIsUnknown() {

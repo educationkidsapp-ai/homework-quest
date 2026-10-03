@@ -22,6 +22,8 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import io.ktor.http.fromHttpToGmtDate
+import quest.core.platform.ServerClock
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.datetime.LocalDate
 import quest.api.ApiException
@@ -185,6 +187,8 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
 
     private suspend inline fun <reified T> call(block: () -> HttpResponse): T {
         val response = try { block() } catch (e: ApiException) { throw e } catch (e: Exception) { throw ApiException(ApiError(ApiError.NETWORK, e.message ?: "network"), e) }
+        // M4 (D8): every answer carries the server's time; the exam window is judged against it, not the tablet's clock.
+        response.headers[HttpHeaders.Date]?.let { runCatching { it.fromHttpToGmtDate().timestamp }.getOrNull() }?.let { ServerClock.observe(it) }
         if (!response.status.isSuccess()) throw response.toException()
         return response.body()
     }

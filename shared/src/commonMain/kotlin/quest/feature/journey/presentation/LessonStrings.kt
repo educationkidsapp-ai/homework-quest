@@ -83,6 +83,8 @@ data class LessonStrings(
     val speakExamSubmitted: String = "Your exam has been submitted.",
     // M4 (D4): the result, once the teacher has released it — the formal exam card and its own screen.
     val examMarkedShort: String = "Marked",
+    /** M4 (D8): a time of day, never a countdown. */
+    val examClosesAt: String = "Closes at {time}",
     val examSeeResult: String = "See result",
     val examResultTitle: String = "Your result",
     val examResultLine: String = "Marked by your teacher · {band}",
@@ -168,6 +170,7 @@ data class LessonStrings(
             speakExamProgress = "تمت الإجابة عن {n} أسئلة. اختر متابعة الاختبار.",
             speakExamSubmitted = "تم تسليم اختبارك.",
             examMarkedShort = "تم التصحيح",
+            examClosesAt = "يُغلق الساعة {time}",
             examSeeResult = "عرض النتيجة",
             examResultTitle = "نتيجتك",
             examResultLine = "صحّحه معلمك · {band}",

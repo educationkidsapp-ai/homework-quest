@@ -39,6 +39,7 @@ import quest.core.db.Db
 import quest.core.db.SettingsStore
 import quest.core.platform.platformModule
 import quest.core.platform.connectivityModule
+import quest.core.platform.ServerClock
 import quest.feature.content.domain.PendingAnswersSync
 import quest.feature.content.domain.ChildResultsUseCase
 import quest.feature.notifications.data.ParentUnreadSource
@@ -184,7 +185,7 @@ val contentModule = module {
     factory { LessonCopy(get(), get()) }
     viewModel { MapViewModel(get(), get(), get(), get(), get(), get(), publishToday = get(), childResults = get()) }
     viewModel { (lessonId: String, level: Int, variant: Int) -> JourneyViewModel(lessonId, level, variant, get(), get(), get(), get()) }
-    viewModel { (lessonId: String, level: Int, variant: Int, index: Int) -> StopPlayerViewModel(lessonId, level, variant, index, get(), get(), get(), get(), get(), sitting = get(), windows = get(), now = Today::epochMillis, sync = get()) }
+    viewModel { (lessonId: String, level: Int, variant: Int, index: Int) -> StopPlayerViewModel(lessonId, level, variant, index, get(), get(), get(), get(), get(), sitting = get(), windows = get(), now = ServerClock::now, sync = get()) }
     factory { ChildResultsUseCase(get()) }
     viewModel { (lessonId: String) -> ExamResultViewModel(lessonId, get(), get(), get()) }
     viewModel { (lessonId: String, level: Int, variant: Int) -> LessonCompleteViewModel(lessonId, level, variant, get(), get(), get(), get(), get(), get()) }

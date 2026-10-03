@@ -94,7 +94,10 @@ class StopPlayerViewModel(
         sync?.let { s -> launch { s.settled.collect { if (lessonId in it && current.phase == PlayerContract.Phase.SENDING) dispatch(PlayerContract.Intent.SendAgain) } } }
     }
 
-    companion object { /** How long "Answer saved" stays up — one value for every answer. */ const val EXAM_ACKNOWLEDGE_MILLIS = 1_200L }
+    companion object {
+        /** How long "Answer saved" stays up — one value for every answer. */ const val EXAM_ACKNOWLEDGE_MILLIS = 1_200L
+        /** How often the closing time is re-measured against the clock while a sitting is open. */ const val WINDOW_CHECK_MILLIS = 15_000L
+    }
 
     override suspend fun handle(intent: PlayerContract.Intent) {
         when (intent) {
@@ -105,6 +108,7 @@ class StopPlayerViewModel(
             PlayerContract.Intent.TryAgain -> if (!current.exam) { reduce { copy(phase = PlayerContract.Phase.STOP) }; current.stop?.let { effect(PlayerContract.Effect.Speak(it.speak)) } }
             PlayerContract.Intent.Advance -> advance()
             PlayerContract.Intent.SendAgain -> if (current.phase == PlayerContract.Phase.SENDING) finish()
+            PlayerContract.Intent.WindowClosed -> windowClosed()
             PlayerContract.Intent.ReadAloud -> effect(PlayerContract.Effect.Speak(if (current.phase == PlayerContract.Phase.HINT) current.hint else current.stop?.speak ?: ""))
             is PlayerContract.Intent.Speak -> effect(PlayerContract.Effect.Speak(intent.text))
         }
@@ -125,7 +129,7 @@ class StopPlayerViewModel(
         val index = if (exam) play.stops.indexOfFirst { it.id !in progress.stops } else startIndex
         reduce { copy(phase = PlayerContract.Phase.STOP, lesson = lesson, play = play, index = index.coerceAtLeast(0), stopStars = progress.stops, childName = child.name, exam = exam) }
         if (exam && index < 0) { finish(); return }
-        if (exam) showSitting()
+        if (exam) { showSitting(); watchWindow() }
         current.stop?.let { effect(PlayerContract.Effect.Speak(it.speak)) }
     }
 
@@ -193,6 +197,37 @@ class StopPlayerViewModel(
         }
     }
 
+    /**
+     * M4 (D8): the window's end, from the same [ExamWindows] the Live Activity reads, judged by the server's clock. The
+     * screen shows it as a time of day; when it has passed, the sitting stops taking answers and ends on the submitted
+     * screen. The wait is re-measured against the clock in steps, so a device that slept does not answer late.
+     */
+    private fun watchWindow() {
+        val closes = windows.closesAt(lessonId, now()) ?: return
+        reduce { copy(closesAt = closes) }
+        launch {
+            while (true) {
+                val left = closes - now()
+                if (left <= 0) break
+                delay(left.coerceAtMost(WINDOW_CHECK_MILLIS))
+            }
+            dispatch(PlayerContract.Intent.WindowClosed)
+        }
+    }
+
+    /**
+     * The window has shut. Whatever is on screen is left unanswered; what was given goes up once more — a server that
+     * still takes it (its clock, not this one, decides) gets it, and one that refuses keeps it queued for a re-opening
+     * — and the sitting ends on the submitted screen, which says the exam closed and what did not reach the teacher.
+     */
+    private suspend fun windowClosed() {
+        if (!current.exam || current.phase == PlayerContract.Phase.DONE || current.phase == PlayerContract.Phase.REFUSED) return
+        reduce { copy(phase = PlayerContract.Phase.DONE, refusal = SubmitOutcome.CLOSED) }
+        journey.submit(childId, lessonId)
+        sitting.end()
+        effect(PlayerContract.Effect.Finished(lessonId, level, variant))
+    }
+
     /** Title, student, how many are answered — never how — and, when the window's end is known, the time it closes. */
     private fun showSitting() {
         val lesson = current.lesson ?: return
@@ -244,6 +279,8 @@ class StopPlayerViewModel(
         val next = play.stops.indices.firstOrNull { it > current.index && play.stops[it].id !in current.stopStars }
             ?: play.stops.indices.firstOrNull { play.stops[it].id !in current.stopStars }
         if (current.phase == PlayerContract.Phase.REFUSED) return
+        // The window shut while "Answer saved" was up: the sitting is over, nothing more opens.
+        if (current.phase == PlayerContract.Phase.DONE && current.refusal == SubmitOutcome.CLOSED) return
         if (next == null) finish() else {
             reduce { copy(phase = PlayerContract.Phase.STOP, index = next) }
             effect(PlayerContract.Effect.Speak(play.stops[next].speak))

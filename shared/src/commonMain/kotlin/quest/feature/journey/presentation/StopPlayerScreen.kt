@@ -1,5 +1,7 @@
 package quest.feature.journey.presentation
 
+import kotlinx.datetime.TimeZone
+import quest.feature.map.presentation.examTime
 import androidx.compose.ui.text.style.TextDirection
 import quest.ui.design.DashboardTokens
 import quest.ui.design.DashboardProgressBar
@@ -135,6 +137,12 @@ private fun StopView(state: State, dispatch: (Intent) -> Unit, onBack: () -> Uni
             Spacer(Modifier.height(Dimens.s4))
             // How many steps are done, as a bar: no percentage and no clock (§7).
             DashboardProgressBar(if (state.total == 0) 0f else state.doneCount.toFloat() / state.total)
+            // M4 (D8): an exam says when it closes — a still time of day, not a timer — in the same quiet ink.
+            state.closesAt?.takeIf { state.exam }?.let { closes ->
+                val line = s.examClosesAt.replace("{time}", examTime(closes, closes, TimeZone.currentSystemDefault(), emptyList(), true))
+                Spacer(Modifier.height(Dimens.s4))
+                Text(line, style = MaterialTheme.typography.labelMedium, color = DashboardTokens.inkSoft, modifier = Modifier.semantics { contentDescription = line })
+            }
         }
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
             DashboardCard(Modifier.padding(horizontal = Dimens.s16)) {
