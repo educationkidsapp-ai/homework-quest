@@ -14,6 +14,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import quest.api.dto.ChatFrame;
 import quest.api.dto.NotificationKind;
 import quest.api.dto.NotificationView;
+import quest.api.dto.PushMessage;
 import quest.api.dto.UnreadCount;
 import quest.server.auth.Principals;
 import quest.server.auth.UserRepository;
@@ -23,6 +24,7 @@ import quest.server.config.ApiException;
 import quest.server.config.Json;
 import quest.server.content.Entities.LessonEntity;
 import quest.server.notifications.Entities.NotificationEntity;
+import quest.server.push.ParentPush;
 
 /**
  * E2 `backend/notifications` (D26). The write half is {@link #notify} — the row goes in inside the caller's
@@ -60,12 +62,13 @@ public class NotificationService {
     private final NotificationRepository rows; private final UserRepository users; private final ChatBus bus;
     private final Json json; private final Clock clock; private final NotificationRows upserts;
     private final quest.server.children.ChildRepository children; private final org.springframework.transaction.support.TransactionTemplate own;
+    private final ParentPush push;
 
     public NotificationService(NotificationRepository rows, UserRepository users, ChatBus bus, Json json, Clock clock,
                               NotificationRows upserts, quest.server.children.ChildRepository children,
-                              org.springframework.transaction.PlatformTransactionManager transactions) {
+                              org.springframework.transaction.PlatformTransactionManager transactions, ParentPush push) {
         this.rows = rows; this.users = users; this.bus = bus; this.json = json; this.clock = clock; this.upserts = upserts;
-        this.children = children;
+        this.children = children; this.push = push;
         this.own = new org.springframework.transaction.support.TransactionTemplate(transactions);
         this.own.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -157,7 +160,7 @@ public class NotificationService {
         String title = clip("Message from " + (from == null || from.isBlank() ? "your school" : from), TITLE_MAX);
         try {
             var row = upserts.upsertUnread(schoolId, userId, key(NotificationKind.CHAT_MESSAGE), threadId,
-                    title, clip(body, CHAT_BODY_MAX), messagesLink(roleOf(userId), threadId), null);
+                    title, clip(body, CHAT_BODY_MAX), messagesLink(roleOf(userId), threadId), null).row();
             publishAfterCommit(schoolId, userId, view(row));
         } catch (RuntimeException e) {
             log.warn("notifications: could not write chat.message for thread {}: {}", threadId, e.toString());
@@ -167,14 +170,19 @@ public class NotificationService {
     /**
      * B3 (D5): a staff member wrote to a parent — T1's throttle and read-clear, on the parent's own rows. The row names
      * the child, and `link` is the app's path to the thread (`/children/{childId}/chat/{staffId}`).
+     *
+     * <p>B4: the throttle is the push's too — a <em>fresh</em> unread row is pushed, a refreshed one is not, so a teacher
+     * writing five lines to a parent who has not opened the thread is one push, and the next one comes after she reads it.
      */
     public void parentChatMessage(String schoolId, String parentId, String childId, String threadId, String staffId, String from, String body) {
         if (parentId == null || threadId == null) return;
         String title = clip("Message from " + (from == null || from.isBlank() ? "your school" : from), TITLE_MAX);
         try {
-            var row = upserts.upsertUnread(schoolId, parentRecipient(parentId), key(NotificationKind.CHAT_MESSAGE), threadId,
+            var upsert = upserts.upsertUnread(schoolId, parentRecipient(parentId), key(NotificationKind.CHAT_MESSAGE), threadId,
                     title, clip(body, CHAT_BODY_MAX), "/children/" + childId + "/chat/" + staffId, childId);
+            var row = upsert.row();
             publishAfterCommit(schoolId, row.getUserId(), view(row));
+            if (upsert.fresh()) pushTo(parentId, row, "chat:" + threadId);
         } catch (RuntimeException e) {
             log.warn("notifications: could not write a parent's chat.message for thread {}: {}", threadId, e.toString());
         }
@@ -219,8 +227,17 @@ public class NotificationService {
                 e.setTitle(clip("New homework: " + name, TITLE_MAX)); e.setBody(clip(child.getName() + " has new homework for " + day + ".", BODY_MAX));
                 e.setLink("/children/" + child.getId() + "/map");
             }
-            if (rows.insertOnce(e) == 1) publishAfterCommit(schoolId, e.getUserId(), view(e));
+            if (rows.insertOnce(e) == 1) {
+                publishAfterCommit(schoolId, e.getUserId(), view(e));
+                pushTo(child.getParentId(), e, "lesson:" + lessonId);
+            }
         }
+    }
+
+    /** B4: the row as a push — after this transaction commits, on its own thread (`ParentPush`). English only: the server has no other text for these kinds. */
+    private void pushTo(String parentId, NotificationEntity row, String collapseKey) {
+        push.toParent(parentId, new PushMessage(kind(row.getKind()), row.getTitle(), row.getBody(), row.getId(), row.getChildId(),
+                row.getLink(), null, collapseKey), null);
     }
 
     /** T1: she opened the thread, so its bell entry is read too — one statement, whatever put the row there. */

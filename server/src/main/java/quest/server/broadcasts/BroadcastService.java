@@ -20,6 +20,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import quest.api.dto.NotificationKind;
+import quest.api.dto.PushMessage;
 import quest.server.auth.Entities.UserEntity;
 import quest.server.auth.Principals;
 import quest.server.auth.UserRepository;
@@ -31,6 +32,7 @@ import quest.server.config.ApiException;
 import quest.server.coordinator.CoordinatorAnnouncementService;
 import quest.server.notifications.NotificationService;
 import quest.server.platform.SafeText;
+import quest.server.push.ParentPush;
 import quest.server.teacher.TeacherDto;
 import quest.server.tenancy.CoordinatorScope;
 import quest.server.tenancy.Entities.ClassEntity;
@@ -76,17 +78,18 @@ public class BroadcastService {
     private final NotificationService notifications; private final CoordinatorAnnouncementService announcements;
     private final quest.server.files.AttachmentRepository attachments; private final quest.server.files.FileStore files;
     private final TenantContext tenant; private final Clock clock;
+    private final quest.server.children.ChildRepository children; private final ParentPush push;
 
     public BroadcastService(BroadcastRepository rows, BroadcastReadRepository reads, ManagerScope managers,
                            CoordinatorScope coordinators, TeacherScope teachers,
                            UserRepository users, ChildService childService, NotificationService notifications,
                            CoordinatorAnnouncementService announcements,
                            quest.server.files.AttachmentRepository attachments, quest.server.files.FileStore files,
-                           TenantContext tenant, Clock clock) {
+                           TenantContext tenant, Clock clock, quest.server.children.ChildRepository children, ParentPush push) {
         this.rows = rows; this.reads = reads; this.managers = managers; this.coordinators = coordinators;
         this.teachers = teachers; this.users = users; this.childService = childService;
         this.notifications = notifications; this.announcements = announcements; this.attachments = attachments;
-        this.files = files; this.tenant = tenant; this.clock = clock;
+        this.files = files; this.tenant = tenant; this.clock = clock; this.children = children; this.push = push;
     }
 
     // ---------------------------------------------------------------- the manager composes (POST /management/broadcasts)
@@ -128,6 +131,7 @@ public class BroadcastService {
         var audience = plan ? List.of(PARENTS, TEACHERS, COORDINATORS) : audience(request.audience());
         var row = write(schoolId, caller.userId(), ManagerScope.ROLE, request, curriculum, grade, null, named ? targets : null, audience);
         fanOut(row, schoolId, audience, reach);
+        pushParents(row, schoolId);
         return view(row, displayName(caller.userId()), true);
     }
 
@@ -156,6 +160,7 @@ public class BroadcastService {
                 : coordinators.sectionsOf(caller);
         if (targets.isEmpty()) throw ApiException.badRequest("You coordinate no class yet, so there is nobody to tell.");
         var row = write(schoolId, caller.userId(), CoordinatorScope.ROLE, request, null, null, subjectsOf(caller, targets), targets, List.of(PARENTS));
+        pushParents(row, schoolId);
         var mirrored = ANNOUNCEMENT.equals(row.getKind())
                 ? announcements.mirror(caller, targets, row.getBodyEn(), row.getBodyAr(), row.getExpiresAt()) : List.<TeacherDto.Announcement>of();
         return new CoordinatorPost(view(row, displayName(caller.userId()), true), mirrored);
@@ -419,6 +424,37 @@ public class BroadcastService {
         String link = NotificationService.broadcastLink(role, row.getId());
         for (String userId : recipients)
             notifications.notify(schoolId, userId, NotificationKind.BROADCAST_POSTED, headline(row), row.getBodyEn(), link, row.getId());
+    }
+
+    /**
+     * B4: every parent whose child's feed now shows this row is pushed it — once per parent, about the first such child
+     * by name — decided by {@link #forChild}, the very predicate `GET /children/{id}/broadcasts` filters with, so a push
+     * never announces a row her feed does not have. A parent has no notification row for a broadcast (her app reads the
+     * feed), so the push carries the broadcast's id instead. One read of the school's children, on a post.
+     */
+    private void pushParents(BroadcastEntity row, String schoolId) {
+        if (!Set.of(row.getAudienceRoles().split(",")).contains(PARENTS)) return;
+        var told = new java.util.HashSet<String>();
+        for (var kid : children.findBySchoolIdAndDeletedAtIsNullOrderByNameAsc(schoolId)) {
+            if (kid.getParentId() == null || kid.getClassId() == null || !kid.isActive() || !forChild(row, kid) || !told.add(kid.getParentId())) continue;
+            String link = "/children/" + kid.getId() + "/broadcasts?open=" + row.getId(), collapse = "broadcast:" + row.getId();
+            var english = new PushMessage(NotificationKind.BROADCAST_POSTED, headline(row), pushBody(row.getBodyEn()), null, kid.getId(), link, row.getId(), collapse);
+            var arabic = blank(row.getBodyAr()) ? null
+                    : new PushMessage(NotificationKind.BROADCAST_POSTED, headlineAr(row), pushBody(row.getBodyAr()), null, kid.getId(), link, row.getId(), collapse);
+            push.toParent(kid.getParentId(), english, arabic);
+        }
+    }
+
+    /** A push is a cue, not the post: the first lines, as the bell's `chat.message` body is. */
+    private static String pushBody(String body) {
+        int max = NotificationService.CHAT_BODY_MAX * 2;
+        return body == null || body.length() <= max ? body : body.substring(0, max - 1) + "…";
+    }
+
+    /** {@link #headline} for an Arabic phone: the title she typed, in whatever language she typed it, or the kind in Arabic. */
+    private static String headlineAr(BroadcastEntity b) {
+        if (b.getTitle() != null && !b.getTitle().isBlank()) return b.getTitle();
+        return switch (b.getKind()) { case WEEKLY_PLAN -> "الخطة الأسبوعية"; case EVENT -> "فعالية"; default -> "إعلان"; };
     }
 
     // ---------------------------------------------------------------- MH1: the attachment

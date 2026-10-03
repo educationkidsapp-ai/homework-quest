@@ -37,24 +37,30 @@ public class NotificationRows {
         this.own.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
+    /**
+     * The row and whether this call wrote it. B4 pushes only a {@code fresh} row — a new unread entry, not a refresh of
+     * one she has not looked at yet — so a conversation she is not reading is one push, not one per message.
+     */
+    public record Upsert(NotificationEntity row, boolean fresh) {}
+
     /** The unread row for that thread, refreshed or freshly written; never two, whoever else is writing at the time. */
-    public NotificationEntity upsertUnread(String schoolId, String userId, String kind, String entityId,
+    public Upsert upsertUnread(String schoolId, String userId, String kind, String entityId,
                                            String title, String body, String link, String childId) {
         Instant now = clock.instant();
         var refreshed = own.execute(status -> rows.refreshUnread(userId, kind, entityId, title, body, now) > 0
                 ? unread(userId, kind, entityId) : null);
-        if (refreshed != null) return refreshed;
+        if (refreshed != null) return new Upsert(refreshed, false);
         var fresh = new NotificationEntity();
         fresh.setId(UUID.randomUUID().toString()); fresh.setSchoolId(schoolId); fresh.setUserId(userId); fresh.setKind(kind);
         fresh.setTitle(title); fresh.setBody(body); fresh.setLink(link); fresh.setLessonId(entityId); fresh.setChildId(childId); fresh.setCreatedAt(now);
-        try { return own.execute(status -> rows.saveAndFlush(fresh)); }
+        try { return new Upsert(own.execute(status -> rows.saveAndFlush(fresh)), true); }
         catch (DataIntegrityViolationException raced) {
             var winner = own.execute(status -> {
                 rows.refreshUnread(userId, kind, entityId, title, body, now);
                 return unread(userId, kind, entityId);
             });
             if (winner == null) throw raced;
-            return winner;
+            return new Upsert(winner, false);
         }
     }
 

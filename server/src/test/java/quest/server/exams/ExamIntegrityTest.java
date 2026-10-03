@@ -16,6 +16,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import quest.server.children.Entities.AttemptEntity;
 import quest.server.flags.FlagKeys;
+import quest.server.push.ParentDeviceRepository;
+import quest.server.push.PushProbe;
+import quest.server.push.PushSender;
 
 /**
  * B3, from the app end-to-end report (`docs/reports/app-parent-flows.md`): an exam is graded by the server and stays
@@ -25,6 +28,8 @@ class ExamIntegrityTest extends ExamTestSupport {
     private static final String A = "ei-school-a", SARA = "ei-teacher-sara", CLASS_1A = "ei-1a", EXAM = "ei-exam-1", TICKET = "ei-ticket";
 
     @Autowired ExamReleaseSweep sweep;
+    @Autowired PushSender pushes;
+    @Autowired ParentDeviceRepository devices;
 
     @Override public String prefix() { return "ei-"; }
 
@@ -217,6 +222,8 @@ class ExamIntegrityTest extends ExamTestSupport {
     // ---------------------------------------------------------------- D5: the parent is told
 
     @Test void releasing_an_exam_tells_each_childs_parent_once() throws Exception {
+        String phone = PushProbe.token("ei-phone");
+        PushProbe.register(mvc, PARENT, phone, "ar");
         publishedExam(-30, 30, ExamLevels.MANUAL);
         sit(maya);
         release(true);
@@ -228,8 +235,23 @@ class ExamIntegrityTest extends ExamTestSupport {
         assertThat(rows.get(0).has("readAt")).isFalse();
         assertThat(parentGet("/me/notifications/unread-count").get("count").asInt()).isEqualTo(2);
 
+        // B4: one push per row, after the release committed — English, since the server has no Arabic for these.
+        var pushed = PushProbe.await(pushes, phone, 2);
+        assertThat(pushed).hasSize(2);
+        assertThat(pushed).extracting(p -> p.message().getChildId()).containsExactlyInAnyOrder(maya, omar);
+        assertThat(pushed).allSatisfy(p -> {
+            assertThat(p.message().getKind()).isEqualTo(quest.api.dto.NotificationKind.EXAM_RELEASED);
+            assertThat(p.message().getCollapseKey()).isEqualTo("lesson:" + EXAM);
+            assertThat(p.message().getLink()).isEqualTo("/children/" + p.message().getChildId() + "/progress");
+            assertThat(p.message().getTitle()).startsWith("Results ready");
+        });
+        assertThat(pushed).extracting(p -> p.message().getNotificationId())
+                .containsExactlyInAnyOrderElementsOf(rows.stream().map(r -> r.get("id").asText()).toList());
+
         release(false); release(true);
         assertThat(kinds("exam.released")).as("a release given again is not news").hasSize(2);
+        assertThat(PushProbe.await(pushes, phone, 3)).as("and pushes nothing").hasSize(2);
+        devices.deleteByTokenValue(phone);
         assertThat(parentPost("/me/notifications/read-all", "").get("count").asInt()).isZero();
         assertThat(parentGet("/me/notifications/unread-count").get("count").asInt()).isZero();
     }
@@ -242,6 +264,8 @@ class ExamIntegrityTest extends ExamTestSupport {
     }
 
     @Test void a_published_homework_is_announced_and_an_exam_publish_is_not() throws Exception {
+        String phone = PushProbe.token("ei-phone");
+        PushProbe.register(mvc, PARENT, phone, null);
         publishedExam(-30, 30, ExamLevels.MANUAL);
         assertThat(kinds("homework.published")).as("publishing an exam releases nothing").isEmpty();
         readyToPublish("ei-homework-1", A, section1a, LocalDate.now(), "homework");
@@ -249,6 +273,9 @@ class ExamIntegrityTest extends ExamTestSupport {
         var rows = kinds("homework.published");
         assertThat(rows).hasSize(2);
         assertThat(rows.get(0).get("lessonId").asText()).isEqualTo("ei-homework-1");
+        assertThat(PushProbe.await(pushes, phone, 2)).as("B4: one push per row, none for the exam's publish")
+                .hasSize(2).allSatisfy(p -> assertThat(p.message().getKind()).isEqualTo(quest.api.dto.NotificationKind.HOMEWORK_PUBLISHED));
+        devices.deleteByTokenValue(phone);
     }
 
     // ---------------------------------------------------------------- fixture
