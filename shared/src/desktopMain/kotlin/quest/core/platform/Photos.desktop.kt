@@ -19,4 +19,4 @@ actual fun photoAsJpeg(bytes: ByteArray, maxDimensionPx: Int, quality: Int): Byt
 
 /** A desktop has no camera to offer: the menu shows the gallery and PDF items only. */
 @Composable
-actual fun rememberCameraCapture(onResult: (ByteArray?) -> Unit): (() -> Unit)? = null
+actual fun rememberCameraCapture(onResult: (String?) -> Unit): (() -> Unit)? = null
