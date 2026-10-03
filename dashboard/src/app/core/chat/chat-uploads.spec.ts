@@ -1,4 +1,4 @@
-import { HttpErrorResponse, HttpEventType } from '@angular/common/http';
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { Subject } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -66,16 +66,22 @@ describe('ChatUploads', () => {
     uploads = TestBed.inject(ChatUploads);
   });
 
-  it('uploads a picked file at once, shows its progress, and offers it to the message when done', () => {
+  it('uploads a picked file at once, shows it uploading, and offers it to the message when done', () => {
     uploads.add([file('board.jpg', 'image/jpeg', 2 * MB)]);
     expect(requests).toHaveLength(1);
     expect(uploads.busy()).toBe(true);
 
-    requests[0]!.events.next({ type: HttpEventType.UploadProgress, loaded: 1, total: 4 });
-    expect(uploads.staged()[0]).toMatchObject({ progress: 25, state: 'uploading' });
+    // The body is asked for, not events: the fetch backend reports no upload progress to show.
+    expect(TestBed.inject(ChatApi).uploadChatAttachment).toHaveBeenCalledWith(
+      expect.any(File),
+      'body',
+      false,
+      expect.anything(),
+    );
+    expect(uploads.staged()[0]).toMatchObject({ state: 'uploading' });
     expect(uploads.attachments()).toEqual([]);
 
-    requests[0]!.events.next({ type: HttpEventType.Response, body: { id: 'att-1' } });
+    requests[0]!.events.next({ id: 'att-1' });
     expect(uploads.busy()).toBe(false);
     expect(uploads.attachments()).toEqual([
       { id: 'att-1', contentType: 'image/jpeg', name: 'board.jpg', size: 2 * MB },

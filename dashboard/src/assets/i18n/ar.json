@@ -1513,7 +1513,7 @@
     },
     "preview": {
       "photo": "📷 صورة",
-      "photos": "📷 {{count}} صور",
+      "photos": "📷 صور ({{count}})",
       "file": "📄 {{name}}"
     },
     "attachmentAlreadySent": "لم تُرسل: هذه الملفات أُرسلت في رسالة أخرى. أرفقها من جديد."

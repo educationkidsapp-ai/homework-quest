@@ -130,9 +130,7 @@ export class MediaService {
    * caps exist to refuse, so each Open is its own read.
    */
   attachmentFile(id: string): Observable<Blob> {
-    return this.media.attachment(id, 'body', false, {
-      context: silentErrors(),
-    }) as unknown as Observable<Blob>;
+    return this.media.attachment(id, 'body', false, { context: silentErrors() }) as unknown as Observable<Blob>;
   }
 
   private remember(key: string, read: (key: string) => Observable<string>): Observable<string> {

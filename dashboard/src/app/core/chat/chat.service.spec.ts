@@ -609,6 +609,28 @@ describe('ChatService', () => {
       });
     });
 
+    it('tries a failed send again with the same words and the same files', () => {
+      socket().readyState = 3;
+      mockApi.teacherSendChatMessage = vi.fn().mockReturnValue(throwError(() => new Error('offline')));
+      service.sendMessage('Homework', [photo]);
+      const failed = service.messages().at(-1)!;
+      expect(failed.failed).toBe(true);
+
+      socket().readyState = 1;
+      service.retry(failed.clientId!);
+
+      expect(frames('message')).toEqual([
+        {
+          type: 'message',
+          childId: 'ch-1',
+          body: 'Homework',
+          clientId: anyId,
+          attachmentIds: ['att-1'],
+        },
+      ]);
+      expect(service.messages().filter((message) => message.failed)).toEqual([]);
+    });
+
     it('says "typing" at once, then at most every 3 s while she types, in the server’s shape', () => {
       service.sendTyping();
       service.sendTyping();

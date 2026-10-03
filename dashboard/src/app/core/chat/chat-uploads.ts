@@ -1,6 +1,6 @@
-import { HttpErrorResponse, HttpEventType } from '@angular/common/http';
+import { HttpErrorResponse } from '@angular/common/http';
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
-import { Subscription, filter, take, tap } from 'rxjs';
+import { Subscription } from 'rxjs';
 import { ChatApi } from '../../api';
 import { apiErrorCodeOf } from '../../api/api-error';
 import { silentErrors } from '../http/error.interceptor';
@@ -22,8 +22,6 @@ export interface StagedUpload {
   readonly size: number;
   readonly kind: ChatFileKind;
   readonly contentType: string;
-  /** 0–100 while uploading. */
-  readonly progress: number;
   readonly state: 'uploading' | 'done' | 'failed';
   /** The server's id once the bytes are accepted. */
   readonly id: string | null;
@@ -106,7 +104,7 @@ export class ChatUploads {
     this.problem.set(null);
   }
 
-  /** Empty the composer — on send, and when the screen goes. */
+  /** Empty the composer, cancelling what is still uploading: on send, on another thread, and when the screen goes. */
   clear(): void {
     for (const reading of this.running.values()) reading.unsubscribe();
     this.running.clear();
@@ -125,7 +123,6 @@ export class ChatUploads {
         size: file.size,
         kind,
         contentType: kind === 'pdf' ? CHAT_PDF_TYPE : file.type.toLowerCase(),
-        progress: 0,
         state: 'uploading',
         id: null,
         preview: null,
@@ -135,26 +132,18 @@ export class ChatUploads {
 
     // `POST /media/chat-attachments` (B5). The browser's `FormData` sends the Content-Length the
     // server insists on; an Admin's request gets `X-School-Id` from the auth interceptor.
+    // No percentage: the app's `withFetch()` backend reports no upload progress, so the bar is
+    // indeterminate while the request is in flight rather than a 0 % that never moves.
     const reading = this.chat
-      .uploadChatAttachment(file, 'events', true, { context: silentErrors() })
-      .pipe(
-        tap((event) => {
-          if (event.type === HttpEventType.UploadProgress && event.total) {
-            const progress = Math.round((event.loaded / event.total) * 100);
-            this.patch(key, { progress });
-          }
-        }),
-        filter((event) => event.type === HttpEventType.Response),
-        take(1),
-      )
+      .uploadChatAttachment(file, 'body', false, { context: silentErrors() })
       .subscribe({
-        next: (event) => {
-          const id = event.body?.id ?? '';
+        next: (ref) => {
+          const id = ref.id ?? '';
           if (id === '') {
             this.fail(key, file.name, 'failed');
             return;
           }
-          this.patch(key, { id, progress: 100, state: 'done' });
+          this.patch(key, { id, state: 'done' });
         },
         error: (error: unknown) => this.fail(key, file.name, failureOf(error, kind)),
         complete: () => this.running.delete(key),

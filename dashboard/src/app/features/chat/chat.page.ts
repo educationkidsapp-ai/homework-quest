@@ -456,6 +456,17 @@ interface ChatPreview {
                                 ) | transloco
                               }}</span
                             >
+                            <!-- D4: the bubble keeps its words and its files, so trying again sends
+                                 the same message; files the server already bound cannot be resent. -->
+                            @if (msg.clientId && msg.errorCode !== 'attachment_already_sent') {
+                              <button
+                                type="button"
+                                class="message-bubble__retry"
+                                (click)="chatService.retry(msg.clientId)"
+                              >
+                                {{ 'ui.retry' | transloco }}
+                              </button>
+                            }
                           } @else if (msg.readAt) {
                             <span
                               class="message-bubble__status message-bubble__status--read"
@@ -558,7 +569,7 @@ interface ChatPreview {
                             @if (file.state === 'uploading') {
                               <hq-progress-bar
                                 [plain]="true"
-                                [value]="file.progress"
+                                [value]="null"
                                 [label]="'chat.attachment.uploading' | transloco: { name: file.name }"
                               />
                             } @else {
@@ -1149,6 +1160,17 @@ interface ChatPreview {
 
     .message-bubble__files {
       margin-block-end: var(--hq-space-8);
+    }
+
+    .message-bubble__retry {
+      padding: 0;
+      border: 0;
+      background: none;
+      color: inherit;
+      font: inherit;
+      font-weight: var(--hq-text-weight-semibold);
+      text-decoration: underline;
+      cursor: pointer;
     }
 
     .message-bubble__meta {
@@ -2260,6 +2282,17 @@ export class ChatPage implements AfterViewChecked {
       this.followed = link;
       this.chatService.openWith(childId, params.get('name') ?? '', params.get('class') ?? undefined);
       this.mobileShowConvo.set(true);
+    });
+
+    // D4: files are picked for one conversation. Opening another — from the list, a bell link or
+    // another account's session — cancels what is still uploading and empties the composer, so a
+    // photo meant for one family is never sent to the next.
+    let stagedFor = untracked(() => this.chatService.activeKey());
+    effect(() => {
+      const key = this.chatService.activeKey();
+      if (key === stagedFor) return;
+      stagedFor = key;
+      untracked(() => this.uploads.clear());
     });
 
     // Auto-scroll when messages array changes

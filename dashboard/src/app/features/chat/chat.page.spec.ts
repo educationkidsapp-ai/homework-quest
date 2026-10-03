@@ -1,6 +1,5 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { HttpEventType } from '@angular/common/http';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
@@ -97,6 +96,7 @@ describe('ChatPage', () => {
       canWrite: canWriteSig,
       sendMessage: vi.fn(),
       sendTyping: vi.fn(),
+      retry: vi.fn(),
       markRead: vi.fn(),
     };
 
@@ -107,7 +107,7 @@ describe('ChatPage', () => {
 
   const PIXEL = 'data:image/png;base64,iVBORw0KGgo=';
   /** D4: every upload is accepted at once as `att-9`. */
-  const uploadChatAttachment = vi.fn(() => of({ type: HttpEventType.Response, body: { id: 'att-9' } }));
+  const uploadChatAttachment = vi.fn(() => of({ id: 'att-9' }));
 
   /** MG2b: a teacher's chooser asks for the department managers, so the page needs the API stubbed. */
   const chatApi = {
@@ -274,7 +274,7 @@ describe('ChatPage', () => {
       await user.upload(picker(), picture);
       rendered.fixture.detectChanges();
 
-      expect(uploadChatAttachment).toHaveBeenCalledWith(picture, 'events', true, expect.anything());
+      expect(uploadChatAttachment).toHaveBeenCalledWith(picture, 'body', false, expect.anything());
       expect(screen.getByText('board.png')).toBeTruthy();
       await user.click(screen.getByRole('button', { name: 'Send' }));
       expect(mockChatService.sendMessage).toHaveBeenCalledWith('', [
@@ -282,6 +282,38 @@ describe('ChatPage', () => {
       ]);
       // The composer is empty again for the next message.
       expect(screen.queryByText('board.png')).toBeNull();
+    });
+
+    it('drops the files staged for one conversation when another is opened', async () => {
+      const rendered = await renderPage();
+      await user.upload(picker(), new File(['x'], 'board.png', { type: 'image/png' }));
+      rendered.fixture.detectChanges();
+      expect(screen.getByText('board.png')).toBeTruthy();
+
+      activeKeySig.set('ch-2');
+      rendered.fixture.detectChanges();
+
+      expect(screen.queryByText('board.png')).toBeNull();
+    });
+
+    it('offers to try a failed send again, with the same words and files', async () => {
+      messagesSig.set([
+        {
+          id: 'temp-c1',
+          threadId: 'th-1',
+          sender: ChatMessageSenderEnum.TEACHER,
+          senderId: 'u-sara',
+          body: 'Homework',
+          createdAt: 1700000000000,
+          failed: true,
+          clientId: 'c1',
+          attachments: [{ id: 'att-9', contentType: 'image/png', name: 'board.png', size: 1 }],
+        },
+      ]);
+      await renderPage();
+
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(mockChatService.retry).toHaveBeenCalledWith('c1');
     });
 
     it('refuses a file of another type in a band, in her words, and uploads nothing', async () => {
@@ -336,12 +368,15 @@ describe('ChatPage', () => {
           body: '',
           createdAt: 1700000000000,
           failed: true,
+          clientId: 'c2',
           errorCode: 'attachment_already_sent',
         },
       ]);
       await renderPage();
 
       expect(screen.getByText(/these files were already sent in another message/)).toBeTruthy();
+      // Those files are bound to the other message: sending them again cannot succeed.
+      expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     });
 
     it('names a files-only last message "Photo" or by the document in the list', async () => {

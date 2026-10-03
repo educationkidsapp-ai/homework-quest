@@ -468,6 +468,17 @@ export class ChatService {
   }
 
   /**
+   * Send a failed message again — the same words and the same files, by id (D4). The failed bubble
+   * is replaced by the new attempt, so nothing she wrote or attached has to be done twice.
+   */
+  retry(clientId: string): void {
+    const failed = this.messages().find((message) => message.clientId === clientId && message.failed);
+    if (failed === undefined) return;
+    this.messages.update((list) => list.filter((message) => message.clientId !== clientId));
+    this.sendMessage(failed.body, failed.attachments ?? []);
+  }
+
+  /**
    * She typed in the open thread's composer: tell the other party, at most every
    * {@link TYPING_EVERY_MS} per thread.
    *
