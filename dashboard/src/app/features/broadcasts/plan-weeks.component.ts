@@ -34,7 +34,7 @@ import { PlanPdfComponent } from './plan-pdf.component';
         <h3 class="pw__heading">{{ weekLabel(week.weekStart) }}</h3>
         <div class="pw__grid">
           @for (row of week.rows; track row.id) {
-            <hq-card [eyebrow]="gradeLabel(row)">
+            <hq-card [title]="gradeLabel(row)">
               @if (row.pdf) {
                 <!-- D2, list 3: a PDF is opened, not drawn — its name and Open, in the picture's
                      place, with the same line under it. -->
@@ -44,12 +44,23 @@ import { PlanPdfComponent } from './plan-pdf.component';
                     [name]="row.attachmentName"
                     [label]="altOf(row)"
                   />
-                  <span class="pw__meta">
+                  <div class="pw__meta">
                     @if (row.readBy !== null) {
-                      <span>{{ 'plans.readBy' | transloco: { count: row.readBy } }}</span>
+                      <div class="pw__meta-stat">
+                        <svg class="pw__meta-icon" viewBox="0 0 20 20" fill="currentColor" width="14" height="14" aria-hidden="true">
+                          <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
+                          <path fill-rule="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.147.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" />
+                        </svg>
+                        <span>{{ 'plans.readBy' | transloco: { count: row.readBy } }}</span>
+                      </div>
                     }
-                    <span class="hq-muted">{{ authorOf(row) }}</span>
-                  </span>
+                    <div class="pw__meta-author">
+                      <svg class="pw__meta-icon" viewBox="0 0 20 20" fill="currentColor" width="13" height="13" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
+                      </svg>
+                      <span class="pw__meta-author-text">{{ authorOf(row) }}</span>
+                    </div>
+                  </div>
                 </div>
               } @else {
                 <button
@@ -74,12 +85,23 @@ import { PlanPdfComponent } from './plan-pdf.component';
                       </span>
                     }
                   </span>
-                  <span class="pw__meta">
+                  <div class="pw__meta">
                     @if (row.readBy !== null) {
-                      <span>{{ 'plans.readBy' | transloco: { count: row.readBy } }}</span>
+                      <div class="pw__meta-stat">
+                        <svg class="pw__meta-icon" viewBox="0 0 20 20" fill="currentColor" width="14" height="14" aria-hidden="true">
+                          <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
+                          <path fill-rule="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.147.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" />
+                        </svg>
+                        <span>{{ 'plans.readBy' | transloco: { count: row.readBy } }}</span>
+                      </div>
                     }
-                    <span class="hq-muted">{{ authorOf(row) }}</span>
-                  </span>
+                    <div class="pw__meta-author">
+                      <svg class="pw__meta-icon" viewBox="0 0 20 20" fill="currentColor" width="13" height="13" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
+                      </svg>
+                      <span class="pw__meta-author-text">{{ authorOf(row) }}</span>
+                    </div>
+                  </div>
                 </button>
               }
             </hq-card>
@@ -98,27 +120,47 @@ import { PlanPdfComponent } from './plan-pdf.component';
   `,
   styles: `
     .pw__week {
-      margin-block-end: var(--hq-space-4);
+      margin-block-end: var(--hq-space-32);
+
+      &:last-child {
+        margin-block-end: 0;
+      }
     }
 
     .pw__heading {
-      margin: 0 0 var(--hq-space-2);
-      font-size: var(--hq-font-label-size);
-      font-weight: var(--hq-font-label-weight);
+      margin: 0 0 var(--hq-space-12);
+      font-size: var(--hq-text-size-body);
+      font-weight: var(--hq-text-weight-semibold);
+      color: var(--hq-color-ink);
     }
 
     .pw__grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: var(--hq-space-3);
-      margin-top: 15px;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: var(--hq-space-20);
+      margin-block-start: var(--hq-space-8);
+    }
+
+    .pw__grid hq-card {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      border-radius: var(--hq-radius-card);
+      border: var(--hq-size-rule-thin) solid var(--hq-color-divider);
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
+      transition: box-shadow 0.2s ease, border-color 0.2s ease;
+
+      &:hover {
+        border-color: color-mix(in srgb, var(--hq-color-ink) 25%, var(--hq-color-divider));
+        box-shadow: 0 6px 16px -4px rgba(0, 0, 0, 0.08);
+      }
     }
 
     .pw__open {
       display: flex;
       flex-direction: column;
-      gap: var(--hq-space-2);
       width: 100%;
+      height: 100%;
       padding: 0;
       border: 0;
       background: none;
@@ -131,30 +173,41 @@ import { PlanPdfComponent } from './plan-pdf.component';
     .pw__doc {
       display: flex;
       flex-direction: column;
-      gap: var(--hq-space-8);
+      width: 100%;
+      height: 100%;
     }
 
     .pw__doc.is-named {
       outline: var(--hq-size-rule) solid var(--hq-color-accent);
       outline-offset: var(--hq-space-8);
+      border-radius: var(--hq-radius-control);
     }
 
     .pw__open.is-named .pw__thumb {
-      outline: var(--hq-rule) solid var(--hq-accent);
-      outline-offset: var(--hq-space-1);
+      outline: var(--hq-size-rule) solid var(--hq-color-accent);
+      outline-offset: var(--hq-space-4);
     }
 
     .pw__box {
       position: relative;
       display: block;
       width: 100%;
+      border-radius: var(--hq-radius-control);
+      overflow: hidden;
+      background: var(--hq-color-surface-sunken);
+      border: var(--hq-size-rule-thin) solid var(--hq-color-divider);
     }
 
     .pw__thumb {
       display: block;
       width: 100%;
-      aspect-ratio: 4 / 3;
+      aspect-ratio: 16 / 10;
       object-fit: cover;
+      transition: transform 0.2s ease;
+    }
+
+    .pw__open:hover .pw__thumb {
+      transform: scale(1.02);
     }
 
     .pw__placeholder {
@@ -164,20 +217,57 @@ import { PlanPdfComponent } from './plan-pdf.component';
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: var(--hq-space-1);
-      border: var(--hq-rule) solid var(--hq-ink);
-      font-size: var(--hq-font-meta-size);
+      gap: var(--hq-space-4);
+      background: var(--hq-color-surface-sunken);
+      font-size: var(--hq-text-theme-xs);
+      color: var(--hq-color-ink-soft);
       text-align: center;
+      padding: var(--hq-space-12);
     }
 
     .pw__placeholder-grade {
-      font-weight: var(--hq-font-label-weight);
+      font-size: var(--hq-text-theme-sm);
+      font-weight: var(--hq-text-weight-semibold);
+      color: var(--hq-color-ink);
     }
 
     .pw__meta {
       display: flex;
       flex-direction: column;
-      font-size: var(--hq-font-meta-size);
+      gap: var(--hq-space-6);
+      margin-block-start: var(--hq-space-12);
+      padding-block-start: var(--hq-space-12);
+      border-block-start: var(--hq-size-rule-thin) solid var(--hq-color-divider);
+      font-size: var(--hq-text-theme-xs);
+      line-height: 1.4;
+    }
+
+    .pw__meta-stat {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--hq-space-6);
+      font-size: var(--hq-text-theme-xs);
+      font-weight: var(--hq-text-weight-medium);
+      color: var(--hq-color-ink);
+    }
+
+    .pw__meta-author {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--hq-space-6);
+      font-size: var(--hq-text-theme-xs);
+      color: var(--hq-color-ink-soft);
+      line-height: 1.35;
+    }
+
+    .pw__meta-author-text {
+      overflow-wrap: anywhere;
+    }
+
+    .pw__meta-icon {
+      color: var(--hq-color-ink-soft);
+      flex-shrink: 0;
+      margin-top: 1px;
     }
 
     .pw__full {

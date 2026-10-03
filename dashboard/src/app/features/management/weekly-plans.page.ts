@@ -325,6 +325,11 @@ interface GlanceCard {
       overflow: hidden;
       background: var(--hq-color-surface-sunken);
       border: var(--hq-size-rule-thin) solid var(--hq-color-divider);
+
+      &:has(hq-plan-pdf) {
+        background: transparent;
+        border: none;
+      }
     }
 
     .wp__thumb {
