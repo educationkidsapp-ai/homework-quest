@@ -1,6 +1,7 @@
 package quest.feature.parent.presentation
 
 import quest.feature.lock.presentation.biometricName
+import quest.feature.lock.presentation.lockSetUpHint
 import quest.feature.lock.domain.AppLock
 import quest.core.platform.BiometricKind
 import quest.ui.design.DashboardFilterChip
@@ -57,9 +58,11 @@ object SettingsContract {
         val phoneSaveFailed: Boolean = false,
         /**
          * M2: what this device unlocks with and whether this account unlocks with it. Null (M6) is a device with nothing
-         * to prompt with — the row stays, and says what to set up.
+         * to prompt with: the row then says what to set up ([lockToSetUp]), or is hidden where there is nothing to set
+         * up (desktop).
          */
         val biometricKind: BiometricKind? = null,
+        val lockToSetUp: BiometricKind? = null,
         val biometricOn: Boolean = false,
     ) : MviState
     sealed interface Intent : MviIntent {
@@ -82,14 +85,14 @@ class SettingsViewModel(private val parent: ParentRepository, private val api: C
             SettingsContract.Intent.Load -> {
                 val s = parent.settings()
                 val biometricOn = lock.enabled()
-                reduce { copy(loading = false, settings = s, appearance = parent.appearance.value, biometricKind = lock.available(), biometricOn = biometricOn) }
+                reduce { copy(loading = false, settings = s, appearance = parent.appearance.value, biometricKind = lock.available(), lockToSetUp = lock.toSetUp(), biometricOn = biometricOn) }
                 // MH1 `GET /parent/me`. A build against a server without the route, or a device offline, simply shows no
                 // number rather than an error on a screen whose other four sections are all local.
                 val me = runCatching { api.parentProfile() }.getOrNull() ?: return
                 reduce { copy(phone = me.phone.orEmpty(), phoneKnown = true) }
             }
             is SettingsContract.Intent.Biometric -> { val on = lock.setEnabled(intent.on, intent.reason); reduce { copy(biometricOn = on) } }
-            SettingsContract.Intent.RefreshLock -> { val on = lock.enabled(); reduce { copy(biometricKind = lock.available(), biometricOn = on) } }
+            SettingsContract.Intent.RefreshLock -> { val on = lock.enabled(); reduce { copy(biometricKind = lock.available(), lockToSetUp = lock.toSetUp(), biometricOn = on) } }
             is SettingsContract.Intent.SetAppearance -> { parent.setAppearance(intent.appearance); reduce { copy(appearance = intent.appearance) } }
             is SettingsContract.Intent.Language -> { parent.setLanguage(intent.code); reduce { copy(settings = settings.copy(language = intent.code)) } }
             is SettingsContract.Intent.Phone ->
@@ -167,20 +170,24 @@ fun SettingsScreen(state: SettingsContract.State, s: Strings, dispatch: (Setting
                 DashboardFilterChip(label, selected = state.appearance == value, onClick = { dispatch(SettingsContract.Intent.SetAppearance(value)) })
             }
         }
-        // M2: unlock with Face ID / fingerprint — or (M6) the phone's screen lock. Always there for a signed-in parent:
-        // a device with nothing to prompt with says what to set up instead of offering a switch that cannot work. On
+        // M2: unlock with Face ID / fingerprint — or (M6) the phone's screen lock / the iPhone's passcode. Always there
+        // for a signed-in parent on a phone: a device with nothing to prompt with says, in its platform's words, what
+        // to set up instead of offering a switch that cannot work. Hidden only where no prompt exists (desktop). On
         // asks for the prompt before it counts; Off stays reachable for a lock that is on, whatever the device says now.
-        SectionTitle(s.security)
-        ParentCard {
-            val kind = state.biometricKind
-            val title = s.biometricSetting.replace("{with}", s.biometricName(kind ?: BiometricKind.SCREEN_LOCK))
-            Text(title, style = MaterialTheme.typography.titleMedium, color = if (kind == null) DashboardTokens.inkSoft else DashboardTokens.ink)
-            Text(if (kind == null) s.screenLockNeeded else s.biometricSettingHint, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
-            if (kind != null || state.biometricOn) {
-                Spacer(Modifier.height(Dimens.s8))
-                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
-                    if (kind != null) DashboardFilterChip(s.biometricOn, selected = state.biometricOn, onClick = { dispatch(SettingsContract.Intent.Biometric(true, title)) })
-                    DashboardFilterChip(s.biometricOff, selected = !state.biometricOn, onClick = { dispatch(SettingsContract.Intent.Biometric(false, title)) })
+        val shown = state.biometricKind ?: state.lockToSetUp
+        if (shown != null) {
+            SectionTitle(s.security)
+            ParentCard {
+                val kind = state.biometricKind
+                val title = s.biometricSetting.replace("{with}", s.biometricName(shown))
+                Text(title, style = MaterialTheme.typography.titleMedium, color = if (kind == null) DashboardTokens.inkSoft else DashboardTokens.ink)
+                Text(if (kind == null) s.lockSetUpHint(shown) else s.biometricSettingHint, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
+                if (kind != null || state.biometricOn) {
+                    Spacer(Modifier.height(Dimens.s8))
+                    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
+                        if (kind != null) DashboardFilterChip(s.biometricOn, selected = state.biometricOn, onClick = { dispatch(SettingsContract.Intent.Biometric(true, title)) })
+                        DashboardFilterChip(s.biometricOff, selected = !state.biometricOn, onClick = { dispatch(SettingsContract.Intent.Biometric(false, title)) })
+                    }
                 }
             }
         }

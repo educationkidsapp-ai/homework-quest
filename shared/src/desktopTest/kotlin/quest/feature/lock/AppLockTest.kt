@@ -190,6 +190,15 @@ class AppLockTest {
         assertTrue(lock.confirmOwner("Open the parent area"), "the parent area asks for the same screen lock")
     }
 
+    @Test fun anIPhoneWithAPasscodeAndNoUsableFaceIdIsOfferedItsPasscode() = runTest {
+        authenticator.kind = BiometricKind.PASSCODE
+        lock.signedIn()
+        assertEquals(Stage.OFFER, lock.state.value.stage)
+        assertEquals(BiometricKind.PASSCODE, lock.state.value.kind)
+        lock.acceptOffer("Unlock")
+        assertTrue(lock.enabled())
+    }
+
     @Test fun anAccountSignedInBeforeTheLockExistedIsAskedOnTheParentHome() = runTest {
         authenticator.kind = BiometricKind.SCREEN_LOCK   // the app was updated, not signed in to: signedIn() never ran
         lock.coldStart()

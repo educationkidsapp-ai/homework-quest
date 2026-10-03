@@ -60,13 +60,20 @@ import quest.ui.design.Dimens
 import quest.ui.design.MySchoolMark
 import quest.ui.design.ParentTheme
 
-/** The biometric's name as the copy says it — or, on a phone without a usable one, its screen lock (M6). */
+/** The biometric's name as the copy says it — or, on a device without a usable one, its screen lock / passcode (M6). */
 fun Strings.biometricName(kind: BiometricKind?): String = when (kind) {
     BiometricKind.FACE -> biometricFace
     BiometricKind.FINGERPRINT -> biometricTouch
-    BiometricKind.SCREEN_LOCK -> screenLock
+    BiometricKind.SCREEN_LOCK -> deviceLock.screenLock
+    BiometricKind.PASSCODE -> deviceLock.passcode
     BiometricKind.GENERIC, null -> biometricGeneric
 }
+
+/** M6: the line that says what to set up before the lock can be turned on — in the platform's own words. */
+fun Strings.lockSetUpHint(toSetUp: BiometricKind): String = if (toSetUp == BiometricKind.PASSCODE) deviceLock.passcodeNeeded else deviceLock.screenLockNeeded
+
+/** The device's own lock, no biometric: the lock screen and the offer say so rather than name a biometric. */
+private val BiometricKind?.isDeviceLockOnly: Boolean get() = this == null || this == BiometricKind.SCREEN_LOCK || this == BiometricKind.PASSCODE
 
 /**
  * Wraps the app's screens with the biometric lock (M2). The screens stay composed underneath — the navigation stack,
@@ -140,7 +147,7 @@ fun LockScreen(state: AppLock.State, s: Strings, app: String, onRetry: () -> Uni
         Text(s.lockTitle.replace("{app}", app), style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.inkStrong, textAlign = TextAlign.Center)
         Spacer(Modifier.height(Dimens.s8))
         Text(
-            if (state.kind == null || state.kind == BiometricKind.SCREEN_LOCK) s.lockBodyPasscode else s.lockBody.replace("{with}", s.biometricName(state.kind)),
+            if (state.kind.isDeviceLockOnly) s.lockBodyPasscode else s.lockBody.replace("{with}", s.biometricName(state.kind)),
             style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.inkSoft, textAlign = TextAlign.Center,
         )
         // After any prompt that did not confirm her — dismissed, failed, locked out, impossible — both ways on, always.
@@ -166,7 +173,11 @@ fun BiometricOffer(kind: BiometricKind?, s: Strings, app: String, onAccept: () -
         ) {
             Text(title, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = DashboardTokens.inkStrong)
             Spacer(Modifier.height(Dimens.s8))
-            val body = if (kind == BiometricKind.SCREEN_LOCK) s.screenLockOfferBody else s.biometricOfferBody
+            val body = when (kind) {
+                BiometricKind.SCREEN_LOCK -> s.deviceLock.screenLockOfferBody
+                BiometricKind.PASSCODE -> s.deviceLock.passcodeOfferBody
+                else -> s.biometricOfferBody
+            }
             Text(body.replace("{app}", app).replace("{with}", with), style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.ink)
             Spacer(Modifier.height(Dimens.s24))
             DashboardButton(s.biometricOfferAccept, onClick = onAccept, modifier = Modifier.fillMaxWidth())

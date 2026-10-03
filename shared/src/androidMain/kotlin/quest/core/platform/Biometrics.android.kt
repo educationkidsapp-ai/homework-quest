@@ -35,6 +35,8 @@ object BiometricHost {
  * "your phone's screen lock".
  */
 actual fun platformBiometricAuthenticator(): BiometricAuthenticator = object : BiometricAuthenticator {
+    override val lockToSetUp = BiometricKind.SCREEN_LOCK
+
     /**
      * [BiometricKind.GENERIC] while a Class 2+ biometric can be used; [BiometricKind.SCREEN_LOCK] when it cannot —
      * none enrolled, only a Class 1 face unlock (most Samsung, Xiaomi, Oppo and Huawei phones), or the sensor locked

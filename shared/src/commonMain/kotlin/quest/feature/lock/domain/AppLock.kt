@@ -90,8 +90,14 @@ class AppLock(
         return on
     }
 
-    /** The kind the device offers right now, for the offer and the Settings row; null hides both. */
+    /**
+     * The kind the device offers right now, for the offer and the Settings row. Null means nothing to prompt with: no
+     * offer, and the Settings row says what to set up ([toSetUp]) — or is hidden where nothing can be set up.
+     */
     fun available(): BiometricKind? = authenticator.kind()
+
+    /** What the device would offer once its owner sets a screen lock or passcode; null on a platform without a prompt. */
+    fun toSetUp(): BiometricKind? = authenticator.lockToSetUp
 
     /** A cold start: a signed-in account that chose the lock starts behind it. */
     suspend fun coldStart() {

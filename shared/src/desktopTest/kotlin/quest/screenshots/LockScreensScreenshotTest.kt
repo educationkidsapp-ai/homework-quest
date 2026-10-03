@@ -56,4 +56,6 @@ class LockScreensScreenshotTest {
     /** M6: an Android phone whose face unlock apps cannot use — the offer names its screen lock. */
     @Test fun offerScreenLock() = shot("51d-screen-lock-offer") { Offer(it, BiometricKind.SCREEN_LOCK) }
     @Test fun offerScreenLockArabic() = shot("51e-screen-lock-offer-ar", strings = Strings.ar) { Offer(it, BiometricKind.SCREEN_LOCK) }
+    /** M6: an iPhone with a passcode and no usable Face ID / Touch ID — the offer names the passcode. */
+    @Test fun offerPasscode() = shot("51f-passcode-offer") { Offer(it, BiometricKind.PASSCODE) }
 }

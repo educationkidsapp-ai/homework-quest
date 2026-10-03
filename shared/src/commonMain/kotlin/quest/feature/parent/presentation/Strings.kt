@@ -43,10 +43,7 @@ data class Strings(
     val biometricFace: String = "Face ID",
     val biometricTouch: String = "Touch ID",
     val biometricGeneric: String = "fingerprint or face",
-    // M6 — an Android phone whose only usable unlock is its PIN, pattern or password.
-    val screenLock: String = "your phone's screen lock",
-    val screenLockOfferBody: String = "Use your phone's screen lock (PIN, pattern or password) to open {app} next time, instead of your password. You can change this in Settings.",
-    val screenLockNeeded: String = "Set a screen lock on your phone to use this.",
+    val deviceLock: DeviceLockStrings = DeviceLockStrings.en,
     val lockTitle: String = "{app} is locked",
     val lockBody: String = "Unlock with {with} or your device passcode.",
     val lockBodyPasscode: String = "Unlock with your device passcode, or sign in with your password.",
@@ -294,9 +291,7 @@ data class Strings(
             examUndeliveredTitle = "إجابات اختبار لم تُسلَّم",
             examUndeliveredBody = "{n} من إجابات «{title}» موجودة على هذا الجهاز فقط ولم تصل إلى المدرسة. افتح الاختبار مع اتصال بالإنترنت. إذا كان الاختبار قد أُغلق فاطلب من المعلّمة إعادة فتحه — الإجابات محفوظة وتُرسل عندها.",
             biometricFace = "بصمة الوجه", biometricTouch = "بصمة الإصبع", biometricGeneric = "البصمة",
-            screenLock = "قفل شاشة هاتفك",
-            screenLockOfferBody = "استخدم قفل شاشة هاتفك (الرمز أو النمط أو كلمة المرور) لفتح {app} في المرة القادمة بدلاً من كلمة المرور. يمكنك تغيير ذلك من الإعدادات.",
-            screenLockNeeded = "اضبط قفلاً لشاشة هاتفك لتستخدم هذه الميزة.",
+            deviceLock = DeviceLockStrings.ar,
             lockTitle = "{app} مقفل",
             lockBody = "افتح القفل باستخدام {with} أو رمز الجهاز.",
             lockBodyPasscode = "افتح القفل برمز الجهاز، أو سجّل الدخول بكلمة المرور.",
@@ -449,6 +444,39 @@ val LocalStrings = staticCompositionLocalOf { Strings.en }
  * name in the reader's language — MySchool, مدرستي.
  */
 fun SchoolBranding.displayName(strings: Strings): String = if (appName == SchoolBranding.DEFAULT_APP_NAME) strings.appName else appName
+
+/**
+ * M6: the lock opened with the device's own lock rather than a biometric — an Android phone's PIN, pattern or password
+ * ([screenLock]), an iPhone's passcode ([passcode]) — and what to set up where there is none. Its own class: the
+ * [Strings] constructor is at the JVM's parameter limit.
+ */
+data class DeviceLockStrings(
+    val screenLock: String,
+    val screenLockOfferBody: String,
+    val screenLockNeeded: String,
+    val passcode: String,
+    val passcodeOfferBody: String,
+    val passcodeNeeded: String,
+) {
+    companion object {
+        val en = DeviceLockStrings(
+            screenLock = "your phone's screen lock",
+            screenLockOfferBody = "Use your phone's screen lock (PIN, pattern or password) to open {app} next time, instead of your password. You can change this in Settings.",
+            screenLockNeeded = "Set a screen lock on your phone to use this.",
+            passcode = "Passcode",
+            passcodeOfferBody = "Use your device passcode to open {app} next time, instead of your password. You can change this in Settings.",
+            passcodeNeeded = "Set a passcode in Settings to use this.",
+        )
+        val ar = DeviceLockStrings(
+            screenLock = "قفل شاشة هاتفك",
+            screenLockOfferBody = "استخدم قفل شاشة هاتفك (الرمز أو النمط أو كلمة المرور) لفتح {app} في المرة القادمة بدلاً من كلمة المرور. يمكنك تغيير ذلك من الإعدادات.",
+            screenLockNeeded = "اضبط قفلاً لشاشة هاتفك لتستخدم هذه الميزة.",
+            passcode = "رمز الدخول",
+            passcodeOfferBody = "استخدم رمز دخول جهازك لفتح {app} في المرة القادمة بدلاً من كلمة المرور. يمكنك تغيير ذلك من الإعدادات.",
+            passcodeNeeded = "اضبط رمز دخول من الإعدادات لتستخدم هذه الميزة.",
+        )
+    }
+}
 
 /** M5: the newer kinds a parent is told about, and what a tapped notification opens on the Notifications tab. */
 data class NoticeStrings(

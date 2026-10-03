@@ -71,7 +71,7 @@ class SettingsPhoneTest {
         )).also { built.add(it) }
 
     /** M6: what the phone can unlock with, as the test sets it; the prompt is never reached here. */
-    private class Device(var kind: BiometricKind?) : BiometricAuthenticator {
+    private class Device(var kind: BiometricKind?, override val lockToSetUp: BiometricKind? = BiometricKind.SCREEN_LOCK) : BiometricAuthenticator {
         override fun kind() = kind
         override suspend fun authenticate(reason: String) = BiometricResult.UNAVAILABLE
     }
@@ -83,11 +83,21 @@ class SettingsPhoneTest {
         vm.dispatch(SettingsContract.Intent.Load)
         settle(vm.state) { !it.loading }
         assertEquals(null, vm.state.value.biometricKind, "no screen lock: the row says to set one")
+        assertEquals(BiometricKind.SCREEN_LOCK, vm.state.value.lockToSetUp)
 
         device.kind = BiometricKind.SCREEN_LOCK
         vm.dispatch(SettingsContract.Intent.RefreshLock)
         settle(vm.state) { it.biometricKind == BiometricKind.SCREEN_LOCK }
         assertFalse(vm.state.value.biometricOn)
+    }
+
+    /** M6 review: desktop has no system prompt — nothing to turn on and nothing to set up, so the row is hidden. */
+    @Test fun desktopHasNoLockRow() = runBlocking {
+        val vm = viewModel(api())
+        vm.dispatch(SettingsContract.Intent.Load)
+        settle(vm.state) { !it.loading }
+        assertEquals(null, vm.state.value.biometricKind)
+        assertEquals(null, vm.state.value.lockToSetUp)
     }
 
     private suspend fun <S> settle(state: StateFlow<S>, predicate: (S) -> Boolean) {
