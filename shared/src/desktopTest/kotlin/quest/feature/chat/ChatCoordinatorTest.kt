@@ -1,13 +1,15 @@
 package quest.feature.chat
 
 import quest.feature.chat.presentation.staffName
-import quest.feature.chat.presentation.ChatConversationContract
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runTest
 import quest.api.AuthProvider
 import quest.api.AuthState
+import quest.api.ApiException
+import quest.api.dto.ApiError
+import quest.api.dto.SendChatMessageRequest
 import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatThread
 import quest.api.dto.ChatThreadStatus
@@ -15,7 +17,6 @@ import quest.api.dto.ChatTopic
 import quest.feature.chat.data.ChatRepositoryImpl
 import quest.feature.chat.data.ChatSocketClient
 import quest.feature.chat.domain.ChatPeer
-import quest.feature.chat.domain.applyStatus
 import quest.feature.chat.presentation.ChatThreadsContract
 import quest.feature.chat.presentation.avatarInitial
 import quest.feature.chat.presentation.staffLabel
@@ -25,13 +26,14 @@ import quest.feature.content.data.FakeContentApi
 import quest.feature.parent.presentation.Strings
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * R8 (DR3): the parent side of a coordinator conversation — the three R4 fields on a row, the additive `status`
- * frame, and the `topic` that only the thread-creating message may carry.
+ * R8 (DR3): the parent side of a coordinator conversation. B6 / M8: a Messages row is never a complaint and carries no
+ * status — complaints are their own conversations (`ComplaintsTest`).
  */
 class ChatCoordinatorTest {
 
@@ -53,15 +55,13 @@ class ChatCoordinatorTest {
         name: String,
         role: ChatStaffRole,
         subject: String? = null,
-        topic: ChatTopic = ChatTopic.QUESTION,
-        status: ChatThreadStatus = ChatThreadStatus.OPEN,
         unread: Int = 0,
     ) = ChatThread(
         id = id, childId = "c1", childName = "Maya", teacherId = "s-$name", teacherName = name,
-        className = "1A British", subject = subject, unread = unread, staffRole = role, topic = topic, status = status,
+        className = "1A British", subject = subject, unread = unread, staffRole = role,
     )
 
-    // ---- 1. the row: staffRole, topic and status decide every label on it
+    // ---- 1. the row: staffRole decides the label on it
 
     @Test
     fun aRowNamesTheRoleAndTheSubject() {
@@ -88,12 +88,13 @@ class ChatCoordinatorTest {
     }
 
     @Test
-    fun theDescriptionSpeaksTheChipsForAScreenReader() {
-        val complaint = row("th-1", "Ms. Lina", ChatStaffRole.COORDINATOR, "Math", ChatTopic.COMPLAINT, ChatThreadStatus.RESOLVED, unread = 2)
-        val said = threadDescription(complaint, Strings.en)
+    fun theDescriptionSpeaksTheRowWithoutAnyComplaintWords() {
+        // M8: an old thread the server still labels `complaint` / `resolved` reads as a plain Messages row here.
+        val old = row("th-1", "Ms. Lina", ChatStaffRole.COORDINATOR, "Math", unread = 2).copy(topic = ChatTopic.COMPLAINT, status = ChatThreadStatus.RESOLVED)
+        val said = threadDescription(old, Strings.en)
         assertTrue(said.startsWith("Ms. Lina, Subject coordinator · Math · 1A British"), said)
-        assertTrue(said.contains("Complaint"), said)
-        assertTrue(said.contains("Resolved"), said)
+        assertFalse(said.contains("Complaint"), said)
+        assertFalse(said.contains("Resolved"), said)
         assertTrue(said.contains("2 Messages"), said)
     }
 
@@ -104,12 +105,11 @@ class ChatCoordinatorTest {
             threads = listOf(
                 row("th-1", "Ms. Sara", ChatStaffRole.TEACHER, "Math"),
                 row(null, "Ms. Noor", ChatStaffRole.TEACHER, "English"),
-                row("th-3", "Ms. Lina", ChatStaffRole.COORDINATOR, "Math", ChatTopic.COMPLAINT),
+                row("th-3", "Ms. Lina", ChatStaffRole.COORDINATOR, "Math"),
             ),
         )
         assertEquals(listOf("Ms. Sara", "Ms. Noor"), state.teacherThreads.map { it.teacherName })
         assertEquals(listOf("Ms. Lina"), state.coordinatorThreads.map { it.teacherName })
-        assertEquals(ChatTopic.COMPLAINT, state.coordinatorThreads.single().topic)
     }
 
     /** S1: the school administration writes to a parent on a `MANAGERIAL` row marked `withAdmin`. */
@@ -126,11 +126,8 @@ class ChatCoordinatorTest {
         assertEquals("Ms. Nour", staffName(manager, Strings.ar))
         assertEquals("Maya", staffLabel(admin, Strings.en), "the line under the name says whom it is about")
 
-        // The parent answers her but cannot turn the thread into a complaint.
         val peer = ChatPeer.of(admin)
         assertTrue(peer.withAdmin)
-        assertFalse(ChatConversationContract.State(loading = false, withAdmin = true).canMarkComplaint)
-        assertTrue(ChatConversationContract.State(loading = false).canMarkComplaint)
     }
 
     @Test
@@ -154,33 +151,7 @@ class ChatCoordinatorTest {
         assertEquals("منسّق المادة · رياضيات", staffLabel(ChatStaffRole.COORDINATOR, "math", null, Strings.ar))
     }
 
-    // ---- 2. the `status` frame moves a row without a refetch
-
-    @Test
-    fun theStatusFrameResolvesOnlyItsOwnRow() {
-        val threads = listOf(
-            row("th-1", "Ms. Sara", ChatStaffRole.TEACHER, "Math"),
-            row("th-3", "Ms. Lina", ChatStaffRole.COORDINATOR, "Math", ChatTopic.COMPLAINT),
-        )
-        val resolved = applyStatus(threads, "th-3", ChatThreadStatus.RESOLVED, 1_758_460_000_000L)
-        assertEquals(ChatThreadStatus.OPEN, resolved[0].status)
-        assertEquals(ChatThreadStatus.RESOLVED, resolved[1].status)
-        assertEquals(1_758_460_000_000L, resolved[1].resolvedAt)
-
-        // Re-opening clears the timestamp with it, so no row ever reads "resolved at …" while it is open.
-        val reopened = applyStatus(resolved, "th-3", ChatThreadStatus.OPEN, 1_758_470_000_000L)
-        assertEquals(ChatThreadStatus.OPEN, reopened[1].status)
-        assertNull(reopened[1].resolvedAt)
-    }
-
-    @Test
-    fun aStatusFrameForAThreadWeDoNotHoldChangesNothing() {
-        val threads = listOf(row("th-1", "Ms. Sara", ChatStaffRole.TEACHER, "Math"))
-        assertEquals(threads, applyStatus(threads, "th-stranger", ChatThreadStatus.RESOLVED, 1L))
-        assertEquals(emptyList(), applyStatus(emptyList(), "th-1", ChatThreadStatus.RESOLVED, 1L))
-    }
-
-    // ---- 3. the first message carries the topic; a later one does not, for a teacher as for a coordinator
+    // ---- 2. the coordinator list, and Messages without complaints (B6)
 
     @Test
     fun theCoordinatorListIsSeparateFromTheThreadList() = runTest {
@@ -193,34 +164,15 @@ class ChatCoordinatorTest {
         assertTrue(repo.threads("c1").none { it.staffRole == ChatStaffRole.COORDINATOR })
     }
 
+    /** B6: Messages refuses the old way of opening a complaint, `400 complaint_moved`; the fake does as the server. */
     @Test
-    fun theFirstMessageToACoordinatorLabelsTheThreadAComplaint() = runTest {
-        val repo = repo()
-        val lina = repo.coordinators("c1").first { it.subject == "Math" }
-        repo.sendMessage("c1", lina.teacherId, "The homework is too long every night.", "cid-1", ChatTopic.COMPLAINT)
-
-        val thread = repo.threads("c1").single { it.teacherId == lina.teacherId }
-        assertEquals(ChatStaffRole.COORDINATOR, thread.staffRole)
-        assertEquals(ChatTopic.COMPLAINT, thread.topic)
-        assertEquals(ChatThreadStatus.OPEN, thread.status)
-
-        // A second send carries no topic at all — the toggle is gone once the thread exists.
-        val peer = ChatPeer.of(thread)
-        assertFalse(peer.resolved)
-        assertEquals(ChatTopic.COMPLAINT, peer.topic)
-        repo.sendMessage("c1", lina.teacherId, "Thank you for looking at it.", "cid-2")
-        assertEquals(ChatTopic.COMPLAINT, repo.threads("c1").single { it.teacherId == lina.teacherId }.topic)
-    }
-
-    @Test
-    fun aComplaintToATeacherLabelsHerThreadAComplaintToo() = runTest {
-        // M1: a complaint may go to the teacher, the coordinator or the manager.
-        val repo = repo()
-        val teacher = repo.threads("c1").first { it.staffRole == ChatStaffRole.TEACHER && it.lastMessage == null }
-        repo.sendMessage("c1", teacher.teacherId, "This is a complaint.", "cid-3", ChatTopic.COMPLAINT)
-        val thread = repo.threads("c1").single { it.teacherId == teacher.teacherId }
-        assertEquals(ChatTopic.COMPLAINT, thread.topic)
-        assertEquals(ChatThreadStatus.OPEN, thread.status)
+    fun aMessagesSendThatClaimsToBeAComplaintIsRefused() = runTest {
+        val api = FakeContentApi(TestAuth())
+        val refused = assertFailsWith<ApiException> {
+            api.sendChatMessage("c1", "co-lina", SendChatMessageRequest("The homework is too long.", topic = ChatTopic.COMPLAINT))
+        }
+        assertEquals(ApiError.COMPLAINT_MOVED, refused.error.code)
+        assertTrue(api.chatThreads("c1").none { it.topic == ChatTopic.COMPLAINT })
     }
 
     @Test
@@ -235,13 +187,11 @@ class ChatCoordinatorTest {
 
     @Test
     fun aPeerCarriesWhatTheRowAlreadyKnew() {
-        val thread = row("th-9", "Ms. Lina", ChatStaffRole.COORDINATOR, "Math", ChatTopic.COMPLAINT, ChatThreadStatus.RESOLVED)
+        val thread = row("th-9", "Ms. Lina", ChatStaffRole.COORDINATOR, "Math")
         val peer = ChatPeer.of(thread)
         assertEquals("s-Ms. Lina", peer.staffId)
         assertEquals(ChatStaffRole.COORDINATOR, peer.staffRole)
         assertEquals("Math", peer.subject)
-        assertEquals(ChatTopic.COMPLAINT, peer.topic)
-        assertTrue(peer.resolved)
-        assertEquals("th-9", peer.threadId, "the row's own thread id is what a status frame is matched against")
+        assertEquals("th-9", peer.threadId, "the row's own thread id is what every frame is matched against")
     }
 }

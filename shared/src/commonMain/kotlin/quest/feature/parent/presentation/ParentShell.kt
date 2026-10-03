@@ -140,6 +140,7 @@ fun ParentShell(
                         isRtl = strings.isRtl,
                         unreadNotifications = counts.notifications,
                         unreadMessages = counts.messages,
+                        unreadComplaints = counts.complaints,
                     )
                 }
             }

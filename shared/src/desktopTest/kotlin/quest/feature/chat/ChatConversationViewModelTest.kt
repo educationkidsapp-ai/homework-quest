@@ -16,18 +16,14 @@ import quest.api.dto.ChatMessage
 import quest.api.dto.ChatSender
 import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatThread
-import quest.api.dto.ChatThreadStatus
-import quest.api.dto.ChatTopic
+import quest.api.ApiException
+import quest.api.dto.ApiError
 import quest.feature.chat.domain.ChatConnectionState
 import quest.feature.chat.domain.ChatPeer
 import quest.feature.chat.domain.ChatRepository
-import quest.feature.chat.domain.Resolver
 import quest.feature.chat.domain.applyPresence
-import quest.feature.chat.domain.resolverOf
 import quest.feature.chat.presentation.presenceLine
-import quest.feature.chat.presentation.resolvedBanner
 import quest.feature.parent.presentation.Strings
-import quest.api.dto.ChatPeerRole
 import quest.feature.chat.presentation.ChatConversationContract
 import quest.feature.chat.presentation.ChatConversationViewModel
 import kotlin.test.AfterTest
@@ -39,13 +35,12 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * The two defects the R8 review found in the open conversation:
+ * The open Messages conversation:
  *
- * 1. `/ws/chat` is **one socket per parent** and fans out every thread of hers, so a `status` frame has to be matched
- *    against the open thread — otherwise a coordinator resolving the Math complaint flips the Resolved banner inside
- *    an open English conversation. The same holds for `read` and `typing`.
- * 2. A retried send has to carry the `topic` the original send went out with: the failed message is still in
- *    `messages`, so the complaint toggle is gone, and dropping the topic would file the complaint as a question.
+ * 1. `/ws/chat` is **one socket per parent** and fans out every thread of hers — B6's complaints included, whose
+ *    messages come from the same staff member — so every frame is matched by thread, never by sender alone (M8).
+ * 2. A retried send resends the same words; a Messages send never carries a topic (B6), and a stray
+ *    `400 complaint_moved` points the parent to the Complaints page.
  */
 class ChatConversationViewModelTest {
 
@@ -59,12 +54,15 @@ class ChatConversationViewModelTest {
         override val connectionState = MutableStateFlow(ChatConnectionState.CONNECTED) as StateFlow<ChatConnectionState>
         override val incomingFrames: SharedFlow<ChatFrame> = frames
 
-        val sends = mutableListOf<Pair<String, ChatTopic?>>()
+        val sends = mutableListOf<String>()
         var history: List<ChatMessage> = emptyList()
         var failNextSend = false
+        var failWith: Throwable = IllegalStateException("boom")
         var threadId = "th-ours"
 
-        override suspend fun threads(childId: String): List<ChatThread> = emptyList()
+        /** The parent's own rows — what a frame naming an unknown thread is looked up in (M7). */
+        var rows: List<ChatThread> = emptyList()
+        override suspend fun threads(childId: String): List<ChatThread> = rows
         override suspend fun coordinators(childId: String): List<ChatThread> = emptyList()
         override suspend fun managers(childId: String): List<ChatThread> = emptyList()
         /**
@@ -79,9 +77,9 @@ class ChatConversationViewModelTest {
         }
 
         override suspend fun uploadAttachment(childId: String, file: quest.feature.chat.domain.StagedUpload, onProgress: (Float) -> Unit): quest.api.dto.AttachmentRef = error("not used")
-        override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic?, attachmentIds: List<String>): ChatMessage {
-            sends.add(body to topic)
-            if (failNextSend) { failNextSend = false; throw IllegalStateException("boom") }
+        override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, attachmentIds: List<String>): ChatMessage {
+            sends.add(body)
+            if (failNextSend) { failNextSend = false; throw failWith }
             return ChatMessage("m-${sends.size}", threadId, ChatSender.PARENT, "p1", body, 1_758_450_000_000L)
         }
 
@@ -111,10 +109,12 @@ class ChatConversationViewModelTest {
     private fun viewModel(peer: ChatPeer, chat: ChatRepository) =
         ChatConversationViewModel(peer, chat, NoStaging).also { built.add(it) }
 
-    private fun peer(threadId: String? = OURS, topic: ChatTopic = ChatTopic.QUESTION) = ChatPeer(
+    private fun peer(threadId: String? = OURS) = ChatPeer(
         childId = "c1", staffId = COORDINATOR, staffName = "Ms. Lina",
-        staffRole = ChatStaffRole.COORDINATOR, subject = "math", topic = topic, threadId = threadId,
+        staffRole = ChatStaffRole.COORDINATOR, subject = "math", threadId = threadId,
     )
+
+    private fun fromLina(id: String, thread: String) = ChatMessage(id, thread, ChatSender.TEACHER, COORDINATOR, "A word from Ms. Lina", 1_758_460_000_000L)
 
     /**
      * `MutableSharedFlow` has no replay here, so a frame emitted before the view model's collector is subscribed is
@@ -138,27 +138,23 @@ class ChatConversationViewModelTest {
 
     // ---- 1. a frame names its thread, and only that thread moves
 
-    @Test fun aStatusFrameForAnotherThreadLeavesThisOneAlone() = runBlocking {
+    /** M8: the reviewer's case — the same coordinator answering the parent's complaint must not land in Messages. */
+    @Test fun aComplaintMessageFromTheSameStaffMemberNeverLandsInThisConversation() = runBlocking {
         val chat = FakeChat()
         val vm = viewModel(peer(), chat)
         vm.dispatch(ChatConversationContract.Intent.Load)
         vm.settle { !it.loading }
-        assertEquals(OURS, vm.state.value.threadId)
 
         chat.awaitCollector()
-        chat.frames.emit(ChatFrame.Status(THEIRS, ChatThreadStatus.RESOLVED, 1_758_460_000_000L))
+        chat.frames.emit(ChatFrame.Message(fromLina("m-cp", "cp-homework")))
         delay(80)
-        assertFalse(vm.state.value.resolved, "another thread's resolve must not raise this banner")
+        assertTrue(vm.state.value.messages.isEmpty(), "a complaint's frame names the complaint, not this thread")
 
-        chat.frames.emit(ChatFrame.Status(OURS, ChatThreadStatus.RESOLVED, 1_758_460_000_000L))
-        vm.settle { it.resolved }
-
-        // And re-opening ours lowers it again.
-        chat.frames.emit(ChatFrame.Status(OURS, ChatThreadStatus.OPEN, 1_758_470_000_000L))
-        vm.settle { !it.resolved }
+        chat.frames.emit(ChatFrame.Message(fromLina("m-ours", OURS)))
+        vm.settle { it.messages.singleOrNull()?.id == "m-ours" }
     }
 
-    @Test fun aStatusFrameCannotResolveAConversationThatHasNoThreadYet() = runBlocking {
+    @Test fun beforeAnyThreadExistsAStaffFrameIsAdoptedOnlyWhenMessagesListsIt() = runBlocking {
         val chat = FakeChat()
         val vm = viewModel(peer(threadId = null), chat)
         vm.dispatch(ChatConversationContract.Intent.Load)
@@ -166,9 +162,15 @@ class ChatConversationViewModelTest {
         assertNull(vm.state.value.threadId)
 
         chat.awaitCollector()
-        chat.frames.emit(ChatFrame.Status(THEIRS, ChatThreadStatus.RESOLVED, 1L))
+        chat.frames.emit(ChatFrame.Message(fromLina("m-cp", "cp-homework")))
         delay(80)
-        assertFalse(vm.state.value.resolved)
+        assertNull(vm.state.value.threadId, "a complaint is not adopted as this conversation's thread")
+        assertTrue(vm.state.value.messages.isEmpty())
+
+        // Ms. Lina opens the Messages thread herself: the parent's rows list it, so it is ours.
+        chat.rows = listOf(ChatThread(id = OURS, childId = "c1", childName = "Maya", teacherId = COORDINATOR, teacherName = "Ms. Lina", staffRole = ChatStaffRole.COORDINATOR))
+        chat.frames.emit(ChatFrame.Message(fromLina("m-first", OURS)))
+        vm.settle { it.threadId == OURS && it.messages.singleOrNull()?.id == "m-first" }
     }
 
     @Test fun readAndTypingFramesForAnotherThreadAreIgnoredToo() = runBlocking {
@@ -189,37 +191,9 @@ class ChatConversationViewModelTest {
         vm.settle { it.messages.single().readAt != null }
     }
 
-    // ---- 2. a retried first message is still the one that creates the thread
+    // ---- 2. a retry resends the same words, and Messages never carries a topic
 
-    @Test fun retryResendsTheComplaintTopic() = runBlocking {
-        val chat = FakeChat()
-        chat.failNextSend = true
-        val vm = viewModel(peer(threadId = null), chat)
-        vm.dispatch(ChatConversationContract.Intent.Load)
-        vm.settle { !it.loading }
-
-        vm.dispatch(ChatConversationContract.Intent.ToggleComplaint)
-        vm.settle { it.markAsComplaint }
-        vm.dispatch(ChatConversationContract.Intent.UpdateInput("The homework is too long."))
-        vm.dispatch(ChatConversationContract.Intent.SendMessage)
-        vm.settle { it.messages.singleOrNull()?.isFailed == true }
-
-        assertEquals(ChatTopic.COMPLAINT, chat.sends.single().second)
-        // The toggle went off as the message left — the topic has to live on the message.
-        assertFalse(vm.state.value.markAsComplaint)
-        assertEquals(ChatTopic.COMPLAINT, vm.state.value.messages.single().topic)
-
-        val clientId = vm.state.value.messages.single().clientId!!
-        vm.dispatch(ChatConversationContract.Intent.RetrySend(clientId))
-        vm.settle { it.messages.singleOrNull()?.isFailed == false && it.messages.single().isPending.not() }
-
-        assertEquals(2, chat.sends.size)
-        assertEquals(ChatTopic.COMPLAINT, chat.sends[1].second, "the retry must carry the complaint")
-        assertEquals(ChatTopic.COMPLAINT, vm.state.value.topic)
-        assertEquals(OURS, vm.state.value.threadId, "the ack teaches the conversation its thread id")
-    }
-
-    @Test fun aRetriedQuestionStaysAQuestion() = runBlocking {
+    @Test fun aRetriedMessageIsSentAgainAndTeachesTheThreadId() = runBlocking {
         val chat = FakeChat()
         chat.failNextSend = true
         val vm = viewModel(peer(threadId = null), chat)
@@ -234,62 +208,28 @@ class ChatConversationViewModelTest {
         vm.dispatch(ChatConversationContract.Intent.RetrySend(clientId))
         vm.settle { it.messages.singleOrNull()?.isFailed == false && it.messages.single().isPending.not() }
 
-        assertTrue(chat.sends.all { it.second == null }, "a question never sends a topic")
-        assertEquals(ChatTopic.QUESTION, vm.state.value.topic)
+        assertEquals(listOf("When is the trip?", "When is the trip?"), chat.sends)
+        assertEquals(OURS, vm.state.value.threadId, "the ack teaches the conversation its thread id")
+        assertFalse(vm.state.value.complaintMoved)
     }
 
-    /** M1: New message hands over "complaint" for a thread that does not exist yet — as the toggle, not as a badge. */
-    @Test fun aComplaintChosenInNewMessageArrivesAsTheToggleAndIsSentOnTheFirstMessage() = runBlocking {
+    /** M8: a stray `400 complaint_moved` keeps the message failed and points to the Complaints page. */
+    @Test fun aComplaintMovedAnswerPointsToTheComplaintsPage() = runBlocking {
         val chat = FakeChat()
-        val teacher = ChatPeer(childId = "c1", staffId = "t1", staffName = "Ms. Sara", staffRole = ChatStaffRole.TEACHER, subject = "math", threadId = null, startAsComplaint = true)
-        val vm = viewModel(teacher, chat)
+        chat.failNextSend = true
+        chat.failWith = ApiException(ApiError(ApiError.COMPLAINT_MOVED, "Complaints are their own conversations."))
+        val vm = viewModel(peer(), chat)
         vm.dispatch(ChatConversationContract.Intent.Load)
         vm.settle { !it.loading }
 
-        assertEquals(ChatTopic.QUESTION, vm.state.value.topic, "nothing is a complaint until the server has taken the message")
-        assertTrue(vm.state.value.markAsComplaint)
-        assertTrue(vm.state.value.canMarkComplaint, "a teacher may be sent a complaint too")
-
-        vm.dispatch(ChatConversationContract.Intent.UpdateInput("The homework was marked wrongly."))
+        vm.dispatch(ChatConversationContract.Intent.UpdateInput("This is a complaint."))
         vm.dispatch(ChatConversationContract.Intent.SendMessage)
-        vm.settle { it.topic == ChatTopic.COMPLAINT }
-        assertEquals(ChatTopic.COMPLAINT, chat.sends.single().second)
+        vm.settle { it.complaintMoved }
+        assertTrue(vm.state.value.messages.single().isFailed)
+        assertTrue(Strings.en.complaints.movedNotice.isNotBlank() && Strings.ar.complaints.movedNotice.isNotBlank())
     }
 
-    /** An existing complaint thread opens as what it is: the badge, and no toggle. */
-    @Test fun anExistingComplaintThreadKeepsItsTopic() {
-        val vm = viewModel(peer(threadId = OURS, topic = ChatTopic.COMPLAINT).copy(startAsComplaint = true), FakeChat())
-        assertEquals(ChatTopic.COMPLAINT, vm.state.value.topic)
-        assertFalse(vm.state.value.markAsComplaint)
-        assertFalse(vm.state.value.copy(loading = false).canMarkComplaint)
-    }
-
-    /** M1: an existing question thread can still become a complaint, and a resolved one is open again when it does. */
-    @Test fun anExistingQuestionThreadBecomesAnOpenComplaint() = runBlocking {
-        val chat = FakeChat()
-        val vm = viewModel(peer(threadId = OURS).copy(resolved = true), chat)
-        vm.dispatch(ChatConversationContract.Intent.Load)
-        vm.settle { !it.loading }
-        assertTrue(vm.state.value.canMarkComplaint)
-
-        vm.dispatch(ChatConversationContract.Intent.ToggleComplaint)
-        vm.settle { it.markAsComplaint }
-        vm.dispatch(ChatConversationContract.Intent.UpdateInput("I would like this looked at formally."))
-        vm.dispatch(ChatConversationContract.Intent.SendMessage)
-        vm.settle { it.topic == ChatTopic.COMPLAINT }
-
-        assertEquals(ChatTopic.COMPLAINT, chat.sends.last().second)
-        assertFalse(vm.state.value.resolved)
-        assertFalse(vm.state.value.canMarkComplaint, "it is a complaint now; there is nothing left to mark")
-    }
-
-    @Test fun theToggleDoesNotFlashWhileHistoryIsStillLoading() {
-        val loading = ChatConversationContract.State(staffRole = ChatStaffRole.COORDINATOR, loading = true)
-        assertFalse(loading.canMarkComplaint)
-        assertTrue(loading.copy(loading = false).canMarkComplaint)
-    }
-
-    // ---- M4: presence (D6), the resolved banner (D7) and reading a thread that does not exist (D11)
+    // ---- M4: presence (D6) and reading a thread that does not exist (D11)
 
     @Test fun presenceComesFromTheRowAndThePresenceFrame_notFromThisAppsSocket() = runBlocking {
         val chat = FakeChat()                                    // this app's socket is CONNECTED
@@ -315,17 +255,6 @@ class ChatConversationViewModelTest {
         vm.settle { !it.loading }
         assertNull(vm.state.value.peerOnline)
         assertNull(presenceLine(vm.state.value, Strings.en))
-    }
-
-    @Test fun theResolvedBannerNamesWhoTheParentWroteTo() {
-        val manager = ChatPeer("c1", "nour", "Ms. Nour", staffRole = ChatStaffRole.MANAGERIAL, peerRole = ChatPeerRole.MANAGERIAL)
-        assertEquals(Resolver.MANAGER, resolverOf(manager.peerRole, manager.staffRole, manager.withAdmin))
-        assertEquals(Strings.en.resolvedBannerManager, resolvedBanner(Resolver.MANAGER, Strings.en))
-        assertFalse(resolvedBanner(Resolver.MANAGER, Strings.en).contains("coordinator"))
-        assertEquals(Resolver.COORDINATOR, resolverOf(ChatPeerRole.COORDINATOR, ChatStaffRole.COORDINATOR, false))
-        assertEquals(Resolver.TEACHER, resolverOf(null, ChatStaffRole.TEACHER, false), "an older server without peerRole falls back to the staff side")
-        assertEquals(Resolver.ADMIN, resolverOf(null, ChatStaffRole.MANAGERIAL, withAdmin = true))
-        assertTrue(resolvedBanner(Resolver.MANAGER, Strings.ar).isNotBlank())
     }
 
     @Test fun openingAThreadThatDoesNotExistYetDoesNotMarkItRead() = runBlocking {

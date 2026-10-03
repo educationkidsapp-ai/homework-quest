@@ -33,6 +33,8 @@ data class NotificationTap(
      * parent password must appear, then the specific page"). Only a row tapped inside an unlocked parent area skips it.
      */
     val outside: Boolean = false,
+    /** M8 (B6): `PushMessage.complaintId` on `complaint.message` / `complaint.status` — the complaint to open. */
+    val complaintId: String? = null,
 ) {
     /** The id after `prefix:` in the collapse key, else the row's own subject id. */
     fun idFor(prefix: String): String? =
@@ -76,7 +78,8 @@ object PushPayload {
         val broadcastId = known?.broadcastId ?: data[PushMessage.BROADCAST_ID]
         val collapseKey = (known?.collapseKey ?: data[PushMessage.COLLAPSE_KEY])?.takeIf { it.isNotBlank() }
         val tag = collapseKey ?: notificationId?.let { "notification:$it" } ?: broadcastId?.let { "broadcast:$it" } ?: "kind:$kind"
-        val tap = NotificationTap(kind, known?.link ?: data[PushMessage.LINK], notificationId, broadcastId, known?.childId ?: data[PushMessage.CHILD_ID], collapseKey)
+        val complaintId = known?.complaintId ?: data[PushMessage.COMPLAINT_ID]
+        val tap = NotificationTap(kind, known?.link ?: data[PushMessage.LINK], notificationId, broadcastId, known?.childId ?: data[PushMessage.CHILD_ID], collapseKey, complaintId = complaintId)
         return PushNotice(channelOf(kind), tag, title, body, tap)
     }
 
@@ -94,11 +97,12 @@ private val CHILD = Regex("^/children/([^/?#]+)")
 private val CHAT = Regex("^/children/[^/]+/chat/([^/?#]+)")
 private val OPEN = Regex("[?&]open=([^&#]+)")
 
-/** The app paths B4's contract writes on a row and a push (`ebbab61`). */
-enum class LinkShape { CHAT, BROADCAST, ANNOUNCEMENT, TEACHER_QUESTION, MAP, PROGRESS, OTHER }
+/** The app paths B4's contract writes on a row and a push (`ebbab61`), and B6's complaint path. */
+enum class LinkShape { CHAT, COMPLAINT, BROADCAST, ANNOUNCEMENT, TEACHER_QUESTION, MAP, PROGRESS, OTHER }
 
 private val SHAPES = listOf(
     Regex("^/children/[^/]+/chat/[^/?#]+$") to LinkShape.CHAT,
+    Regex("^/children/[^/]+/complaints/[^/?#]+$") to LinkShape.COMPLAINT,
     Regex("^/children/[^/]+/broadcasts(\\?.*)?$") to LinkShape.BROADCAST,
     Regex("^/children/[^/]+/announcements(\\?.*)?$") to LinkShape.ANNOUNCEMENT,
     Regex("^/children/[^/]+/teacher-questions/[^/?#]+$") to LinkShape.TEACHER_QUESTION,

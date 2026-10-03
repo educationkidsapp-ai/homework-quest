@@ -90,6 +90,7 @@ object PushIntents {
         tap.broadcastId?.let { putExtra(PREFIX + "broadcastId", it) }
         tap.childId?.let { putExtra(PREFIX + "childId", it) }
         tap.collapseKey?.let { putExtra(PREFIX + "collapseKey", it) }
+        tap.complaintId?.let { putExtra(PREFIX + "complaintId", it) }
     }
 
     /** Hands a tap to the shared UI, which follows it underneath the lock and through the parent gate. */
@@ -97,7 +98,7 @@ object PushIntents {
         val extras = intent?.extras ?: return
         if (!extras.getBoolean(EXTRA_PUSH)) return
         fun s(key: String) = extras.getString(PREFIX + key)
-        PushLinks.open(NotificationTap(s("kind").orEmpty(), s("link"), s("notificationId"), s("broadcastId"), s("childId"), s("collapseKey"), outside = true))
+        PushLinks.open(NotificationTap(s("kind").orEmpty(), s("link"), s("notificationId"), s("broadcastId"), s("childId"), s("collapseKey"), outside = true, complaintId = s("complaintId")))
         // Followed once: a configuration change or a later onNewIntent must not open it again.
         intent.removeExtra(EXTRA_PUSH)
     }

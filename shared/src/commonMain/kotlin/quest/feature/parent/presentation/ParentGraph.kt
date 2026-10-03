@@ -9,12 +9,13 @@ import quest.core.navigation.Routes
 import quest.api.dto.ChatPeerRole
 import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatThread
-import quest.api.dto.ChatThreadStatus
-import quest.api.dto.ChatTopic
 import quest.feature.chat.domain.ChatPeer
 import quest.feature.chat.presentation.ChatConversationRoute
 import quest.feature.chat.presentation.ChatThreadsRoute
 import quest.feature.chat.presentation.CoordinatorPickerRoute
+import quest.feature.complaints.presentation.ComplaintRoute
+import quest.feature.complaints.presentation.ComplaintsRoute
+import quest.feature.complaints.presentation.NewComplaintRoute
 import quest.feature.broadcasts.presentation.BroadcastsRoute
 import quest.feature.broadcasts.presentation.WeeklyPlanRoute
 import quest.feature.push.domain.PushLinks
@@ -50,6 +51,7 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
             onMessages = { nav.navigate(Routes.ChatThreads) },
             onBroadcasts = { nav.navigate(Routes.Broadcasts()) },
             onWeeklyPlan = { nav.navigate(Routes.WeeklyPlan()) },
+            onComplaints = { nav.navigate(Routes.Complaints) },
         )
     }
     composable<Routes.Calendar> { CalendarRoute(onLessonPanel = { nav.navigate(Routes.LessonPanel(it)) }, onBack = { nav.popBackStack() }) }
@@ -61,6 +63,7 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
             onHome = { nav.navigate(Routes.ParentHome) { popUpTo(Routes.ParentHome) { inclusive = false } } },
             onNotifications = { nav.navigate(Routes.Broadcasts()) { popUpTo(Routes.ParentHome) { inclusive = false } } },
             onMessages = { nav.navigate(Routes.ChatThreads) { popUpTo(Routes.ParentHome) { inclusive = false } } },
+            onComplaints = { nav.navigate(Routes.Complaints) { popUpTo(Routes.ParentHome) { inclusive = false } } },
         )
     }
     composable<Routes.ChangePin> { PinRoute(onUnlocked = { nav.popBackStack() }, onBack = { nav.popBackStack() }, changePin = true) }
@@ -73,6 +76,7 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
             onHome = { nav.navigate(Routes.ParentHome) { popUpTo(Routes.ParentHome) { inclusive = false } } },
             onNotifications = { nav.navigate(Routes.Broadcasts()) { popUpTo(Routes.ParentHome) { inclusive = false } } },
             onSettings = { nav.navigate(Routes.Settings) { popUpTo(Routes.ParentHome) { inclusive = false } } },
+            onComplaints = { nav.navigate(Routes.Complaints) { popUpTo(Routes.ParentHome) { inclusive = false } } },
         )
     }
     composable<Routes.Broadcasts> { entry ->
@@ -83,7 +87,31 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
             onHome = { nav.navigate(Routes.ParentHome) { popUpTo(Routes.ParentHome) { inclusive = false } } },
             onMessages = { nav.navigate(Routes.ChatThreads) { popUpTo(Routes.ParentHome) { inclusive = false } } },
             onSettings = { nav.navigate(Routes.Settings) { popUpTo(Routes.ParentHome) { inclusive = false } } },
+            onComplaints = { nav.navigate(Routes.Complaints) { popUpTo(Routes.ParentHome) { inclusive = false } } },
         )
+    }
+    // M8: the Complaints tab, New complaint and one complaint — the same bottom bar as Messages.
+    composable<Routes.Complaints> {
+        ComplaintsRoute(
+            onBack = { nav.popBackStack() },
+            onOpen = { nav.navigate(Routes.Complaint(it.childId, it.id)) },
+            onNew = { nav.navigate(Routes.NewComplaint) },
+            onHome = { nav.navigate(Routes.ParentHome) { popUpTo(Routes.ParentHome) { inclusive = false } } },
+            onNotifications = { nav.navigate(Routes.Broadcasts()) { popUpTo(Routes.ParentHome) { inclusive = false } } },
+            onMessages = { nav.navigate(Routes.ChatThreads) { popUpTo(Routes.ParentHome) { inclusive = false } } },
+            onSettings = { nav.navigate(Routes.Settings) { popUpTo(Routes.ParentHome) { inclusive = false } } },
+        )
+    }
+    composable<Routes.NewComplaint> {
+        NewComplaintRoute(
+            onBack = { nav.popBackStack() },
+            // Sent: the complaint itself, with Back landing on the list rather than on an emptied form.
+            onCreated = { nav.navigate(Routes.Complaint(it.childId, it.id)) { popUpTo<Routes.NewComplaint> { inclusive = true } } },
+        )
+    }
+    composable<Routes.Complaint> { entry ->
+        val route = entry.toRoute<Routes.Complaint>()
+        ComplaintRoute(route.childId, route.complaintId, onBack = { nav.popBackStack() })
     }
     // MH3: a detail page reached from Home, like Calendar and Progress — a back arrow and no bottom bar, because the
     // bar's four tabs are Home, Announcements, Messages and Settings and the plan is none of them.
@@ -91,7 +119,7 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
     composable<Routes.ChatCoordinators> {
         CoordinatorPickerRoute(
             onBack = { nav.popBackStack() },
-            onOpenConversation = { thread, complaint -> nav.navigate(thread.asConversation().copy(complaint = complaint)) },
+            onOpenConversation = { nav.navigate(it.asConversation()) },
         )
     }
     composable<Routes.ChatConversation> { entry ->
@@ -103,22 +131,20 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
                 staffName = route.teacherName,
                 staffRole = ChatStaffRole.entries.firstOrNull { it.name == route.staffRole } ?: ChatStaffRole.TEACHER,
                 subject = route.subject,
-                topic = if (route.topic == "complaint") ChatTopic.COMPLAINT else ChatTopic.QUESTION,
-                resolved = route.resolved,
                 threadId = route.threadId,
-                startAsComplaint = route.complaint,
                 withAdmin = route.admin,
                 peerOnline = route.peerOnline?.toBooleanStrictOrNull(),
                 peerRole = ChatPeerRole.entries.firstOrNull { it.name == route.peerRole },
             ),
             onBack = { nav.popBackStack() },
+            onOpenComplaints = { nav.navigate(Routes.Complaints) { popUpTo(Routes.ParentHome) { inclusive = false } } },
         )
     }
 }
 
 /**
- * R8: the row the parent tapped already knows the role, the subject, the topic and the status, so the conversation
- * opens with its header, its badge and its banner right rather than asking the server again for what it was just told.
+ * R8: the row the parent tapped already knows the role and the subject, so the conversation opens with its header
+ * right rather than asking the server again for what it was just told.
  */
 internal fun ChatThread.asConversation() = Routes.ChatConversation(
     childId = childId,
@@ -126,8 +152,6 @@ internal fun ChatThread.asConversation() = Routes.ChatConversation(
     teacherName = teacherName,
     staffRole = staffRole.name,
     subject = subject,
-    topic = if (topic == ChatTopic.COMPLAINT) "complaint" else "question",
-    resolved = status == ChatThreadStatus.RESOLVED,
     threadId = id,
     admin = withAdmin == true,
     peerOnline = peerOnline?.toString(),

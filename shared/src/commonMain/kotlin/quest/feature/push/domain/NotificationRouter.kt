@@ -6,13 +6,19 @@ import quest.api.dto.ChatThread
 import quest.core.runCancellable
 import quest.feature.broadcasts.domain.BroadcastsRepository
 import quest.feature.chat.domain.ChatRepository
+import quest.api.ApiException
+import quest.api.dto.ApiError
 import quest.feature.children.domain.ChildrenRepository
+import quest.feature.complaints.domain.ComplaintsRepository
+import quest.feature.complaints.domain.complaintOf
 import quest.feature.notifications.domain.NotificationsRepository
 
 /** The page a tap opens — always the specific one, never a generic list (the owner, 2026-10-03). */
 sealed interface Destination {
-    /** `chat.message` and `complaint.status`: the thread itself; its status banner comes with the row. */
+    /** `chat.message`: the Messages thread itself. */
     data class Conversation(val thread: ChatThread) : Destination
+    /** M8: `complaint.message` and `complaint.status` — that complaint's own page, about [childId]. */
+    data class Complaint(val childId: String, val complaintId: String) : Destination
     /** A weekly plan: the Weekly plan page, on that plan. */
     data class WeeklyPlan(val planId: String) : Destination
     /** An announcement or event from a manager or coordinator: opened on the Notifications tab. */
@@ -43,6 +49,7 @@ class NotificationRouter(
     private val chat: ChatRepository,
     private val notifications: NotificationsRepository,
     private val broadcasts: BroadcastsRepository,
+    private val complaints: ComplaintsRepository,
     /** The lesson ids on the child's map (the home page's own window), or null when it cannot be read just now. */
     private val lessonsOnMap: suspend (Child) -> Set<String>?,
 ) {
@@ -52,7 +59,8 @@ class NotificationRouter(
         val child = childId?.let { select(it) }
         if (childId != null && child == null) return Destination.Notifications(tap.notificationId, gone = true)
         return when (tap.kind) {
-            "chat.message", "complaint.status" -> conversation(tap, child)
+            "chat.message" -> conversation(tap, child)
+            "complaint.message", "complaint.status", "complaint.new" -> complaint(tap, child)
             "broadcast.posted" -> broadcast(tap, child)
             "homework.published" -> lesson(tap, child) { Destination.Lesson(it) }
             "exam.published" -> lesson(tap, child) { Destination.ExamCard }
@@ -68,6 +76,7 @@ class NotificationRouter(
      */
     private suspend fun byLink(tap: NotificationTap, child: Child?): Destination = when (linkShape(tap.link)) {
         LinkShape.CHAT -> conversation(tap, child)
+        LinkShape.COMPLAINT -> complaint(tap, child)
         LinkShape.BROADCAST -> broadcast(tap, child)
         LinkShape.MAP -> Destination.ExamCard
         LinkShape.PROGRESS -> Destination.Progress
@@ -92,6 +101,20 @@ class NotificationRouter(
         }.orEmpty()
         val thread = threads.firstOrNull { threadId != null && it.id == threadId } ?: threads.firstOrNull { staffId != null && it.teacherId == staffId }
         return thread?.let { Destination.Conversation(it) } ?: notifications(tap, gone = true)
+    }
+
+    /**
+     * M8: the complaint B6 names three ways — the push's `complaintId`, the `complaint:{id}` collapse key (or a row's
+     * `lessonId`), and the link. A row written before B6 may still link a chat thread; it is followed as one. Only a
+     * 404 says the complaint is gone — any other failure still opens its page, which says so itself.
+     */
+    private suspend fun complaint(tap: NotificationTap, child: Child?): Destination {
+        val id = tap.complaintId ?: complaintOf(tap.link)?.second ?: tap.idFor("complaint")
+            ?: return if (linkShape(tap.link) == LinkShape.CHAT) conversation(tap, child) else notifications(tap)
+        child ?: return notifications(tap, gone = true)
+        val missing = runCancellable { complaints.detail(child.id, id) }.exceptionOrNull()
+            .let { (it as? ApiException)?.error?.code == ApiError.NOT_FOUND }
+        return if (missing) notifications(tap, gone = true) else Destination.Complaint(child.id, id)
     }
 
     private suspend fun broadcast(tap: NotificationTap, child: Child?): Destination {

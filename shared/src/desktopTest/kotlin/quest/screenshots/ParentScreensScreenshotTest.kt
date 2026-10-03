@@ -192,7 +192,7 @@ class ParentScreensScreenshotTest {
         )
     }
 
-    // R8: the coordinator picker, and a complaint conversation the coordinator has resolved.
+    // R8: the coordinator picker.
     @Test fun coordinatorPicker() = shot("51-coordinator-picker") { s ->
         CoordinatorPickerScreen(
             state = CoordinatorPickerContract.State(
@@ -220,7 +220,8 @@ class ParentScreensScreenshotTest {
         )
     }
 
-    @Test fun chatComplaintResolved() = shot("52-chat-complaint-resolved") { s ->
+    /** M8: a stray `complaint_moved` points to the Complaints page instead of failing silently. */
+    @Test fun chatComplaintMoved() = shot("52-chat-complaint-moved") { s ->
         ChatConversationScreen(
             state = ChatConversationContract.State(
                 childId = "c1", teacherId = "co1", teacherName = "Ms. Lina",
@@ -228,31 +229,13 @@ class ParentScreensScreenshotTest {
                 connectionState = ChatConnectionState.CONNECTED,
                 staffRole = ChatStaffRole.COORDINATOR,
                 subject = "Math",
-                topic = ChatTopic.COMPLAINT,
-                resolved = true,
+                complaintMoved = true,
                 messages = listOf(
-                    ChatConversationContract.UiMessage("m1", "The nightly homework is taking Maya over an hour.", true, 1_758_450_000_000L, readAt = 1_758_450_050_000L),
-                    ChatConversationContract.UiMessage("m2", "Thank you — I have asked the teacher to shorten it this week.", false, 1_758_450_300_000L),
+                    ChatConversationContract.UiMessage("m1", "The nightly homework is taking Maya over an hour.", true, 1_758_450_000_000L, isFailed = true, clientId = "c-1"),
                 ),
             ),
             strings = s,
-            onBack = {}, onInputChange = {}, onSend = {}, onRetry = {}, onToggleComplaint = {},
-        )
-    }
-
-    @Test fun chatComplaintToggle() = shot("53-chat-complaint-toggle") { s ->
-        ChatConversationScreen(
-            state = ChatConversationContract.State(
-                childId = "c1", teacherId = "co1", teacherName = "Ms. Lina",
-                loading = false,
-                connectionState = ChatConnectionState.CONNECTED,
-                staffRole = ChatStaffRole.COORDINATOR,
-                subject = "Math",
-                markAsComplaint = true,
-                inputText = "The nightly homework is taking Maya over an hour.",
-            ),
-            strings = s,
-            onBack = {}, onInputChange = {}, onSend = {}, onRetry = {}, onToggleComplaint = {},
+            onBack = {}, onInputChange = {}, onSend = {}, onRetry = {},
         )
     }
 
@@ -380,20 +363,19 @@ class ParentScreensScreenshotTest {
         DashboardBottomNavigation(DashboardTab.MESSAGES, {}, isRtl = s.isRtl, unreadMessages = 2)
     }
 
-    /** M1: New message — the child, question or complaint, then a teacher, a coordinator or the manager. */
-    private fun newMessageState(complaint: Boolean) = CoordinatorPickerContract.State(
-        loading = false, children = listOf(maya, omar), childId = "c1", complaint = complaint,
+    /** M1: New message — the child, then a teacher, a coordinator or the manager. M8: no complaint choice any more. */
+    private fun newMessageState() = CoordinatorPickerContract.State(
+        loading = false, children = listOf(maya, omar), childId = "c1",
         teachers = listOf(
             ChatThread(null, "c1", "Maya", "t1", "Ms. Sara", "1A British", "Math", 0, null, ChatStaffRole.TEACHER),
-            ChatThread("th9", "c1", "Maya", "t2", "Mr. Adam", "1A British", "English", 0, null, ChatStaffRole.TEACHER, quest.api.dto.ChatTopic.COMPLAINT),
+            ChatThread("th9", "c1", "Maya", "t2", "Mr. Adam", "1A British", "English", 0, null, ChatStaffRole.TEACHER),
         ),
         coordinators = listOf(ChatThread(null, "c1", "Maya", "co1", "Ms. Lina", "1A British", "Math", 0, null, ChatStaffRole.COORDINATOR)),
         managers = listOf(ChatThread(null, "c1", "Maya", "mg1", "Ms. Nour", "1A British", null, 0, null, ChatStaffRole.MANAGERIAL)),
         curriculum = Curriculum.BRITISH,
     )
-    @Test fun newMessage() = shot("57-new-message") { s -> CoordinatorPickerScreen(newMessageState(false), s, {}) }
-    @Test fun newMessageComplaint() = shot("57b-new-message-complaint") { s -> CoordinatorPickerScreen(newMessageState(true), s, {}) }
-    @Test fun newMessageComplaintArabic() = shot("57c-new-message-complaint-ar", Strings.ar) { s -> CoordinatorPickerScreen(newMessageState(true), s, {}) }
+    @Test fun newMessage() = shot("57-new-message") { s -> CoordinatorPickerScreen(newMessageState(), s, {}) }
+    @Test fun newMessageArabic() = shot("57c-new-message-ar", Strings.ar) { s -> CoordinatorPickerScreen(newMessageState(), s, {}) }
 
     /** M1: a weekly plan uploaded as a PDF — the file's name and an Open button instead of an image. */
     @Test fun weeklyPlanPdf() = shot("56d-weekly-plan-pdf") { s ->
@@ -417,7 +399,7 @@ class ParentScreensScreenshotTest {
     @Test fun settingsNoPasscode() = shot("47h-settings-ios-no-passcode") { s -> SettingsScreen(lockRow(null, BiometricKind.PASSCODE), s, {}, {}) }
     @Test fun settingsNoPasscodeArabic() = shot("47i-settings-ios-no-passcode-ar", Strings.ar) { s -> SettingsScreen(lockRow(null, BiometricKind.PASSCODE, "ar"), s, {}, {}) }
     @Test fun settingsDark() = shot("47c-settings-dark", dark = true) { s -> SettingsScreen(SettingsContract.State(false, ParentSettings("en"), Appearance.DARK, phone = "+971501234567", phoneKnown = true), s, {}, {}) }
-    @Test fun newMessageComplaintDark() = shot("57d-new-message-complaint-dark", dark = true) { s -> CoordinatorPickerScreen(newMessageState(true), s, {}) }
+    @Test fun newMessageDark() = shot("57d-new-message-dark", dark = true) { s -> CoordinatorPickerScreen(newMessageState(), s, {}) }
     @Test fun weeklyPlanPdfDark() = shot("56e-weekly-plan-pdf-dark", dark = true) { s ->
         val pdf = plan("2026-09-27").copy(attachment = BroadcastAttachment("/media/attachments/att-pdf", "Grade 1 weekly plan.pdf", "att-pdf", "application/pdf"))
         WeeklyPlanScreen(state = planState().let { it.copy(plans = it.plans.copy(current = pdf)) }, strings = s)

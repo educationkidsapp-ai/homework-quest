@@ -46,6 +46,13 @@ import quest.api.dto.ChildAttendanceResponse
 import quest.api.dto.ChatMessage
 import quest.api.dto.ChatReadReceipt
 import quest.api.dto.ChatThread
+import quest.api.dto.ChatThreadStatus
+import quest.api.dto.Complaint
+import quest.api.dto.ComplaintDetail
+import quest.api.dto.ComplaintList
+import quest.api.dto.ComplaintRecipient
+import quest.api.dto.ComplaintStatusRequest
+import quest.api.dto.CreateComplaintRequest
 import quest.api.dto.CreateChildRequest
 import quest.api.dto.MapResponse
 import quest.api.dto.MediaKind
@@ -119,6 +126,39 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
 
     override suspend fun childManagers(childId: String): List<ChatThread> =
         call { client.get("$baseUrl/children/$childId/managers") { authed() } }
+
+    // ---- B6 / M8: complaints, their own conversations apart from Messages (`docs/runbook.md` "Complaints (B6)").
+    override suspend fun complaints(childId: String, status: String?): ComplaintList =
+        call { client.get("$baseUrl/children/$childId/complaints") { authed(); if (!status.isNullOrBlank()) parameter("status", status) } }
+
+    override suspend fun complaintRecipients(childId: String): List<ComplaintRecipient> =
+        call { client.get("$baseUrl/children/$childId/complaints/recipients") { authed() } }
+
+    override suspend fun createComplaint(childId: String, request: CreateComplaintRequest): ComplaintDetail =
+        call { client.post("$baseUrl/children/$childId/complaints") { authed(); contentType(ContentType.Application.Json); setBody(request) } }
+
+    override suspend fun complaint(childId: String, complaintId: String, before: String?, since: String?, limit: Int?): ComplaintDetail =
+        call {
+            client.get("$baseUrl/children/$childId/complaints/$complaintId") {
+                authed()
+                if (!before.isNullOrBlank()) parameter("before", before)
+                if (!since.isNullOrBlank()) parameter("since", since)
+                if (limit != null) parameter("limit", limit)
+            }
+        }
+
+    override suspend fun sendComplaintMessage(childId: String, complaintId: String, request: SendChatMessageRequest): ChatMessage =
+        call { client.post("$baseUrl/children/$childId/complaints/$complaintId/messages") { authed(); contentType(ContentType.Application.Json); setBody(request) } }
+
+    override suspend fun markComplaintRead(childId: String, complaintId: String): ChatReadReceipt =
+        call { client.post("$baseUrl/children/$childId/complaints/$complaintId/read") { authed() } }
+
+    override suspend fun reopenComplaint(childId: String, complaintId: String): Complaint =
+        call {
+            client.patch("$baseUrl/children/$childId/complaints/$complaintId/status") {
+                authed(); contentType(ContentType.Application.Json); setBody(ComplaintStatusRequest(ChatThreadStatus.OPEN))
+            }
+        }
 
     // ---- RM4: the parent's broadcasts feed (`docs/runbook.md` "Broadcasts"). Behind the `announcements` flag.
     override suspend fun childBroadcasts(childId: String): BroadcastFeed =

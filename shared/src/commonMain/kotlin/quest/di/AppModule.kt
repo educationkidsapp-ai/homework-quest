@@ -39,6 +39,11 @@ import quest.feature.broadcasts.domain.BroadcastsRepository
 import quest.feature.broadcasts.presentation.BroadcastsViewModel
 import quest.feature.broadcasts.presentation.WeeklyPlanViewModel
 import quest.feature.chat.presentation.CoordinatorPickerViewModel
+import quest.feature.complaints.data.ComplaintsRepositoryImpl
+import quest.feature.complaints.domain.ComplaintsRepository
+import quest.feature.complaints.presentation.ComplaintViewModel
+import quest.feature.complaints.presentation.ComplaintsViewModel
+import quest.feature.complaints.presentation.NewComplaintViewModel
 import quest.api.AuthProvider
 import quest.api.ContentApi
 import quest.core.db.Db
@@ -254,13 +259,22 @@ val chatModule = module {
     viewModel { (peer: ChatPeer) -> ChatConversationViewModel(peer, get(), get()) }
 }
 
+/** M8: B6's complaints — their own conversations and their own tab, apart from Messages. */
+val complaintsModule = module {
+    single<ComplaintsRepository> { ComplaintsRepositoryImpl(get()) }
+    viewModel { ComplaintsViewModel(get(), get(), get()) }
+    // M8: complaint files go through M7's pipeline — the same staging and uploader as Messages.
+    viewModel { NewComplaintViewModel(get(), get(), get(), get()) }
+    viewModel { (childId: String, complaintId: String) -> ComplaintViewModel(childId, complaintId, get(), get(), get(), get()) }
+}
+
 /** RM4: the parent's broadcasts feed. Its own module — the feed is not chat, and it is read behind its own flag. */
 val broadcastsModule = module {
     single<BroadcastsRepository> { BroadcastsRepositoryImpl(get(), get()) }
     // M4 (D5): the bottom bar's badges, one for the app, moved live by `/ws/chat`.
     single<UnreadSource> {
         val flags = get<FlagStore>()
-        ParentUnreadSource(get(), get(), get(), announcementsOn = { flags.isEnabled(Flags.ANNOUNCEMENTS) }, chatOn = { flags.isEnabled(Flags.CHAT) })
+        ParentUnreadSource(get(), get(), get(), get(), announcementsOn = { flags.isEnabled(Flags.ANNOUNCEMENTS) }, chatOn = { flags.isEnabled(Flags.CHAT) })
     }
     single { ParentBadges(get(), get()).also { it.start(CoroutineScope(SupervisorJob() + Dispatchers.Default), get<ChatRepository>().incomingFrames) } }
     single<NotificationsRepository> { NotificationsRepositoryImpl(get()) }
@@ -282,7 +296,7 @@ val pushModule = module {
     single { ParentGate(elapsed = ::elapsedRealtimeMillis, graceMillis = AppLock.BACKGROUND_LIMIT_MILLIS) }
     factory {
         val maps = get<MapRepository>()
-        NotificationRouter(get(), get(), get(), get(), lessonsOnMap = { child ->
+        NotificationRouter(get(), get(), get(), get(), get(), lessonsOnMap = { child ->
             val today = Today.date()
             runCancellable { maps.map(child, today.minus(30, DateTimeUnit.DAY), today.plus(7, DateTimeUnit.DAY), today).islands.mapNotNull { it.lessonId }.toSet() }.getOrNull()
         })
@@ -290,4 +304,4 @@ val pushModule = module {
     factory { PushNavigator(get(), get(), signedIn = { get<AuthProvider>().state.value is AuthState.SignedIn }) }
 }
 
-fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), connectivityModule(), apiModule(config), coreModule, schoolModule, contentModule, rewardsModule, parentModule, chatModule, broadcastsModule, pushModule)
+fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), connectivityModule(), apiModule(config), coreModule, schoolModule, contentModule, rewardsModule, parentModule, chatModule, complaintsModule, broadcastsModule, pushModule)

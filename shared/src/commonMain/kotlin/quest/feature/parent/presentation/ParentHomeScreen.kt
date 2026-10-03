@@ -133,6 +133,7 @@ fun ParentHomeRoute(
     onMessages: () -> Unit = {},
     onBroadcasts: () -> Unit = {},
     onWeeklyPlan: () -> Unit = {},
+    onComplaints: () -> Unit = {},
 ) {
     val vm: ParentHomeViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -155,6 +156,7 @@ fun ParentHomeRoute(
                 DashboardTab.HOME -> {}
                 DashboardTab.NOTIFICATION -> onBroadcasts()
                 DashboardTab.MESSAGES -> onMessages()
+                DashboardTab.COMPLAINTS -> onComplaints()
                 DashboardTab.SETTINGS -> onSettings()
             }
         },

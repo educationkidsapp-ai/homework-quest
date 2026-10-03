@@ -29,7 +29,6 @@ import quest.api.dto.ChatReadReceipt
 import quest.api.dto.ChatSender
 import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatThread
-import quest.api.dto.ChatThreadStatus
 import quest.api.dto.ChatTopic
 import quest.api.dto.CreateChildRequest
 import quest.api.dto.Curriculum
@@ -247,9 +246,6 @@ class FakeContentApi(
 
     private val fakeMessages = mutableMapOf<String, MutableList<ChatMessage>>()
 
-    /** The topic the first message of a thread carried, so the fake's rows label a complaint the way the server does. */
-    private val fakeTopics = mutableMapOf<String, ChatTopic>()
-
     private val fakeTeachers = listOf(
         Triple("t-sara", "Ms. Sara", "Math"),
         Triple("t-noor", "Ms. Noor", "English"),
@@ -277,8 +273,6 @@ class FakeContentApi(
             unread = msgs.count { it.sender == ChatSender.TEACHER && it.readAt == null },
             lastMessage = msgs.lastOrNull(),
             staffRole = role,
-            topic = fakeTopics["$childId:$staffId"] ?: ChatTopic.QUESTION,
-            status = ChatThreadStatus.OPEN,
         )
     }
 
@@ -301,6 +295,18 @@ class FakeContentApi(
         net()
         return fakeManagers.map { (id, name) -> fakeRow(childId, id, name, null, ChatStaffRole.MANAGERIAL) }
     }
+
+    // ---- M8 parity: B6's complaints, apart from Messages (`FakeComplaints`).
+    // Its messages name M7's uploads (`fakeUploads`, below) by id, as the server's do.
+    private val fakeComplaints = FakeComplaints(parentId = { uid() }, now = now, upload = { fakeUploads[it] })
+
+    override suspend fun complaints(childId: String, status: String?): quest.api.dto.ComplaintList { net(); return fakeComplaints.list(childId, status) }
+    override suspend fun complaintRecipients(childId: String): List<quest.api.dto.ComplaintRecipient> { net(); return fakeComplaints.recipients() }
+    override suspend fun createComplaint(childId: String, request: quest.api.dto.CreateComplaintRequest): quest.api.dto.ComplaintDetail { net(); return fakeComplaints.create(childId, request) }
+    override suspend fun complaint(childId: String, complaintId: String, before: String?, since: String?, limit: Int?): quest.api.dto.ComplaintDetail { net(); return fakeComplaints.detail(childId, complaintId, since) }
+    override suspend fun sendComplaintMessage(childId: String, complaintId: String, request: SendChatMessageRequest): ChatMessage { net(); return fakeComplaints.reply(childId, complaintId, request) }
+    override suspend fun markComplaintRead(childId: String, complaintId: String): ChatReadReceipt { net(); return fakeComplaints.markRead(childId, complaintId) }
+    override suspend fun reopenComplaint(childId: String, complaintId: String): quest.api.dto.Complaint { net(); return fakeComplaints.reopen(childId, complaintId) }
 
     // ---- RM4: the parent's broadcasts feed, so the screen has something to draw without a server.
     private val fakeReads = mutableSetOf<String>()
@@ -371,6 +377,9 @@ class FakeContentApi(
     private val fakeNotificationReads = mutableSetOf<String>()
     private fun fakeNotifications(): List<NotificationView> = listOf(
         NotificationView("nt-result", NotificationKind.EXAM_RELEASED, "Exam result released", "Autumn maths test", "/children/$MAYA/progress", lessonId = "exam-1", createdAt = 1_758_460_000_000L, childId = MAYA),
+        // M8: B6's two complaint kinds a parent receives, linked to the complaint's own page.
+        NotificationView("nt-cp-msg", NotificationKind.COMPLAINT_MESSAGE, "Ms. Nour replied to your complaint", "Thank you for telling us. I am checking the route with the transport team today.", "/children/$MAYA/complaints/cp-bus", lessonId = "cp-bus", createdAt = 1_758_465_000_000L, childId = MAYA),
+        NotificationView("nt-cp-status", NotificationKind.COMPLAINT_STATUS, "Your complaint was resolved", "Homework is too long every night", "/children/$MAYA/complaints/cp-homework", lessonId = "cp-homework", createdAt = 1_758_455_000_000L, childId = MAYA),
         NotificationView("nt-msg", NotificationKind.CHAT_MESSAGE, "Message from Ms. Sara", "Maya did very well today.", "/children/$MAYA/chat/t-sara", createdAt = 1_758_450_000_000L, childId = MAYA),
         NotificationView("nt-hw", NotificationKind.HOMEWORK_PUBLISHED, "New homework", "Counting by 2s", "/children/$MAYA/map", lessonId = "l1", createdAt = 1_758_440_000_000L, childId = MAYA),
         // M5: one row of each newer kind B4 writes, so every tap target can be tried without a server.
@@ -447,11 +456,9 @@ class FakeContentApi(
     override suspend fun sendChatMessage(childId: String, teacherId: String, request: SendChatMessageRequest): ChatMessage {
         net()
         val key = "$childId:$teacherId"
+        // B6: a complaint is its own conversation now; Messages refuses the old way of opening one.
+        if (request.topic == ChatTopic.COMPLAINT) throw ApiException(ApiError(ApiError.COMPLAINT_MOVED, "Complaints are opened with POST /children/{id}/complaints."))
         val list = fakeMessages.getOrPut(key) { mutableListOf() }
-        // M1: `topic: complaint` is accepted on any message, to a teacher, a coordinator or a manager alike, and turns
-        // the thread into a complaint from there; any other topic only labels the message that creates the thread.
-        val topic = request.topic
-        if (topic == ChatTopic.COMPLAINT || (list.isEmpty() && topic != null)) fakeTopics[key] = topic
         val msg = ChatMessage(
             id = "m-${Ids.random()}",
             threadId = "th-$childId-$teacherId",

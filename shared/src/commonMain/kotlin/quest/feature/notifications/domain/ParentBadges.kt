@@ -14,8 +14,11 @@ import quest.api.dto.ChatSender
 import quest.core.runCancellable
 import quest.feature.children.domain.ChildrenRepository
 
-/** M4 (D5): the two numbers the parent's bottom bar carries — what is unread on the Notifications tab and in Messages. */
-data class UnreadCounts(val notifications: Int = 0, val messages: Int = 0)
+/**
+ * M4 (D5): the numbers the parent's bottom bar carries — what is unread on the Notifications tab, in Messages and (M8)
+ * in her complaints.
+ */
+data class UnreadCounts(val notifications: Int = 0, val messages: Int = 0, val complaints: Int = 0)
 
 /**
  * Where the counts come from. [notifications] is the parent's unread notification rows — until the server has parent
@@ -25,6 +28,8 @@ data class UnreadCounts(val notifications: Int = 0, val messages: Int = 0)
 interface UnreadSource {
     suspend fun notifications(childId: String): Int?
     suspend fun messages(childId: String): Int?
+    /** M8: the unread staff messages over her complaints about this child. */
+    suspend fun complaints(childId: String): Int? = 0
 }
 
 /**
@@ -41,7 +46,8 @@ class ParentBadges(private val children: ChildrenRepository, private val source:
         val child = children.currentChild.value ?: run { state.value = UnreadCounts(); return@withLock }
         val notifications = runCancellable { source.notifications(child.id) }.getOrNull()
         val messages = runCancellable { source.messages(child.id) }.getOrNull()
-        state.value = UnreadCounts(notifications ?: state.value.notifications, messages ?: state.value.messages)
+        val complaints = runCancellable { source.complaints(child.id) }.getOrNull()
+        state.value = UnreadCounts(notifications ?: state.value.notifications, messages ?: state.value.messages, complaints ?: state.value.complaints)
     }
 
     /** Runs until [scope] is cancelled. */
@@ -50,10 +56,13 @@ class ParentBadges(private val children: ChildrenRepository, private val source:
     }
 
     companion object {
-        /** A frame that changes a count: staff wrote, a thread was read, or the server wrote a notification row. */
+        /**
+         * A frame that changes a count: staff wrote, a thread was read, the server wrote a notification row, or (M8) a
+         * complaint was resolved or reopened.
+         */
         fun movesBadges(frame: ChatFrame): Boolean = when (frame) {
             is ChatFrame.Message -> frame.message.sender != ChatSender.PARENT
-            is ChatFrame.Read, is ChatFrame.Notification -> true
+            is ChatFrame.Read, is ChatFrame.Notification, is ChatFrame.Status -> true
             else -> false
         }
     }

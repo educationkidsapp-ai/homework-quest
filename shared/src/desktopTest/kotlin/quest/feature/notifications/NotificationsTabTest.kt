@@ -131,9 +131,19 @@ class NotificationsTabTest {
     @Test fun withoutAnnouncementsTheBadgeStillCountsHerUnreadRows() = runTest {
         val rows = Rows(listOf(row("a", NotificationKind.CHAT_MESSAGE, null), row("b", NotificationKind.EXAM_RELEASED, null, read = true)))
         val feed = Feed()
-        val source = ParentUnreadSource(feed, rows, NoChat, announcementsOn = { false }, chatOn = { false })
+        val source = ParentUnreadSource(feed, rows, NoChat, NoComplaints, announcementsOn = { false }, chatOn = { false })
         assertEquals(1, source.notifications("c1"))
         assertEquals(0, feed.loads)
+    }
+
+    private object NoComplaints : quest.feature.complaints.domain.ComplaintsRepository {
+        override suspend fun list(childId: String, status: String?) = error("chat is off")
+        override suspend fun recipients(childId: String) = error("chat is off")
+        override suspend fun create(childId: String, staffId: String, title: String, body: String, clientId: String, attachmentIds: List<String>) = error("chat is off")
+        override suspend fun detail(childId: String, complaintId: String, since: String?) = error("chat is off")
+        override suspend fun reply(childId: String, complaintId: String, body: String, clientId: String, attachmentIds: List<String>) = error("chat is off")
+        override suspend fun markRead(childId: String, complaintId: String) = error("chat is off")
+        override suspend fun reopen(childId: String, complaintId: String) = error("chat is off")
     }
 
     private object NoChat : ChatRepository {
@@ -143,7 +153,7 @@ class NotificationsTabTest {
         override suspend fun coordinators(childId: String): List<ChatThread> = emptyList()
         override suspend fun managers(childId: String): List<ChatThread> = emptyList()
         override suspend fun messages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?): List<ChatMessage> = emptyList()
-        override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic?, attachmentIds: List<String>): ChatMessage = error("not used")
+        override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, attachmentIds: List<String>): ChatMessage = error("not used")
         override suspend fun uploadAttachment(childId: String, file: quest.feature.chat.domain.StagedUpload, onProgress: (Float) -> Unit): quest.api.dto.AttachmentRef = error("not used")
         override suspend fun markRead(childId: String, teacherId: String) = Unit
         override suspend fun sendTyping(childId: String, teacherId: String) = Unit

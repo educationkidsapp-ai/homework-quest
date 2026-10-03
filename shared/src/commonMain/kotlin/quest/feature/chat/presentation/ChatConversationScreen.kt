@@ -27,15 +27,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -50,7 +47,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -68,8 +64,6 @@ import quest.api.dto.ChatMessage
 import quest.api.dto.ChatSender
 import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatThread
-import quest.api.dto.ChatThreadStatus
-import quest.api.dto.ChatTopic
 import quest.core.mvi.MviEffect
 import quest.core.mvi.MviIntent
 import quest.core.mvi.MviState
@@ -82,41 +76,21 @@ import quest.feature.chat.domain.Resolver
 import quest.feature.chat.domain.resolverOf
 import quest.feature.chat.domain.ChatRepository
 import quest.feature.parent.domain.ParentRepository
-import quest.feature.parent.presentation.Chip
 import quest.feature.parent.presentation.LocalStrings
 import quest.feature.parent.presentation.Strings
 import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.FeatureGate
 import quest.feature.school.presentation.featureEnabled
-import io.github.vinceglb.filekit.compose.rememberFilePickerLauncher
-import io.github.vinceglb.filekit.core.PickerMode
-import io.github.vinceglb.filekit.core.PickerType
-import io.github.vinceglb.filekit.core.PlatformFile
-import kotlinx.io.buffered
-import kotlinx.io.files.Path
-import kotlinx.io.files.SystemFileSystem
-import kotlinx.io.readByteArray
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import quest.api.UploadFile
-import quest.api.dto.AttachmentRef
+import androidx.lifecycle.viewModelScope
+import quest.api.dto.ApiError
+import quest.feature.parent.presentation.ParentButton
 import quest.api.dto.ChatAttachment
-import quest.core.platform.photoAsJpeg
-import quest.core.platform.rememberCameraCapture
 import quest.feature.chat.domain.AttachmentRefusal
-import quest.feature.chat.domain.MAX_ATTACHMENTS
-import quest.feature.chat.domain.PHOTO_MAX_PX
-import quest.feature.chat.domain.PHOTO_QUALITY
 import quest.feature.chat.domain.PickedFile
-import quest.feature.chat.domain.StagedUpload
 import quest.feature.chat.domain.UploadStaging
 import quest.feature.chat.domain.TYPING_TIMEOUT_MS
 import quest.feature.chat.domain.asChatAttachment
-import quest.feature.chat.domain.contentTypeOf
-import quest.feature.chat.domain.preparePhoto
-import quest.feature.chat.domain.refusalFor
-import quest.feature.chat.domain.refusalForUpload
 import quest.api.ApiException
 import quest.ui.design.AnimatedLoadingView
 import quest.ui.design.DashboardTokens
@@ -133,31 +107,9 @@ object ChatConversationContract {
         val isPending: Boolean = false,
         val isFailed: Boolean = false,
         val clientId: String? = null,
-        /**
-         * The `topic` this send carried, kept so a retry resends it. The toggle goes off as the message leaves, so
-         * without this one transient 5xx would quietly downgrade a parent's complaint to a question.
-         */
-        val topic: ChatTopic? = null,
         /** M7 (B5): the files on the message, in the order they were sent; a retry sends the same ids again. */
         val attachments: List<ChatAttachment> = emptyList(),
     )
-
-    /**
-     * M7: one file in the composer's tray. It uploads the moment it is picked, so by the time she has written her
-     * sentence the photo is usually up; [ref] is the server's answer, and the message can only go once every draft
-     * has one. A failed upload stays in the tray with its own retry rather than disappearing.
-     */
-    data class Draft(
-        val localId: String,
-        val name: String,
-        val contentType: String,
-        val size: Long,
-        val progress: Float = 0f,
-        val ref: AttachmentRef? = null,
-        val failed: Boolean = false,
-    ) {
-        val uploading: Boolean get() = ref == null && !failed
-    }
 
     data class State(
         val childId: String = "",
@@ -169,18 +121,15 @@ object ChatConversationContract {
         val inputText: String = "",
         val messages: List<UiMessage> = emptyList(),
         val errorMessage: String? = null,
-        // R8 (DR3): who holds the other side, what the thread is about, and where it stands.
+        // R8 (DR3): who holds the other side.
         val staffRole: ChatStaffRole = ChatStaffRole.TEACHER,
         val subject: String? = null,
-        val topic: ChatTopic = ChatTopic.QUESTION,
-        val resolved: Boolean = false,
-        val markAsComplaint: Boolean = false,
-        /** S1: the school administration holds the other side. She can answer; a complaint is not offered here. */
+        /** S1: the school administration holds the other side. She can answer here. */
         val withAdmin: Boolean = false,
         /**
          * The thread this conversation is, once one exists. `/ws/chat` is **one socket per parent** and fans out every
-         * thread of hers, so a `status` frame has to be matched against this before it moves anything — otherwise a
-         * coordinator resolving the Math complaint flips the banner inside an open English conversation.
+         * thread of hers — B6's complaints included, whose messages come from the same staff member — so every frame is
+         * matched against this before it moves anything.
          */
         val threadId: String? = null,
         /**
@@ -189,23 +138,18 @@ object ChatConversationContract {
          * says nothing about her.
          */
         val peerOnline: Boolean? = null,
-        /** M4 (D7): who resolves this thread, and so who the Resolved banner says answered. */
+        /** M7: who is on the other end, which names who is typing. */
         val resolver: Resolver = Resolver.COORDINATOR,
         /** M7: the files waiting to go with the next message. */
-        val drafts: List<Draft> = emptyList(),
+        val drafts: List<AttachmentDraft> = emptyList(),
         /** M7: why the last file she picked was not added — one sentence under the tray until she picks again. */
         val refusal: AttachmentRefusal? = null,
-    ) : MviState {
         /**
-         * The toggle is offered on any thread that is not a complaint already — to a teacher, a coordinator or a
-         * manager alike, new thread or old (M1): the server accepts `topic: complaint` on any message and turns the
-         * thread into an open complaint from there.
-         *
-         * `!loading` keeps it from flashing over an existing complaint in the moment before its history lands.
+         * M8: a stray `400 complaint_moved` — an older path tried to file a complaint through Messages. The message is
+         * kept as failed and the screen points to the Complaints page instead.
          */
-        val canMarkComplaint: Boolean
-            get() = !loading && !withAdmin && topic == ChatTopic.QUESTION
-
+        val complaintMoved: Boolean = false,
+    ) : MviState {
         /** Words, files or both — and only once every file is up, so nothing is sent without what she attached. */
         val canSend: Boolean
             get() = drafts.all { it.ref != null } && inputText.length <= 2000 && (inputText.isNotBlank() || drafts.isNotEmpty())
@@ -216,7 +160,6 @@ object ChatConversationContract {
         data class UpdateInput(val text: String) : Intent
         data object SendMessage : Intent
         data class RetrySend(val clientId: String) : Intent
-        data object ToggleComplaint : Intent
         /** M7: files from the camera, the gallery or the document picker, checked and uploaded one by one. */
         data class AddFiles(val files: List<PickedFile>) : Intent
         data class RemoveDraft(val localId: String) : Intent
@@ -233,10 +176,7 @@ class ChatConversationViewModel(
 ) : MviViewModel<ChatConversationContract.State, ChatConversationContract.Intent, ChatConversationContract.Effect>(
     ChatConversationContract.State(
         childId = peer.childId, teacherId = peer.staffId, teacherName = peer.staffName,
-        staffRole = peer.staffRole, subject = peer.subject, topic = peer.topic, resolved = peer.resolved,
-        // "Complaint" chosen in New message arrives as the toggle already on: nothing is a complaint until the server
-        // has taken a message that says so.
-        markAsComplaint = peer.startAsComplaint && !peer.withAdmin && peer.topic == ChatTopic.QUESTION,
+        staffRole = peer.staffRole, subject = peer.subject,
         withAdmin = peer.withAdmin,
         threadId = peer.threadId,
         peerOnline = peer.peerOnline,
@@ -249,12 +189,14 @@ class ChatConversationViewModel(
     private var typingJob: Job? = null
     private var lastTypingSentMillis: Long = 0L
 
-    /**
-     * M7: each draft's file, staged in the cache (not held in memory) for its upload and its retry, and deleted as
-     * soon as the server has it, the draft is removed, or the screen goes away.
-     */
-    private val pendingFiles = mutableMapOf<String, StagedUpload>()
-    private val uploadJobs = mutableMapOf<String, Job>()
+    /** M7's attachment pipeline (staging, re-encode, upload, cleanup), shared with the Complaints page. */
+    private val files = AttachmentDrafts(
+        scope = viewModelScope,
+        staging = staging,
+        upload = { file, onProgress -> chat.uploadAttachment(childId, file, onProgress) },
+        read = { DraftsState(current.drafts, current.refusal) },
+        write = { change -> reduce { val next = DraftsState(drafts, refusal).change(); copy(drafts = next.drafts, refusal = next.refusal) } },
+    )
 
     /** M7: thread ids a `typing` frame named that turned out not to be this conversation — asked about once each. */
     private val otherThreads = mutableSetOf<String>()
@@ -265,10 +207,9 @@ class ChatConversationViewModel(
             is ChatConversationContract.Intent.UpdateInput -> handleInputChanged(intent.text)
             ChatConversationContract.Intent.SendMessage -> sendMessage()
             is ChatConversationContract.Intent.RetrySend -> retrySend(intent.clientId)
-            ChatConversationContract.Intent.ToggleComplaint -> reduce { copy(markAsComplaint = !markAsComplaint) }
-            is ChatConversationContract.Intent.AddFiles -> addFiles(intent.files)
-            is ChatConversationContract.Intent.RemoveDraft -> removeDraft(intent.localId)
-            is ChatConversationContract.Intent.RetryDraft -> startUpload(intent.localId)
+            is ChatConversationContract.Intent.AddFiles -> files.add(intent.files)
+            is ChatConversationContract.Intent.RemoveDraft -> files.remove(intent.localId)
+            is ChatConversationContract.Intent.RetryDraft -> files.retry(intent.localId)
         }
     }
 
@@ -297,81 +238,11 @@ class ChatConversationViewModel(
         }
     }
 
-    /**
-     * Each file is checked before a byte of it is read (type, size, room on the message), then read off the main
-     * thread — every photo is re-encoded there, bounded and without its metadata — checked again as it will go up,
-     * and written to the cache; the bytes do not outlive this loop. The last refusal is the one sentence the tray
-     * shows; the files that passed are added either way.
-     */
-    private suspend fun addFiles(files: List<PickedFile>) {
-        var refusal: AttachmentRefusal? = null
-        for (file in files) {
-            val early = refusalFor(file.name, file.size, current.drafts.size, file.photo)
-            if (early != null) { refusal = early; continue }
-            val upload = withContext(Dispatchers.Default) { runCatching { file.read() }.getOrNull() }
-            if (upload == null || upload.bytes.isEmpty()) { refusal = AttachmentRefusal.UNREADABLE; continue }
-            val late = refusalFor(upload.fileName, upload.bytes.size.toLong(), current.drafts.size)
-            if (late != null) { refusal = late; continue }
-            val staged = staging.stage(upload)
-            if (staged == null) { refusal = AttachmentRefusal.UNREADABLE; continue }
-            val localId = Ids.random()
-            pendingFiles[localId] = staged
-            reduce {
-                copy(drafts = drafts + ChatConversationContract.Draft(localId, staged.name, staged.contentType, staged.size))
-            }
-            startUpload(localId)
-        }
-        reduce { copy(refusal = refusal) }
-    }
-
-    private fun startUpload(localId: String) {
-        val file = pendingFiles[localId] ?: return
-        updateDraft(localId) { it.copy(progress = 0f, failed = false) }
-        uploadJobs[localId]?.cancel()
-        uploadJobs[localId] = launch {
-            try {
-                val ref = chat.uploadAttachment(childId, file) { sent -> updateDraft(localId) { it.copy(progress = sent) } }
-                updateDraft(localId) { it.copy(ref = ref, progress = 1f) }
-                // The server has it; the message names it by id from here on, so the staged copy goes now.
-                pendingFiles.remove(localId)?.let(staging::discard)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: ApiException) {
-                // A refusal no retry can cure takes the file out of the tray and says why; anything else stays to retry.
-                val refusal = refusalForUpload(e.error.code, file.contentType)
-                if (refusal == null) updateDraft(localId) { it.copy(failed = true) }
-                else { dropDraft(localId); reduce { copy(refusal = refusal) } }
-            } catch (_: Throwable) {
-                updateDraft(localId) { it.copy(failed = true) }
-            }
-        }
-    }
-
-    private fun updateDraft(localId: String, change: (ChatConversationContract.Draft) -> ChatConversationContract.Draft) =
-        reduce { copy(drafts = drafts.map { if (it.localId == localId) change(it) else it }) }
-
-    private fun removeDraft(localId: String) {
-        uploadJobs.remove(localId)?.cancel()
-        dropDraft(localId)
-        reduce { copy(refusal = null) }
-    }
-
-    private fun dropDraft(localId: String) {
-        pendingFiles.remove(localId)?.let(staging::discard)
-        uploadJobs.remove(localId)
-        reduce { copy(drafts = drafts.filterNot { it.localId == localId }) }
-    }
-
     private suspend fun sendMessage() {
         val state = current
         if (!state.canSend) return
         val body = state.inputText.trim()
         val attachments = state.drafts.mapNotNull { it.ref?.asChatAttachment() }
-
-        // The topic rides on exactly one send — the one made while the toggle is on. The toggle goes off with it, so a
-        // failed send does not mark the next message as well; its retry carries the topic the message kept.
-        val opening = state.canMarkComplaint && state.markAsComplaint
-        val sentTopic = if (opening) ChatTopic.COMPLAINT else null
 
         val clientId = Ids.random()
         val pendingMsg = ChatConversationContract.UiMessage(
@@ -381,12 +252,11 @@ class ChatConversationViewModel(
             createdAt = Today.epochMillis(),
             isPending = true,
             clientId = clientId,
-            topic = sentTopic,
             attachments = attachments,
         )
 
-        state.drafts.forEach { draft -> pendingFiles.remove(draft.localId)?.let(staging::discard); uploadJobs.remove(draft.localId) }
-        reduce { copy(inputText = "", markAsComplaint = false, drafts = emptyList(), refusal = null, messages = messages + pendingMsg) }
+        files.sent()
+        reduce { copy(inputText = "", messages = messages + pendingMsg) }
         deliver(pendingMsg)
     }
 
@@ -401,35 +271,28 @@ class ChatConversationViewModel(
         deliver(target)
     }
 
-    /**
-     * Sends [message] — its words, its files' ids and the `topic` it was written with. The original `topic` goes out
-     * again on a retry: dropping it there would file the parent's complaint as an ordinary question.
-     */
+    /** Sends [message] — its words and its files' ids; a retry sends the same ids again. */
     private suspend fun deliver(message: ChatConversationContract.UiMessage) {
         val clientId = message.clientId ?: return
         try {
-            val confirmed = chat.sendMessage(childId, teacherId, message.body, clientId, message.topic, message.attachments.map { it.id })
+            val confirmed = chat.sendMessage(childId, teacherId, message.body, clientId, message.attachments.map { it.id })
             reduce {
                 val updated = messages.map { msg ->
                     if (msg.clientId == clientId) confirmed.toUiMessage(isPending = false) else msg
                 }
-                // A thread that has just become a complaint is an open one, whatever it was before.
-                copy(
-                    messages = updated,
-                    topic = message.topic ?: topic,
-                    resolved = if (message.topic == ChatTopic.COMPLAINT) false else resolved,
-                    threadId = confirmed.threadId,
-                )
+                copy(messages = updated, threadId = confirmed.threadId)
             }
         } catch (e: Throwable) {
             if (e is CancellationException) throw e
             // B5: `409 attachment_already_sent` — a retry would only be refused again, so the tray says what to do.
             val alreadySent = (e as? ApiException)?.error?.code == "attachment_already_sent"
+            // M8: a stray `complaint_moved` points to the Complaints page rather than failing silently.
+            val moved = (e as? ApiException)?.error?.code == ApiError.COMPLAINT_MOVED
             reduce {
                 val updated = messages.map { msg ->
                     if (msg.clientId == clientId) msg.copy(isPending = false, isFailed = true) else msg
                 }
-                copy(messages = updated, refusal = if (alreadySent) AttachmentRefusal.ALREADY_SENT else refusal)
+                copy(messages = updated, refusal = if (alreadySent) AttachmentRefusal.ALREADY_SENT else refusal, complaintMoved = complaintMoved || moved)
             }
         }
     }
@@ -463,8 +326,11 @@ class ChatConversationViewModel(
                 when (frame) {
                     is ChatFrame.Message -> {
                         val msg = frame.message
-                        val senderTeacher = msg.sender == ChatSender.TEACHER && msg.senderId == teacherId
                         val clientAck = frame.clientId != null && current.messages.any { it.clientId == frame.clientId }
+                        // M8: matched by thread, never by sender alone — the same staff member writes in the parent's
+                        // complaints too, and those frames carry the complaint's id, which no Messages row ever lists.
+                        val senderTeacher = !clientAck && msg.sender == ChatSender.TEACHER && msg.senderId == teacherId &&
+                            isOursOrResolve(msg.threadId)
 
                         if (senderTeacher || clientAck) {
                             reduce { copy(threadId = msg.threadId) }
@@ -509,13 +375,6 @@ class ChatConversationViewModel(
                             }
                         }
                     }
-                    // R4's additive frame: the coordinator resolved (or re-opened) the thread. The banner follows it —
-                    // but only when the frame is about *this* thread. See [isOurs].
-                    is ChatFrame.Status -> {
-                        if (isOurs(frame.threadId)) {
-                            reduce { copy(resolved = frame.status == ChatThreadStatus.RESOLVED) }
-                        }
-                    }
                     // T1: the staff member on this thread came online or went offline. A frame about anybody else —
                     // the socket carries every thread of the parent's — leaves the header alone.
                     is ChatFrame.Presence -> {
@@ -538,19 +397,16 @@ class ChatConversationViewModel(
     }
 
     override fun onCleared() {
-        uploadJobs.values.forEach { it.cancel() }
-        pendingFiles.values.forEach(staging::discard)
-        pendingFiles.clear()
+        files.clear()
         super.onCleared()
     }
 
     /**
      * Whether a per-thread frame belongs to the conversation on screen.
      *
-     * `/ws/chat` is one socket per parent and fans out **every** thread of hers, so `status`, `read` and `typing` all
-     * arrive here for conversations this screen is not showing. Without this, a coordinator resolving the Math
-     * complaint flips the Resolved banner inside an open English thread (and the same for read ticks and the typing
-     * dot). A null [State.threadId] means no thread exists yet, so nothing that names one can be about us.
+     * `/ws/chat` is one socket per parent and fans out **every** thread of hers — her complaints included — so
+     * `message`, `read` and `typing` all arrive here for conversations this screen is not showing. A null
+     * [State.threadId] means no thread exists yet, so nothing that names one can be about us.
      */
     private fun isOurs(frameThreadId: String): Boolean = current.threadId == frameThreadId
 
@@ -599,6 +455,7 @@ class ChatConversationViewModel(
 fun ChatConversationRoute(
     peer: ChatPeer,
     onBack: () -> Unit,
+    onOpenComplaints: () -> Unit = {},
 ) {
     val vm: ChatConversationViewModel = koinViewModel(key = peer.staffId) { parametersOf(peer) }
     val state by vm.state.collectAsStateWithLifecycle()
@@ -621,7 +478,7 @@ fun ChatConversationRoute(
                     onInputChange = { vm.dispatch(ChatConversationContract.Intent.UpdateInput(it)) },
                     onSend = { vm.dispatch(ChatConversationContract.Intent.SendMessage) },
                     onRetry = { vm.dispatch(ChatConversationContract.Intent.RetrySend(it)) },
-                    onToggleComplaint = { vm.dispatch(ChatConversationContract.Intent.ToggleComplaint) },
+                    onOpenComplaints = onOpenComplaints,
                     onPick = { vm.dispatch(ChatConversationContract.Intent.AddFiles(it)) },
                     onRemoveDraft = { vm.dispatch(ChatConversationContract.Intent.RemoveDraft(it)) },
                     onRetryDraft = { vm.dispatch(ChatConversationContract.Intent.RetryDraft(it)) },
@@ -650,37 +507,6 @@ fun typingLine(who: Resolver, strings: Strings): String = when (who) {
     Resolver.ADMIN -> strings.chatFiles.typingAdmin
 }
 
-/** M4 (D7): "Resolved — the … answered this", naming whoever the parent was writing to. */
-fun resolvedBanner(resolver: Resolver, strings: Strings): String = when (resolver) {
-    Resolver.TEACHER -> strings.resolvedBannerTeacher
-    Resolver.COORDINATOR -> strings.resolvedBanner
-    Resolver.MANAGER -> strings.resolvedBannerManager
-    Resolver.ADMIN -> strings.resolvedBannerAdmin
-}
-
-/**
- * A file from FileKit's picker as the view model takes it: sized up front (an unknown size is refused rather than
- * read to find out), read only after [refusalFor] has passed it, and — a photo — re-encoded by [preparePhoto].
- */
-private fun PlatformFile.picked(photo: Boolean) = PickedFile(name, getSize() ?: Long.MAX_VALUE, photo) {
-    val bytes = readBytes()
-    if (photo) preparePhoto(name, bytes, ::reencode) else contentTypeOf(name)?.let { UploadFile(name, it, bytes) }
-}
-
-/** The camera's capture: sized from the disk, read and re-encoded off the main thread, and deleted once read. */
-private fun capturedPhoto(path: String): PickedFile {
-    val file = Path(path)
-    val size = runCatching { SystemFileSystem.metadataOrNull(file)?.size }.getOrNull() ?: Long.MAX_VALUE
-    return PickedFile("photo-${Today.epochMillis()}.jpg", size, photo = true) {
-        try {
-            preparePhoto("photo.jpg", SystemFileSystem.source(file).buffered().use { it.readByteArray() }, ::reencode)
-        } finally {
-            runCatching { SystemFileSystem.delete(file, mustExist = false) }
-        }
-    }
-}
-
-private fun reencode(bytes: ByteArray): ByteArray? = photoAsJpeg(bytes, PHOTO_MAX_PX, PHOTO_QUALITY)
 
 @Composable
 fun ChatConversationScreen(
@@ -690,25 +516,13 @@ fun ChatConversationScreen(
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
     onRetry: (String) -> Unit,
-    onToggleComplaint: () -> Unit = {},
+    onOpenComplaints: () -> Unit = {},
     onPick: (List<PickedFile>) -> Unit = {},
     onRemoveDraft: (String) -> Unit = {},
     onRetryDraft: (String) -> Unit = {},
 ) {
     val listState = rememberLazyListState()
     var showEmojiTray by remember { mutableStateOf(false) }
-    var showAttachMenu by remember { mutableStateOf(false) }
-
-    // M7: three ways in — the camera, the gallery (several at once) and a PDF — each checked and uploaded by the view
-    // model. The room left on the message caps what a picker lets her choose.
-    val room = (MAX_ATTACHMENTS - state.drafts.size).coerceAtLeast(1)
-    val galleryPicker = rememberFilePickerLauncher(type = PickerType.Image, mode = PickerMode.Multiple(maxItems = room)) { files ->
-        if (!files.isNullOrEmpty()) onPick(files.map { it.picked(photo = true) })
-    }
-    val pdfPicker = rememberFilePickerLauncher(type = PickerType.File(listOf("pdf")), mode = PickerMode.Multiple(maxItems = room)) { files ->
-        if (!files.isNullOrEmpty()) onPick(files.map { it.picked(photo = false) })
-    }
-    val camera = rememberCameraCapture { path -> if (path != null) onPick(listOf(capturedPhoto(path))) }
 
     val quickEmojis = remember {
         listOf(
@@ -750,16 +564,6 @@ fun ChatConversationScreen(
                         fontWeight = FontWeight.Bold,
                         color = DashboardTokens.ink,
                     )
-                    if (state.topic == ChatTopic.COMPLAINT) {
-                        Spacer(Modifier.width(Dimens.s8))
-                        Chip(strings.complaintBadge, DashboardTokens.warningBg)
-                        // A complaint has a status the staff side moves; the `status` frame keeps it current.
-                        Spacer(Modifier.width(Dimens.s4))
-                        Chip(
-                            text = if (state.resolved) strings.statusResolved else strings.statusOpen,
-                            color = if (state.resolved) DashboardTokens.successBg else MaterialTheme.colorScheme.primaryContainer,
-                        )
-                    }
                 }
                 if (!state.withAdmin) Text(
                     text = staffLabel(state.staffRole, state.subject, null, strings),
@@ -782,16 +586,12 @@ fun ChatConversationScreen(
             }
         }
 
-        if (state.resolved) {
-            Row(
-                Modifier.fillMaxWidth().background(DashboardTokens.successBg).padding(horizontal = Dimens.s16, vertical = Dimens.s8),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = resolvedBanner(state.resolver, strings),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = DashboardTokens.ink,
-                )
+        // M8: complaints have their own page; a stray `complaint_moved` points there rather than failing silently.
+        if (state.complaintMoved) {
+            Column(Modifier.fillMaxWidth().background(DashboardTokens.warningBg).padding(horizontal = Dimens.s16, vertical = Dimens.s8)) {
+                Text(strings.complaints.movedNotice, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.ink)
+                Spacer(Modifier.height(Dimens.s8))
+                ParentButton(strings.complaints.openComplaints, onOpenComplaints, primary = false)
             }
         }
 
@@ -823,32 +623,6 @@ fun ChatConversationScreen(
                         MessageBubble(msg = msg, strings = strings, onRetry = onRetry)
                     }
                 }
-            }
-        }
-
-        if (state.canMarkComplaint) {
-            Column(
-                Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)
-                    .padding(horizontal = Dimens.s12, vertical = Dimens.s8),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Switch(
-                        checked = state.markAsComplaint,
-                        onCheckedChange = { onToggleComplaint() },
-                        modifier = Modifier.semantics { contentDescription = strings.markAsComplaint },
-                    )
-                    Spacer(Modifier.width(Dimens.s8))
-                    Text(strings.markAsComplaint, style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.ink)
-                }
-                Text(
-                    when (state.staffRole) {
-                        ChatStaffRole.MANAGERIAL -> strings.markAsComplaintHintManager
-                        ChatStaffRole.COORDINATOR -> strings.markAsComplaintHint
-                        ChatStaffRole.TEACHER -> strings.markAsComplaintHintTeacher
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = DashboardTokens.inkSoft,
-                )
             }
         }
 
@@ -901,32 +675,7 @@ fun ChatConversationScreen(
             }
 
             // M7: the attach menu — camera (where there is one), gallery, PDF. Full once five files are on the message.
-            Box {
-                IconButton(
-                    onClick = { showAttachMenu = true },
-                    enabled = state.drafts.size < MAX_ATTACHMENTS,
-                    modifier = Modifier.size(40.dp).semantics { contentDescription = strings.chatFiles.attach },
-                ) {
-                    Text("📎", fontSize = 20.sp)
-                }
-                DropdownMenu(expanded = showAttachMenu, onDismissRequest = { showAttachMenu = false }) {
-                    if (camera != null) DropdownMenuItem(
-                        text = { Text(strings.chatFiles.attachCamera) },
-                        leadingIcon = { Text("📷") },
-                        onClick = { showAttachMenu = false; camera() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(strings.chatFiles.attachGallery) },
-                        leadingIcon = { Text("🖼️") },
-                        onClick = { showAttachMenu = false; galleryPicker.launch() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(strings.chatFiles.attachPdf) },
-                        leadingIcon = { Text("📄") },
-                        onClick = { showAttachMenu = false; pdfPicker.launch() },
-                    )
-                }
-            }
+            AttachMenuButton(state.drafts.size, strings, onPick, Modifier.size(40.dp))
 
             Spacer(Modifier.width(4.dp))
 

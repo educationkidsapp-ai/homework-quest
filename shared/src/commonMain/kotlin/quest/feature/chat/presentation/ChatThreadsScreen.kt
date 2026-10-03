@@ -35,7 +35,6 @@ import quest.core.mvi.MviState
 import quest.core.mvi.MviViewModel
 import quest.feature.chat.domain.ChatRepository
 import quest.feature.chat.domain.TYPING_TIMEOUT_MS
-import quest.feature.chat.domain.applyStatus
 import quest.feature.chat.domain.applyPresence
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.parent.presentation.ParentButton
@@ -116,12 +115,11 @@ class ChatThreadsViewModel(
     }
 
     init {
-        // Refresh thread list when new incoming messages or reads land; a `status` frame (R4) needs no request —
-        // it carries everything the row's chip shows, so the list moves even while the network is gone.
+        // Refresh the thread list when a message or a read lands. B6: the server never lists a complaint here, so a
+        // complaint's frame (named by the complaint's id) refetches the same rows and adds none.
         launch {
             chat.incomingFrames.collect { frame ->
                 when (frame) {
-                    is ChatFrame.Status -> reduce { copy(threads = applyStatus(threads, frame.threadId, frame.status, frame.at)) }
                     // M4 (D6): keeps the snapshot a conversation opens with current.
                     is ChatFrame.Presence -> frame.userId?.let { id -> reduce { copy(threads = applyPresence(threads, id, frame.online)) } }
                     // M7: the list said nothing while a teacher, a coordinator or the manager typed; the row now does.
@@ -153,6 +151,7 @@ fun ChatThreadsRoute(
     onHome: () -> Unit = onBack,
     onNotifications: () -> Unit = {},
     onSettings: () -> Unit = {},
+    onComplaints: () -> Unit = {},
 ) {
     val vm: ChatThreadsViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -171,6 +170,7 @@ fun ChatThreadsRoute(
                     quest.ui.design.DashboardTab.HOME -> onHome()
                     quest.ui.design.DashboardTab.NOTIFICATION -> onNotifications()
                     quest.ui.design.DashboardTab.MESSAGES -> {}
+                    quest.ui.design.DashboardTab.COMPLAINTS -> onComplaints()
                     quest.ui.design.DashboardTab.SETTINGS -> onSettings()
                 }
             },

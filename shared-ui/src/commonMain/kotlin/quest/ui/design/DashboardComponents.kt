@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.Feedback
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
@@ -398,6 +399,8 @@ enum class DashboardTab(val labelEn: String, val labelAr: String) {
     HOME("Home", "الرئيسية"),
     NOTIFICATION("Notifications", "الإشعارات"),
     MESSAGES("Messages", "الرسائل"),
+    /** M8 (the owner, 2026-10-03): complaints are their own page, beside Messages — never a kind of message. */
+    COMPLAINTS("Complaints", "الشكاوى"),
     SETTINGS("Settings", "الإعدادات");
 
     fun label(rtl: Boolean) = if (rtl) labelAr else labelEn
@@ -416,6 +419,7 @@ fun DashboardBottomNavigation(
     isRtl: Boolean = false,
     unreadNotifications: Int = 0,
     unreadMessages: Int = 0,
+    unreadComplaints: Int = 0,
 ) {
     Surface(
         modifier = modifier
@@ -437,19 +441,23 @@ fun DashboardBottomNavigation(
                     DashboardTab.HOME -> Icons.Default.Home
                     DashboardTab.NOTIFICATION -> Icons.Default.Notifications
                     DashboardTab.MESSAGES -> Icons.Default.ChatBubble
+                    DashboardTab.COMPLAINTS -> Icons.Default.Feedback
                     DashboardTab.SETTINGS -> Icons.Default.Settings
                 }
                 val badgeCount = when (tab) {
                     DashboardTab.NOTIFICATION -> unreadNotifications
                     DashboardTab.MESSAGES -> unreadMessages
+                    DashboardTab.COMPLAINTS -> unreadComplaints
                     else -> 0
                 }
 
+                // M8: five tabs share a phone's width equally, so "Notifications" and "Complaints" both fit at 360 dp.
                 Column(
                     modifier = Modifier
+                        .weight(1f)
                         .clip(RoundedCornerShape(DashboardTokens.radiusSm))
                         .clickable(role = Role.Tab) { onTabSelected(tab) }
-                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                        .padding(horizontal = 2.dp, vertical = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
@@ -482,6 +490,8 @@ fun DashboardBottomNavigation(
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                         ),
                         color = if (isSelected) DashboardTokens.accentInk else DashboardTokens.inkSoft,
+                        maxLines = 1,
+                        softWrap = false,
                     )
                 }
             }

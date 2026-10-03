@@ -5,7 +5,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import kotlinx.datetime.LocalDate
 import quest.api.dto.ChatPeerRole
 import quest.api.dto.ChatStaffRole
-import quest.api.dto.ChatTopic
 import quest.api.dto.Child
 import quest.api.dto.Curriculum
 import quest.api.dto.ExamWindow
@@ -16,7 +15,6 @@ import quest.api.dto.ReleasedResult
 import quest.api.dto.StopCategory
 import quest.api.dto.Subject
 import quest.api.samples.HotSoupSeed
-import quest.feature.chat.domain.Resolver
 import quest.feature.chat.presentation.ChatConversationContract
 import quest.feature.chat.presentation.ChatConversationScreen
 import quest.feature.content.domain.ChildResult
@@ -94,18 +92,19 @@ class ParentFlowFixesScreenshotTest {
     @Test fun examClosesAtDark() = child("m4-03b-exam-closes-at-dark", dark = true) { StopPlayerScreen(sitting, {}, {}, now = { now }) }
     @Test fun examClosesAtArabic() = child("m4-03c-exam-closes-at-ar", LessonStrings.ar) { StopPlayerScreen(sitting, {}, {}, now = { now }) }
 
-    // ---- D6 + D7 + D12: a manager's resolved complaint, staff offline, an English message in the Arabic app
+    // ---- D6 + D12: a conversation with the manager, staff offline, an English message in the Arabic app (M8: Messages
+    // carries no complaint and no Resolved banner any more — that is the Complaints page's)
     private fun conversation() = ChatConversationContract.State(
         childId = "c", teacherId = "nour", teacherName = "Ms. Nour", loading = false, staffRole = ChatStaffRole.MANAGERIAL,
-        topic = ChatTopic.COMPLAINT, resolved = true, threadId = "t", peerOnline = false, resolver = Resolver.MANAGER,
+        threadId = "t", peerOnline = false,
         messages = listOf(
             ChatConversationContract.UiMessage("m1", "The bus was late three times this week.", true, now - 600_000, readAt = now - 500_000),
             ChatConversationContract.UiMessage("m2", "Thank you. We have spoken to the driver.", false, now - 300_000),
         ),
     )
-    @Test fun resolvedByManager() = parent("m4-04-chat-resolved-manager") { s -> ChatConversationScreen(conversation(), s, {}, {}, {}, {}) }
-    @Test fun resolvedByManagerDark() = parent("m4-04b-chat-resolved-manager-dark", dark = true) { s -> ChatConversationScreen(conversation(), s, {}, {}, {}, {}) }
-    @Test fun resolvedByManagerArabic() = parent("m4-04c-chat-resolved-manager-ar", Strings.ar) { s -> ChatConversationScreen(conversation(), s, {}, {}, {}, {}) }
+    @Test fun conversationWithManager() = parent("m4-04-chat-manager") { s -> ChatConversationScreen(conversation(), s, {}, {}, {}, {}) }
+    @Test fun conversationWithManagerDark() = parent("m4-04b-chat-manager-dark", dark = true) { s -> ChatConversationScreen(conversation(), s, {}, {}, {}, {}) }
+    @Test fun conversationWithManagerArabic() = parent("m4-04c-chat-manager-ar", Strings.ar) { s -> ChatConversationScreen(conversation(), s, {}, {}, {}, {}) }
 
     // ---- D10 + D12: the parent's Progress — "3 October", and an English comment that keeps its full stop in Arabic
     private val progress = ProgressContract.State(

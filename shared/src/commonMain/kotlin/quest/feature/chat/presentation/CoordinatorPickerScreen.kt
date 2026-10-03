@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
 import quest.core.runCancellable
-import quest.api.dto.ChatTopic
 import quest.api.dto.ChatStaffRole
 import quest.api.dto.Child
 import quest.ui.design.DashboardFilterChip
@@ -48,14 +47,14 @@ import quest.feature.school.presentation.FeatureGate
 import quest.ui.design.Dimens
 
 /**
- * New message (R8, RM4, M1): the parent picks the **child**, says whether it is a **question or a complaint**, then
- * picks **who** — a teacher of a subject (`GET /children/{id}/chat/threads`), a subject coordinator
- * (`…/coordinators`) or the department manager (`…/managers`), all decided server-side from the child's section.
- * A complaint may go to any of the three.
+ * New message (R8, RM4, M1): the parent picks the **child**, then **who** — a teacher of a subject
+ * (`GET /children/{id}/chat/threads`), a subject coordinator (`…/coordinators`) or the department manager
+ * (`…/managers`), all decided server-side from the child's section. B6 / M8: a complaint is never started here — it
+ * has its own page and its own New complaint.
  *
  * The three calls are independent: a school with a coordinator and no manager (or the other way round) still gets the
  * part it has, because one 404 must not empty a list another endpoint answered. A row whose `id` is null has no thread
- * behind it; the first message the parent sends creates one. The topic chosen here travels with her next message.
+ * behind it; the first message the parent sends creates one.
  */
 object CoordinatorPickerContract {
     data class State(
@@ -65,7 +64,6 @@ object CoordinatorPickerContract {
         /** Every child linked to the parent, and the one this message is about. */
         val children: List<Child> = emptyList(),
         val childId: String? = null,
-        val complaint: Boolean = false,
         val teachers: List<ChatThread> = emptyList(),
         val coordinators: List<ChatThread> = emptyList(),
         val managers: List<ChatThread> = emptyList(),
@@ -78,7 +76,6 @@ object CoordinatorPickerContract {
     sealed interface Intent : MviIntent {
         data object Load : Intent
         data class SelectChild(val id: String) : Intent
-        data class SetComplaint(val on: Boolean) : Intent
     }
 
     sealed interface Effect : MviEffect
@@ -102,7 +99,6 @@ class CoordinatorPickerViewModel(
                 reduce { copy(loading = true) }
                 load(current.children.firstOrNull { it.id == intent.id })
             }
-            is CoordinatorPickerContract.Intent.SetComplaint -> reduce { copy(complaint = intent.on) }
         }
     }
 
@@ -143,7 +139,7 @@ class CoordinatorPickerViewModel(
 @Composable
 fun CoordinatorPickerRoute(
     onBack: () -> Unit,
-    onOpenConversation: (ChatThread, complaint: Boolean) -> Unit,
+    onOpenConversation: (ChatThread) -> Unit,
 ) {
     val vm: CoordinatorPickerViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -154,8 +150,7 @@ fun CoordinatorPickerRoute(
         ParentShell(title = { it.newMessage }, onBack = onBack) { strings ->
             CoordinatorPickerScreen(
                 state = state, strings = strings,
-                // "Complaint" opens the conversation with its toggle on, for a new thread and an existing one alike.
-                onSelect = { row -> onOpenConversation(row, state.complaint) },
+                onSelect = onOpenConversation,
                 dispatch = vm::dispatch,
             )
         }
@@ -183,17 +178,7 @@ fun CoordinatorPickerScreen(
             }
         }
 
-        // 2 — a question or a complaint
-        SectionTitle(strings.newMessageTopic)
-        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
-            DashboardFilterChip(strings.topicQuestion, selected = !state.complaint, onClick = { dispatch(CoordinatorPickerContract.Intent.SetComplaint(false)) })
-            DashboardFilterChip(strings.topicComplaint, selected = state.complaint, onClick = { dispatch(CoordinatorPickerContract.Intent.SetComplaint(true)) })
-        }
-        if (state.complaint) {
-            Text(strings.complaintExplained, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft, modifier = Modifier.padding(top = Dimens.s8))
-        }
-
-        // 3 — who
+        // 2 — who
         SectionTitle(strings.pickCoordinator)
         if (state.loading) {
             Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
@@ -224,8 +209,7 @@ fun CoordinatorPickerScreen(
 private fun RecipientGroup(title: String, rows: List<ChatThread>, strings: Strings, onSelect: (ChatThread) -> Unit, department: String? = null) {
     if (rows.isEmpty()) return
     Text(title, style = MaterialTheme.typography.labelLarge, color = DashboardTokens.inkSoft, modifier = Modifier.padding(top = Dimens.s8, bottom = Dimens.s8))
-    // An existing thread shows its badge and status, so a parent sees which conversations are already complaints.
-    rows.forEach { row -> ChatThreadRow(row, strings, { onSelect(row) }, showStatus = row.topic == ChatTopic.COMPLAINT, department = department) }
+    rows.forEach { row -> ChatThreadRow(row, strings, { onSelect(row) }, department = department) }
 }
 
 /**
