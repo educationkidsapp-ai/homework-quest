@@ -42,30 +42,6 @@ import kotlin.test.assertTrue
  */
 class PhotoPipelineTest {
 
-    /** A 3200 × 2000 JPEG carrying an EXIF block with a GPS IFD — what a phone camera writes. */
-    private fun photoWithGps(): ByteArray {
-        val surface = Surface.makeRasterN32Premul(3200, 2000)
-        surface.canvas.clear(Color.makeRGB(240, 236, 226))
-        surface.canvas.drawRect(Rect.makeXYWH(200f, 300f, 1800f, 400f), Paint().apply { color = Color.makeRGB(60, 90, 160) })
-        val jpeg = surface.makeImageSnapshot().encodeToData(EncodedImageFormat.JPEG, 90)!!.bytes
-        // TIFF (big-endian): IFD0 with one entry, GPSInfo (0x8825) → a GPS IFD with GPSLatitudeRef "N".
-        val tiff = byteArrayOf(
-            0x4D, 0x4D, 0x00, 0x2A, 0, 0, 0, 8,
-            0, 1, 0x88.toByte(), 0x25, 0, 4, 0, 0, 0, 1, 0, 0, 0, 26, 0, 0, 0, 0,
-            0, 1, 0, 1, 0, 2, 0, 0, 0, 2, 'N'.code.toByte(), 0, 0, 0, 0, 0, 0, 0,
-        )
-        val payload = "Exif".encodeToByteArray() + byteArrayOf(0, 0) + tiff
-        val length = payload.size + 2
-        val app1 = byteArrayOf(0xFF.toByte(), 0xE1.toByte(), (length shr 8).toByte(), length.toByte()) + payload
-        return jpeg.copyOfRange(0, 2) + app1 + jpeg.copyOfRange(2, jpeg.size)
-    }
-
-    private fun ByteArray.contains(needle: ByteArray): Boolean =
-        (0..size - needle.size).any { i -> needle.indices.all { this[i + it] == needle[it] } }
-
-    private val exifMarker = "Exif".encodeToByteArray() + byteArrayOf(0, 0)
-    private val gpsTag = byteArrayOf(0x88.toByte(), 0x25)
-
     @Test fun anUploadedPhotoIsDownscaledAndCarriesNoExifOrLocation() {
         val original = photoWithGps()
         assertTrue(original.contains(exifMarker) && original.contains(gpsTag), "the fixture must carry GPS to begin with")
@@ -118,3 +94,30 @@ class PhotoPipelineTest {
         assertTrue((length ?: 0) > 50_000, "the multipart body must declare its length; was $length")
     }
 }
+
+/**
+ * A 3200 × 2000 JPEG carrying an EXIF block with a GPS IFD — what a phone camera writes. Shared with the Complaints
+ * page's test (M8), whose photos go through the same pipeline.
+ */
+internal fun photoWithGps(): ByteArray {
+    val surface = Surface.makeRasterN32Premul(3200, 2000)
+    surface.canvas.clear(Color.makeRGB(240, 236, 226))
+    surface.canvas.drawRect(Rect.makeXYWH(200f, 300f, 1800f, 400f), Paint().apply { color = Color.makeRGB(60, 90, 160) })
+    val jpeg = surface.makeImageSnapshot().encodeToData(EncodedImageFormat.JPEG, 90)!!.bytes
+    // TIFF (big-endian): IFD0 with one entry, GPSInfo (0x8825) → a GPS IFD with GPSLatitudeRef "N".
+    val tiff = byteArrayOf(
+        0x4D, 0x4D, 0x00, 0x2A, 0, 0, 0, 8,
+        0, 1, 0x88.toByte(), 0x25, 0, 4, 0, 0, 0, 1, 0, 0, 0, 26, 0, 0, 0, 0,
+        0, 1, 0, 1, 0, 2, 0, 0, 0, 2, 'N'.code.toByte(), 0, 0, 0, 0, 0, 0, 0,
+    )
+    val payload = "Exif".encodeToByteArray() + byteArrayOf(0, 0) + tiff
+    val length = payload.size + 2
+    val app1 = byteArrayOf(0xFF.toByte(), 0xE1.toByte(), (length shr 8).toByte(), length.toByte()) + payload
+    return jpeg.copyOfRange(0, 2) + app1 + jpeg.copyOfRange(2, jpeg.size)
+}
+
+internal fun ByteArray.contains(needle: ByteArray): Boolean =
+    (0..size - needle.size).any { i -> needle.indices.all { this[i + it] == needle[it] } }
+
+internal val exifMarker = "Exif".encodeToByteArray() + byteArrayOf(0, 0)
+internal val gpsTag = byteArrayOf(0x88.toByte(), 0x25)

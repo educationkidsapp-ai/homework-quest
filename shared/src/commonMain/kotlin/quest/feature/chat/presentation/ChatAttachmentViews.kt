@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,6 +30,32 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.IconButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.sp
+import io.github.vinceglb.filekit.compose.rememberFilePickerLauncher
+import io.github.vinceglb.filekit.core.PickerMode
+import io.github.vinceglb.filekit.core.PickerType
+import io.github.vinceglb.filekit.core.PlatformFile
+import kotlinx.io.buffered
+import kotlinx.io.files.Path
+import kotlinx.io.files.SystemFileSystem
+import kotlinx.io.readByteArray
+import quest.api.UploadFile
+import quest.core.platform.Today
+import quest.core.platform.photoAsJpeg
+import quest.core.platform.rememberCameraCapture
+import quest.feature.chat.domain.MAX_ATTACHMENTS
+import quest.feature.chat.domain.PHOTO_MAX_PX
+import quest.feature.chat.domain.PHOTO_QUALITY
+import quest.feature.chat.domain.PickedFile
+import quest.feature.chat.domain.contentTypeOf
+import quest.feature.chat.domain.preparePhoto
 import quest.api.dto.ChatAttachment
 import quest.api.dto.ChatMessage
 import quest.feature.broadcasts.presentation.AttachmentDocument
@@ -112,7 +137,7 @@ fun MessageAttachments(attachments: List<ChatAttachment>, strings: Strings, modi
  */
 @Composable
 fun DraftTray(
-    drafts: List<ChatConversationContract.Draft>,
+    drafts: List<AttachmentDraft>,
     refusal: AttachmentRefusal?,
     strings: Strings,
     onRemove: (String) -> Unit,
@@ -136,7 +161,7 @@ fun DraftTray(
 
 @Composable
 private fun DraftChip(
-    draft: ChatConversationContract.Draft,
+    draft: AttachmentDraft,
     strings: Strings,
     onRemove: (String) -> Unit,
     onRetry: (String) -> Unit,
@@ -192,3 +217,75 @@ private fun DraftChip(
         }
     }
 }
+
+/**
+ * M7: the paper-clip and its menu — the camera (where there is one), the gallery (several at once) and a PDF. Each
+ * pick is handed over as [PickedFile]s for the view model's [AttachmentDrafts] to check, re-encode, stage and upload.
+ * Full once five files are on the message ([already] counts them). M8: the Complaints page uses the same button.
+ */
+@Composable
+fun AttachMenuButton(already: Int, strings: Strings, onPick: (List<PickedFile>) -> Unit, modifier: Modifier = Modifier.size(48.dp)) {
+    var showAttachMenu by remember { mutableStateOf(false) }
+    // The room left on the message caps what a picker lets her choose.
+    val room = (MAX_ATTACHMENTS - already).coerceAtLeast(1)
+    val galleryPicker = rememberFilePickerLauncher(type = PickerType.Image, mode = PickerMode.Multiple(maxItems = room)) { files ->
+        if (!files.isNullOrEmpty()) onPick(files.map { it.picked(photo = true) })
+    }
+    val pdfPicker = rememberFilePickerLauncher(type = PickerType.File(listOf("pdf")), mode = PickerMode.Multiple(maxItems = room)) { files ->
+        if (!files.isNullOrEmpty()) onPick(files.map { it.picked(photo = false) })
+    }
+    val camera = rememberCameraCapture { path -> if (path != null) onPick(listOf(capturedPhoto(path))) }
+    Box {
+        IconButton(
+            onClick = { showAttachMenu = true },
+            enabled = already < MAX_ATTACHMENTS,
+            modifier = modifier.semantics { contentDescription = strings.chatFiles.attach },
+        ) {
+            Text("📎", fontSize = 20.sp)
+        }
+        DropdownMenu(expanded = showAttachMenu, onDismissRequest = { showAttachMenu = false }) {
+            if (camera != null) DropdownMenuItem(
+                text = { Text(strings.chatFiles.attachCamera) },
+                leadingIcon = { Text("📷") },
+                onClick = { showAttachMenu = false; camera() },
+            )
+            DropdownMenuItem(
+                text = { Text(strings.chatFiles.attachGallery) },
+                leadingIcon = { Text("🖼️") },
+                onClick = { showAttachMenu = false; galleryPicker.launch() },
+            )
+            DropdownMenuItem(
+                text = { Text(strings.chatFiles.attachPdf) },
+                leadingIcon = { Text("📄") },
+                onClick = { showAttachMenu = false; pdfPicker.launch() },
+            )
+        }
+    }
+}
+
+/**
+ * A file from FileKit's picker as the view model takes it: sized up front (an unknown size is refused rather than
+ * read to find out), read only after [refusalFor] has passed it, and — a photo — re-encoded by [preparePhoto].
+ */
+private fun PlatformFile.picked(photo: Boolean) = PickedFile(name, getSize() ?: Long.MAX_VALUE, photo) {
+    val bytes = readBytes()
+    if (photo) photoToUpload(name, bytes) else contentTypeOf(name)?.let { UploadFile(name, it, bytes) }
+}
+
+/** The camera's capture: sized from the disk, read and re-encoded off the main thread, and deleted once read. */
+private fun capturedPhoto(path: String): PickedFile {
+    val file = Path(path)
+    val size = runCatching { SystemFileSystem.metadataOrNull(file)?.size }.getOrNull() ?: Long.MAX_VALUE
+    return PickedFile("photo-${Today.epochMillis()}.jpg", size, photo = true) {
+        try {
+            photoToUpload("photo.jpg", SystemFileSystem.source(file).buffered().use { it.readByteArray() })
+        } finally {
+            runCatching { SystemFileSystem.delete(file, mustExist = false) }
+        }
+    }
+}
+
+private fun reencode(bytes: ByteArray): ByteArray? = photoAsJpeg(bytes, PHOTO_MAX_PX, PHOTO_QUALITY)
+
+/** A gallery or camera photo as every picker in the app uploads it — re-encoded, downscaled, without metadata. */
+internal fun photoToUpload(name: String, bytes: ByteArray): UploadFile? = preparePhoto(name, bytes, ::reencode)

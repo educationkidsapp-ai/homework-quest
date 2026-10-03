@@ -103,7 +103,7 @@ class BroadcastsViewModelTest {
         override suspend fun coordinators(childId: String): List<ChatThread> = coordinators.getOrThrow()
         override suspend fun managers(childId: String): List<ChatThread> = managers.getOrThrow()
         override suspend fun messages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?) = emptyList<quest.api.dto.ChatMessage>()
-        override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: quest.api.dto.ChatTopic?, attachmentIds: List<String>) = error("not used")
+        override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, attachmentIds: List<String>) = error("not used")
         override suspend fun uploadAttachment(childId: String, file: quest.feature.chat.domain.StagedUpload, onProgress: (Float) -> Unit): quest.api.dto.AttachmentRef = error("not used")
         override suspend fun markRead(childId: String, teacherId: String) {}
         override suspend fun sendTyping(childId: String, teacherId: String) {}
@@ -376,9 +376,6 @@ class BroadcastsViewModelTest {
         assertEquals("c1", vm.state.value.childId)
         assertEquals(listOf(maya), vm.state.value.children)
 
-        assertFalse(vm.state.value.complaint, "a new message is a question until the parent says otherwise")
-        vm.dispatch(CoordinatorPickerContract.Intent.SetComplaint(true))
-        settle(vm.state) { it.complaint }
     }
 
     // ---- 4. the parent home only asks for the count when the school bought the feature

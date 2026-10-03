@@ -44,9 +44,8 @@ object Routes {
     @Serializable object ChatCoordinators
 
     /**
-     * R8 widened this with what the list row already knew, so the conversation draws its header, its complaint
-     * toggle and its resolved banner without a second request. [staffRole] and [topic] are the contract's own
-     * spellings (`TEACHER`/`COORDINATOR`, `question`/`complaint`); the `status` frame moves [resolved] afterwards.
+     * R8 widened this with what the list row already knew, so the conversation draws its header without a second
+     * request. [staffRole] is the contract's own spelling (`TEACHER`/`COORDINATOR`/`MANAGERIAL`).
      */
     @Serializable data class ChatConversation(
         val childId: String,
@@ -54,16 +53,21 @@ object Routes {
         val teacherName: String,
         val staffRole: String = "TEACHER",
         val subject: String? = null,
-        val topic: String = "question",
-        val resolved: Boolean = false,
         val threadId: String? = null,
-        /** M1: opened from New message with "Complaint" chosen — the toggle starts on. */
-        val complaint: Boolean = false,
         /** S1: a thread the school administration opened (`ChatThread.withAdmin`). */
         val admin: Boolean = false,
         /** M4 (D6): `ChatThread.peerOnline` as `"true"`/`"false"`, null when the row said nothing. */
         val peerOnline: String? = null,
-        /** M4 (D7): `ChatThread.peerRole`'s wire name, null when absent. */
+        /** M4 (D7): `ChatThread.peerRole`'s wire name, null when absent — it names who is typing (M7). */
         val peerRole: String? = null,
     )
+
+    /** M8: the Complaints tab — her complaints about the current child, apart from Messages. */
+    @Serializable object Complaints
+
+    /** M8: New complaint — the child, whom it is for, a subject line and the first message. */
+    @Serializable object NewComplaint
+
+    /** M8: one complaint, its messages and its status changes (`/children/{childId}/complaints/{complaintId}`). */
+    @Serializable data class Complaint(val childId: String, val complaintId: String)
 }

@@ -71,9 +71,9 @@ class ChatAttachmentsScreenshotTest {
                 attachments = listOf(photo.copy(id = "a3", name = "hala.jpg"))),
         ),
         drafts = listOf(
-            ChatConversationContract.Draft("d1", "IMG_2041.jpg", "image/jpeg", 2_300_000, progress = 0.6f),
-            ChatConversationContract.Draft("d2", "reading-log.pdf", "application/pdf", 640_000, failed = true),
-            ChatConversationContract.Draft("d3", "spelling.png", "image/png", 300_000, progress = 1f, ref = AttachmentRef("r3", "spelling.png", "image/png", 300_000)),
+            quest.feature.chat.presentation.AttachmentDraft("d1", "IMG_2041.jpg", "image/jpeg", 2_300_000, progress = 0.6f),
+            quest.feature.chat.presentation.AttachmentDraft("d2", "reading-log.pdf", "application/pdf", 640_000, failed = true),
+            quest.feature.chat.presentation.AttachmentDraft("d3", "spelling.png", "image/png", 300_000, progress = 1f, ref = AttachmentRef("r3", "spelling.png", "image/png", 300_000)),
         ),
         refusal = AttachmentRefusal.PHOTO_TOO_LARGE,
     )

@@ -1,6 +1,7 @@
 package quest.feature.parent.presentation
 
 import androidx.compose.runtime.staticCompositionLocalOf
+import quest.feature.complaints.presentation.ComplaintStrings
 import quest.feature.journey.presentation.LessonStrings
 import quest.feature.school.domain.SchoolBranding
 
@@ -94,22 +95,12 @@ data class Strings(
     val excused: String = "Excused",
     val noAttendanceRecorded: String = "Not recorded yet",
     val attendanceNote: String = "Note from teacher",
-    // R8: the parent writes to the coordinator of a subject, and may mark that first message a complaint (DR3).
+    // R8: the parent writes to the coordinator of a subject (DR3). B6 / M8: complaints are their own page.
     val teacherRole: String = "Teacher",
     val coordinatorRole: String = "Subject coordinator",
     val teachersGroup: String = "Your child's teachers",
     val coordinatorsGroup: String = "Subject coordinators",
     val pickCoordinator: String = "Who would you like to write to?",
-    val complaintBadge: String = "Complaint",
-    val statusOpen: String = "Open",
-    val statusResolved: String = "Resolved",
-    val resolvedBanner: String = "Resolved — the coordinator answered this. You can still write here.",
-    // M4 (D7): the banner names who the parent was talking to — a complaint the manager resolved is not the coordinator's.
-    val resolvedBannerTeacher: String = "Resolved — the teacher answered this. You can still write here.",
-    val resolvedBannerManager: String = "Resolved — the department manager answered this. You can still write here.",
-    val resolvedBannerAdmin: String = "Resolved — the school administration answered this. You can still write here.",
-    val markAsComplaint: String = "This is a complaint",
-    val markAsComplaintHint: String = "The coordinator sees it as an open complaint in her complaints list.",
     /**
      * The six subjects by the server's own key (`quest.api.dto.Subject`), so a coordinator's `subject` reads in the
      * parent's language instead of as the raw wire word. A key nobody here knows is shown as the server wrote it,
@@ -122,11 +113,10 @@ data class Strings(
     val emptyConversationCoordinator: String = "No messages yet. Write to the coordinator of this subject.",
 
     // RM4 (DR5): the parent also writes to the manager of her child's department — about the school, the child or a
-    // coordinator — and a complaint is allowed there too.
+    // coordinator.
     val managerRole: String = "Department manager",
     val managersGroup: String = "Department manager",
     val emptyConversationManager: String = "No messages yet. Write to the manager of the department.",
-    val markAsComplaintHintManager: String = "The manager sees it as an open complaint in her complaints list.",
 
     // RM4 (DR4, DR6), split in two by MH3: the Weekly plan page and the Announcements page.
     val weeklyPlan: String = "Weekly plan",
@@ -206,15 +196,10 @@ data class Strings(
     // S1: a thread the school administration opened with the parent.
     val schoolAdministration: String = "School administration",
     val emptyConversationAdmin: String = "No messages yet.",
-    // M1: New message — child, then topic, then who. A complaint may go to any of the three roles.
+    // M1: New message — child, then who. M8: a complaint is started on the Complaints page, never here.
     val newMessage: String = "New message",
     val newMessageChild: String = "About which child?",
-    val newMessageTopic: String = "What is it?",
-    val topicQuestion: String = "Question",
-    val topicComplaint: String = "Complaint",
-    val complaintExplained: String = "A complaint is shown with a badge and a status — open, then resolved — to you and to the person you send it to.",
     val newMessageNobody: String = "Nobody to write to for this child yet.",
-    val markAsComplaintHintTeacher: String = "The teacher sees it as an open complaint.",
     // M1: the admin links children to the parent's account; the app only lists them.
     val chooseStudent: String = "Choose a student to open their home page.",
     val currentChild: String = "Current",
@@ -222,6 +207,8 @@ data class Strings(
     val checkAgain: String = "Check again",
     /** The lesson and exam screens' own table; the student home draws its exam badge and read-aloud label from it. */
     val lesson: LessonStrings = LessonStrings.en,
+    /** M8: the Complaints page's own table. */
+    val complaints: ComplaintStrings = ComplaintStrings.en,
 ) {
     fun accuracy(words: String) = accuracyWords[words] ?: words
 
@@ -341,15 +328,6 @@ data class Strings(
             teachersGroup = "معلّمو طفلك",
             coordinatorsGroup = "منسّقو المواد",
             pickCoordinator = "إلى مَن تريد أن تكتب؟",
-            complaintBadge = "شكوى",
-            statusOpen = "مفتوحة",
-            statusResolved = "تم الحل",
-            resolvedBanner = "تم الحل — ردّ المنسّق على هذه الرسالة. لا يزال بإمكانك الكتابة هنا.",
-            resolvedBannerTeacher = "تم الحل — ردّت المعلّمة على هذه الرسالة. لا يزال بإمكانك الكتابة هنا.",
-            resolvedBannerManager = "تم الحل — ردّ مدير القسم على هذه الرسالة. لا يزال بإمكانك الكتابة هنا.",
-            resolvedBannerAdmin = "تم الحل — ردّت إدارة المدرسة على هذه الرسالة. لا يزال بإمكانك الكتابة هنا.",
-            markAsComplaint = "هذه شكوى",
-            markAsComplaintHint = "ستظهر كشكوى مفتوحة في قائمة الشكاوى عند المنسّق.",
             subjectNames = mapOf(
                 "math" to "رياضيات", "english" to "إنجليزي", "science" to "علوم",
                 "french" to "فرنسي", "religion" to "تربية إسلامية", "arabic" to "عربي",
@@ -358,7 +336,6 @@ data class Strings(
             managerRole = "مدير القسم",
             managersGroup = "مدير القسم",
             emptyConversationManager = "لا توجد رسائل بعد. اكتب إلى مدير القسم.",
-            markAsComplaintHintManager = "ستظهر كشكوى مفتوحة في قائمة الشكاوى عند مدير القسم.",
             weeklyPlan = "الخطة الأسبوعية",
             announcements = "الإعلانات",
             notificationsTitle = "الإشعارات",
@@ -421,17 +398,13 @@ data class Strings(
             emptyConversationAdmin = "لا توجد رسائل بعد.",
             newMessage = "رسالة جديدة",
             newMessageChild = "عن أيّ طفل؟",
-            newMessageTopic = "ما نوع الرسالة؟",
-            topicQuestion = "سؤال",
-            topicComplaint = "شكوى",
-            complaintExplained = "تظهر الشكوى بشارة وحالة — مفتوحة ثم تم الحل — لك ولمن تُرسلها إليه.",
             newMessageNobody = "لا يوجد من تراسله لهذا الطفل بعد.",
-            markAsComplaintHintTeacher = "ستراها المعلّمة كشكوى مفتوحة.",
             chooseStudent = "اختر طالباً لفتح صفحته الرئيسية.",
             currentChild = "الحالي",
             noChildrenLinked = "لم تربط مدرستك أي طفل بهذا الحساب بعد — يرجى التواصل مع المدرسة.",
             checkAgain = "تحقّق مرة أخرى",
             lesson = LessonStrings.ar,
+            complaints = ComplaintStrings.ar,
         )
 
         fun forLanguage(code: String) = if (code == "ar") ar else en
@@ -485,6 +458,8 @@ data class NoticeStrings(
     val updateClassNote: String,
     val updateQuestion: String,
     val updateComplaint: String,
+    /** M8: `complaint.message` — the staff member answered in her complaint. */
+    val updateComplaintReply: String,
     val updateNews: String,
     val fromYourNotification: String,
     val itemGone: String,
@@ -492,12 +467,12 @@ data class NoticeStrings(
     companion object {
         val en = NoticeStrings(
             updateExam = "New exam", updateClassNote = "Class note", updateQuestion = "Teacher question",
-            updateComplaint = "Complaint update", updateNews = "School news",
+            updateComplaint = "Complaint update", updateComplaintReply = "Complaint reply", updateNews = "School news",
             fromYourNotification = "From your notification", itemGone = "That item is no longer available.",
         )
         val ar = NoticeStrings(
             updateExam = "اختبار جديد", updateClassNote = "ملاحظة للصف", updateQuestion = "سؤال من المعلّم",
-            updateComplaint = "تحديث على الشكوى", updateNews = "أخبار المدرسة",
+            updateComplaint = "تحديث على الشكوى", updateComplaintReply = "رد على الشكوى", updateNews = "أخبار المدرسة",
             fromYourNotification = "من الإشعار", itemGone = "هذا العنصر لم يعد متاحاً.",
         )
     }

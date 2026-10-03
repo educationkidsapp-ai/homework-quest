@@ -23,6 +23,7 @@ import quest.api.dto.NotificationView
 import quest.api.dto.PushMessage
 import quest.api.dto.RegisterDeviceRequest
 import quest.api.dto.WeeklyPlanArchive
+import quest.core.json.AppJson
 import quest.core.navigation.Routes
 import quest.feature.broadcasts.domain.BroadcastsRepository
 import quest.feature.chat.domain.ChatConnectionState
@@ -30,6 +31,13 @@ import quest.feature.chat.domain.ChatRepository
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.lock.domain.AppLock
 import quest.feature.notifications.domain.NotificationsRepository
+import quest.api.ApiException
+import quest.api.dto.ApiError
+import quest.api.dto.ChatPeerRole
+import quest.api.dto.Complaint
+import quest.api.dto.ComplaintDetail
+import quest.api.dto.ComplaintList
+import quest.feature.complaints.domain.ComplaintsRepository
 import quest.api.dto.BroadcastKind
 import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatThreadStatus
@@ -216,7 +224,8 @@ class PushTest {
         assertEquals(PushChannel.EXAMS, channel(NotificationKind.EXAM_PUBLISHED, "/children/c1/map", "lesson:e1"))
         assertEquals(PushChannel.HOMEWORK, channel(NotificationKind.HOMEWORK_PUBLISHED, "/children/c1/map", "lesson:l1"))
         assertEquals(PushChannel.HOMEWORK, channel(NotificationKind.QUESTION_SENT, "/children/c1/teacher-questions/q1", "question:q1"))
-        assertEquals(PushChannel.COMPLAINTS, channel(NotificationKind.COMPLAINT_STATUS, "/children/c1/chat/t-lina", "chat:th-2"))
+        assertEquals(PushChannel.COMPLAINTS, channel(NotificationKind.COMPLAINT_STATUS, "/children/c1/complaints/cp-1", "complaint:cp-1"))
+        assertEquals(PushChannel.COMPLAINTS, channel(NotificationKind.COMPLAINT_MESSAGE, "/children/c1/complaints/cp-1", "complaint:cp-1"), "a staff reply rings on Complaints, not Messages")
         assertEquals(PushChannel.SCHOOL_NEWS, channel(NotificationKind.ANNOUNCEMENT_POSTED, "/children/c1/announcements?open=a1", "announcement:a1"))
         assertEquals(PushChannel.SCHOOL_NEWS, channel(NotificationKind.BROADCAST_POSTED, "/children/c1/broadcasts?open=b1", "broadcast:b1"))
         assertEquals(PushChannel.MESSAGES, PushPayload.channelOf("admin.message"), "a kind still to come lands by its name")
@@ -259,12 +268,26 @@ class PushTest {
         override suspend fun coordinators(childId: String) = threads.filter { it.childId == childId && it.staffRole == ChatStaffRole.COORDINATOR }
         override suspend fun managers(childId: String): List<ChatThread> = error("offline")
         override suspend fun messages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?): List<ChatMessage> = emptyList()
-        override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic?, attachmentIds: List<String>): ChatMessage = error("not used")
+        override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, attachmentIds: List<String>): ChatMessage = error("not used")
         override suspend fun uploadAttachment(childId: String, file: quest.feature.chat.domain.StagedUpload, onProgress: (Float) -> Unit): quest.api.dto.AttachmentRef = error("not used")
         override suspend fun markRead(childId: String, teacherId: String) = Unit
         override suspend fun sendTyping(childId: String, teacherId: String) = Unit
         override fun connect() = Unit
         override fun disconnect() = Unit
+    }
+
+    /** B6's complaints as the router asks for them: one exists ("cp-1"); any other id is a 404. */
+    private class Complaints(val existing: Set<String> = setOf("cp-1")) : ComplaintsRepository {
+        override suspend fun list(childId: String, status: String?) = ComplaintList()
+        override suspend fun recipients(childId: String) = emptyList<quest.api.dto.ComplaintRecipient>()
+        override suspend fun create(childId: String, staffId: String, title: String, body: String, clientId: String, attachmentIds: List<String>): ComplaintDetail = error("not used")
+        override suspend fun detail(childId: String, complaintId: String, since: String?): ComplaintDetail {
+            if (complaintId !in existing) throw ApiException(ApiError(ApiError.NOT_FOUND, "No such complaint."))
+            return ComplaintDetail(Complaint(complaintId, childId, "Hala", "Homework", ChatThreadStatus.RESOLVED, "co-lina", "Ms Lina", ChatPeerRole.COORDINATOR, 1L))
+        }
+        override suspend fun reply(childId: String, complaintId: String, body: String, clientId: String, attachmentIds: List<String>): ChatMessage = error("not used")
+        override suspend fun markRead(childId: String, complaintId: String) = Unit
+        override suspend fun reopen(childId: String, complaintId: String): Complaint = error("not used")
     }
 
     private class Rows : NotificationsRepository {
@@ -301,7 +324,7 @@ class PushTest {
             )
         }
         fun router(threads: List<ChatThread>, onMap: Set<String>? = setOf("l1", "e1")) =
-            NotificationRouter(kids, Chat(threads), rows, feed, lessonsOnMap = { onMap })
+            NotificationRouter(kids, Chat(threads), rows, feed, Complaints(), lessonsOnMap = { onMap })
         fun navigator(threads: List<ChatThread>, onMap: Set<String>? = setOf("l1", "e1")) = PushNavigator(router(threads, onMap), gate, signedIn = { signedIn })
     }
 
@@ -310,9 +333,12 @@ class PushTest {
         NotificationTap("chat.message", "/children/c1/chat/t-maya", "nt-1", childId = "c1", collapseKey = "chat:th-1") to { r ->
             assertEquals("th-1", ((r as PushNavigator.Step.Parent).route as Routes.ChatConversation).threadId)
         },
-        NotificationTap("complaint.status", "/children/c1/chat/co-lina", "nt-2", childId = "c1", collapseKey = "chat:th-2") to { r ->
-            val c = (r as PushNavigator.Step.Parent).route as Routes.ChatConversation
-            assertEquals("th-2", c.threadId); assertTrue(c.resolved, "the status banner comes with the row"); assertEquals("complaint", c.topic)
+        // M8 (B6): a complaint's reply and its status change open that complaint's own page, never a Messages thread.
+        NotificationTap("complaint.status", "/children/c1/complaints/cp-1", "nt-2", childId = "c1", collapseKey = "complaint:cp-1", complaintId = "cp-1") to { r ->
+            assertEquals(PushNavigator.Step.Parent(Routes.Complaint("c1", "cp-1")), r)
+        },
+        NotificationTap("complaint.message", "/children/c1/complaints/cp-1", "nt-2b", childId = "c1", collapseKey = "complaint:cp-1", complaintId = "cp-1") to { r ->
+            assertEquals(PushNavigator.Step.Parent(Routes.Complaint("c1", "cp-1")), r)
         },
         NotificationTap("broadcast.posted", "/children/c1/broadcasts?open=bc-plan", "nt-3", "bc-plan", "c1", "broadcast:bc-plan") to { r ->
             assertEquals(PushNavigator.Step.Parent(Routes.WeeklyPlan(focus = "bc-plan")), r)
@@ -444,6 +470,7 @@ class PushTest {
         assertEquals(gone, nav.follow(NotificationTap("broadcast.posted", "/children/c1/broadcasts?open=bc-x", "nt-1", "bc-x", "c1")), "expired event")
         assertEquals(gone, nav.follow(NotificationTap("homework.published", "/children/c1/map", "nt-1", childId = "c1", collapseKey = "lesson:l-gone")), "lesson gone")
         assertEquals(gone, nav.follow(NotificationTap("chat.message", "/children/c9/chat/t-maya", "nt-1", childId = "c9")), "not her child any more")
+        assertEquals(gone, nav.follow(NotificationTap("complaint.message", "/children/c1/complaints/cp-gone", "nt-1", childId = "c1", collapseKey = "complaint:cp-gone")), "complaint gone")
     }
 
     @Test fun aListRowIsTheSameTapAsItsPush() {
@@ -457,6 +484,7 @@ class PushTest {
     @Test fun everyLinkShapeOfTheContractIsReadAndFollowed() = runTest {
         val shapes = mapOf(
             "/children/c1/chat/t-maya" to LinkShape.CHAT,
+            "/children/c1/complaints/cp-1" to LinkShape.COMPLAINT,
             "/children/c1/broadcasts?open=bc-ann" to LinkShape.BROADCAST,
             "/children/c1/announcements?open=a1" to LinkShape.ANNOUNCEMENT,
             "/children/c1/teacher-questions/q1" to LinkShape.TEACHER_QUESTION,
@@ -471,6 +499,7 @@ class PushTest {
 
         val expected = mapOf(
             "/children/c1/chat/t-maya" to PushNavigator.Step.Parent(teacherThread.asConversation()),
+            "/children/c1/complaints/cp-1" to PushNavigator.Step.Parent(Routes.Complaint("c1", "cp-1")),
             "/children/c1/broadcasts?open=bc-ann" to PushNavigator.Step.Parent(Routes.Broadcasts(focusBroadcast = "bc-ann")),
             "/children/c1/announcements?open=a1" to PushNavigator.Step.Parent(Routes.Broadcasts(focusRow = "nt-x")),
             "/children/c1/teacher-questions/q1" to PushNavigator.Step.Parent(Routes.Broadcasts(focusRow = "nt-x")),
@@ -480,6 +509,30 @@ class PushTest {
         for ((link, step) in expected) {
             val w = World().apply { gate.passed() }
             assertEquals(step, w.navigator(listOf(teacherThread)).follow(NotificationTap("kind.from.later", link, "nt-x", childId = "c1")), link)
+        }
+    }
+
+    /** M8: B6's push carries `complaintId`; a row names its complaint by `lessonId`; both reach the same page. */
+    @Test fun aComplaintPushAndItsRowCarryTheComplaint() = runTest {
+        val push = PushPayload.parse(PushMessage(NotificationKind.COMPLAINT_MESSAGE, "Ms Lina replied", "We shortened it.", "nt-5", "c1", "/children/c1/complaints/cp-1", null, "complaint:cp-1", complaintId = "cp-1").toData())!!
+        assertEquals("cp-1", push.tap.complaintId)
+        assertEquals("complaint:cp-1", push.tag, "a reply and a status change replace each other in the shade")
+        val row = NotificationView("nt-5", NotificationKind.COMPLAINT_MESSAGE, "Ms Lina replied", "We shortened it.", "/children/c1/complaints/cp-1", lessonId = "cp-1", createdAt = 1L, childId = "c1")
+        for (tap in listOf(push.tap.copy(outside = false), NotificationTap.of(row))) {
+            val w = World().apply { gate.passed() }
+            assertEquals(PushNavigator.Step.Parent(Routes.Complaint("c1", "cp-1")), w.navigator(emptyList()).follow(tap), tap.toString())
+        }
+        // A row written before B6 still links the coordinator's thread: it is followed as one.
+        val w = World().apply { gate.passed() }
+        val old = NotificationTap("complaint.status", "/children/c1/chat/co-lina", "nt-6", childId = "c1", collapseKey = "chat:th-2")
+        assertEquals(PushNavigator.Step.Parent(complaintThread.asConversation()), w.navigator(listOf(teacherThread, complaintThread)).follow(old))
+    }
+
+    /** M8: this build decodes the row kinds older builds could not — `complaint.message` above all. */
+    @Test fun theComplaintKindsDecode() {
+        for (kind in listOf("complaint.message", "complaint.status", "complaint.new")) {
+            val json = """{"id":"n1","kind":"$kind","title":"t","link":"/children/c1/complaints/cp-1","createdAt":1}"""
+            assertEquals(kind, PushMessage.kindName(AppJson.decodeFromString(NotificationView.serializer(), json).kind))
         }
     }
 

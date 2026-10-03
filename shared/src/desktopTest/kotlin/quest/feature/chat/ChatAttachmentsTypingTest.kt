@@ -92,7 +92,7 @@ class ChatAttachmentsTypingTest {
             if (!gate.await()) error("upload failed")
             return AttachmentRef("att-${uploads.size}", file.name, file.contentType, file.size, width = 800, height = 600)
         }
-        override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic?, attachmentIds: List<String>): ChatMessage {
+        override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, attachmentIds: List<String>): ChatMessage {
             sends += body to attachmentIds
             sendError?.let { throw it }
             return ChatMessage("m-${sends.size}", "th-nour", ChatSender.PARENT, "p1", body, 1L,

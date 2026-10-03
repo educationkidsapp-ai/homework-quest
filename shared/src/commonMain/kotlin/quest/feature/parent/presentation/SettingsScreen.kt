@@ -131,6 +131,7 @@ fun SettingsRoute(
     onHome: () -> Unit = onBack,
     onNotifications: () -> Unit = {},
     onMessages: () -> Unit = {},
+    onComplaints: () -> Unit = {},
 ) {
     val vm: SettingsViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -145,6 +146,7 @@ fun SettingsRoute(
                 quest.ui.design.DashboardTab.HOME -> onHome()
                 quest.ui.design.DashboardTab.NOTIFICATION -> onNotifications()
                 quest.ui.design.DashboardTab.MESSAGES -> onMessages()
+                quest.ui.design.DashboardTab.COMPLAINTS -> onComplaints()
                 quest.ui.design.DashboardTab.SETTINGS -> {}
             }
         },

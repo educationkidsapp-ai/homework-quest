@@ -218,6 +218,7 @@ fun BroadcastsRoute(
     onHome: () -> Unit = onBack,
     onMessages: () -> Unit = {},
     onSettings: () -> Unit = {},
+    onComplaints: () -> Unit = {},
 ) {
     val vm: BroadcastsViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -240,6 +241,7 @@ fun BroadcastsRoute(
                 quest.ui.design.DashboardTab.HOME -> onHome()
                 quest.ui.design.DashboardTab.NOTIFICATION -> {}
                 quest.ui.design.DashboardTab.MESSAGES -> onMessages()
+                quest.ui.design.DashboardTab.COMPLAINTS -> onComplaints()
                 quest.ui.design.DashboardTab.SETTINGS -> onSettings()
             }
         },
@@ -339,7 +341,8 @@ fun NotificationRowCard(row: NotificationView, strings: Strings, focused: Boolea
         NotificationKind.EXAM_PUBLISHED -> strings.notices.updateExam
         NotificationKind.ANNOUNCEMENT_POSTED -> strings.notices.updateClassNote
         NotificationKind.QUESTION_SENT -> strings.notices.updateQuestion
-        NotificationKind.COMPLAINT_STATUS -> strings.notices.updateComplaint
+        NotificationKind.COMPLAINT_STATUS, NotificationKind.COMPLAINT_NEW -> strings.notices.updateComplaint
+        NotificationKind.COMPLAINT_MESSAGE -> strings.notices.updateComplaintReply
         NotificationKind.BROADCAST_POSTED -> strings.notices.updateNews
         else -> strings.updateOther
     }

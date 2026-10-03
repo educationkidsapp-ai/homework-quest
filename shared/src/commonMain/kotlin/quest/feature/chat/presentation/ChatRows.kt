@@ -31,8 +31,6 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatThread
-import quest.api.dto.ChatThreadStatus
-import quest.api.dto.ChatTopic
 import quest.feature.parent.presentation.Chip
 import quest.feature.parent.presentation.ParentCard
 import quest.feature.parent.presentation.Strings
@@ -41,9 +39,8 @@ import quest.ui.design.Dimens
 /**
  * R8: how a parent's thread row reads once the dashboard side can be a coordinator as well as a teacher (DR3).
  *
- * The three R4 fields are all a row needs: [ChatThread.staffRole] picks the word under the name, [ChatThread.topic]
- * adds the Complaint badge, and [ChatThread.status] the Open/Resolved chip. Every one of them has a contract default,
- * so a row from a server that predates R4 reads exactly as it did in C3 — teacher, question, open, no chips.
+ * [ChatThread.staffRole] picks the word under the name. B6 / M8: a Messages thread is never a complaint and has no
+ * status, so a row carries no Complaint badge and no Open/Resolved chip — those live on the Complaints page.
  *
  * This lives outside a `*Screen.kt` on purpose: the thread list and the coordinator picker draw the same row, and
  * one spelling of "Subject coordinator · Math" is what keeps them from drifting apart.
@@ -94,26 +91,20 @@ fun staffLabel(thread: ChatThread, strings: Strings, department: String? = null)
     if (thread.withAdmin == true) thread.childName else
     staffLabel(thread.staffRole, thread.subject, thread.className, strings, department)
 
-/** Screen-reader copy for a row: who, what about, and where it stands — the chips say the same thing visually. */
+/** Screen-reader copy for a row: who, whether she is typing, and how much is unread — the row says the same visually. */
 fun threadDescription(thread: ChatThread, strings: Strings, department: String? = null, typing: Boolean = false): String = buildList {
     add(staffName(thread, strings))
     add(staffLabel(thread, strings, department))
     if (typing) add(typingLine(resolverOf(thread.peerRole, thread.staffRole, thread.withAdmin == true), strings))
-    if (thread.topic == ChatTopic.COMPLAINT) add(strings.complaintBadge)
-    if (thread.status == ChatThreadStatus.RESOLVED) add(strings.statusResolved)
     if (thread.unread > 0) add("${thread.unread} ${strings.messages}")
 }.joinToString(", ")
 
-/**
- * One tappable row. [showStatus] is false in the coordinator picker, where nothing has a status yet — a row with no
- * thread behind it is neither open nor resolved, and an "Open" chip on it would be a promise the server never made.
- */
+/** One tappable row. */
 @Composable
 fun ChatThreadRow(
     thread: ChatThread,
     strings: Strings,
     onClick: () -> Unit,
-    showStatus: Boolean = true,
     department: String? = null,
     /** M7: the person on this row is typing — the preview line says so until she sends or stops. */
     typing: Boolean = false,
@@ -184,21 +175,9 @@ fun ChatThreadRow(
                     )
                 }
 
-                val badges = thread.topic == ChatTopic.COMPLAINT || (showStatus && thread.id != null) || thread.unread > 0
-                if (badges) {
+                if (thread.unread > 0) {
                     Spacer(Modifier.height(Dimens.s8))
-                    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s8), verticalAlignment = Alignment.CenterVertically) {
-                        if (thread.topic == ChatTopic.COMPLAINT) Chip(strings.complaintBadge, DashboardTokens.warningBg)
-                        if (showStatus && thread.id != null) {
-                            val resolved = thread.status == ChatThreadStatus.RESOLVED
-                            Chip(
-                                text = if (resolved) strings.statusResolved else strings.statusOpen,
-                                color = if (resolved) DashboardTokens.successBg else MaterialTheme.colorScheme.primaryContainer,
-                                selected = resolved,
-                            )
-                        }
-                        if (thread.unread > 0) Chip("${thread.unread}", DashboardTokens.secondarySoft)
-                    }
+                    Chip("${thread.unread}", DashboardTokens.secondarySoft)
                 }
             }
         }

@@ -41,6 +41,7 @@ class PushNavigator(private val router: NotificationRouter, private val gate: Pa
     companion object {
         fun step(destination: Destination): Step = when (destination) {
             is Destination.Conversation -> Step.Parent(destination.thread.asConversation())
+            is Destination.Complaint -> Step.Parent(Routes.Complaint(destination.childId, destination.complaintId))
             is Destination.WeeklyPlan -> Step.Parent(Routes.WeeklyPlan(focus = destination.planId))
             is Destination.Broadcast -> Step.Parent(Routes.Broadcasts(focusBroadcast = destination.broadcastId))
             is Destination.Notifications -> Step.Parent(Routes.Broadcasts(focusRow = destination.row, gone = destination.gone))

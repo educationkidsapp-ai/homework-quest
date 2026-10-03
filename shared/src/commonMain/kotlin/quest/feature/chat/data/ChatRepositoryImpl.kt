@@ -9,7 +9,6 @@ import quest.api.dto.ChatCommand
 import quest.api.dto.ChatFrame
 import quest.api.dto.ChatMessage
 import quest.api.dto.ChatThread
-import quest.api.dto.ChatTopic
 import quest.api.dto.SendChatMessageRequest
 import quest.feature.chat.domain.AttachmentUploader
 import quest.feature.chat.domain.ChatConnectionState
@@ -54,10 +53,9 @@ class ChatRepositoryImpl(
         teacherId: String,
         body: String,
         clientId: String,
-        topic: ChatTopic?,
         attachmentIds: List<String>,
     ): ChatMessage {
-        val request = SendChatMessageRequest(body = body.trim(), clientId = clientId, topic = topic, attachmentIds = attachmentIds)
+        val request = SendChatMessageRequest(body = body.trim(), clientId = clientId, attachmentIds = attachmentIds)
         // Sending via REST gives immediate guaranteed HTTP status (rate-limits, error handling)
         // while the server fans out the ChatFrame.Message(echo) to all active sessions including the socket.
         return contentApi.sendChatMessage(childId, teacherId, request)
