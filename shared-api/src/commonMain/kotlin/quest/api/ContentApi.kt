@@ -113,9 +113,21 @@ interface ContentApi {
     suspend fun chatMessages(childId: String, teacherId: String, before: String? = null, since: String? = null, limit: Int? = null): List<ChatMessage> =
         throw NotImplementedError("chatMessages needs a backend")
 
-    /** `POST /children/{id}/chat/threads/{teacherId}/messages` — 1–2000 characters of plain text; `429 rate_limited` past 30 a minute. */
+    /**
+     * `POST /children/{id}/chat/threads/{teacherId}/messages` — 1–2000 characters of plain text; `429 rate_limited` past
+     * 30 a minute. B5: up to 5 [SendChatMessageRequest.attachmentIds] from [uploadChatAttachment], and the text may then be empty.
+     */
     suspend fun sendChatMessage(childId: String, teacherId: String, request: SendChatMessageRequest): ChatMessage =
         throw NotImplementedError("sendChatMessage needs a backend")
+
+    /**
+     * B5 `POST /media/attachments` (multipart: `file`, `purpose=chat`, `childId`) — one photo (JPEG, PNG or WebP, at most
+     * 5 MB) or one PDF (at most 10 MB) for a chat message about [childId], who must be hers (404 otherwise, and while
+     * her school has `chat` off). Its id goes in the next send's `attachmentIds`; an upload never sent is deleted after
+     * 24 hours. Read the bytes back from `GET /media/attachments/{id}` with the same token.
+     */
+    suspend fun uploadChatAttachment(childId: String, file: UploadFile): quest.api.dto.AttachmentRef =
+        throw NotImplementedError("uploadChatAttachment needs a backend")
 
     /** `POST /children/{id}/chat/threads/{teacherId}/read` — everything the teacher wrote is read. */
     suspend fun markChatRead(childId: String, teacherId: String): ChatReadReceipt = throw NotImplementedError("markChatRead needs a backend")

@@ -28,9 +28,23 @@
     "threadId": { "type": "string", "minLength": 1 },
     "sender": { "$ref": "#/$defs/sender" },
     "senderId": { "type": "string", "minLength": 1 },
-    "body": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "body": { "type": "string", "maxLength": 2000, "description": "Plain text; empty only when the message carries attachments (B5)." },
     "createdAt": { "type": "integer" },
-    "readAt": { "type": ["integer", "null"] }
+    "readAt": { "type": ["integer", "null"] },
+    "attachments": { "type": "array", "maxItems": 5, "items": { "$ref": "#/$defs/chatAttachment" } }
+   }
+  },
+  "chatAttachment": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["id", "contentType", "name", "size"],
+   "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "contentType": { "type": "string", "enum": ["image/jpeg", "image/png", "image/webp", "application/pdf"] },
+    "name": { "type": "string", "minLength": 1 },
+    "size": { "type": "integer", "minimum": 0 },
+    "width": { "type": ["integer", "null"] },
+    "height": { "type": ["integer", "null"] }
    }
   },
   "message": {

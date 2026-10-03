@@ -53,9 +53,12 @@ data class BroadcastAttachment(
     val type: String? = null,
 )
 
-/** MH1: what `POST /media/attachments` answers — the id a composer then sends as [CreateBroadcastRequest.attachmentId]. */
+/**
+ * MH1: what `POST /media/attachments` answers — the id a composer then sends as [CreateBroadcastRequest.attachmentId],
+ * or, B5, as one of a chat message's [SendChatMessageRequest.attachmentIds]. [width] and [height] are an image's pixels.
+ */
 @Serializable
-data class AttachmentRef(val id: String, val name: String, val type: String, val sizeBytes: Long = 0)
+data class AttachmentRef(val id: String, val name: String, val type: String, val sizeBytes: Long = 0, val width: Int? = null, val height: Int? = null)
 
 /**
  * One row of a feed or of a composer's own list. [sectionIds] is empty when the row is the whole department's.
