@@ -90,8 +90,12 @@ teachers, 60 teaching assignments and 600 children from `server/src/main/resourc
 school on start-up. It goes in through the Admin services, so join codes, one-time passwords and the
 one-teacher-per-subject-per-class rule are real. `SEED_SCHOOL` is the switch: the `qa` (and `h2`) Spring profile
 already defaults it to `true` and `prod` has no such bean at all, so **QA would seed itself without any Terraform at
-all** — `var.seed_school` (`false` by default, `true` in `envs/qa.tfvars`) sets the env var anyway so the intent is
-stated per environment and a future prod stays off by construction.
+all** — `var.seed_school` (`false` by default) sets the env var explicitly so the intent is stated per environment and
+a future prod stays off by construction. **QA is `false` too since 2026-10-03:** it runs the owner's real school
+(one-school product), created through the wizard, so `envs/qa.tfvars` sets `seed_school = false` — and that line is
+load-bearing, because without it the `qa` profile default would switch the seed back on. `seed_profile` is inert while
+it is off, and `seed_reset` must never be `true` on QA without the owner: it deletes every school that is not `default`,
+which is now the owner's. Features are verified against a local H2 server (`e2e/README.md`).
 
 `SEED_STAFF_PASSWORD` is the one password every seeded teacher shares, with `must_change_password` cleared, so an e2e
 run can sign in as any of them. It is an **optional secret**, handled exactly like `RESEND_API_KEY`: the value lives in
@@ -107,8 +111,8 @@ gh secret set SEED_STAFF_PASSWORD --env qa --body "$SEED_STAFF_PASSWORD"   # inf
 
 **Cost.** The first load takes about 12 seconds (one bcrypt per teacher). Afterwards the seed is idempotent but still
 runs: the scan that proves every row already exists costs about **0.4 s on every cold start**, which Cloud Run pays
-before the startup probe passes. That is the price of a QA database that refills itself, and it is why `seed_school`
-stays `false` for production.
+before the startup probe passes. That was the price of a QA database that refilled itself, and it is why `seed_school`
+stays `false` for production (and, now, for QA).
 
 ## How the dashboard gets into the image
 

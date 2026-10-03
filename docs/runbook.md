@@ -37,6 +37,21 @@ Two GCP projects, nothing shared between them. Full bootstrap and workflow detai
 
 Firebase is used for **parents' Authentication only**. The panel is served by the API container, not Firebase Hosting.
 
+### What QA holds: the owner's school, no seed
+
+Since 2026-10-03 the product serves **one school**, and QA holds the owner's real one — **Learning International
+School**, created through the setup wizard after the acceptance seed was wiped. Treat QA data as the owner's:
+
+- **No seed.** `envs/qa.tfvars` sets `seed_school = false`, so `SchoolSeed` and `AttemptSeed` do nothing on boot. The
+  line is load-bearing: the `qa` Spring profile defaults `SEED_SCHOOL` to `true`, so removing it would turn the seed
+  back on (and into a `default` school that no longer exists). `seed_profile` stays in the file but is inert.
+- **`SEED_RESET` must never be used on QA again without the owner.** It ignores `SEED_SCHOOL`, and it deletes every
+  school that is not `default` *entirely* — which is now the owner's school, with its staff, children and lessons.
+- **Verify features locally**, not on QA: `server/run-local.sh` (H2, the `h2` profile seeds the 30-class school) and
+  the scripts in [e2e/README.md](../e2e/README.md) — "Against a local H2 server", and `e2e/local/parent-flows.sh` for
+  the staff side of a manual app pass. The Playwright job against QA stays parked (`E2E_ON_QA=false`); never create
+  e2e fixture accounts or schools on QA.
+
 ### Sleep and wake
 
 Cloud Run scales to zero on its own; Cloud SQL is the only part that bills while idle.
@@ -1046,7 +1061,9 @@ rows carry real join codes, real one-time passwords and the one-teacher-per-subj
 (a class is matched by curriculum + grade + name, a teacher by email, a child by her name in her class), so a re-run
 logs the counts and writes nothing, and a malformed CSV row stops the load naming its file and line. `SEED_SCHOOL`
 (default `false`, `true` in the `qa` and `h2` profiles, no such bean in `prod`) is the switch, and **Terraform should
-set `SEED_SCHOOL=true` on the QA Cloud Run service** so a fresh QA database fills itself. `SEED_STAFF_PASSWORD` is
+set `SEED_SCHOOL=true` on the QA Cloud Run service** so a fresh QA database fills itself. *(Superseded 2026-10-03:
+QA runs the owner's school and sets `SEED_SCHOOL=false` — see [What QA holds](#what-qa-holds-the-owners-school-no-seed).
+The seed is now for the local `h2` profile and the tests.)* `SEED_STAFF_PASSWORD` is
 the one password every teacher in `teachers.csv` gets, with `must_change_password` cleared so an e2e run can sign in
 as any of them; it is applied on every run, including to the teachers an earlier run created, because QA is usually
 seeded before the secret exists. Leave it unset and no password is touched at all — a new teacher keeps her own
@@ -1982,6 +1999,11 @@ message, which is what the unknown-code path already does. `RosterChild` is unch
 dashboard type in any case.
 
 ## QA as the owner's acceptance environment
+
+> **History (2026-09-19 → 2026-10-03).** QA no longer seeds: it holds the owner's real school with `SEED_SCHOOL=false`
+> ([What QA holds](#what-qa-holds-the-owners-school-no-seed)). This section records how the acceptance seed worked and
+> still describes what `SEED_PROFILE=acceptance` loads on a local server; **do not run the steps below against QA** —
+> `SEED_RESET` there would delete the owner's school.
 
 QA has two jobs and they want different data. The automated e2e suite needs the 30-class school and the Al Noor /
 Green Valley fixture above; the owner's own acceptance pass needs **two teachers and nothing else**, so that a lesson

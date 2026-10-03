@@ -128,9 +128,11 @@ jobs:
     # dashboard/playwright.config.ts from the local dev server to QA (the dashboard is served at <API>/dashboard/).
     name: Dashboard e2e (Playwright, against QA)
     needs: deploy
-    # Off while QA holds the owner's acceptance seed (SEED_PROFILE=acceptance has no Sara and no children): set the
-    # *repository* variable E2E_ON_QA=false (a job-level `if` cannot read environment variables); remove it or set
-    # it to true when QA is back on the full seed.
+    # Parked: QA runs the owner's real school (one-school product, 2026-10-03) with no seed (seed_school = false in
+    # infra/terraform/envs/qa.tfvars), so the fixture accounts this suite signs in as do not exist there — and must
+    # not be created in the owner's school. The *repository* variable E2E_ON_QA=false keeps it off (a job-level `if`
+    # cannot read environment variables). e2e and feature verification run against a local H2 server instead:
+    # e2e/README.md ("Against a local H2 server") and e2e/local/parent-flows.sh.
     if: vars.E2E_ON_QA != 'false'
     runs-on: ubuntu-latest
     environment: qa

@@ -7,12 +7,13 @@ sql_tier      = "db-f1-micro"
 cors_origins  = ["http://localhost:8081"]
 # auth mail stays in the log until the owner provides RESEND_API_KEY and a verified mail_from (see deploy/README.md)
 mail_provider = "log"
-# the one-school seed (30 classes / 40 teachers / 600 children) fills a fresh QA database; the `qa` Spring profile
-# defaults it on anyway — this states the intent. Teacher password: optional secret SEED_STAFF_PASSWORD.
-seed_school = true
-# QA is the owner's acceptance environment (2026-09-19): two teachers, three sections, no seeded children.
-# seed_reset = true wipes every school-scoped record and the two legacy schools on the next deploy — flip it back
-# to false right after that deploy lands. The automated e2e suite needs `full`; while QA is on `acceptance`, the
-# e2e job is switched off with the repository variable E2E_ON_QA=false.
+# QA runs the owner's real school (one-school product, owner decision 2026-10-03), created through the wizard after
+# the acceptance seed was wiped — so nothing seeds. This `false` is load-bearing: the `qa` Spring profile defaults
+# SEED_SCHOOL to true, so dropping the line (or the env var in main.tf) would turn SchoolSeed back on.
+# Features are verified against a local H2 server instead (e2e/README.md, e2e/local/parent-flows.sh).
+seed_school = false
+# Inert while seed_school = false: only SchoolSeed and AttemptSeed act on it (the server merely validates the name).
 seed_profile = "acceptance"
-seed_reset   = false # the one-shot wipe ran on the deploy of #92/#93; leave off (the seed_resets ledger also blocks a repeat)
+# NEVER true on QA without the owner: SeedReset ignores seed_school and deletes every school that is not `default`
+# entirely — that is now the owner's school, with its staff, children and lessons (docs/runbook.md).
+seed_reset = false

@@ -48,7 +48,7 @@ variable "mail_from" {
 
 # ---------------------------------------------------------------- seed data (SchoolSeed, N1.1b)
 variable "seed_school" {
-  description = "Load the one-school seed (30 classes, 40 teachers, 600 children) into the default school on start-up. The `qa` Spring profile already defaults SEED_SCHOOL to true; setting it here makes the intent explicit per environment and keeps prod off. The shared teacher password is the optional secret SEED_STAFF_PASSWORD."
+  description = "Load the one-school seed (30 classes, 40 teachers, 600 children) into the default school on start-up. The `qa` Spring profile already defaults SEED_SCHOOL to true; setting it here makes the intent explicit per environment and keeps prod off. `false` on QA since 2026-10-03 (QA runs the owner's real school) — the explicit false is what stops the `qa` profile default. The shared teacher password is the optional secret SEED_STAFF_PASSWORD."
   type        = bool
   default     = false
 }
@@ -64,7 +64,7 @@ variable "seed_profile" {
 }
 
 variable "seed_reset" {
-  description = "One-shot: on the next start-up delete every school-scoped record in every school and the non-default schools, then seed. Refused by the `prod` Spring profile. Set true for exactly one deploy, then back to false. SEED_RESET."
+  description = "One-shot: on the next start-up delete every school-scoped record in every school and the non-default schools, then seed. Refused by the `prod` Spring profile, and ignores seed_school. Never true on QA without the owner: every non-default school, which includes the owner's real school, is deleted entirely. SEED_RESET."
   type        = bool
   default     = false
 }
