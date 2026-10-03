@@ -110,9 +110,10 @@ public final class Scoring {
             if (attemptedIt) answered++;
             if (stop.getCategory() == StopCategory.INFO) continue;             // not a question: completion only
 
-            boolean open = stop.getCategory() == StopCategory.OPEN;
+            // B3: an exit-ticket question the app sent no answer for waits for the teacher's mark, like an open stop
+            boolean open = isOpen(stop, fixedPaper) || (fixedPaper && attemptedIt && AnswerKey.PENDING.equals(mine.getFirst().getAnswerJson()));
             var mark = marks.get(stop.getId());
-            Boolean firstTry = attemptedIt && stop.getCategory() == StopCategory.SINGLE ? mine.getFirst().isCorrect() : null;
+            Boolean firstTry = attemptedIt && !open && stop.getCategory() == StopCategory.SINGLE ? mine.getFirst().isCorrect() : null;
             Integer stopScore = null;
             boolean waiting = false;
             if (open) {
@@ -136,6 +137,16 @@ public final class Scoring {
         return new Score(childId, lessonId, true, levelReached, scoredLevel, auto, override, effective,
                 effective == null ? null : Bands.band(effective), starsEarned, starsTotal, answered, total,
                 total == 0 ? 0 : (int) Math.round(answered * 100.0 / total), needsMarking, List.copyOf(outcomes));
+    }
+
+    /**
+     * Whether a stop waits for the teacher's mark. On a homework that is an open stop; on a fixed paper (an exam,
+     * B3) it is also any question {@link AnswerKey} cannot grade by itself — a tracing, say — because an exam answer
+     * is graded by the server or by the teacher, never by what the device reported.
+     */
+    public static boolean isOpen(Stop stop, boolean fixedPaper) {
+        if (stop.getCategory() == StopCategory.OPEN) return true;
+        return fixedPaper && stop.getCategory() != StopCategory.INFO && AnswerKey.kind(stop) == AnswerKey.Kind.UNKEYED;
     }
 
     /**

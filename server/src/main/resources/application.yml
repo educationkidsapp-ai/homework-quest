@@ -117,6 +117,9 @@ quest:
       # gone, and then on this interval.
       enabled: ${QUEST_EXAMS_RELEASE_SWEEP_ENABLED:true}
       interval-seconds: ${QUEST_EXAMS_RELEASE_SWEEP_INTERVAL_SECONDS:60}
+    # B3: the key of a sealed exam paper's opaque ids (`PaperSeals`). Its own secret, so rotating ADMIN_JWT_SECRET can
+    # never change the ids of a paper already downloaded. Terraform generates it; required in `prod`.
+    paper-secret: ${EXAM_PAPER_SECRET:}
   chat:
     # C1: parent ↔ teacher chat. The socket fans out across Cloud Run instances over PostgreSQL LISTEN/NOTIFY when the
     # datasource is PostgreSQL and over an in-process bus otherwise (H2); `bus` forces one (`auto` | `postgres` | `memory`).

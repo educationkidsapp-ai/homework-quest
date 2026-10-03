@@ -14,8 +14,8 @@ public final class Entities {
     /**
      * Tenant table: the `school` filter scopes every read to the caller's school, and `schoolId` is the lesson's,
      * written by {@link NotificationService} and never taken from a request. `userId` is the recipient — a
-     * dashboard user, never a parent — and every query starts from it, so one user never sees another's row even
-     * inside her own school.
+     * dashboard user's id, or `parent:<parentId>` for a parent (B3, V30) — and every query starts from it, so one
+     * user never sees another's row even inside her own school. `childId` is the child a parent's row is about.
      */
     @Entity(name = "NotificationEntity") @Table(name = "notifications")
     @Filter(name = "school", condition = "school_id = :schoolId")
@@ -28,6 +28,9 @@ public final class Entities {
         @Column private String body;
         @Column private String link;
         @Column(name = "lesson_id") private String lessonId;
+        @Column(name = "child_id") private String childId;
+        /** B3 (V31): `recipient|kind|lesson|child` on a once-only parent row, null otherwise — unique. */
+        @Column(name = "once_key") private String onceKey;
         @Column(name = "read_at") private Instant readAt;
         @Column(name = "created_at", nullable = false) private Instant createdAt;
         public String getId() { return id; } public void setId(String v) { id = v; }
@@ -38,6 +41,8 @@ public final class Entities {
         public String getBody() { return body; } public void setBody(String v) { body = v; }
         public String getLink() { return link; } public void setLink(String v) { link = v; }
         public String getLessonId() { return lessonId; } public void setLessonId(String v) { lessonId = v; }
+        public String getChildId() { return childId; } public void setChildId(String v) { childId = v; }
+        public String getOnceKey() { return onceKey; } public void setOnceKey(String v) { onceKey = v; }
         public Instant getReadAt() { return readAt; } public void setReadAt(Instant v) { readAt = v; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
     }

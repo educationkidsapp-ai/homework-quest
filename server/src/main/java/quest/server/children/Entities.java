@@ -66,7 +66,10 @@ public final class Entities {
         @Column(name = "attempt_number", nullable = false) private int attemptNumber;
         @Column(nullable = false) private int mistakes; @Column(nullable = false) private int stars;
         @Column(name = "answered_at", nullable = false) private Instant answeredAt;
+        /** B3 (V31): `child|lesson|stop` on an exam answer, null on homework — unique, so the first answer wins. */
+        @Column(name = "exam_key") private String examKey;
         public String getId() { return id; } public void setId(String v) { id = v; }
+        public String getExamKey() { return examKey; } public void setExamKey(String v) { examKey = v; }
         public String getChildId() { return childId; } public void setChildId(String v) { childId = v; }
         public String getStopId() { return stopId; } public void setStopId(String v) { stopId = v; }
         public String getLessonId() { return lessonId; } public void setLessonId(String v) { lessonId = v; }

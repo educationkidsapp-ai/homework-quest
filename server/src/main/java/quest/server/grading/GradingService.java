@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -70,16 +71,18 @@ public class GradingService {
     private final AttemptRepository attempts; private final TeacherMarkRepository marks; private final ChildMediaRepository media;
     private final quest.server.tenancy.ClassRepository classes; private final String publicUrl;
     private final quest.server.exams.ExamSettingsRepository examSettings; private final quest.server.content.SkillRepository skills;
+    private final quest.server.notifications.NotificationService notifications;
 
     public GradingService(TeacherScope scope, LessonRepository lessons, PlayRepository plays, LessonStore store,
                           ChildRepository children, ChildService childService, AttemptRepository attempts,
                           TeacherMarkRepository marks, ChildMediaRepository media,
                           quest.server.tenancy.ClassRepository classes, QuestProperties props,
-                          quest.server.exams.ExamSettingsRepository examSettings, quest.server.content.SkillRepository skills) {
+                          quest.server.exams.ExamSettingsRepository examSettings, quest.server.content.SkillRepository skills,
+                          quest.server.notifications.NotificationService notifications) {
         this.scope = scope; this.lessons = lessons; this.plays = plays; this.store = store; this.children = children;
         this.childService = childService; this.attempts = attempts; this.marks = marks; this.media = media;
         this.classes = classes; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl();
-        this.examSettings = examSettings; this.skills = skills;
+        this.examSettings = examSettings; this.skills = skills; this.notifications = notifications;
     }
 
     // ---------------------------------------------------------------- results (§7, step 9)
@@ -108,7 +111,7 @@ public class GradingService {
                 stopById.put(stop.getId(), stop);
                 if (seen.add(stop.getId()))
                     columns.add(new GradingDto.ResultStop(stop.getId(), stop.getTitle(), stop.getType(), level,
-                            stop.getCategory() == quest.api.dto.StopCategory.OPEN));
+                            Scoring.isOpen(stop, quest.server.exams.ExamPlays.isExam(lesson))));
             }
 
         var rows = new ArrayList<GradingDto.ChildResult>(roster.size());
@@ -146,12 +149,18 @@ public class GradingService {
                     score.band(), score.starsEarned(), score.starsTotal(), score.answered(), score.total(),
                     score.completion(), score.needsMarking(), lessonRow == null ? null : lessonRow.getComment(), stops));
         }
+        // B3: a column is markable when any child's answer in it waits for a mark — on an exam, an exit-ticket question
+        // the app sent without its answer — so the page offers the mark there too. Homework columns are unchanged.
+        var waiting = new HashSet<String>();
+        for (var row : rows) for (var s : row.stops()) if (s.needsMarking()) waiting.add(s.stopId());
+        var markable = columns.stream().map(c -> c.open() || !waiting.contains(c.stopId()) ? c
+                : new GradingDto.ResultStop(c.stopId(), c.title(), c.type(), c.level(), true)).toList();
         return new GradingDto.LessonResults(lessonId, lesson.getTitle(), lesson.getClassId(),
                 section == null ? null : section.getName(), lesson.getSubject(), lesson.getDate().toString(),
                 lesson.getType(), lesson.getReleasedAt() != null,
                 lesson.getReleasedAt() == null ? null : lesson.getReleasedAt().toEpochMilli(),
                 scored == 0 ? null : (int) Math.round(sum / scored), played, needsMarking,
-                List.copyOf(columns), List.copyOf(rows));
+                markable, List.copyOf(rows));
     }
 
     /**
@@ -533,6 +542,7 @@ public class GradingService {
         lesson.setReleasedAt(Instant.now());
         lesson.setUpdatedAt(Instant.now());
         lessons.save(lesson);
+        notifications.parentsOf(lesson, quest.api.dto.NotificationKind.HOMEWORK_PUBLISHED);   // B3 (D5)
     }
 
     @Transactional
@@ -545,6 +555,8 @@ public class GradingService {
         lesson.setReleaseWithdrawn(!released);                                  // remembered, so a re-publish respects it
         lesson.setUpdatedAt(Instant.now());
         lessons.save(lesson);
+        if (released && quest.server.exams.ExamPlays.isExam(lesson))
+            notifications.parentsOf(lesson, quest.api.dto.NotificationKind.EXAM_RELEASED);      // B3 (D5)
         int roster = lesson.getClassId() == null ? 0
                 : children.findByClassIdAndDeletedAtIsNullOrderByNameAsc(lesson.getClassId()).size();
         return new GradingDto.LessonRelease(lesson.getId(), released,

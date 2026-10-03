@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import quest.api.dto.ApiError;
 import quest.api.dto.Stop;
-import quest.api.dto.StopCategory;
 import quest.server.auth.Principals;
 import quest.server.children.ChildRepository;
 import quest.server.children.Entities.ChildEntity;
@@ -264,6 +263,7 @@ public class ExamService {
             for (var child : base.children()) {
                 var mine = child.stops().stream().filter(s -> s.stopId().equals(stop.stopId())).findFirst().orElse(null);
                 if (mine == null || !mine.attempted()) continue;
+                if (!stop.open() && mine.needsMarking()) continue;          // B3: an exit-ticket question sent without its answer
                 answered++;
                 if (stop.open()) { if (mine.markStars() != null) { stars += mine.markStars(); starred++; } }
                 else if (Boolean.TRUE.equals(mine.firstTryCorrect())) correct++;
@@ -296,7 +296,7 @@ public class ExamService {
     public LessonEntity exam(Principals.User caller, String examId) { return requireExam(caller, examId); }
 
     /** Whether one stop of the paper is an open one, for the sheet's per-question table. */
-    public static boolean isOpen(Stop stop) { return stop.getCategory() == StopCategory.OPEN; }
+    public static boolean isOpen(Stop stop) { return quest.server.grading.Scoring.isOpen(stop, true); }
 
     // ---------------------------------------------------------------- rules
 

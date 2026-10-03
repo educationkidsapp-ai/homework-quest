@@ -48,4 +48,14 @@ public interface AttemptRepository extends JpaRepository<Entities.AttemptEntity,
     @Query("select a.lessonId, a.childId, a.stopId, max(a.stars) from AttemptEntity a where a.lessonId in :lessonIds"
             + " group by a.lessonId, a.childId, a.stopId")
     List<Object[]> bestStarsByLessonIdIn(@Param("lessonIds") Collection<String> lessonIds);
+
+    /**
+     * B3 (D2): an exam answer, written only if no answer to that question of that child's exam is stored yet — V31's
+     * unique `exam_key` decides, so two uploads racing on one question cannot both land. 1 if written, 0 if not.
+     */
+    @org.springframework.data.jpa.repository.Modifying @org.springframework.transaction.annotation.Transactional
+    @Query(nativeQuery = true, value = "insert into attempts (id, child_id, stop_id, lesson_id, level, answer_json, correct, attempt_number, mistakes, stars, answered_at, exam_key)"
+            + " values (:#{#a.id}, :#{#a.childId}, :#{#a.stopId}, :#{#a.lessonId}, :#{#a.level}, :#{#a.answerJson}, :#{#a.correct}, :#{#a.attemptNumber}, :#{#a.mistakes}, :#{#a.stars}, :#{#a.answeredAt}, :#{#a.examKey})"
+            + " on conflict do nothing")
+    int insertExamAnswer(@Param("a") Entities.AttemptEntity a);
 }

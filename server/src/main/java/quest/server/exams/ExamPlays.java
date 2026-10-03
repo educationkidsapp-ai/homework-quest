@@ -45,6 +45,13 @@ public class ExamPlays {
     public static boolean isExam(LessonEntity lesson) { return lesson != null && "exam".equals(lesson.getType()); }
 
     /**
+     * B3: an exam whose results the teacher has not released. Until she does, its paper is sent without its answer key
+     * ({@link SealedPaper}) and nothing derived from its answers reaches a parent- or child-facing route — the same
+     * `released_at` the grading service and `results` read, so everything appears the moment she releases.
+     */
+    public static boolean sealed(LessonEntity lesson) { return isExam(lesson) && lesson.getReleasedAt() == null; }
+
+    /**
      * {@link PublishedLesson} with §8's four exam fields filled in: the type, the two "off" switches the player
      * must honour, and the paper itself. A homework is returned exactly as it was assembled.
      */

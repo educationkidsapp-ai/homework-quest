@@ -67,6 +67,9 @@
     }
    }
   },
+  "sealed": {
+   "type": "boolean"
+  },
   "stops": {
    "type": "array",
    "minItems": 6,

@@ -66,6 +66,16 @@ public interface NotificationRepository extends JpaRepository<Entities.Notificat
      * query here that does not start from a `userId`, because the thing being withdrawn is the *subject* of the
      * notification rather than anyone's bell; the `school` filter still applies, as it does to every read above.
      */
+    /**
+     * B3: a once-only row (`exam.released`, `homework.published`), written only if V31's unique `once_key` has no row
+     * yet — two instances releasing or sweeping at once cannot both tell her. 1 if written, 0 if she was told already.
+     */
+    @Modifying @Transactional
+    @Query(nativeQuery = true, value = "insert into notifications (id, school_id, user_id, kind, title, body, link, lesson_id, child_id, created_at, once_key)"
+            + " values (:#{#n.id}, :#{#n.schoolId}, :#{#n.userId}, :#{#n.kind}, :#{#n.title}, :#{#n.body}, :#{#n.link}, :#{#n.lessonId}, :#{#n.childId}, :#{#n.createdAt}, :#{#n.onceKey})"
+            + " on conflict do nothing")
+    int insertOnce(@Param("n") Entities.NotificationEntity n);
+
     @Modifying @Transactional
     @Query("delete from NotificationEntity n where n.lessonId = :entityId")
     int deleteByEntity(@Param("entityId") String entityId);

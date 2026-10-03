@@ -4109,6 +4109,9 @@
           "body" : {
             "type" : "string"
           },
+          "childId" : {
+            "type" : "string"
+          },
           "createdAt" : {
             "format" : "int64",
             "type" : "integer"
@@ -4117,7 +4120,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message" ],
+            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published" ],
             "type" : "string"
           },
           "lessonId" : {
@@ -4469,6 +4472,9 @@
           "level" : {
             "format" : "int32",
             "type" : "integer"
+          },
+          "sealed" : {
+            "type" : "boolean"
           },
           "stops" : {
             "items" : {
@@ -17164,9 +17170,6 @@
     "description" : "Notes a teacher posts to the parents of a class",
     "name" : "Announcements"
   }, {
-    "description" : "The dashboard bell: the caller's own notifications, unread count and read marks",
-    "name" : "Notifications"
-  }, {
     "description" : "Coordinator accounts and the subjects and tracks they supervise",
     "name" : "Coordinators"
   }, {
@@ -17181,6 +17184,9 @@
   }, {
     "description" : "Teacher accounts and teaching assignments",
     "name" : "Teachers"
+  }, {
+    "description" : "The dashboard bell and the parent app's notifications: the caller's own rows, unread count and read marks",
+    "name" : "Notifications"
   }, {
     "description" : "The teacher's attendance, gradebook and exam numbers, read through a coordinator's scope",
     "name" : "Coordinator results"

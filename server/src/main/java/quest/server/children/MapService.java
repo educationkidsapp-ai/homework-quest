@@ -67,14 +67,19 @@ public class MapService {
             published.add(new PublishedLessonSummary(l.getId(), l.getVersion(), course, Subject.valueOf(l.getSubject().toUpperCase()), kdate(l.getDate()),
                     l.getTitle() == null ? "Lesson" : l.getTitle(), count, skillIds.getOrDefault(l.getId(), List.of())));
         }
-        var done = completions.findByChildId(child.getId()).stream().map(c -> new LessonCompletionInfo(c.getLessonId(), c.getLevel(), c.getStarsEarned(), c.getStarsTotal(), c.isMostStopsTwoStars())).toList();
+        // B3 (D1): an unreleased exam keeps its completion — the island is `done`, which is how the app knows the
+        // paper was handed in — but none of its stars, and no "most stops two stars" level unlock derived from them.
+        var sealed = lessons.stream().filter(quest.server.exams.ExamPlays::sealed).map(quest.server.content.Entities.LessonEntity::getId).collect(java.util.stream.Collectors.toSet());
+        var done = completions.findByChildId(child.getId()).stream().map(c -> sealed.contains(c.getLessonId())
+                ? new LessonCompletionInfo(c.getLessonId(), c.getLevel(), 0, 0, false)
+                : new LessonCompletionInfo(c.getLessonId(), c.getLevel(), c.getStarsEarned(), c.getStarsTotal(), c.isMostStopsTwoStars())).toList();
         Map<String, List<Integer>> parentUnlocked = new HashMap<>();
         for (var u : unlocks.findByChildId(child.getId())) parentUnlocked.computeIfAbsent(u.getLessonId(), k -> new ArrayList<>()).add(u.getLevel());
         List<MapAssembler.ReviewCandidate> review = new ArrayList<>();
         progress.weakByLesson(child, lessons).forEach((lessonId, b) -> review.add(new MapAssembler.ReviewCandidate(b.skillId(), b.name(), lessonId, lessonId + ":1:1")));
         var c = ChildService.dto(child);
         var assembled = MapAssembler.INSTANCE.assemble(c, published, done, review, parentUnlocked, kdate(from), kdate(to), kdate(today));
-        return withTeacherIslands(withExamWindows(assembled, visible.examWindows()), child, today);
+        return withTeacherIslands(withExamWindows(assembled, visible.examWindows(), sealed), child, today);
     }
 
     /**
@@ -82,18 +87,21 @@ public class MapService {
      * as the teacher islands are attached below — the windows are laid over the islands it produced rather than
      * taught to it. An island that carries `examWindow` is an exam the child may sit right now; every lesson that
      * is not one was already dropped upstream, so the field is never a window that has shut.
+     *
+     * <p>B3 (D1): the island of an exam in `sealed` (not released yet) carries no `starsEarned` / `starsTotal`.
      */
-    private MapResponse withExamWindows(MapResponse assembled, Map<String, quest.server.exams.Entities.ExamSettingsEntity> windows) {
-        if (windows.isEmpty()) return assembled;
+    private MapResponse withExamWindows(MapResponse assembled, Map<String, quest.server.exams.Entities.ExamSettingsEntity> windows, java.util.Set<String> sealed) {
+        if (windows.isEmpty() && sealed.isEmpty()) return assembled;
         var islands = assembled.getIslands().stream().map(island -> {
             var exam = island.getLessonId() == null ? null : windows.get(island.getLessonId());
-            if (exam == null) return island;
-            var window = new quest.api.dto.ExamWindow(exam.getOpensAt().toEpochMilli(), exam.getClosesAt().toEpochMilli(),
+            boolean hidden = island.getLessonId() != null && sealed.contains(island.getLessonId());
+            if (exam == null && !hidden) return island;
+            var window = exam == null ? island.getExamWindow() : new quest.api.dto.ExamWindow(exam.getOpensAt().toEpochMilli(), exam.getClosesAt().toEpochMilli(),
                     exam.getLevel(), exam.getDurationMinutes(), exam.isHintsOff(), exam.isNumbersOff());
             return new quest.api.dto.Island(island.getId(), island.getKind(), island.getDate(), island.getState(),
                     island.getTitle(), island.getSubject(), island.getLessonId(), island.getLessonVersion(),
-                    island.getLevelsUnlocked(), island.getCompletedLevels(), island.getStarsEarned(),
-                    island.getStarsTotal(), island.getSkillId(), island.getPlayId(), window);
+                    island.getLevelsUnlocked(), island.getCompletedLevels(), hidden ? null : island.getStarsEarned(),
+                    hidden ? null : island.getStarsTotal(), island.getSkillId(), island.getPlayId(), window);
         }).toList();
         return new MapResponse(assembled.getChildId(), assembled.getCourse(), assembled.getFrom(), assembled.getTo(),
                 assembled.getToday(), islands, assembled.getTeacherIslands());

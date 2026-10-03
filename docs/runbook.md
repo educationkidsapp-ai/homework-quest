@@ -1004,6 +1004,7 @@ Names only — never paste a value into a PR, a commit, a log or a chat. Values 
 | `ADMIN_EMAIL` | every environment | seeds the platform ADMIN with `school_id = null` |
 | `ADMIN_PASSWORD` | every environment | re-applied on every boot; blank with `ADMIN_EMAIL` = no seeding |
 | `ADMIN_JWT_SECRET` | every environment | signing key, **≥ 32 bytes**; Terraform generates 48 random characters per project |
+| `EXAM_PAPER_SECRET` | QA, prod | B3: the key of a sealed exam paper's opaque ids, separate from `ADMIN_JWT_SECRET` so rotating that never changes the ids of a downloaded paper. Terraform generates it (`random_password.exam_paper`). **Fatal if missing in `prod`**; in `qa` an error line and a key derived from `ADMIN_JWT_SECRET`; elsewhere a fixed development key. Do not rotate it while an exam is open |
 | `MAIL_PROVIDER` | QA, prod | `log` (default) or `resend` |
 | `RESEND_API_KEY` | QA, prod | required when `MAIL_PROVIDER=resend`; empty falls back to the log mailer with an error line |
 | `MAIL_FROM` | QA, prod | the verified sender; default `no-reply@localhost` |
@@ -1027,7 +1028,7 @@ Names only — never paste a value into a PR, a commit, a log or a chat. Values 
 `ADMIN_JWT_SECRET` has a placeholder default in `application.yml` so a developer can boot without one. **Any deployed
 environment must set it** — Terraform does, from `random_password.jwt`.
 
-Terraform wires `DB_PASSWORD`, `ADMIN_JWT_SECRET`, `DEEPSEEK_API_KEY` and `ADMIN_PASSWORD` into Cloud Run as required
+Terraform wires `DB_PASSWORD`, `ADMIN_JWT_SECRET`, `EXAM_PAPER_SECRET`, `DEEPSEEK_API_KEY` and `ADMIN_PASSWORD` into Cloud Run as required
 secrets, plus `ANTHROPIC_API_KEY` and `FIREBASE_CREDENTIALS` once a value exists. `MAIL_PROVIDER`, `RESEND_API_KEY`,
 `MAIL_FROM` and `DASHBOARD_URL` have Terraform variables but no value in QA, so QA runs the log mailer and builds
 links from `PUBLIC_URL`. Setting them is an `infra` package (phase 5's `infra/mail-push` covers the mail three).
@@ -1227,6 +1228,44 @@ curl -X POST "$API/teacher/classes/$CLASS/exams" -H "Authorization: Bearer $TEAC
      -d "{\"title\":\"Autumn test\",\"opensAt\":$OPENS,\"closesAt\":$((OPENS + 1800000)),\"level\":\"mixed\",\"source\":\"manual\",\"releaseMode\":\"auto_on_close\"}"
 curl -X POST "$API/teacher/exams/$EXAM/publish" -H "Authorization: Bearer $TEACHER"
 ```
+
+**The server grades, and the result is sealed until release (B3).** An exam answer's `correct`, `stars`,
+`attemptNumber` and `mistakes` from the app are ignored: `AnswerKey` grades the uploaded answer (the player's own
+format — an option id, picked ids joined by `,`, `left=right` pairs, the placed order) against the stop of the paper
+the server derives, three stars or none. A retell, an open answer, free writing or a tracing has no key and is stored
+unscored, waiting for the teacher's mark (`openStopMarking`, as for homework); a second answer to a question already
+answered and an answer to a stop not on the paper are dropped (not counted in `accepted`). Homework keeps the app's
+values; a single-answer one whose answer disagrees with the key is logged as `attempt … the app reports correct=…`.
+Today's app answers an exit ticket with one attempt on the ticket's own id and an empty answer. Each question whose
+answer that attempt carries (`answerJson` = `{"<questionId>":"<answer>",…}`) is graded as its own attempt
+(`<attemptId>:<questionId>`); each one it does not carry is stored with `AnswerKey.PENDING` as its answer and waits
+for the teacher's mark exactly like an open stop (`needsMarking`, left out of the score — never a zero for the
+child, and left out of the class's per-question difficulty). An app that sends one attempt per question completes
+the ticket by itself. The first answer wins under concurrency as well: `attempts.exam_key` (V31,
+`child|lesson|stop`) is unique and an exam answer is inserted with `ON CONFLICT DO NOTHING`.
+
+**The paper is sealed until release.** `GET /lessons/{id}` for an exam with no `released_at` answers under the ETag
+`"<id>-v<n>-sealed"` with every play (`plays`, `variant`, `examPlay`) marked `"sealed": true` and **every answer-key
+field meaningless**, in the shape every installed app decodes (`SealedPaperTest` runs a sealed copy of all 22 stop
+types through `Play.schema.json` and the shared-api decoder):
+
+- every option, tile, item, pair and hotspot id is opaque — `x` + 16 hex of an HMAC (keyed by
+  `EXAM_PAPER_SECRET`) over parent, exam, stop and id — and the lists are in the order of those ids. They are the
+  same for the same parent and exam (`GET /lessons/{id}` names no child), so a resumed sitting and a re-download agree,
+  and the server maps them back when it grades (`PaperSeal`); nothing is stored;
+- `correctOptionId` and `correctIds` are the first option / hotspot sent (a multiSelect's first `pick`),
+  `trueFalse.answer` is `false`, `correctOrder` is the items in the order sent, a word-tile writeSentence's `answer` is
+  its first word, and a match stop's right-hand tiles are given to the pairs by a second keyed permutation;
+- `hint`, `modelAnswer` and `parentTip` say `…`; `numberLine.highlight`, `teacherText`, `parentPanel.stopTips` and
+  `modelAnswers` are empty.
+
+The player answers with the ids it was sent. An answer in a stored id (a copy downloaded after the release) still
+grades, and a match answer is graded against the shuffle only when it is given in opaque ids. A homework and a
+released exam are sent exactly as stored, without `sealed`.
+
+Until `released_at` is set, nothing derived from an exam's answers reaches a parent or child route: the island on
+`GET /children/{id}/map` is `done` but has no `starsEarned` / `starsTotal`, its skill contributes no first tries to
+`/progress` (`attempts` 0, no band, no review island), and `results` omits it. Releasing shows all of it at once.
 
 **One sitting, resumable.** There is no "start the exam" call — the first answer upload creates the `exam_attempts`
 row, later ones land on the same row, and the sitting is handed in when every stop of the paper has an answer. A
@@ -1613,7 +1652,7 @@ websocat "wss://${API#https://}/ws/chat?token=$TEACHER" <<< '{"type":"ping"}'
 ### Notifications (E2, D26)
 
 The dashboard bell is server-side: a row in `notifications` (V17) plus a `notification` frame on the socket above.
-Parents have none. The contract types are `shared-api/src/commonMain/kotlin/quest/api/dto/Notifications.kt`
+Parents have their own rows since B3 (below). The contract types are `shared-api/src/commonMain/kotlin/quest/api/dto/Notifications.kt`
 (`NotificationView`, `NotificationKind`, `UnreadCount`) and the frame is in `ChatFrame.schema.json` beside the
 chat ones.
 
@@ -1623,6 +1662,23 @@ chat ones.
 | `GET /me/notifications/unread-count` | `notifications.read` | `{"count": 3}` — the badge on its own. |
 | `POST /me/notifications/{id}/read` | `notifications.write` | Marks one row read (idempotent); **404** for another user's id, not 403. |
 | `POST /me/notifications/read-all` | `notifications.write` | Marks every unread row of the caller read; answers `{"count": 0}`. |
+
+**Parents (B3).** The same four routes answer a parent's Firebase token with *her* rows (recipient
+`parent:<parentId>`, V30; a staff row's id is a 404 to her) — `child_id` names the child, `link` is an app path:
+
+| `kind` | When | `link` |
+|---|---|---|
+| `chat.message` | a teacher, coordinator, manager or Admin wrote in her child's thread — one unread row per thread, read when she calls `…/chat/threads/{staffId}/read` | `/children/{childId}/chat/{staffId}` |
+| `exam.released` | the teacher released an exam (by hand or by the close-of-window sweep), one row per child of the section, once | `/children/{childId}/progress` |
+| `homework.published` | a homework was published to the child's section (its results are released with it), once | `/children/{childId}/map` |
+
+`exam.released` and `homework.published` are written after the release (or publish) has committed, in a transaction
+of their own — a failure there is logged and never undoes the release — and only once per recipient, lesson and
+child: `notifications.once_key` (V31) is unique and the row is inserted with `ON CONFLICT DO NOTHING`, so two instances
+sweeping the same exam cannot both tell her.
+
+Broadcasts stay on `GET /children/{id}/broadcasts`. The `notification` frame reaches her sockets as well (her socket
+is admitted while one of her children's schools has `chat` on).
 
 Two keys rather than one because the dashboard derives "what a read-only View-as session must hide" from the
 methods behind a key (`pnpm gen:permissions`): a single key covering the GETs and the POSTs would make the whole

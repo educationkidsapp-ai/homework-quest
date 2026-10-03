@@ -186,7 +186,7 @@ class ExamApiTest extends ExamTestSupport {
 
     @Test void the_results_carry_the_distribution_the_difficulty_and_the_absent_list() throws Exception {
         publishedExam(-120, 120, ExamLevels.MANUAL);
-        sit(maya, true, false);            // 3 stars, then wrong-then-right, then the retell → 50
+        sit(maya, true, false);            // right, then wrong, then the retell → 50
         sit(omar, true, true);             // both right first try → 100
         // Layla never sits it
 
@@ -216,7 +216,7 @@ class ExamApiTest extends ExamTestSupport {
         var mine = child(results, maya);
         assertThat(mine.get("percent").asInt()).isEqualTo(50);
         assertThat(mine.get("band").asText()).isEqualTo("developing");
-        assertThat(mine.get("score").asInt()).as("3 + 1 + 3 stars").isEqualTo(7);
+        assertThat(mine.get("score").asInt()).as("B3: 3 + 0 + 0 — the server's stars, the retell waits for its mark").isEqualTo(3);
         assertThat(mine.get("maxScore").asInt()).isEqualTo(9);
         assertThat(mine.get("secondsTaken").isNull()).isFalse();
     }

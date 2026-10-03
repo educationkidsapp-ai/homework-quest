@@ -22,7 +22,9 @@ import quest.server.config.Json;
 import quest.server.flags.FeatureFlag;
 
 /**
- * E2 (D26): the dashboard bell, for ADMIN, TEACHER and MANAGERIAL alike. A caller reads and writes only her own
+ * E2 (D26): the dashboard bell, for ADMIN, TEACHER and MANAGERIAL alike — and, since B3, the parent app's
+ * Notifications tab: a parent's Firebase token reads her own rows (`parent:<parentId>`) over the same four routes,
+ * resolved by {@link NotificationService#recipient} from whichever principal the request carries. A caller reads and writes only her own
  * rows — the service scopes every query by `userId` and answers 404, not 403, for another user's id, because the
  * row is not hers to learn the existence of. The live half is the `notification` frame on `/ws/chat`.
  *
@@ -37,7 +39,7 @@ import quest.server.flags.FeatureFlag;
  * gated where that feature lives — no lesson, no `lesson.ready` row.
  */
 @RestController
-@Tag(name = "Notifications", description = "The dashboard bell: the caller's own notifications, unread count and read marks")
+@Tag(name = "Notifications", description = "The dashboard bell and the parent app's notifications: the caller's own rows, unread count and read marks")
 public class NotificationController {
     private final NotificationService notifications; private final Json json;
     public NotificationController(NotificationService notifications, Json json) { this.notifications = notifications; this.json = json; }
@@ -45,26 +47,30 @@ public class NotificationController {
     @GetMapping(value = "/me/notifications", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('notifications.read')")
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = NotificationView.class))))
-    public String listNotifications(@AuthenticationPrincipal Principals.User caller, @RequestParam(required = false) Boolean unread, @RequestParam(required = false) Integer limit) {
-        return views(notifications.list(caller, unread, limit));
+    public String listNotifications(@AuthenticationPrincipal Principals.User caller, @AuthenticationPrincipal Principals.Parent parent, @RequestParam(required = false) Boolean unread, @RequestParam(required = false) Integer limit) {
+        return views(notifications.list(NotificationService.recipient(caller, parent), unread, limit));
     }
 
     @GetMapping(value = "/me/notifications/unread-count", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('notifications.read')")
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = UnreadCount.class)))
-    public String unreadNotificationCount(@AuthenticationPrincipal Principals.User caller) { return count(notifications.unreadCount(caller)); }
+    public String unreadNotificationCount(@AuthenticationPrincipal Principals.User caller, @AuthenticationPrincipal Principals.Parent parent) {
+        return count(notifications.unreadCount(NotificationService.recipient(caller, parent)));
+    }
 
     @PostMapping(value = "/me/notifications/{id}/read", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('notifications.write')")
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = NotificationView.class)))
-    public String markNotificationRead(@AuthenticationPrincipal Principals.User caller, @PathVariable String id) {
-        return json.encodeShared(notifications.markRead(caller, id), NotificationView.Companion.serializer());
+    public String markNotificationRead(@AuthenticationPrincipal Principals.User caller, @AuthenticationPrincipal Principals.Parent parent, @PathVariable String id) {
+        return json.encodeShared(notifications.markRead(NotificationService.recipient(caller, parent), id), NotificationView.Companion.serializer());
     }
 
     @PostMapping(value = "/me/notifications/read-all", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('notifications.write')")
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = UnreadCount.class)))
-    public String markAllNotificationsRead(@AuthenticationPrincipal Principals.User caller) { return count(notifications.markAllRead(caller)); }
+    public String markAllNotificationsRead(@AuthenticationPrincipal Principals.User caller, @AuthenticationPrincipal Principals.Parent parent) {
+        return count(notifications.markAllRead(NotificationService.recipient(caller, parent)));
+    }
 
     private String views(List<NotificationView> rows) { return json.encodeShared(rows, BuiltinSerializersKt.ListSerializer(NotificationView.Companion.serializer())); }
     private String count(UnreadCount c) { return json.encodeShared(c, UnreadCount.Companion.serializer()); }
