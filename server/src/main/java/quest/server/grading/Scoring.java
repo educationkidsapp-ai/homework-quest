@@ -110,7 +110,8 @@ public final class Scoring {
             if (attemptedIt) answered++;
             if (stop.getCategory() == StopCategory.INFO) continue;             // not a question: completion only
 
-            boolean open = isOpen(stop, fixedPaper);
+            // B3: an exit-ticket question the app sent no answer for waits for the teacher's mark, like an open stop
+            boolean open = isOpen(stop, fixedPaper) || (fixedPaper && attemptedIt && AnswerKey.PENDING.equals(mine.getFirst().getAnswerJson()));
             var mark = marks.get(stop.getId());
             Boolean firstTry = attemptedIt && !open && stop.getCategory() == StopCategory.SINGLE ? mine.getFirst().isCorrect() : null;
             Integer stopScore = null;

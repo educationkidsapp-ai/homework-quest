@@ -53,7 +53,8 @@ public class ProgressService {
             var single = singleStopIds(playsByLesson.getOrDefault(lesson.getId(), List.of()));
             // B3 (D1): an exam's answers say nothing to anyone outside the school until the teacher releases it.
             var firstTries = quest.server.exams.ExamPlays.sealed(lesson) ? List.<Entities.AttemptEntity>of()
-                    : mine.stream().filter(a -> a.getLessonId().equals(lesson.getId()) && single.contains(a.getStopId()) && a.getAttemptNumber() == 1).toList();
+                    : mine.stream().filter(a -> a.getLessonId().equals(lesson.getId()) && single.contains(a.getStopId()) && a.getAttemptNumber() == 1
+                            && !quest.server.grading.AnswerKey.PENDING.equals(a.getAnswerJson())).toList();
             List<Boolean> results = firstTries.stream().map(Entities.AttemptEntity::isCorrect).toList();
             var acc = ProgressBands.INSTANCE.accuracy(results);
             var last = firstTries.isEmpty() ? null : firstTries.get(0).getAnsweredAt().toEpochMilli();

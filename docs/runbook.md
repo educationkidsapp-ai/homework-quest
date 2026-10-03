@@ -1235,22 +1235,32 @@ the server derives, three stars or none. A retell, an open answer, free writing 
 unscored, waiting for the teacher's mark (`openStopMarking`, as for homework); a second answer to a question already
 answered and an answer to a stop not on the paper are dropped (not counted in `accepted`). Homework keeps the app's
 values; a single-answer one whose answer disagrees with the key is logged as `attempt … the app reports correct=…`.
-A released app answers an exit ticket with one attempt on the ticket's own id: when its `answerJson` is
-`{"<questionId>":"<answer>",…}` each question is graded as its own attempt (`<attemptId>:<questionId>`), and when it
-carries nothing the questions stay unanswered and score as unreached once the paper is in; an updated app sends one
-attempt per question, which completes the ticket by itself. The first answer wins under concurrency as well:
-`attempts.exam_key` (V31, `child|lesson|stop`) is unique and an exam answer is inserted with `ON CONFLICT DO NOTHING`.
+Today's app answers an exit ticket with one attempt on the ticket's own id and an empty answer. Each question whose
+answer that attempt carries (`answerJson` = `{"<questionId>":"<answer>",…}`) is graded as its own attempt
+(`<attemptId>:<questionId>`); each one it does not carry is stored with `AnswerKey.PENDING` as its answer and waits
+for the teacher's mark exactly like an open stop (`needsMarking`, left out of the score — never a zero for the
+child, and left out of the class's per-question difficulty). An app that sends one attempt per question completes
+the ticket by itself. The first answer wins under concurrency as well: `attempts.exam_key` (V31,
+`child|lesson|stop`) is unique and an exam answer is inserted with `ON CONFLICT DO NOTHING`.
 
-**The paper carries no answer key until release.** `GET /lessons/{id}` for a sealed exam (`type = exam`, no
-`released_at`) answers under the ETag `"<id>-v<n>-sealed"` with every stop of `plays`, `variant` and `examPlay`
-(exit-ticket questions included) stripped of: `correctOptionId` → `""`, `trueFalse.answer` → absent,
-`correctIds` / `tapTask.correctIds` / `correctOrder` / `numberLine.highlight` → `[]`, `hint`, `modelAnswer` and the
-word-tile `writeSentence.answer` → `""`, `parentTip` → `{"en":"","ar":""}`, `teacherText` dropped, and
-`parentPanel.stopTips` / `modelAnswers` → `[]`. An order stop's `items` and a match stop's right-hand tiles are
-shuffled by a hash keyed on server-only lesson fields (`AnswerKey.shuffled`), and a match answer on a sealed paper is
-graded against that shuffle. A homework and a released exam are sent exactly as stored. App builds older than the
-contract change fail to decode a sealed paper that has a true/false question, and cannot press Check on an order
-stop (they sized it by `correctOrder`).
+**The paper is sealed until release.** `GET /lessons/{id}` for an exam with no `released_at` answers under the ETag
+`"<id>-v<n>-sealed"` with every play (`plays`, `variant`, `examPlay`) marked `"sealed": true` and **every answer-key
+field meaningless**, in the shape every installed app decodes (`SealedPaperTest` runs a sealed copy of all 22 stop
+types through `Play.schema.json` and the shared-api decoder):
+
+- every option, tile, item, pair and hotspot id is opaque — `x` + 16 hex of an HMAC (key derived from
+  `ADMIN_JWT_SECRET`) over parent, exam, stop and id — and the lists are in the order of those ids. They are the
+  same for the same parent and exam (`GET /lessons/{id}` names no child), so a resumed sitting and a re-download agree,
+  and the server maps them back when it grades (`PaperSeal`); nothing is stored;
+- `correctOptionId` and `correctIds` are the first option / hotspot sent (a multiSelect's first `pick`),
+  `trueFalse.answer` is `false`, `correctOrder` is the items in the order sent, a word-tile writeSentence's `answer` is
+  its first word, and a match stop's right-hand tiles are given to the pairs by a second keyed permutation;
+- `hint`, `modelAnswer` and `parentTip` say `…`; `numberLine.highlight`, `teacherText`, `parentPanel.stopTips` and
+  `modelAnswers` are empty.
+
+The player answers with the ids it was sent. An answer in a stored id (a copy downloaded after the release) still
+grades, and a match answer is graded against the shuffle only when it is given in opaque ids. A homework and a
+released exam are sent exactly as stored, without `sealed`.
 
 Until `released_at` is set, nothing derived from an exam's answers reaches a parent or child route: the island on
 `GET /children/{id}/map` is `done` but has no `starsEarned` / `starsTotal`, its skill contributes no first tries to

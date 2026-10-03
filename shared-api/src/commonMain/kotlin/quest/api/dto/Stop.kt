@@ -35,9 +35,10 @@ enum class StopCategory { INFO, SINGLE, MULTI, OPEN, EXIT }
  * decodes and plays, but nothing in them is the answer: every option, tile, item, pair and hotspot id is an opaque id
  * (stable for that parent and exam, so a resumed sitting sees the same ones) and the lists are in an order that says
  * nothing; `correctOptionId` is the first option sent, `trueFalse.answer` is `false`, `correctIds` (multiSelect,
- * selectAll, `readPage.tapTask`) is `[]`, `correctOrder` is the items in the order sent, a word-tile writeSentence's
- * `answer` is its first option, a match stop's right-hand tiles are assigned to the pairs in an order that is not the
- * pairing, and `hint`, `modelAnswer`, `parentTip` and `numberLine.highlight` are empty. The player answers with the
+ * selectAll, `readPage.tapTask`) is the first option / hotspot sent (a multiSelect's first `pick` options), `correctOrder` is the items in the order sent, a
+ * word-tile writeSentence's `answer` is its first option, a match stop's right-hand tiles are assigned to the pairs in
+ * an order that is not the pairing, `hint`, `modelAnswer` and `parentTip` say "…", and `numberLine.highlight` is
+ * empty. The player answers with the
  * ids it was sent (`leftPairId=pairIdOfTheTappedRightTile` for a match) and the server grades them; nothing on the
  * device needs the key. A released exam, and every homework, is sent as stored, without `sealed`.
  */

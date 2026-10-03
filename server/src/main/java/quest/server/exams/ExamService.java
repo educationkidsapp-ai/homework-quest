@@ -263,6 +263,7 @@ public class ExamService {
             for (var child : base.children()) {
                 var mine = child.stops().stream().filter(s -> s.stopId().equals(stop.stopId())).findFirst().orElse(null);
                 if (mine == null || !mine.attempted()) continue;
+                if (!stop.open() && mine.needsMarking()) continue;          // B3: an exit-ticket question sent without its answer
                 answered++;
                 if (stop.open()) { if (mine.markStars() != null) { stars += mine.markStars(); starred++; } }
                 else if (Boolean.TRUE.equals(mine.firstTryCorrect())) correct++;

@@ -27,10 +27,10 @@ public class AttemptService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AttemptService.class);
     private final AttemptRepository attempts; private final StopCompletionRepository stopCompletions; private final LessonCompletionRepository lessonCompletions;
     private final StreakRepository streaks; private final StickerRepository stickers; private final LessonRepository lessons; private final LessonStore store;
-    private final quest.server.exams.ExamAttemptService exams; private final quest.server.config.Json json;
+    private final quest.server.exams.ExamAttemptService exams; private final quest.server.config.Json json; private final quest.server.grading.PaperSeals seals;
 
-    public AttemptService(AttemptRepository attempts, StopCompletionRepository stopCompletions, LessonCompletionRepository lessonCompletions, StreakRepository streaks, StickerRepository stickers, LessonRepository lessons, LessonStore store, quest.server.exams.ExamAttemptService exams, quest.server.config.Json json) {
-        this.attempts = attempts; this.stopCompletions = stopCompletions; this.lessonCompletions = lessonCompletions; this.streaks = streaks; this.stickers = stickers; this.lessons = lessons; this.store = store; this.exams = exams; this.json = json;
+    public AttemptService(AttemptRepository attempts, StopCompletionRepository stopCompletions, LessonCompletionRepository lessonCompletions, StreakRepository streaks, StickerRepository stickers, LessonRepository lessons, LessonStore store, quest.server.exams.ExamAttemptService exams, quest.server.config.Json json, quest.server.grading.PaperSeals seals) {
+        this.attempts = attempts; this.stopCompletions = stopCompletions; this.lessonCompletions = lessonCompletions; this.streaks = streaks; this.stickers = stickers; this.lessons = lessons; this.store = store; this.exams = exams; this.json = json; this.seals = seals;
     }
 
     /**
@@ -66,16 +66,17 @@ public class AttemptService {
                 var paper = papers.computeIfAbsent(a.getLessonId(), id -> exams.paper(child, sitting));
                 var stop = paper.stops().get(a.getStopId());
                 if (stop == null) continue;
-                String salt = quest.server.exams.ExamPlays.sealed(sitting.lesson()) ? AnswerKey.salt(sitting.lesson()) : null;
+                // the ids of her parent's copy of the paper, whether it was sealed when it was downloaded or not
+                var seal = seals.of(child.getParentId(), a.getLessonId());
                 var rows = new ArrayList<Entities.AttemptEntity>();
-                rows.add(examRow(a, child, stop, a.getId(), a.getAnswerJson(), salt, at));
-                // A released app answers an exit ticket with one attempt on the wrapper. When its answer carries the
-                // questions' answers (`{"<questionId>":"<answer>",…}`) they are graded as the questions' own attempts;
-                // when it carries none, the questions stay unanswered and score as unreached once the paper is in.
+                rows.add(examRow(a, child, stop, a.getId(), a.getAnswerJson(), seal, at));
+                // Today's app answers an exit ticket with one attempt on the wrapper and an empty answer. A question
+                // whose answer the wrapper carries (`{"<questionId>":"<answer>",…}`) is graded as its own attempt; one
+                // it does not carry is stored as PENDING — waiting for the teacher's mark, never a zero for the child.
                 if (stop instanceof Stop.ExitTicket ticket) {
                     var perQuestion = questionAnswers(a.getAnswerJson());
                     for (Stop q : ticket.getQuestions())
-                        if (perQuestion.containsKey(q.getId())) rows.add(examRow(a, child, q, a.getId() + ":" + q.getId(), perQuestion.get(q.getId()), salt, at));
+                        rows.add(examRow(a, child, q, a.getId() + ":" + q.getId(), perQuestion.getOrDefault(q.getId(), AnswerKey.PENDING), seal, at));
                 }
                 for (var row : rows) {
                     if (!paper.answered().add(row.getStopId()) || attempts.insertExamAnswer(row) == 0) continue;
@@ -101,8 +102,8 @@ public class AttemptService {
      * One exam answer as the server grades it — the app's `correct`, `stars`, `attemptNumber` and `mistakes` play no
      * part — carrying the `exam_key` that makes it the only answer to that question (V31).
      */
-    private static Entities.AttemptEntity examRow(AttemptUpload a, Entities.ChildEntity child, Stop stop, String id, String answer, String salt, Instant at) {
-        var graded = AnswerKey.grade(stop, answer, salt);
+    private static Entities.AttemptEntity examRow(AttemptUpload a, Entities.ChildEntity child, Stop stop, String id, String answer, quest.server.grading.PaperSeal seal, Instant at) {
+        var graded = AnswerKey.PENDING.equals(answer) ? new AnswerKey.Graded(AnswerKey.Kind.UNKEYED, false, 0, 0) : AnswerKey.grade(stop, answer, seal);
         var e = new Entities.AttemptEntity();
         e.setId(id); e.setChildId(child.getId()); e.setStopId(stop.getId()); e.setLessonId(a.getLessonId()); e.setLevel(a.getLevel());
         e.setAnswerJson(answer == null ? "" : answer); e.setAnsweredAt(at);

@@ -48,64 +48,64 @@ public final class AnswerKey {
     public static Graded grade(Stop stop, String answer) { return grade(stop, answer, null); }
 
     /**
-     * The same, for an answer given on a <strong>sealed</strong> paper when `salt` is set (B3): a match stop was sent
-     * with its right-hand tiles shuffled across the pairs by {@link #shuffled}, so `left=q` names the pair whose
-     * <em>shown</em> right tile she chose, and it is right when that tile is the left's own.
+     * The same for an answer that may name the opaque ids of a sealed paper (B3): `seal` maps them back, and an id it
+     * does not know — one from an unsealed copy, downloaded after the release — is taken as it is. A match answer
+     * given on a sealed copy is graded against the right-hand tiles that copy showed ({@link PaperSeal#rightOwners}).
      */
-    public static Graded grade(Stop stop, String answer, String salt) {
+    public static Graded grade(Stop stop, String answer, PaperSeal seal) {
         var kind = kind(stop);
         if (kind == Kind.INFO) return new Graded(kind, true, StopScoring.INFO, 0);
         if (kind == Kind.UNKEYED) return new Graded(kind, false, 0, 0);
-        boolean right = right(stop, answer == null ? "" : answer.trim(), salt);
+        boolean right = right(stop, answer == null ? "" : answer.trim(), seal);
         return new Graded(kind, right, right ? FULL : 0, right ? 0 : 1);
     }
 
-    /**
-     * B3: the order a sealed paper shows a stop's ids in — by a hash of a server-only `salt`, the stop and the id, so
-     * it is the same on every read and at grading time and says nothing about the key to someone without the salt.
-     */
-    public static List<String> shuffled(String salt, String stopId, List<String> ids) {
-        return ids.stream().sorted(java.util.Comparator.comparing((String id) -> hash(salt + "|" + stopId + "|" + id)).thenComparing(id -> id)).toList();
-    }
-
-    /** The salt of one lesson's sealed paper: two server-side values a parent's download never carries. */
-    public static String salt(quest.server.content.Entities.LessonEntity lesson) {
-        return lesson.getId() + "|" + lesson.getCreatedAt() + "|" + lesson.getSourceHash();
-    }
-
-    private static String hash(String s) {
-        try { return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(s.getBytes(java.nio.charset.StandardCharsets.UTF_8))); }
-        catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
-    }
+    /** B3: what an exit-ticket question holds when the app sent the ticket without its answers — the teacher marks it. */
+    public static final String PENDING = "{\"pending\":\"no answer was sent for this question\"}";
 
     /** Whether the answer is the key, for a {@link Kind#KEYED} stop. */
     static boolean right(Stop stop, String answer) { return right(stop, answer, null); }
 
-    static boolean right(Stop stop, String answer, String salt) {
-        if (stop instanceof Stop.SingleAnswer s) return !s.getCorrectId().isEmpty() && s.getCorrectId().equals(answer);
+    static boolean right(Stop stop, String answer, PaperSeal seal) {
+        String id = stop.getId();
+        if (stop instanceof Stop.SingleAnswer s) return !s.getCorrectId().isEmpty() && s.getCorrectId().equals(back(seal, id, s.getOptionIds(), answer));
         if (stop instanceof Stop.WriteSentence w) return w.getAnswer().trim().equals(answer);
-        if (stop instanceof Stop.MultiSelect m) return same(set(answer), m.getCorrectIds());
-        if (stop instanceof Stop.SelectAll s) return same(set(answer), s.getCorrectIds());
-        if (stop instanceof Stop.Order o) return !o.getCorrectOrder().isEmpty() && list(answer).equals(o.getCorrectOrder());
-        if (stop instanceof Stop.ReadPage p) return same(set(answer), p.getTapTask().getCorrectIds());
+        if (stop instanceof Stop.MultiSelect m) return same(back(seal, id, tileIds(m.getOptions()), list(answer)), m.getCorrectIds());
+        if (stop instanceof Stop.SelectAll s) return same(back(seal, id, tileIds(s.getOptions()), list(answer)), s.getCorrectIds());
+        if (stop instanceof Stop.Order o) {
+            var ids = o.getItems().stream().map(quest.api.dto.OrderItem::getId).toList();
+            return !o.getCorrectOrder().isEmpty() && back(seal, id, ids, list(answer)).equals(o.getCorrectOrder());
+        }
+        if (stop instanceof Stop.ReadPage p) {
+            var ids = p.getTapTask().getHotspots().stream().map(quest.api.dto.Hotspot::getId).toList();
+            return same(back(seal, id, ids, list(answer)), p.getTapTask().getCorrectIds());
+        }
         if (stop instanceof Stop.Match m) {
+            var ids = m.getPairs().stream().map(quest.api.dto.MatchPair::getId).toList();
             Map<String, String> paired = new HashMap<>();
+            boolean sealedCopy = seal != null;
             for (String pair : list(answer)) {
                 int eq = pair.indexOf('=');
-                if (eq <= 0 || paired.put(pair.substring(0, eq), pair.substring(eq + 1)) != null) return false;
+                if (eq <= 0) return false;
+                String left = pair.substring(0, eq), right = pair.substring(eq + 1);
+                String l = seal == null ? null : seal.original(id, ids, left), r = seal == null ? null : seal.original(id, ids, right);
+                sealedCopy &= l != null && r != null;
+                if (paired.put(l == null ? left : l, r == null ? right : r) != null) return false;
             }
-            if (paired.size() != m.getPairs().size()) return false;
-            var ids = m.getPairs().stream().map(quest.api.dto.MatchPair::getId).toList();
-            // on a sealed paper the right tile shown at pair i is pair `shown[i]`'s own
-            var shown = salt == null ? ids : shuffled(salt, m.getId(), ids);
-            for (var p : m.getPairs()) {
-                int at = ids.indexOf(paired.get(p.getId()));
-                if (at < 0 || !p.getId().equals(shown.get(at))) return false;
+            if (paired.size() != ids.size()) return false;
+            var owners = sealedCopy ? seal.rightOwners(id, ids) : null;
+            for (String pairId : ids) {
+                String shownAt = paired.get(pairId);
+                if (shownAt == null || !pairId.equals(owners == null ? shownAt : owners.get(shownAt))) return false;
             }
             return true;
         }
         return false;
     }
+
+    private static String back(PaperSeal seal, String stopId, List<String> ids, String token) { return seal == null ? token : seal.back(stopId, ids, token); }
+    private static List<String> back(PaperSeal seal, String stopId, List<String> ids, List<String> tokens) { return seal == null ? tokens : seal.back(stopId, ids, tokens); }
+    private static List<String> tileIds(List<quest.api.dto.Tile> tiles) { return tiles.stream().map(quest.api.dto.Tile::getId).toList(); }
 
     /**
      * Every stop of some plays by id, an exit ticket's questions included — an attempt names the question it
@@ -126,8 +126,6 @@ public final class AnswerKey {
         return out;
     }
 
-    private static Set<String> set(String answer) { return Set.copyOf(list(answer)); }
-
-    /** A key with nothing in it (a sealed copy) is never matched — not even by an empty answer. */
-    private static boolean same(Set<String> answer, List<String> key) { return !key.isEmpty() && answer.equals(Set.copyOf(key)); }
+    /** A key with nothing in it is never matched — not even by an empty answer. */
+    private static boolean same(List<String> answer, List<String> key) { return !key.isEmpty() && Set.copyOf(answer).equals(Set.copyOf(key)); }
 }

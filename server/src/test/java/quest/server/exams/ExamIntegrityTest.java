@@ -92,13 +92,21 @@ class ExamIntegrityTest extends ExamTestSupport {
         assertThat(child(results(), maya).get("percent").asInt()).as("(100 + 100 + 0) / 3").isEqualTo(67);
     }
 
-    @Test void a_released_apps_bare_exit_ticket_hands_the_paper_in_with_its_questions_unanswered() throws Exception {
+    @Test void todays_apps_bare_exit_ticket_leaves_its_questions_waiting_for_the_teacher_and_never_zero() throws Exception {
         ticketExam();
         parentPost("/children/" + maya + "/attempts", batch(answer("ei-yw", EXAM, TICKET, "", true, 3)));
         assertThat(examSittings.findOne(maya, EXAM).orElseThrow().getState()).as("one question still to go").isEqualTo("started");
         parentPost("/children/" + maya + "/attempts", batch(answer("ei-y1", EXAM, stop(EXAM, 1), "a", true, 3)));
         assertThat(examSittings.findOne(maya, EXAM).orElseThrow().getState()).isEqualTo("submitted");
-        assertThat(child(results(), maya).get("percent").asInt()).as("(100 + 0 + 0) / 3 — nothing was sent for them").isEqualTo(33);
+        var mine = child(results(), maya);
+        assertThat(mine.get("percent").asInt()).as("only the question she was graded on — the two unsent ones wait").isEqualTo(100);
+        assertThat(mine.get("needsMarking").asInt()).isEqualTo(2);
+        assertThat(row("ei-yw:ei-q1").getAnswerJson()).isEqualTo(quest.server.grading.AnswerKey.PENDING);
+
+        markStop("ei-q1", 3); markStop("ei-q2", 1);
+        mine = child(results(), maya);
+        assertThat(mine.get("needsMarking").asInt()).as("the teacher's marks settle them").isZero();
+        assertThat(mine.get("percent").asInt()).isLessThan(100);
     }
 
     @Test void an_updated_apps_exit_ticket_is_one_attempt_per_question() throws Exception {
@@ -137,19 +145,38 @@ class ExamIntegrityTest extends ExamTestSupport {
     @Test void the_paper_carries_no_answer_key_until_the_results_are_released() throws Exception {
         ticketExam();
         var sealed = parentGet("/lessons/" + EXAM);
+        assertThat(sealed.get("examPlay").get("sealed").asBoolean()).isTrue();
         var stops = sealed.get("examPlay").get("stops");
-        assertThat(stops.get(0).get("correctOptionId").asText()).isEmpty();
-        assertThat(stops.get(0).get("hint").asText()).isEmpty();
-        assertThat(stops.get(0).get("parentTip").get("en").asText()).isEmpty();
+        var options = stops.get(0).get("options");
+        assertThat(options).extracting(o -> o.get("id").asText()).allMatch(id -> id.matches("x[0-9a-f]{16}")).doesNotContain("a", "b");
+        assertThat(stops.get(0).get("correctOptionId").asText()).as("a placeholder: the first option sent").isEqualTo(options.get(0).get("id").asText());
+        assertThat(stops.get(0).get("hint").asText()).isEqualTo("…");
         var q2 = stops.get(1).get("questions").get(1);
         assertThat(q2.get("type").asText()).isEqualTo("trueFalse");
-        assertThat(q2.has("answer")).isFalse();
-        assertThat(sealed.get("plays").get(0).get("stops").get(0).get("correctOptionId").asText()).as("the level plays too").isEmpty();
+        assertThat(q2.get("answer").asBoolean()).as("present, and meaningless").isFalse();
+        assertThat(sealed.get("plays").get(0).get("sealed").asBoolean()).as("the level plays too").isTrue();
 
         release(true);
-        var open = parentGet("/lessons/" + EXAM).get("examPlay").get("stops");
-        assertThat(open.get(0).get("correctOptionId").asText()).isEqualTo("a");
-        assertThat(open.get(1).get("questions").get(1).get("answer").asBoolean()).isTrue();
+        var open = parentGet("/lessons/" + EXAM).get("examPlay");
+        assertThat(open.has("sealed")).isFalse();
+        assertThat(open.get("stops").get(0).get("correctOptionId").asText()).isEqualTo("a");
+        assertThat(open.get("stops").get(1).get("questions").get(1).get("answer").asBoolean()).isTrue();
+    }
+
+    @Test void the_opaque_ids_are_hers_stable_on_resume_and_graded_back_to_the_key() throws Exception {
+        publishedExam(-30, 30, ExamLevels.MANUAL);
+        var first = parentGet("/lessons/" + EXAM).get("examPlay").get("stops").get(0);
+        assertThat(parentGet("/lessons/" + EXAM).get("examPlay").get("stops").get(0)).as("a resumed sitting sees the same ids").isEqualTo(first);
+        var otherParent = json(mvc.perform(get("/lessons/" + EXAM).header("Authorization", "Bearer fake-token-parent-ei-other")).andExpect(status().isOk()).andReturn());
+        assertThat(otherParent.get("examPlay").get("stops").get(0).get("options").get(0).get("id").asText())
+                .as("another parent's copy has ids of its own").isNotIn(idsOf(first.get("options")));
+
+        String right = null, wrong = null;
+        for (var o : first.get("options")) if ("A".equals(o.get("label").asText())) right = o.get("id").asText(); else wrong = o.get("id").asText();
+        parentPost("/children/" + maya + "/attempts", batch(answer("ei-o1", EXAM, stop(EXAM, 1), right, false, 0)));
+        parentPost("/children/" + omar + "/attempts", batch(answer("ei-o2", EXAM, stop(EXAM, 1), wrong, true, 3)));
+        assertThat(row("ei-o1").isCorrect()).isTrue();
+        assertThat(row("ei-o2").isCorrect()).isFalse();
     }
 
     // ---------------------------------------------------------------- D1: sealed until released
@@ -235,6 +262,14 @@ class ExamIntegrityTest extends ExamTestSupport {
         store.savePlay(EXAM, new quest.api.dto.Play(1, 0, quest.api.dto.SourceKind.MATH, new quest.api.dto.Theme("Pot", "Soup", "S", "Served!"),
                 List.of(first, ticket), null), "v1", 1);
     }
+
+    private void markStop(String stopId, int stars) throws Exception {
+        mvc.perform(as(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/teacher/marks"), sara).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"marks\":[{\"childId\":\"" + maya + "\",\"lessonId\":\"" + EXAM + "\",\"stopId\":\"" + stopId + "\",\"stars\":" + stars + "}]}"))
+                .andExpect(status().isOk());
+    }
+
+    private static List<String> idsOf(JsonNode options) { var out = new ArrayList<String>(); options.forEach(o -> out.add(o.get("id").asText())); return out; }
 
     private void publish(String lessonId) throws Exception {
         mvc.perform(as(post("/teacher/lessons/" + lessonId + "/publish"), sara)
