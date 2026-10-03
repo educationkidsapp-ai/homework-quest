@@ -51,6 +51,7 @@ import quest.feature.content.domain.LessonRepository
 import quest.feature.content.domain.LevelProgress
 import quest.feature.content.domain.MapRepository
 import quest.feature.content.domain.PendingAnswersSync
+import quest.feature.today.domain.ExamWindows
 import quest.feature.content.domain.ChildResult
 import quest.feature.content.domain.ChildResultsUseCase
 import quest.core.platform.ManualConnectivity
@@ -167,8 +168,11 @@ class ExamModeTest {
         block()
     }
 
-    private fun TestScope.player(journey: FakeJourney, lesson: PublishedLesson = exam, startIndex: Int = 0, sync: PendingAnswersSync? = null): Pair<StopPlayerViewModel, MutableList<PlayerContract.Effect>> {
-        val vm = StopPlayerViewModel(lesson.id, 1, 0, startIndex, FakeLessons(lesson), journey, FakeChildren(maya), media, copy, sync = sync).also { built.add(it) }
+    private fun TestScope.player(
+        journey: FakeJourney, lesson: PublishedLesson = exam, startIndex: Int = 0, sync: PendingAnswersSync? = null,
+        windows: ExamWindows = ExamWindows(), now: () -> Long = { 0L },
+    ): Pair<StopPlayerViewModel, MutableList<PlayerContract.Effect>> {
+        val vm = StopPlayerViewModel(lesson.id, 1, 0, startIndex, FakeLessons(lesson), journey, FakeChildren(maya), media, copy, windows = windows, now = now, sync = sync).also { built.add(it) }
         val effects = mutableListOf<PlayerContract.Effect>()
         backgroundScope.launch { vm.effects.collect { effects += it } }
         runCurrent()
@@ -655,5 +659,40 @@ class ExamModeTest {
         vm.dispatch(MapContract.Intent.Refresh); runCurrent()
         assertEquals(before + 1, mapLoads)
         assertFalse(vm.state.value.refreshing)
+    }
+
+    // ---------------------------------------------------------------- M4 (D8): the window's end, by the server's clock
+
+    private val serverBase = 1_790_000_000_000L
+    private fun TestScope.serverNow(): () -> Long = { serverBase + testScheduler.currentTime }
+
+    @Test fun anOpenSittingSaysWhenItCloses_andStopsTakingAnswersWhenItHas() = examTest {
+        val closesAt = serverBase + 10 * 60_000L
+        val windows = ExamWindows().apply { remember(mapOf(exam.id to closesAt), at = serverBase) }
+        val journey = answeredUpTo(firstSingle)
+        val (vm, effects) = player(journey, windows = windows, now = serverNow())
+        assertEquals(closesAt, vm.state.value.closesAt, "the same window the Live Activity reads")
+        assertEquals(Phase.STOP, vm.state.value.phase)
+
+        advanceTimeBy(10 * 60_000L - 1); runCurrent()
+        assertEquals(Phase.STOP, vm.state.value.phase, "still open a moment before")
+        advanceTimeBy(1); runCurrent()
+
+        assertEquals(Phase.DONE, vm.state.value.phase)
+        assertEquals(SubmitOutcome.CLOSED, vm.state.value.refusal)
+        assertEquals(PlayerContract.Effect.Finished(exam.id, 1, 0), effects.last())
+        assertEquals(0, journey.completed, "not marked handed in: the teacher can still re-open it")
+
+        vm.dispatch(PlayerContract.Intent.Correct(1, "a")); runCurrent()       // a tap that arrives too late
+        assertTrue(journey.recorded.isEmpty(), "no answer is taken after the window has closed")
+    }
+
+    @Test fun aReopenedSittingClaimsNoClosingTime_andIsNotClosedByTheApp() = examTest {
+        val closedEarlier = serverBase - 60_000L
+        val windows = ExamWindows().apply { remember(mapOf(exam.id to closedEarlier), at = serverBase) }
+        val (vm, _) = player(answeredUpTo(firstSingle), windows = windows, now = serverNow())
+        assertNull(vm.state.value.closesAt)
+        advanceTimeBy(3 * 60 * 60_000L); runCurrent()
+        assertEquals(Phase.STOP, vm.state.value.phase, "the server, not the app, ends a re-opened sitting")
     }
 }
