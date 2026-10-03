@@ -976,9 +976,22 @@ describe('RM3a — the management area', () => {
       ]);
     });
 
+    /**
+     * A glance card's own Add plan, which fills in the grade the card is for. Since the owner's
+     * ef0e38f8 the screen's own Add plan sits in the page header, first in the document, and
+     * leaves the grade to her — so "the first Add plan" is no longer the grade-1 card's.
+     */
+    function cardButton(name: string): HTMLElement {
+      const own = screen
+        .getAllByRole('button', { name })
+        .find((button) => button.closest('[page-actions]') === null);
+      expect(own, `a card's own "${name}"`).toBeTruthy();
+      return own!;
+    }
+
     it('refuses a file the upload route would refuse, without uploading it', async () => {
       const backend = await openScreen([]);
-      screen.getAllByRole('button', { name: 'Add plan' })[0]!.click();
+      cardButton('Add plan').click();
       await settle();
 
       pick('image/gif');
@@ -1007,7 +1020,7 @@ describe('RM3a — the management area', () => {
       const backend = await openScreen([]);
 
       // The grade-1 card's "Add plan" prefills the week and the grade the card is for.
-      screen.getAllByRole('button', { name: 'Add plan' })[0]!.click();
+      cardButton('Add plan').click();
       await settle();
       // No title and no body on this sheet at all — a plan has neither.
       expect(document.querySelector('textarea')).toBeNull();
@@ -1045,7 +1058,7 @@ describe('RM3a — the management area', () => {
      */
     it('accepts a PDF, names the chosen file, and posts it like a picture', async () => {
       const backend = await openScreen([]);
-      screen.getAllByRole('button', { name: 'Add plan' })[0]!.click();
+      cardButton('Add plan').click();
       await settle();
 
       const input = document.querySelector('input[type="file"]') as HTMLInputElement;
@@ -1142,7 +1155,7 @@ describe('RM3a — the management area', () => {
      */
     it('reuses an accepted upload on a retry, and never freezes on a response with no id', async () => {
       const backend = await openScreen([]);
-      screen.getAllByRole('button', { name: 'Add plan' })[0]!.click();
+      cardButton('Add plan').click();
       await settle();
       pick();
       await settle();
@@ -1178,7 +1191,7 @@ describe('RM3a — the management area', () => {
 
     it('shows the band and re-enables the sheet when an upload answers without an id', async () => {
       const backend = await openScreen([]);
-      screen.getAllByRole('button', { name: 'Add plan' })[0]!.click();
+      cardButton('Add plan').click();
       await settle();
       pick();
       await settle();
@@ -1224,7 +1237,7 @@ describe('RM3a — the management area', () => {
       // This week has no plan of its own, so grade 1's card offers a first one — the wider read
       // must not draw next week's plan on it.
       expect(screen.queryByRole('button', { name: 'Replace plan' })).toBeNull();
-      screen.getAllByRole('button', { name: 'Add plan' })[0]!.click();
+      cardButton('Add plan').click();
       await settle();
 
       // Picking next week turns the sheet into a replacement, wording and red band together.
