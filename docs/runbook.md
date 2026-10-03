@@ -1848,9 +1848,17 @@ and never fails the post, the message or the release.
 
 **Configuration.** `quest.push.enabled` (`QUEST_PUSH_ENABLED`) is on under `qa` and `prod`, off elsewhere: H2, the test
 profile and a laptop use `RecordingPushSender`, which keeps the last 500 sends in memory (tests read and script it).
-The sender is the Firebase app `FirebaseTokenFilter` initialises — on Cloud Run, Application Default Credentials, i.e. the
-runtime service account, which Terraform grants **`roles/firebasecloudmessaging.admin`** (`google_project_iam_member.runtime_fcm`;
-`cloudmessaging.messages.create` is what `send` needs). Terraform also lists `fcm`, `fcmregistrations` and
+The sender is the default Firebase app `FirebaseTokenFilter` initialises from **`FIREBASE_CREDENTIALS`** — the Firebase
+Admin key of `firebase-adminsdk-fbsvc@<project>.iam.gserviceaccount.com`, which already holds
+`roles/firebase.sdkAdminServiceAgent` and so `cloudmessaging.messages.create`, what `send` needs. **No project IAM change
+is needed**, and Terraform makes none: the CI deployer (`roles/editor`) may not set project IAM policy, which is why a
+`roles/firebasecloudmessaging.admin` grant on the runtime service account (B4's first cut) failed the QA apply with
+`Policy update access denied`. Without `FIREBASE_CREDENTIALS` the app falls back to Application Default Credentials —
+the runtime service account, which can verify parents' tokens but holds no FCM role — so FCM refuses every send (retried,
+then dropped; the rows are still written). To turn push on in an environment, put the key in its GitHub environment
+(`gh secret set FIREBASE_CREDENTIALS --env qa < firebase-adminsdk.json`, the JSON from *Firebase console → Project settings
+→ Service accounts → Generate new private key*); the next deploy copies it into Secret Manager (`infra/secrets.sh`) and
+Terraform wires it into Cloud Run. Terraform also lists `fcm`, `fcmregistrations` and
 `firebaseinstallations.googleapis.com`, which Firebase had already enabled on QA. With `FAKE_AUTH=true` there is no
 Firebase app, and an enabled sender logs one warning per push and sends nothing.
 
