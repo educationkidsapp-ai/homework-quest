@@ -671,6 +671,16 @@ export class ChatService {
           this.complaints.emit({ kind: 'message', message: frame.message, clientId: frame.clientId });
           break;
         }
+        // A thread neither list has named — most often a complaint opened since her lists were
+        // read, whose `complaint.new` row is a moment behind. Held until one of them claims it.
+        if (!this.knowsThreadOf(frame.message, frame.clientId)) {
+          const { message, clientId } = frame;
+          const asked = this.epoch;
+          this.complaints.hold(message, clientId, () => {
+            if (asked === this.epoch) this.handleServerMessage(message, clientId);
+          });
+          break;
+        }
         this.handleServerMessage(frame.message, frame.clientId);
         break;
 
@@ -881,6 +891,13 @@ export class ChatService {
    * (`NotificationService.threadLink` writes one for everybody), and the reader's own screen is
    * the authority on that — the same reason `notificationTarget` reads only the query.
    */
+  /** A Messages thread this tab already has: a row, the open one, or the echo of its own send. */
+  private knowsThreadOf(message: ChatMessage, clientId?: string): boolean {
+    if (this.threads().some((thread) => thread.id === message.threadId)) return true;
+    if (this.activeThread()?.id === message.threadId) return true;
+    return clientId !== undefined && this.messages().some((m) => m.clientId === clientId);
+  }
+
   private isViewingThread(link: string | undefined): boolean {
     const active = this.activeThread();
     if (!active?.id || !link) return false;

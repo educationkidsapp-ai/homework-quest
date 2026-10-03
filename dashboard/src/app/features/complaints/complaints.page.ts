@@ -1,5 +1,13 @@
 /* hq-flag: chat — a complaint is stored and delivered as a conversation (B6) */
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import { rxResource, takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
@@ -52,7 +60,12 @@ import { ComplaintConversationComponent } from './complaint-conversation.compone
     <hq-page [title]="'nav.complaints' | transloco" [subtitle]="subtitle() | transloco">
       <div *hqFeature="'chat'">
         @if (openId(); as id) {
-          <hq-complaint-conversation [complaintId]="id" (closed)="close()" (changed)="stale = true" />
+          <hq-complaint-conversation
+            [complaintId]="id"
+            (closed)="close()"
+            (changed)="stale = true"
+            (missing)="close(true)"
+          />
         } @else {
           <div class="complaints__filters">
             <hq-tabs
@@ -215,7 +228,10 @@ export class ComplaintsPage {
   protected readonly open = ComplaintStatusEnum.OPEN;
   protected readonly status = signal<ComplaintFilter>('open');
   protected readonly search = signal('');
-  /** She wrote in, or moved, the complaint she had open: the list is read again on the way back. */
+  /**
+   * She wrote in, or moved, the complaint she had open (or a frame moved one): the list is read
+   * again on the way back — however she goes back, by the button, Back or a bell link.
+   */
   protected stale = false;
 
   /** `?open=` — reactive, like Messages' `?thread=`: the bell can change it under an open page. */
@@ -262,6 +278,18 @@ export class ComplaintsPage {
   protected readonly trackRow = (row: Complaint): string => row.id;
 
   constructor() {
+    let wasOpen = false;
+    effect(() => {
+      const open = this.openId() !== null;
+      untracked(() => {
+        if (!open && wasOpen && this.stale) {
+          this.stale = false;
+          this.list.reload();
+        }
+        wasOpen = open;
+      });
+    });
+
     // Live: a parent's message moves its row to the top with one more unread; a status frame or a
     // bell row (a new complaint, a move somebody else made) is a re-read — the list is a filter on
     // status, so a moved row has to leave the tab rather than change a word.
@@ -290,15 +318,16 @@ export class ComplaintsPage {
     });
   }
 
-  protected close(): void {
-    if (this.stale) {
-      this.stale = false;
-      this.list.reload();
-    }
+  /**
+   * Back to the list. `missing`: the link named a complaint she cannot open, so it leaves the
+   * address without a trace in the history and without a word (the D1/D2 rule for a stale link).
+   */
+  protected close(missing = false): void {
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { open: null },
       queryParamsHandling: 'merge',
+      ...(missing ? { replaceUrl: true } : {}),
     });
   }
 

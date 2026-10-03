@@ -16,7 +16,7 @@ import {
 } from '@angular/core';
 import { rxResource, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { catchError, of } from 'rxjs';
+import { catchError, of, tap } from 'rxjs';
 import {
   type ChatMessage,
   type ComplaintDetail,
@@ -26,7 +26,11 @@ import {
   apiErrorOf,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
-import { ComplaintsService, type ComplaintStatus } from '../../core/complaints/complaints.service';
+import {
+  COMPLAINT_PAGE,
+  ComplaintsService,
+  type ComplaintStatus,
+} from '../../core/complaints/complaints.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import { PermissionService } from '../../core/permissions/permission.service';
 import {
@@ -92,9 +96,13 @@ interface LocalMessage extends ChatMessage {
       </hq-band>
     }
 
-    <div class="complaint__bar">
-      <hq-button variant="quiet" (pressed)="closed.emit()">{{ 'complaints.back' | transloco }}</hq-button>
-    </div>
+    <!-- A link to a complaint that is not hers (or gone) draws nothing: \`missing\` takes her back
+         to the list, quietly (D1/D2) — never a Back bar over a blank page. -->
+    @if (detail.error() === undefined) {
+      <div class="complaint__bar">
+        <hq-button variant="quiet" (pressed)="closed.emit()">{{ 'complaints.back' | transloco }}</hq-button>
+      </div>
+    }
 
     @if (detail.isLoading() && !detail.hasValue()) {
       <hq-skeleton [loading]="true" [lines]="6" [label]="'ui.loading' | transloco" />
@@ -102,7 +110,7 @@ interface LocalMessage extends ChatMessage {
       <section class="complaint" [attr.aria-labelledby]="'complaint-title-' + c.id">
         <header class="complaint__head">
           <div class="complaint__heading">
-            <h2 class="complaint__title" [id]="'complaint-title-' + c.id">
+            <h2 #heading class="complaint__title" tabindex="-1" [id]="'complaint-title-' + c.id">
               <bdi>{{ c.title }}</bdi>
             </h2>
             <p class="complaint__meta">
@@ -129,16 +137,32 @@ interface LocalMessage extends ChatMessage {
           }
         </header>
 
-        <ol class="complaint__stream" hqListStagger [attr.aria-label]="'complaints.conversation' | transloco">
+        @if (hasOlder()) {
+          <div class="complaint__older">
+            <hq-button variant="quiet" [loading]="loadingOlder()" (pressed)="loadOlder()">
+              {{ 'complaints.older' | transloco }}
+            </hq-button>
+          </div>
+        }
+        <ol
+          #stream
+          class="complaint__stream"
+          hqListStagger
+          [attr.aria-label]="'complaints.conversation' | transloco"
+        >
           @for (line of lines(); track line.key) {
             @if (line.kind === 'event') {
-              <li class="complaint__event">
+              <li class="complaint__event" [attr.data-key]="line.key">
                 {{ 'complaints.event.' + line.event.status | transloco: { name: line.event.byName } }}
                 · {{ day(line.at) }}
               </li>
             } @else {
               @let mine = isMine(line.message);
-              <li class="complaint__message" [class.complaint__message--mine]="mine">
+              <li
+                class="complaint__message"
+                [class.complaint__message--mine]="mine"
+                [attr.data-key]="line.key"
+              >
                 <bdi class="complaint__sender">{{ senderOf(line.message) }}</bdi>
                 <p class="complaint__body" dir="auto">{{ line.message.body }}</p>
                 <span class="complaint__time">
@@ -221,6 +245,20 @@ interface LocalMessage extends ChatMessage {
       margin: var(--hq-space-4) 0 0;
       color: var(--hq-color-ink-muted);
       font-size: var(--hq-text-note);
+    }
+
+    .complaint__older {
+      display: flex;
+      justify-content: center;
+      padding-block-start: var(--hq-space-16);
+    }
+
+    .complaint__title:focus {
+      outline: none;
+    }
+
+    .complaint__title:focus-visible {
+      outline: var(--hq-size-rule) solid var(--hq-color-accent);
     }
 
     .complaint__stream {
@@ -312,15 +350,27 @@ export class ComplaintConversationComponent {
   readonly closed = output<void>();
   /** It moved, or she wrote in it: the list behind it is stale. */
   readonly changed = output<void>();
+  /** The link named a complaint she cannot open (another account's, gone, or never there). */
+  readonly missing = output<void>();
 
   protected readonly draft = signal('');
   protected readonly asking = signal<ComplaintStatus | null>(null);
   protected readonly moving = signal(false);
   protected readonly failure = signal<string | null>(null);
 
+  /** The page that was read stopped at {@link COMPLAINT_PAGE}: there may be earlier messages. */
+  protected readonly hasOlder = signal(false);
+  protected readonly loadingOlder = signal(false);
+
   protected readonly detail = rxResource<ComplaintDetail, string>({
     params: () => this.complaintId(),
-    stream: ({ params }) => this.complaints.detail(params),
+    stream: ({ params }) =>
+      this.complaints.detail(params).pipe(
+        tap((detail) => {
+          this.hasOlder.set(detail.messages.length >= COMPLAINT_PAGE);
+          this.loadingOlder.set(false);
+        }),
+      ),
   });
 
   protected readonly complaint = computed(() =>
@@ -341,12 +391,21 @@ export class ComplaintConversationComponent {
     return c.parentName ?? this.transloco.translate<string>('chat.parent', { child: c.childName });
   });
 
+  /**
+   * The messages read so far and the status changes **between them**. B6 sends every event with
+   * only the newest page of messages, so while earlier messages are still unread an event older
+   * than the oldest one shown would sit above it with nothing to say where it happened.
+   */
   protected readonly lines = computed<readonly Line[]>(() => {
     if (!this.detail.hasValue()) return [];
-    const { messages, events } = this.detail.value() as {
+    const { messages, events: all } = this.detail.value() as {
       messages: LocalMessage[];
       events: ComplaintEvent[];
     };
+    const from = this.hasOlder()
+      ? (messages[0]?.createdAt ?? Number.NEGATIVE_INFINITY)
+      : Number.NEGATIVE_INFINITY;
+    const events = all.filter((event) => event.at >= from);
     return [
       ...messages.map((message) => ({
         kind: 'message' as const,
@@ -364,13 +423,43 @@ export class ComplaintConversationComponent {
   });
 
   private readonly end = viewChild<ElementRef<HTMLElement>>('end');
+  private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
+  private readonly stream = viewChild<ElementRef<HTMLElement>>('stream');
+  /** The newest line: the stream follows it, and only it — a page prepended above does not. */
+  private readonly newest = computed(() => this.lines().at(-1)?.key ?? null);
+  /** Where the first line sat before older ones were prepended above it. */
+  private keepPlace: { readonly key: string; readonly top: number } | null = null;
+  private focusedFor: string | null = null;
 
   constructor() {
     const destroyRef = inject(DestroyRef);
 
     afterRenderEffect(() => {
+      const c = this.complaint();
+      const newest = this.newest();
+      if (c === null || newest === null) return;
+      // Opened: the heading takes focus, so a screen reader starts at the complaint.
+      if (this.focusedFor !== c.id) {
+        this.focusedFor = c.id;
+        this.heading()?.nativeElement.focus({ preventScroll: true });
+      }
       // Instant, never smooth: it is where the screen opens, not a motion of its own.
-      if (this.lines().length > 0) this.end()?.nativeElement.scrollIntoView?.({ block: 'end' });
+      this.end()?.nativeElement.scrollIntoView?.({ block: 'end' });
+    });
+
+    // Older messages went in above: put the line she was looking at back where it was.
+    afterRenderEffect(() => {
+      this.lines();
+      const keep = this.keepPlace;
+      const line = keep === null ? null : this.lineElement(keep.key);
+      if (keep === null || line === null) return;
+      this.keepPlace = null;
+      scrollerOf(line).scrollBy?.(0, line.getBoundingClientRect().top - keep.top);
+    });
+
+    effect(() => {
+      if (this.detail.error() === undefined) return;
+      untracked(() => this.missing.emit());
     });
 
     effect(() => {
@@ -487,6 +576,46 @@ export class ComplaintConversationComponent {
     });
   }
 
+  /** The page before the oldest message shown, prepended, with the screen kept where it was. */
+  protected loadOlder(): void {
+    const id = this.complaintId();
+    const oldest = this.loadedMessages().find((m) => m.pending !== true);
+    if (oldest === undefined || this.loadingOlder()) return;
+    const first = this.lines()[0];
+    const line = first === undefined ? null : this.lineElement(first.key);
+    this.loadingOlder.set(true);
+    this.complaints.detail(id, oldest.id).subscribe({
+      next: (page) => {
+        this.loadingOlder.set(false);
+        if (page.complaint.id !== this.complaintId() || !this.detail.hasValue()) return;
+        this.keepPlace =
+          first !== undefined && line !== null
+            ? { key: first.key, top: line.getBoundingClientRect().top }
+            : null;
+        this.hasOlder.set(page.messages.length >= COMPLAINT_PAGE);
+        const current = this.detail.value();
+        const shown = new Set(current.messages.map((m) => m.id));
+        this.detail.set({
+          ...current,
+          events: page.events,
+          messages: [...page.messages.filter((m) => !shown.has(m.id)), ...current.messages],
+        });
+      },
+      error: (error: unknown) => {
+        this.loadingOlder.set(false);
+        this.failure.set(this.reason(error, 'complaints.olderFailed'));
+      },
+    });
+  }
+
+  private loadedMessages(): readonly LocalMessage[] {
+    return this.detail.hasValue() ? this.detail.value().messages : [];
+  }
+
+  private lineElement(key: string): HTMLElement | null {
+    return this.stream()?.nativeElement.querySelector<HTMLElement>(`[data-key="${key}"]`) ?? null;
+  }
+
   /** A message from the POST or the socket: settles its pending bubble, and is never drawn twice. */
   private accept(message: ChatMessage, clientId?: string): void {
     this.patchMessages((list) => {
@@ -513,11 +642,17 @@ export class ComplaintConversationComponent {
       .pipe(catchError(() => of(null)))
       .subscribe((fresh) => {
         if (fresh === null || fresh.complaint.id !== this.complaintId()) return;
-        // Keep a bubble still on its way: the server has not seen it yet.
-        const pending = this.detail.hasValue()
-          ? (this.detail.value().messages as LocalMessage[]).filter((m) => m.pending === true)
-          : [];
-        this.detail.set({ ...fresh, messages: [...fresh.messages, ...pending] });
+        // The newest page again, under whatever older pages she had already read, and a bubble
+        // still on its way on top — the server has not seen it yet.
+        const loaded = this.loadedMessages();
+        const newest = new Set(fresh.messages.map((m) => m.id));
+        const freshFrom = fresh.messages[0]?.createdAt ?? Number.POSITIVE_INFINITY;
+        const earlier = loaded.filter(
+          (m) => m.pending !== true && !newest.has(m.id) && m.createdAt <= freshFrom,
+        );
+        const pending = loaded.filter((m) => m.pending === true);
+        if (earlier.length === 0) this.hasOlder.set(fresh.messages.length >= COMPLAINT_PAGE);
+        this.detail.set({ ...fresh, messages: [...earlier, ...fresh.messages, ...pending] });
       });
   }
 
@@ -535,4 +670,13 @@ export class ComplaintConversationComponent {
   private locale(): string {
     return this.lang() === 'ar' ? 'ar' : 'en-GB';
   }
+}
+
+/** The box that scrolls this element: the shell's content pane, or the document. */
+function scrollerOf(element: HTMLElement): Element {
+  for (let node = element.parentElement; node !== null; node = node.parentElement) {
+    const overflow = getComputedStyle(node).overflowY;
+    if ((overflow === 'auto' || overflow === 'scroll') && node.scrollHeight > node.clientHeight) return node;
+  }
+  return document.scrollingElement ?? document.documentElement;
 }

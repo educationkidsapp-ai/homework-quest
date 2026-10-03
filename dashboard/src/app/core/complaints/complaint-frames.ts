@@ -4,6 +4,19 @@ import type { ChatMessage, NotificationView } from '../../api';
 
 export type ComplaintStatus = 'open' | 'resolved';
 
+/**
+ * How long a message for an id nobody has named yet waits for its `complaint.*` bell row before
+ * it is treated as a Messages thread's. B6 publishes a new complaint's first message and then its
+ * `complaint.new` row, both after the same commit, so the row follows within milliseconds.
+ */
+export const HOLD_MS = 1500;
+
+interface Held {
+  readonly message: ChatMessage;
+  readonly clientId?: string;
+  readonly timer: ReturnType<typeof setTimeout>;
+}
+
 /** Something the socket or the bell said about a complaint. */
 export type ComplaintSignal =
   | { readonly kind: 'message'; readonly message: ChatMessage; readonly clientId?: string }
@@ -31,6 +44,7 @@ export type ComplaintSignal =
 @Injectable({ providedIn: 'root' })
 export class ComplaintFrames {
   private readonly known = new Set<string>();
+  private readonly held = new Map<string, Held>();
   private readonly subject = new Subject<ComplaintSignal>();
   readonly signals: Observable<ComplaintSignal> = this.subject.asObservable();
 
@@ -40,10 +54,39 @@ export class ComplaintFrames {
   /** An id a Complaints list, a detail or a bell row named. */
   remember(id: string): void {
     this.known.add(id);
+    this.release(id);
   }
 
+  /** The account changed: nothing she knew, and nothing on its way to her, is the next one's. */
   forget(): void {
     this.known.clear();
+    for (const held of this.held.values()) clearTimeout(held.timer);
+    this.held.clear();
+    this.viewing.set(null);
+  }
+
+  /**
+   * A message for a thread id neither Messages nor Complaints has seen. It may be a complaint
+   * opened since her lists were read (its bell row is a moment behind), so it is held rather than
+   * handed to Messages — which would refetch its whole list for it. Named in time, it goes to
+   * Complaints; otherwise `otherwise` runs, and it is a Messages thread's after all.
+   */
+  hold(message: ChatMessage, clientId: string | undefined, otherwise: () => void): void {
+    const timer = setTimeout(() => {
+      this.held.delete(message.id);
+      if (this.claims(message.threadId)) this.emit({ kind: 'message', message, clientId });
+      else otherwise();
+    }, HOLD_MS);
+    this.held.set(message.id, { message, clientId, timer });
+  }
+
+  private release(threadId: string): void {
+    for (const [id, held] of this.held) {
+      if (held.message.threadId !== threadId) continue;
+      clearTimeout(held.timer);
+      this.held.delete(id);
+      this.emit({ kind: 'message', message: held.message, clientId: held.clientId });
+    }
   }
 
   /** A socket frame names this id: it is a complaint's, not a Messages thread's. */

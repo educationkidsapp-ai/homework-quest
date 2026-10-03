@@ -136,6 +136,15 @@ describe('the Complaints page', () => {
     return reads.map((read) => read.request.params.get('status'));
   }
 
+  /** `GET …/complaints/{id}`: B6's newest page, or the one `before` a message. */
+  function detailOf(backend: HttpTestingController, url: string, before?: string) {
+    const request = backend.expectOne(
+      (r) => r.method === 'GET' && r.url === url && (r.params.get('before') ?? undefined) === before,
+    );
+    expect(request.request.params.get('limit')).toBe('50');
+    return request;
+  }
+
   async function open(id: string) {
     query.next({ open: id });
     await settle();
@@ -164,7 +173,7 @@ describe('the Complaints page', () => {
     lists(backend, '/teacher/complaints', [COMPLAINT]);
     await open('c-1');
 
-    backend.expectOne('/teacher/complaints/c-1').flush(DETAIL);
+    detailOf(backend, '/teacher/complaints/c-1').flush(DETAIL);
     await settle();
     expect(screen.getByRole('heading', { name: 'Homework never marked' })).toBeTruthy();
     const stream = screen.getByRole('list', { name: 'Conversation' });
@@ -183,7 +192,7 @@ describe('the Complaints page', () => {
     const { backend } = await render(TEACHER_USER, 'teacher.complaints');
     lists(backend, '/teacher/complaints', [COMPLAINT]);
     await open('c-1');
-    backend.expectOne('/teacher/complaints/c-1').flush({ ...DETAIL, complaint: { ...COMPLAINT, unread: 0 } });
+    detailOf(backend, '/teacher/complaints/c-1').flush({ ...DETAIL, complaint: { ...COMPLAINT, unread: 0 } });
     await settle();
 
     const box = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Reply' });
@@ -213,9 +222,10 @@ describe('the Complaints page', () => {
     const { backend } = await render(COORDINATOR_USER, 'coordinator.complaints');
     lists(backend, '/coordinator/complaints', [COMPLAINT]);
     await open('c-1');
-    backend
-      .expectOne('/coordinator/complaints/c-1')
-      .flush({ ...DETAIL, complaint: { ...COMPLAINT, canReply: false, unread: 0 } });
+    detailOf(backend, '/coordinator/complaints/c-1').flush({
+      ...DETAIL,
+      complaint: { ...COMPLAINT, canReply: false, unread: 0 },
+    });
     await settle();
 
     expect(screen.queryByRole('textbox', { name: 'Reply' })).toBeNull();
@@ -236,7 +246,7 @@ describe('the Complaints page', () => {
     patch.flush({ ...COMPLAINT, status: 'resolved' });
     await settle();
     // The event line comes from the server, so the detail is read again; and the badge's counts.
-    backend.expectOne('/coordinator/complaints/c-1').flush({
+    detailOf(backend, '/coordinator/complaints/c-1').flush({
       ...DETAIL,
       complaint: { ...COMPLAINT, status: 'resolved', canReply: false, unread: 0 },
     });
@@ -249,9 +259,10 @@ describe('the Complaints page', () => {
     const { backend } = await render(ADMIN_USER, 'admin.complaints');
     lists(backend, '/admin/complaints', [COMPLAINT]);
     await open('c-1');
-    backend
-      .expectOne('/admin/complaints/c-1')
-      .flush({ ...DETAIL, complaint: { ...COMPLAINT, canReply: false, unread: 0 } });
+    detailOf(backend, '/admin/complaints/c-1').flush({
+      ...DETAIL,
+      complaint: { ...COMPLAINT, canReply: false, unread: 0 },
+    });
     await settle();
 
     expect(screen.queryByRole('textbox', { name: 'Reply' })).toBeNull();
@@ -264,7 +275,7 @@ describe('the Complaints page', () => {
     const { backend } = await render(TEACHER_USER, 'teacher.complaints');
     lists(backend, '/teacher/complaints', [COMPLAINT]);
     await open('c-1');
-    backend.expectOne('/teacher/complaints/c-1').flush({ ...DETAIL, complaint: { ...COMPLAINT, unread: 0 } });
+    detailOf(backend, '/teacher/complaints/c-1').flush({ ...DETAIL, complaint: { ...COMPLAINT, unread: 0 } });
     await settle();
     expect(screen.queryByRole('textbox', { name: 'Reply' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Mark resolved' })).toBeNull();
@@ -274,7 +285,7 @@ describe('the Complaints page', () => {
     const { backend } = await render(TEACHER_USER, 'teacher.complaints');
     lists(backend, '/teacher/complaints', [COMPLAINT]);
     await open('c-1');
-    backend.expectOne('/teacher/complaints/c-1').flush({ ...DETAIL, complaint: { ...COMPLAINT, unread: 0 } });
+    detailOf(backend, '/teacher/complaints/c-1').flush({ ...DETAIL, complaint: { ...COMPLAINT, unread: 0 } });
     await settle();
 
     const frames = TestBed.inject(ComplaintFrames);
@@ -295,7 +306,7 @@ describe('the Complaints page', () => {
 
     frames.emit({ kind: 'status', complaintId: 'c-1', status: 'resolved', at: OCT_3 + 120_000 });
     await settle();
-    backend.expectOne('/teacher/complaints/c-1').flush({
+    detailOf(backend, '/teacher/complaints/c-1').flush({
       ...DETAIL,
       complaint: { ...COMPLAINT, status: 'resolved', unread: 0 },
     });
@@ -309,7 +320,7 @@ describe('the Complaints page', () => {
     const { backend } = await render(TEACHER_USER, 'teacher.complaints');
     lists(backend, '/teacher/complaints', [COMPLAINT]);
     await open('c-1');
-    backend.expectOne('/teacher/complaints/c-1').flush({ ...DETAIL, complaint: { ...COMPLAINT, unread: 0 } });
+    detailOf(backend, '/teacher/complaints/c-1').flush({ ...DETAIL, complaint: { ...COMPLAINT, unread: 0 } });
     await settle();
 
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
@@ -322,5 +333,137 @@ describe('the Complaints page', () => {
     await settle();
     expect(TestBed.inject(ComplaintFrames).viewing()).toBeNull();
     expect(screen.getByRole('table', { name: 'Complaints' })).toBeTruthy();
+  });
+
+  it('focuses the complaint’s heading when it opens', async () => {
+    const { backend } = await render(TEACHER_USER, 'teacher.complaints');
+    lists(backend, '/teacher/complaints', [COMPLAINT]);
+    await open('c-1');
+    detailOf(backend, '/teacher/complaints/c-1').flush({ ...DETAIL, complaint: { ...COMPLAINT, unread: 0 } });
+    await settle();
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Homework never marked' }));
+  });
+
+  /**
+   * B6 answers the newest 50 messages and **every** event. A long complaint loads the rest a page
+   * at a time, and an event older than the oldest message shown waits until that page is read —
+   * otherwise "Resolved by Nour" would sit above the first message she can see.
+   */
+  it('loads older messages a page at a time, and shows only the events between them', async () => {
+    const at = (n: number) => OCT_3 - 1_000_000 + n * 1000;
+    const message = (n: number) => ({
+      id: `m-${n}`,
+      threadId: 'c-1',
+      sender: 'parent' as never,
+      senderId: 'p-1',
+      body: `Message ${n}`,
+      createdAt: at(n),
+    });
+    const range = (from: number, to: number) =>
+      Array.from({ length: to - from + 1 }, (_, i) => message(from + i));
+    const early = {
+      status: 'resolved' as never,
+      by: 'staff' as never,
+      byId: 'u-nour',
+      byName: 'Nour',
+      at: at(5),
+    };
+    const late = {
+      status: 'open' as never,
+      by: 'parent' as never,
+      byId: 'p-1',
+      byName: 'Mona Ahmed',
+      at: at(70),
+    };
+
+    const { backend } = await render(TEACHER_USER, 'teacher.complaints');
+    lists(backend, '/teacher/complaints', [COMPLAINT]);
+    await open('c-1');
+    detailOf(backend, '/teacher/complaints/c-1').flush({
+      complaint: { ...COMPLAINT, unread: 0 },
+      messages: range(51, 100),
+      events: [early, late],
+    });
+    await settle();
+
+    const stream = () => screen.getByRole('list', { name: 'Conversation' }).textContent ?? '';
+    expect(stream()).toContain('Message 51');
+    expect(stream()).not.toContain('Message 1 ');
+    expect(stream()).toContain('Reopened by Mona Ahmed');
+    expect(stream()).not.toContain('Resolved by Nour');
+
+    screen.getByRole('button', { name: 'Load older messages' }).click();
+    await settle();
+    detailOf(backend, '/teacher/complaints/c-1', 'm-51').flush({
+      complaint: { ...COMPLAINT, unread: 0 },
+      messages: range(1, 50),
+      events: [early, late],
+    });
+    await settle();
+    // Message 1 is the parent's first, and Nour's resolution now has messages on both sides.
+    expect(stream()).toContain('Message 1');
+    expect(stream()).toContain('Resolved by Nour');
+    // That page was full, so there may be more; the next one is shorter, and the button goes.
+    screen.getByRole('button', { name: 'Load older messages' }).click();
+    await settle();
+    detailOf(backend, '/teacher/complaints/c-1', 'm-1').flush({
+      complaint: { ...COMPLAINT, unread: 0 },
+      messages: [],
+      events: [early, late],
+    });
+    await settle();
+    expect(screen.queryByRole('button', { name: 'Load older messages' })).toBeNull();
+    const items = screen.getAllByRole('listitem').map((item) => item.textContent ?? '');
+    expect(items.filter((text) => text.includes('Message '))).toHaveLength(100);
+    // In time order: message 5, Nour's resolution, message 6.
+    const nour = items.findIndex((text) => text.includes('Resolved by Nour'));
+    expect(items[nour - 1]).toContain('Message 5');
+    expect(items[nour + 1]).toContain('Message 6');
+  });
+
+  it('lets go of a link to a complaint she cannot open, quietly', async () => {
+    const { backend } = await render(TEACHER_USER, 'teacher.complaints');
+    lists(backend, '/teacher/complaints', [COMPLAINT]);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    await open('c-9');
+    detailOf(backend, '/teacher/complaints/c-9').flush(
+      { code: 'not_found', message: 'complaint not found' },
+      { status: 404, statusText: 'Not Found' },
+    );
+    await settle();
+
+    expect(navigate).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({ queryParams: { open: null }, replaceUrl: true }),
+    );
+    // No band, and no Back bar over an empty page.
+    expect(document.body.textContent).not.toContain('That did not work');
+    expect(screen.queryByRole('button', { name: 'All complaints' })).toBeNull();
+  });
+
+  it('reads the list again however she leaves a complaint she answered', async () => {
+    const { backend } = await render(TEACHER_USER, 'teacher.complaints');
+    lists(backend, '/teacher/complaints', [COMPLAINT]);
+    await open('c-1');
+    detailOf(backend, '/teacher/complaints/c-1').flush({ ...DETAIL, complaint: { ...COMPLAINT, unread: 0 } });
+    await settle();
+
+    fireEvent.input(screen.getByRole('textbox', { name: 'Reply' }), { target: { value: 'Marked today.' } });
+    screen.getByRole('button', { name: 'Send reply' }).click();
+    await settle();
+    backend.expectOne('/teacher/complaints/c-1/messages').flush({
+      id: 'm-2',
+      threadId: 'c-1',
+      sender: 'teacher',
+      senderId: 'u-sara',
+      body: 'Marked today.',
+      createdAt: OCT_3 + 1000,
+    });
+    await settle();
+
+    // Browser Back (or a bell link to the list): no button pressed, the address simply changes.
+    query.next({});
+    await settle();
+    expect(lists(backend, '/teacher/complaints', [{ ...COMPLAINT, unread: 0 }])).toEqual(['open']);
   });
 });

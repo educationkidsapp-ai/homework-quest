@@ -2489,6 +2489,8 @@
       }
     },
     "moveFailed": "The status did not change. Nothing was saved — try again.",
-    "sendFailed": "Your reply was not sent. It is back in the box — try again."
+    "sendFailed": "Your reply was not sent. It is back in the box — try again.",
+    "older": "Load older messages",
+    "olderFailed": "The older messages could not be loaded. Try again."
   }
 }

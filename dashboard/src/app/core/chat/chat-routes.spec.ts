@@ -19,7 +19,7 @@ import { SchoolScopeStore } from '../auth/school-scope.store';
 import { SessionStore } from '../auth/session.store';
 import { FlagService } from '../flags/flag.service';
 import { NAV_CONFIG } from '../nav/nav-config';
-import { ComplaintFrames, type ComplaintSignal } from '../complaints/complaint-frames';
+import { ComplaintFrames, type ComplaintSignal, HOLD_MS } from '../complaints/complaint-frames';
 import { ChatRoutes } from './chat-routes';
 import { ChatService } from './chat.service';
 
@@ -31,6 +31,18 @@ import { ChatService } from './chat.service';
 
 /** D4: every REST send names its `clientId` now (a fresh UUID), so the echo settles the bubble. */
 const anyId: unknown = expect.any(String);
+
+function message(id: string, threadId: string) {
+  return {
+    id,
+    threadId,
+    sender: ChatMessageSenderEnum.TEACHER,
+    senderId: 'u-lina',
+    body: 'Could you look at 3B?',
+    createdAt: 1700000000000,
+  };
+}
+
 describe('ChatRoutes', () => {
   const parentThread: ChatThread = {
     id: 'th-1',
@@ -300,28 +312,64 @@ describe('ChatRoutes', () => {
   });
 
   /**
-   * A frame for a thread the list has never seen is a refetch now, for every role — RM3b took the
+   * A frame for a thread the list has never seen is a refetch, for every role — RM3b took the
    * frame-built row away, because a row invented from a message has no peer name and no child on
-   * it and the real one is one GET away.
+   * it and the real one is one GET away. D5: after {@link HOLD_MS}, because until then it may be a
+   * complaint opened since the lists were read, whose bell row is a moment behind.
    */
-  it('refetches the list when a frame names a thread it does not hold', () => {
-    role.set('MANAGERIAL');
-    const { chat } = setup();
-    chat.loadThreads();
+  it('refetches the list when a frame names a thread nobody claims', () => {
+    vi.useFakeTimers();
+    try {
+      role.set('MANAGERIAL');
+      const { chat } = setup();
+      chat.loadThreads();
+      TestBed.tick();
+      const reads = () => vi.mocked(managementApi.managementChatThreads!).mock.calls.length;
+      const before = reads();
 
-    chat.receive({
-      type: 'message',
-      message: {
-        id: 'm-9',
-        threadId: 'th-new',
-        sender: ChatMessageSenderEnum.TEACHER,
-        senderId: 'u-lina',
-        body: 'Could you look at 3B?',
-        createdAt: 1700000000000,
-      },
-    });
+      chat.receive({ type: 'message', message: message('m-9', 'th-new') });
+      expect(reads()).toBe(before);
 
-    expect(managementApi.managementChatThreads).toHaveBeenCalledTimes(2);
+      vi.advanceTimersByTime(HOLD_MS);
+      expect(reads()).toBe(before + 1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /** D5: a new complaint's first message, then its `complaint.new` row: Complaints', not Messages'. */
+  it('hands a held frame to Complaints when its bell row names it, with no refetch', () => {
+    vi.useFakeTimers();
+    try {
+      role.set('MANAGERIAL');
+      const { chat } = setup();
+      chat.loadThreads();
+      TestBed.tick();
+      const reads = () => vi.mocked(managementApi.managementChatThreads!).mock.calls.length;
+      const before = reads();
+      const heard: ComplaintSignal[] = [];
+      TestBed.inject(ComplaintFrames).signals.subscribe((signal) => heard.push(signal));
+
+      chat.receive({ type: 'message', message: message('m-1', 'c-new') });
+      chat.receive({
+        type: 'notification',
+        notification: {
+          id: 'n-1',
+          kind: 'complaint.new' as never,
+          title: 'New complaint',
+          createdAt: 1700000000000,
+          lessonId: 'c-new',
+          link: '/management/complaints?open=c-new',
+        },
+      });
+      vi.advanceTimersByTime(HOLD_MS);
+
+      expect(heard.map((signal) => signal.kind)).toEqual(['message', 'changed']);
+      expect(reads()).toBe(before);
+      expect(chat.threads().map((t) => t.id)).not.toContain('c-new');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   /**
