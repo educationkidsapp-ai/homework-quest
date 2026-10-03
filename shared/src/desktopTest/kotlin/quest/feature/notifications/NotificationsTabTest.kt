@@ -41,10 +41,8 @@ import quest.feature.broadcasts.domain.BroadcastsRepository
 import quest.feature.broadcasts.presentation.BroadcastsContract
 import quest.feature.broadcasts.presentation.BroadcastsViewModel
 import quest.feature.children.domain.ChildrenRepository
-import quest.feature.notifications.domain.NotificationTarget
 import quest.feature.notifications.domain.NotificationsRepository
 import quest.feature.notifications.domain.rowsFor
-import quest.feature.notifications.domain.targetOf
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -81,13 +79,6 @@ class NotificationsTabTest {
     private val built = mutableListOf<BroadcastsViewModel>()
     @AfterTest fun tearDown() { built.forEach { it.viewModelScope.cancel() }; Dispatchers.resetMain() }
 
-    @Test fun aRowLeadsWhereItsLinkPoints() {
-        assertEquals(NotificationTarget.MESSAGES, targetOf(row("a", NotificationKind.CHAT_MESSAGE, "/children/c1/chat/t-maya")))
-        assertEquals(NotificationTarget.PROGRESS, targetOf(row("b", NotificationKind.EXAM_RELEASED, "/children/c1/progress")))
-        assertEquals(NotificationTarget.CHILD_HOME, targetOf(row("c", NotificationKind.HOMEWORK_PUBLISHED, "/children/c1/map")))
-        assertEquals(NotificationTarget.PROGRESS, targetOf(row("d", NotificationKind.EXAM_RELEASED, null)), "no link: the kind decides")
-    }
-
     @Test fun theTabListsTheCurrentChildsRowsOnly() {
         val rows = listOf(row("a", NotificationKind.CHAT_MESSAGE, null), row("b", NotificationKind.EXAM_RELEASED, null, childId = "c2"))
         assertEquals(listOf("a"), rowsFor("c1", rows).map { it.id })
@@ -107,7 +98,7 @@ class NotificationsTabTest {
         vm.dispatch(BroadcastsContract.Intent.OpenUpdate("r1")); runCurrent()
         assertEquals(listOf("r1"), rows.marked)
         assertNotNull(vm.state.value.updates.single().readAt)
-        assertEquals(listOf<BroadcastsContract.Effect>(BroadcastsContract.Effect.Follow(NotificationTarget.PROGRESS)), effects)
+        assertEquals(listOf<BroadcastsContract.Effect>(BroadcastsContract.Effect.Follow(rows.rows.single())), effects, "followed through the one router")
 
         rows.rows = rows.rows + row("r2", NotificationKind.CHAT_MESSAGE, "/children/c1/chat/t")
         val before = feed.loads

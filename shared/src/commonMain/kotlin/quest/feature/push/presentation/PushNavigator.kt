@@ -2,37 +2,50 @@ package quest.feature.push.presentation
 
 import quest.core.navigation.Routes
 import quest.feature.parent.presentation.asConversation
-import quest.feature.push.domain.FollowPushUseCase
-import quest.feature.push.domain.PushOpen
-import quest.feature.push.domain.NOTIFICATIONS_PATH
-import quest.feature.push.domain.PushTarget
-import quest.feature.push.domain.pushTarget
+import quest.feature.push.domain.Destination
+import quest.feature.push.domain.NotificationRouter
+import quest.feature.push.domain.NotificationTap
+import quest.feature.push.domain.ParentGate
 
 /**
- * M5: where a tapped push navigates, in two legs, so neither the biometric lock nor the parent area's gate is ever
- * walked around. The app's root navigates underneath the lock's cover (as for the widget), so a locked app asks for the
- * biometric first whatever the leg.
+ * M5 — where a tap navigates, for a push and for a row of the Notifications tab alike (the owner, 2026-10-03):
  *
- * 1. [beforeGate]: the child's home for a homework (no gate — it is the child's own screen); otherwise the parent
- *    gate, carrying the link. A signed-out app goes nowhere.
- * 2. [afterGate]: once the gate has opened onto the parent home, the screen on top of it — the conversation, Progress
- *    or the Notifications tab (also where a kind or link this build does not know leads) — or nothing when the thread
- *    is gone, which leaves the parent on her home without an error.
+ * 1. **The parent gate first.** Unless the gate was passed a moment ago ([ParentGate]), the tap waits behind
+ *    `Routes.ParentPin` — the biometric where the parent turned it on (M2), the PIN otherwise. Backing out of the gate
+ *    drops the tap; the target is never shown. The app's own biometric lock sits over all of it, as for the widget.
+ * 2. **Then the specific page**, found by [NotificationRouter]: [Step.Parent] opens on top of the parent home, and
+ *    [Step.Child] replaces the stack with the child's home first (a lesson, an exam's card or result is hers).
  */
-class PushNavigator(private val follow: FollowPushUseCase, private val signedIn: () -> Boolean) {
-    suspend fun beforeGate(open: PushOpen): Any? {
-        if (!signedIn()) return null
-        return when (follow.prepare(open)) {
-            is PushTarget.ChildHome -> Routes.WorldMap
-            PushTarget.ParentHome -> Routes.ParentPin()
-            else -> Routes.ParentPin(push = open.link ?: NOTIFICATIONS_PATH)
-        }
+class PushNavigator(private val router: NotificationRouter, private val gate: ParentGate, private val signedIn: () -> Boolean) {
+    sealed interface Step {
+        /** Not signed in: the tap only opened the app. */
+        data object Nothing : Step
+        /** The parent gate, with the tap waiting behind it. */
+        data object Gate : Step
+        data class Parent(val route: Any) : Step
+        /** [route] null: the child's home itself. */
+        data class Child(val route: Any?) : Step
     }
 
-    suspend fun afterGate(link: String): Any? = when (val target = pushTarget(link)) {
-        is PushTarget.Conversation -> follow.thread(target)?.asConversation()
-        is PushTarget.Progress -> Routes.Progress
-        is PushTarget.Notifications -> Routes.Broadcasts
-        is PushTarget.ChildHome, PushTarget.ParentHome -> null
+    /** A tap arrived. */
+    suspend fun follow(tap: NotificationTap): Step = when {
+        !signedIn() -> Step.Nothing
+        !gate.isOpen -> Step.Gate
+        else -> step(router.resolve(tap))
+    }
+
+    /** The gate opened with [tap] waiting. */
+    suspend fun afterGate(tap: NotificationTap): Step = step(router.resolve(tap))
+
+    companion object {
+        fun step(destination: Destination): Step = when (destination) {
+            is Destination.Conversation -> Step.Parent(destination.thread.asConversation())
+            is Destination.WeeklyPlan -> Step.Parent(Routes.WeeklyPlan(focus = destination.planId))
+            is Destination.Broadcast -> Step.Parent(Routes.Broadcasts(focusBroadcast = destination.broadcastId))
+            is Destination.Notifications -> Step.Parent(Routes.Broadcasts(focusRow = destination.row, gone = destination.gone))
+            is Destination.Lesson -> Step.Child(Routes.Journey(destination.lessonId))
+            Destination.ExamCard -> Step.Child(null)
+            is Destination.ExamResult -> Step.Child(Routes.ExamResult(destination.lessonId))
+        }
     }
 }

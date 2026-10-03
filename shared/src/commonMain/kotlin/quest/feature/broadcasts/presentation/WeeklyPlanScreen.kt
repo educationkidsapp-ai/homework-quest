@@ -73,6 +73,8 @@ object WeeklyPlanContract {
         val plans: WeeklyPlans = WeeklyPlans(),
         /** Which earlier week the parent has opened; only one at a time, and the pinned plan is always open. */
         val openId: String? = null,
+        /** M5: the plan a tapped push or row is about — opened as soon as the archive is in. */
+        val focus: String? = null,
     ) : MviState
 
     sealed interface Intent : MviIntent {
@@ -80,6 +82,7 @@ object WeeklyPlanContract {
         data object Refresh : Intent
         /** Opening a plan marks it read (`POST …/read`) and, for an earlier week, expands its image. */
         data class Open(val id: String) : Intent
+        data class Focus(val id: String?) : Intent
     }
 
     sealed interface Effect : MviEffect
@@ -95,6 +98,7 @@ class WeeklyPlanViewModel(
             WeeklyPlanContract.Intent.Load -> load(refresh = false)
             WeeklyPlanContract.Intent.Refresh -> load(refresh = true)
             is WeeklyPlanContract.Intent.Open -> open(intent.id)
+            is WeeklyPlanContract.Intent.Focus -> reduce { copy(focus = intent.id) }
         }
     }
 
@@ -117,6 +121,8 @@ class WeeklyPlanViewModel(
             // The pinned plan is on the screen the moment the page opens, so it is read — the same rule the feed applies
             // to a card the parent tapped. Nothing else is: an earlier week is read when she opens it.
             grouped.current?.takeIf { !it.read }?.let { open(it.id) }
+            // M5: an earlier (or later) week's plan a notification pointed at is opened too — this week's always is.
+            current.focus?.takeIf { it != grouped.current?.id && it != current.openId }?.let { open(it) }
         } catch (e: ApiException) {
             // 404 is the flag being off for this school, not a failure the parent should be asked to retry.
             val off = e.error.code == ApiError.NOT_FOUND
@@ -153,13 +159,13 @@ class WeeklyPlanViewModel(
 }
 
 @Composable
-fun WeeklyPlanRoute(onBack: () -> Unit) {
+fun WeeklyPlanRoute(focus: String? = null, onBack: () -> Unit) {
     val vm: WeeklyPlanViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
     // Inside the gate, so a deep link into a school without the flag fires no request at all.
     GateFallback(Flags.ANNOUNCEMENTS, onBack)
     FeatureGate(Flags.ANNOUNCEMENTS) {
-        LaunchedEffect(vm) { vm.dispatch(WeeklyPlanContract.Intent.Load) }
+        LaunchedEffect(vm) { vm.dispatch(WeeklyPlanContract.Intent.Focus(focus)); vm.dispatch(WeeklyPlanContract.Intent.Load) }
         ParentShell(title = { it.weeklyPlan }, onBack = onBack) { strings ->
             WeeklyPlanScreen(
                 state = state,

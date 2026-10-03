@@ -50,7 +50,12 @@ import quest.feature.notifications.data.NotificationsRepositoryImpl
 import quest.feature.school.domain.Flags
 import quest.feature.push.data.ApiPushRegistrar
 import quest.feature.push.data.PushPreferencesImpl
-import quest.feature.push.domain.FollowPushUseCase
+import quest.feature.push.domain.NotificationRouter
+import quest.feature.push.domain.ParentGate
+import quest.core.runCancellable
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.minus
+import kotlinx.datetime.plus
 import quest.feature.push.domain.PushPreferences
 import quest.feature.push.domain.PushPrompts
 import quest.feature.push.domain.PushRegistrar
@@ -254,8 +259,16 @@ val pushModule = module {
     single<PushRegistrar> { ApiPushRegistrar(get()) }
     single { PushRegistration(get(), get(), get(), get(), locale = { get<ParentRepository>().language.value }) }
     factory { PushPrompts(get(), get()) }
-    factory { FollowPushUseCase(get(), get(), get(), get()) }
-    factory { PushNavigator(get(), signedIn = { get<AuthProvider>().state.value is AuthState.SignedIn }) }
+    // One gate memory for the app: the PIN screen opens it, the child's side and a minute away close it.
+    single { ParentGate(elapsed = ::elapsedRealtimeMillis, graceMillis = AppLock.BACKGROUND_LIMIT_MILLIS) }
+    factory {
+        val maps = get<MapRepository>()
+        NotificationRouter(get(), get(), get(), get(), lessonsOnMap = { child ->
+            val today = Today.date()
+            runCancellable { maps.map(child, today.minus(30, DateTimeUnit.DAY), today.plus(7, DateTimeUnit.DAY), today).islands.mapNotNull { it.lessonId }.toSet() }.getOrNull()
+        })
+    }
+    factory { PushNavigator(get(), get(), signedIn = { get<AuthProvider>().state.value is AuthState.SignedIn }) }
 }
 
 fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), connectivityModule(), apiModule(config), coreModule, schoolModule, contentModule, rewardsModule, parentModule, chatModule, broadcastsModule, pushModule)

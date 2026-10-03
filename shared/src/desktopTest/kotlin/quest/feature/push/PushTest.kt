@@ -30,18 +30,22 @@ import quest.feature.chat.domain.ChatRepository
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.lock.domain.AppLock
 import quest.feature.notifications.domain.NotificationsRepository
-import quest.feature.push.domain.FollowPushUseCase
+import quest.api.dto.BroadcastKind
+import quest.api.dto.ChatStaffRole
+import quest.api.dto.ChatThreadStatus
+import quest.api.dto.WeeklyPlanEntry
+import quest.api.dto.WeeklyPlanWeek
+import quest.feature.push.domain.NotificationRouter
+import quest.feature.push.domain.NotificationTap
+import quest.feature.push.domain.ParentGate
 import quest.feature.push.domain.PushChannel
 import quest.feature.push.domain.PushLinks
-import quest.feature.push.domain.PushOpen
 import quest.feature.push.domain.PushPayload
 import quest.feature.push.domain.PushPreferences
 import quest.feature.push.domain.PushPrompts
 import quest.feature.push.domain.PushRegistrar
 import quest.feature.push.domain.PushRegistration
-import quest.feature.push.domain.PushTarget
 import quest.feature.push.domain.PushTokens
-import quest.feature.push.domain.pushTarget
 import quest.feature.push.presentation.PushNavigator
 import quest.feature.lock.domain.BiometricChoice
 import quest.feature.lock.domain.BiometricPreferences
@@ -199,22 +203,16 @@ class PushTest {
         assertEquals("chat:th-1", chat.tag)
         assertEquals("Message from Ms Maya", chat.title, "shown exactly as the server sent it")
         assertEquals("Hala did well today.", chat.body)
-        assertEquals(PushOpen("/children/c1/chat/t-maya", "nt-1", childId = "c1"), chat.open)
-        assertEquals(PushChannel.EXAMS, PushPayload.parse(data(NotificationKind.EXAM_RELEASED, "/children/c1/progress", "lesson:e1"))!!.channel)
-        assertEquals(PushChannel.HOMEWORK, PushPayload.parse(data(NotificationKind.HOMEWORK_PUBLISHED, "/children/c1/map", "lesson:l1"))!!.channel)
-        val news = PushPayload.parse(data(NotificationKind.BROADCAST_POSTED, "/children/c1/broadcasts?open=b1", "broadcast:b1", id = null, broadcast = "b1"))!!
-        assertEquals(PushChannel.SCHOOL_NEWS, news.channel)
-        assertEquals(PushOpen("/children/c1/broadcasts?open=b1", null, "b1", "c1"), news.open)
-    }
-
-    /** B4 is adding kinds; each lands on a sensible channel by its wire name, including ones this build has not seen. */
-    @Test fun newerKindsFindTheirChannel() {
-        fun channel(kind: String) = PushPayload.parse(mapOf("kind" to kind, "title" to "t", "collapseKey" to "k"))!!.channel
-        assertEquals(PushChannel.EXAMS, channel("exam.published"))
-        assertEquals(PushChannel.COMPLAINTS, channel("complaint.resolved"))
-        assertEquals(PushChannel.COMPLAINTS, channel("complaint.reopened"))
-        assertEquals(PushChannel.MESSAGES, channel("admin.message"))
-        assertEquals(PushChannel.SCHOOL_NEWS, channel("event.posted"))
+        assertEquals(NotificationTap("chat.message", "/children/c1/chat/t-maya", "nt-1", null, "c1", "chat:th-1"), chat.tap)
+        fun channel(kind: NotificationKind, link: String, key: String) = PushPayload.parse(data(kind, link, key))!!.channel
+        assertEquals(PushChannel.EXAMS, channel(NotificationKind.EXAM_RELEASED, "/children/c1/progress", "lesson:e1"))
+        assertEquals(PushChannel.EXAMS, channel(NotificationKind.EXAM_PUBLISHED, "/children/c1/map", "lesson:e1"))
+        assertEquals(PushChannel.HOMEWORK, channel(NotificationKind.HOMEWORK_PUBLISHED, "/children/c1/map", "lesson:l1"))
+        assertEquals(PushChannel.HOMEWORK, channel(NotificationKind.QUESTION_SENT, "/children/c1/teacher-questions/q1", "question:q1"))
+        assertEquals(PushChannel.COMPLAINTS, channel(NotificationKind.COMPLAINT_STATUS, "/children/c1/chat/t-lina", "chat:th-2"))
+        assertEquals(PushChannel.SCHOOL_NEWS, channel(NotificationKind.ANNOUNCEMENT_POSTED, "/children/c1/announcements?open=a1", "announcement:a1"))
+        assertEquals(PushChannel.SCHOOL_NEWS, channel(NotificationKind.BROADCAST_POSTED, "/children/c1/broadcasts?open=b1", "broadcast:b1"))
+        assertEquals(PushChannel.MESSAGES, PushPayload.channelOf("admin.message"), "a kind still to come lands by its name")
     }
 
     @Test fun aSecondMessageInTheSameThreadReplacesTheFirst() {
@@ -223,28 +221,17 @@ class PushTest {
         assertEquals(first.tag, second.tag)
     }
 
-    @Test fun anUnknownKindIsStillShownAndOpensTheNotificationsTab() {
-        val unknown = PushPayload.parse(mapOf("kind" to "something.new", "title" to "Sports day moved", "childId" to "c1"))!!
+    @Test fun anUnknownKindIsStillShown() {
+        val unknown = PushPayload.parse(mapOf("kind" to "something.new", "title" to "Sports day moved", "childId" to "c1", "notificationId" to "nt-9"))!!
         assertEquals(PushChannel.SCHOOL_NEWS, unknown.channel)
         assertEquals("Sports day moved", unknown.title)
-        assertEquals("kind:something.new", unknown.tag)
-        assertEquals(PushTarget.Notifications("c1"), pushTarget(unknown.open.link, unknown.open.childId))
+        assertEquals("notification:nt-9", unknown.tag)
         val untitled = PushPayload.parse(mapOf("kind" to "chat.message", "body" to "Hello", "collapseKey" to "chat:t"))!!
         assertNull(untitled.title, "the notifier puts the app's generic title on it")
-        assertEquals("Hello", untitled.body)
         assertNull(PushPayload.parse(emptyMap()))
     }
 
-    @Test fun linksBecomeTargets() {
-        assertEquals(PushTarget.Conversation("c1", "t-maya"), pushTarget("/children/c1/chat/t-maya"))
-        assertEquals(PushTarget.Progress("c1"), pushTarget("/children/c1/progress"))
-        assertEquals(PushTarget.ChildHome("c1"), pushTarget("/children/c1/map"))
-        assertEquals(PushTarget.Notifications("c1"), pushTarget("/children/c1/broadcasts?open=b1"))
-        assertEquals(PushTarget.Notifications(null), pushTarget("/teacher/chat?thread=1"), "a path this build cannot read")
-        assertEquals(PushTarget.Notifications("c2"), pushTarget(null, childId = "c2"))
-    }
-
-    // ---- following a tap -----------------------------------------------------------------------------------------
+    // ---- one router: every row of the owner's table -------------------------------------------------------------
 
     private val hala = Child("c1", "Hala", "sun", Curriculum.BRITISH, 1)
     private val omar = Child("c2", "Omar", "moon", Curriculum.BRITISH, 3)
@@ -261,9 +248,9 @@ class PushTest {
     private class Chat(val threads: List<ChatThread>) : ChatRepository {
         override val connectionState: StateFlow<ChatConnectionState> get() = error("not used")
         override val incomingFrames: SharedFlow<ChatFrame> = MutableSharedFlow()
-        override suspend fun threads(childId: String) = threads.filter { it.childId == childId }
-        override suspend fun coordinators(childId: String): List<ChatThread> = emptyList()
-        override suspend fun managers(childId: String): List<ChatThread> = emptyList()
+        override suspend fun threads(childId: String) = threads.filter { it.childId == childId && it.staffRole == ChatStaffRole.TEACHER }
+        override suspend fun coordinators(childId: String) = threads.filter { it.childId == childId && it.staffRole == ChatStaffRole.COORDINATOR }
+        override suspend fun managers(childId: String): List<ChatThread> = error("offline")
         override suspend fun messages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?): List<ChatMessage> = emptyList()
         override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic?): ChatMessage = error("not used")
         override suspend fun markRead(childId: String, teacherId: String) = Unit
@@ -278,67 +265,165 @@ class PushTest {
         override suspend fun markRead(id: String): NotificationView { read += id; return NotificationView(id, NotificationKind.CHAT_MESSAGE, "t", "b", null, readAt = 1L, createdAt = 0L) }
     }
 
-    private class Feed : BroadcastsRepository {
+    private fun bc(id: String, kind: BroadcastKind) = BroadcastView(id = id, kind = kind, authorId = "mg", authorName = "Ms. Nour", bodyEn = "Body", createdAt = 1L)
+
+    private class Feed(val items: List<BroadcastView>, val archive: List<BroadcastView>) : BroadcastsRepository {
         val read = mutableListOf<String>()
-        override suspend fun feed(childId: String): BroadcastFeed = error("not used")
-        override suspend fun plans(childId: String): WeeklyPlanArchive = error("not used")
+        override suspend fun feed(childId: String) = BroadcastFeed(0, items)
+        override suspend fun plans(childId: String) = WeeklyPlanArchive("2026-07-12", "2026-09-27", weeks = archive.map { WeeklyPlanWeek(it.weekStart ?: "", listOf(WeeklyPlanEntry(it))) })
         override suspend fun markRead(childId: String, broadcastId: String): BroadcastView { read += "$childId/$broadcastId"; error("the row itself is not needed") }
     }
 
-    private val maya = ChatThread(id = "th-1", childId = "c1", childName = "Hala", teacherId = "t-maya", teacherName = "Ms Maya")
+    private val teacherThread = ChatThread(id = "th-1", childId = "c1", childName = "Hala", teacherId = "t-maya", teacherName = "Ms Maya")
+    private val complaintThread = ChatThread(id = "th-2", childId = "c1", childName = "Hala", teacherId = "co-lina", teacherName = "Ms Lina", staffRole = ChatStaffRole.COORDINATOR, topic = ChatTopic.COMPLAINT, status = ChatThreadStatus.RESOLVED)
 
-    private fun navigator(kids: Kids = Kids(hala, omar), signedIn: Boolean = true, rows: Rows = Rows(), feed: Feed = Feed(), threads: List<ChatThread> = listOf(maya)) =
-        PushNavigator(FollowPushUseCase(kids, Chat(threads), rows, feed), signedIn = { signedIn })
-
-    @Test fun aMessageGoesThroughTheGateThenOpensTheThreadForTheRightChild() = runTest {
-        val kids = Kids(hala, omar)                           // Omar is the current child
+    private class World {
+        val kids = Kids(Child("c1", "Hala", "sun", Curriculum.BRITISH, 1), Child("c2", "Omar", "moon", Curriculum.BRITISH, 3))
         val rows = Rows()
-        val nav = navigator(kids, rows = rows)
-        assertEquals(Routes.ParentPin(push = "/children/c1/chat/t-maya"), nav.beforeGate(PushOpen("/children/c1/chat/t-maya", "nt-1")))
-        assertEquals("c1", kids.currentChild.value?.id, "the child the push is about is selected")
-        assertEquals(listOf("nt-1"), rows.read)
-        val conversation = nav.afterGate("/children/c1/chat/t-maya") as Routes.ChatConversation
-        assertEquals("t-maya", conversation.teacherId)
-        assertEquals("th-1", conversation.threadId)
+        val feed: Feed
+        val gate = ParentGate(elapsed = { clock }, graceMillis = 60_000)
+        var clock = 0L
+        var signedIn = true
+        init {
+            val plan = BroadcastView(id = "bc-plan", kind = BroadcastKind.WEEKLY_PLAN, authorId = "mg", authorName = "Ms. Nour", bodyEn = "Plan", weekStart = "2026-09-27", createdAt = 1L)
+            val oldPlan = plan.copy(id = "bc-plan-old", weekStart = "2026-09-13")
+            feed = Feed(
+                items = listOf(plan, plan.copy(id = "bc-ann", kind = BroadcastKind.ANNOUNCEMENT), plan.copy(id = "bc-event", kind = BroadcastKind.EVENT)),
+                archive = listOf(plan, oldPlan),
+            )
+        }
+        fun router(threads: List<ChatThread>, onMap: Set<String>? = setOf("l1", "e1")) =
+            NotificationRouter(kids, Chat(threads), rows, feed, lessonsOnMap = { onMap })
+        fun navigator(threads: List<ChatThread>, onMap: Set<String>? = setOf("l1", "e1")) = PushNavigator(router(threads, onMap), gate, signedIn = { signedIn })
     }
 
-    @Test fun aResultOpensProgressAndNewsTheFeedBothBehindTheGate() = runTest {
-        val feed = Feed()
-        val nav = navigator(feed = feed)
-        assertEquals(Routes.ParentPin(push = "/children/c1/progress"), nav.beforeGate(PushOpen("/children/c1/progress", "nt-2")))
-        assertEquals(Routes.Progress, nav.afterGate("/children/c1/progress"))
-        nav.beforeGate(PushOpen("/children/c1/broadcasts?open=b1", null, "b1"))
-        assertEquals(listOf("c1/b1"), feed.read)
-        assertEquals(Routes.Broadcasts, nav.afterGate("/children/c1/broadcasts?open=b1"))
+    /** The owner's table, row by row: the tap, and the page it must open after the gate. */
+    private val table: List<Pair<NotificationTap, (Any) -> Unit>> = listOf(
+        NotificationTap("chat.message", "/children/c1/chat/t-maya", "nt-1", childId = "c1", collapseKey = "chat:th-1") to { r ->
+            assertEquals("th-1", ((r as PushNavigator.Step.Parent).route as Routes.ChatConversation).threadId)
+        },
+        NotificationTap("complaint.status", "/children/c1/chat/co-lina", "nt-2", childId = "c1", collapseKey = "chat:th-2") to { r ->
+            val c = (r as PushNavigator.Step.Parent).route as Routes.ChatConversation
+            assertEquals("th-2", c.threadId); assertTrue(c.resolved, "the status banner comes with the row"); assertEquals("complaint", c.topic)
+        },
+        NotificationTap("broadcast.posted", "/children/c1/broadcasts?open=bc-plan", "nt-3", "bc-plan", "c1", "broadcast:bc-plan") to { r ->
+            assertEquals(PushNavigator.Step.Parent(Routes.WeeklyPlan(focus = "bc-plan")), r)
+        },
+        NotificationTap("broadcast.posted", "/children/c1/broadcasts?open=bc-plan-old", "nt-3b", "bc-plan-old", "c1", "broadcast:bc-plan-old") to { r ->
+            assertEquals(PushNavigator.Step.Parent(Routes.WeeklyPlan(focus = "bc-plan-old")), r, "an earlier week's plan is in the archive")
+        },
+        NotificationTap("broadcast.posted", "/children/c1/broadcasts?open=bc-ann", "nt-4", "bc-ann", "c1", "broadcast:bc-ann") to { r ->
+            assertEquals(PushNavigator.Step.Parent(Routes.Broadcasts(focusBroadcast = "bc-ann")), r)
+        },
+        NotificationTap("broadcast.posted", "/children/c1/broadcasts?open=bc-event", "nt-5", "bc-event", "c1", "broadcast:bc-event") to { r ->
+            assertEquals(PushNavigator.Step.Parent(Routes.Broadcasts(focusBroadcast = "bc-event")), r)
+        },
+        NotificationTap("announcement.posted", "/children/c1/announcements?open=a1", "nt-6", childId = "c1", collapseKey = "announcement:a1") to { r ->
+            assertEquals(PushNavigator.Step.Parent(Routes.Broadcasts(focusRow = "nt-6")), r, "the class note opened in full")
+        },
+        NotificationTap("question.sent", "/children/c1/teacher-questions/q1", "nt-7", childId = "c1", collapseKey = "question:q1") to { r ->
+            assertEquals(PushNavigator.Step.Parent(Routes.Broadcasts(focusRow = "nt-7")), r)
+        },
+        NotificationTap("homework.published", "/children/c1/map", "nt-8", childId = "c1", collapseKey = "lesson:l1") to { r ->
+            assertEquals(PushNavigator.Step.Child(Routes.Journey("l1")), r)
+        },
+        NotificationTap("exam.published", "/children/c1/map", "nt-9", childId = "c1", collapseKey = "lesson:e1") to { r ->
+            assertEquals(PushNavigator.Step.Child(null), r, "the child's home, where the exam's card is")
+        },
+        NotificationTap("exam.released", "/children/c1/progress", "nt-10", childId = "c1", collapseKey = "lesson:e1") to { r ->
+            assertEquals(PushNavigator.Step.Child(Routes.ExamResult("e1")), r)
+        },
+        NotificationTap("something.new", null, "nt-11", childId = "c1") to { r ->
+            assertEquals(PushNavigator.Step.Parent(Routes.Broadcasts(focusRow = "nt-11")), r, "unknown: the Notifications page, that row highlighted")
+        },
+    )
+
+    private enum class Start { COLD, BACKGROUND, FOREGROUND }
+
+    /**
+     * Every row × cold start / background / foreground × biometrics on / off. Cold start and background (more than the
+     * grace away) always meet the gate first; so does a tap in the foreground on the child's side. Only a tap inside the
+     * parent area, gate passed a moment ago, goes straight on. The gate itself is the biometric where it is on and the
+     * PIN where it is off — the PIN screen's own rule (`AppLock.confirmOwner`, then the pad).
+     */
+    @Test fun everyRowOpensItsOwnPageOnlyAfterTheParentGate() = runTest {
+        for ((tap, expect) in table) for (start in Start.entries) for (biometric in listOf(true, false)) {
+            val w = World()
+            val nav = w.navigator(listOf(teacherThread, complaintThread))
+            val label = "${tap.kind} ${tap.broadcastId.orEmpty()} $start biometric=$biometric"
+            when (start) {
+                Start.COLD -> Unit                                          // a fresh process: nothing passed yet
+                Start.BACKGROUND -> { w.gate.passed(); w.gate.away(); w.clock += 61_000; w.gate.back() }
+                Start.FOREGROUND -> w.gate.closed()                         // on the child's side
+            }
+            assertEquals(PushNavigator.Step.Gate, nav.follow(tap), "$label: the gate comes first")
+            assertEquals("c2", w.kids.currentChild.value?.id, "$label: nothing is selected before the gate")
+            val prompt = Prompt(BiometricResult.SUCCESS)
+            val lock = AppLock(Auth(signedIn = true), if (biometric) LockPrefs() else NoLockPrefs(), prompt, signOut = {}, elapsed = { 0L })
+            if (start == Start.COLD) lock.coldStart()
+            if (lock.state.value.stage == AppLock.Stage.LOCKED) lock.unlock("Unlock")
+            assertEquals(biometric, lock.confirmOwner("Parent area"), "$label: biometric when on; the PIN pad otherwise")
+            w.gate.passed()                                                 // the biometric, or the PIN, confirmed her
+            expect(nav.afterGate(tap))
+            assertEquals("c1", w.kids.currentChild.value?.id, "$label: switched to the child the tap is about")
+            assertTrue(tap.notificationId!! in w.rows.read, "$label: the row is marked read")
+        }
     }
 
-    @Test fun homeworkOpensTheChildsHomeWithoutTheParentGate() = runTest {
-        val kids = Kids(hala, omar)
-        assertEquals(Routes.WorldMap, navigator(kids).beforeGate(PushOpen("/children/c1/map", "nt-3")))
-        assertEquals("c1", kids.currentChild.value?.id)
+    @Test fun insideTheParentAreaATapGoesStraightToItsPage() = runTest {
+        for ((tap, expect) in table) {
+            val w = World()
+            w.gate.passed()
+            expect(w.navigator(listOf(teacherThread, complaintThread)).follow(tap))
+        }
     }
 
-    @Test fun staleLinksEndOnTheParentHomeWithoutAnError() = runTest {
-        val nav = navigator(threads = emptyList())
-        assertNull(nav.afterGate("/children/c1/chat/t-gone"), "the thread is gone: stay on the parent home")
-        assertEquals(Routes.ParentPin(), nav.beforeGate(PushOpen("/children/c9/chat/t-maya", "nt-1")), "not her child any more")
+    @Test fun theGraceIsTheLockMinute() = runTest {
+        val w = World()
+        w.gate.passed(); w.gate.away(); w.clock += 59_000; w.gate.back()
+        assertTrue(w.gate.isOpen, "back within the minute: no second prompt")
+        w.gate.away(); w.clock += 61_000
+        assertFalse(w.gate.isOpen, "a minute away: the gate again")
+        assertEquals(AppLock.BACKGROUND_LIMIT_MILLIS, 60_000L)
     }
 
-    @Test fun aPushWithoutALinkOpensTheNotificationsTabBehindTheGate() = runTest {
-        val kids = Kids(hala, omar)
-        val nav = navigator(kids)
-        assertEquals(Routes.ParentPin(push = "/notifications"), nav.beforeGate(PushOpen(null, childId = "c1")))
-        assertEquals("c1", kids.currentChild.value?.id)
-        assertEquals(Routes.Broadcasts, nav.afterGate("/notifications"))
+    @Test fun backingOutOfTheGateNeverShowsTheTarget() = runTest {
+        val tap = table.first().first
+        PushLinks.waitForGate(tap)
+        PushLinks.abandoned()
+        PushLinks.gateOpened()                                              // a later unlock from the child's side
+        assertNull(PushLinks.unlocked.value, "the dropped tap is not followed after a later, unrelated unlock")
+        PushLinks.waitForGate(tap)
+        PushLinks.gateOpened()
+        assertEquals(tap, PushLinks.unlocked.value)
+    }
+
+    @Test fun staleTargetsOpenTheNotificationsPageWithAMessage() = runTest {
+        val w = World()
+        w.gate.passed()
+        val nav = w.navigator(threads = emptyList(), onMap = emptySet())
+        val gone = PushNavigator.Step.Parent(Routes.Broadcasts(focusRow = "nt-1", gone = true))
+        assertEquals(gone, nav.follow(NotificationTap("chat.message", "/children/c1/chat/t-gone", "nt-1", childId = "c1", collapseKey = "chat:th-gone")), "deleted thread")
+        assertEquals(gone, nav.follow(NotificationTap("broadcast.posted", "/children/c1/broadcasts?open=bc-x", "nt-1", "bc-x", "c1")), "expired event")
+        assertEquals(gone, nav.follow(NotificationTap("homework.published", "/children/c1/map", "nt-1", childId = "c1", collapseKey = "lesson:l-gone")), "lesson gone")
+        assertEquals(gone, nav.follow(NotificationTap("chat.message", "/children/c9/chat/t-maya", "nt-1", childId = "c9")), "not her child any more")
+    }
+
+    @Test fun aListRowIsTheSameTapAsItsPush() {
+        val row = NotificationView("nt-4", NotificationKind.BROADCAST_POSTED, "Announcement", "Body", "/children/c1/broadcasts?open=bc-ann", lessonId = "bc-ann", createdAt = 1L, childId = "c1")
+        assertEquals(NotificationTap("broadcast.posted", "/children/c1/broadcasts?open=bc-ann", "nt-4", "bc-ann", "c1", subjectId = "bc-ann"), NotificationTap.of(row))
+        val lesson = NotificationView("nt-8", NotificationKind.HOMEWORK_PUBLISHED, "Homework", null, "/children/c1/map", lessonId = "l1", createdAt = 1L, childId = "c1")
+        assertEquals("l1", NotificationTap.of(lesson).idFor("lesson"), "a row names its lesson by lessonId, a push by its collapse key")
     }
 
     @Test fun aSignedOutAppFollowsNothing() = runTest {
-        assertNull(navigator(signedIn = false).beforeGate(PushOpen("/children/c1/chat/t-maya", "nt-1")))
+        val w = World().apply { signedIn = false }
+        assertEquals(PushNavigator.Step.Nothing, w.navigator(emptyList()).follow(table.first().first))
     }
 
-    // ---- cold start through the lock ----------------------------------------------------------------------------
+    // ---- the lock ----------------------------------------------------------------------------------------------
 
-    @AfterTest fun clearLinks() { PushLinks.consumed(); PushLinks.followed() }
+    @AfterTest fun clearLinks() { PushLinks.consumed(); PushLinks.followed(); PushLinks.abandoned() }
 
     private class Prompt(var result: BiometricResult) : BiometricAuthenticator {
         var prompts = 0
@@ -352,24 +437,22 @@ class PushTest {
         override suspend fun signedOut() = Unit
     }
 
-    @Test fun aColdStartTapWaitsForTheAppAndGoesThroughTheLockAndTheGate() = runTest {
-        // The tap arrives in onCreate, before the shared UI exists: it waits, it is not lost.
-        PushLinks.open(PushOpen("/children/c1/chat/t-maya", "nt-1"))
-        val prompt = Prompt(BiometricResult.SUCCESS)
+    private class NoLockPrefs : BiometricPreferences {
+        override suspend fun choice(uid: String) = BiometricChoice.DECLINED
+        override suspend fun set(uid: String, choice: BiometricChoice) = Unit
+        override suspend fun signedOut() = Unit
+    }
+
+    @Test fun aColdStartTapWaitsForTheAppAndTheLock() = runTest {
+        // The tap arrives in onCreate, before the shared UI exists: it waits in the flow, it is not lost.
+        val tap = table.first().first
+        PushLinks.open(tap)
+        val prompt = Prompt(BiometricResult.CANCELLED)
         val lock = AppLock(Auth(signedIn = true), LockPrefs(), prompt, signOut = {}, elapsed = { 0L })
         lock.coldStart()
         assertEquals(AppLock.Stage.LOCKED, lock.state.value.stage, "the app starts behind its lock")
-
-        val open = PushLinks.pending.value!!
-        PushLinks.consumed()
-        val nav = navigator()
-        // The first leg is the parent gate, never the thread: the navigation happens under the lock's cover.
-        assertEquals(Routes.ParentPin(push = "/children/c1/chat/t-maya"), nav.beforeGate(open))
-        // The gate asks for the owner only once the app's own lock has been lifted.
+        assertEquals(tap, PushLinks.pending.value)
         lock.unlock("Unlock")
-        assertTrue(lock.confirmOwner("Parent area"))
-        assertEquals(2, prompt.prompts)
-        PushLinks.unlocked("/children/c1/chat/t-maya")
-        assertEquals(Routes.ChatConversation::class, nav.afterGate(PushLinks.afterGate.value!!)!!::class)
+        assertEquals(AppLock.Stage.LOCKED, lock.state.value.stage, "a cancelled prompt keeps everything behind the lock")
     }
 }

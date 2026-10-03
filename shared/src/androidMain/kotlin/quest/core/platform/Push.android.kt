@@ -33,7 +33,7 @@ import quest.api.dto.DevicePlatform
 import quest.feature.push.domain.PushChannel
 import quest.feature.push.domain.PushLinks
 import quest.feature.push.domain.PushNotice
-import quest.feature.push.domain.PushOpen
+import quest.feature.push.domain.NotificationTap
 import quest.feature.push.domain.PushPayload
 import quest.feature.push.domain.PushRegistration
 import quest.feature.push.domain.PushTokens
@@ -80,18 +80,26 @@ object AppVisibility {
 /** The extras a tapped push carries into `MainActivity`, and the one way they are read back. */
 object PushIntents {
     const val EXTRA_PUSH = "quest.push"
-    const val EXTRA_LINK = "quest.push.link"
-    const val EXTRA_CHILD_ID = "quest.push.childId"
-    const val EXTRA_NOTIFICATION_ID = "quest.push.notificationId"
-    const val EXTRA_BROADCAST_ID = "quest.push.broadcastId"
+    private const val PREFIX = "quest.push."
 
-    /** Hands a tap to the shared UI, which follows it underneath the lock and through the parent area's gate. */
+    fun put(intent: Intent, tap: NotificationTap): Intent = intent.apply {
+        putExtra(EXTRA_PUSH, true)
+        putExtra(PREFIX + "kind", tap.kind)
+        tap.link?.let { putExtra(PREFIX + "link", it) }
+        tap.notificationId?.let { putExtra(PREFIX + "notificationId", it) }
+        tap.broadcastId?.let { putExtra(PREFIX + "broadcastId", it) }
+        tap.childId?.let { putExtra(PREFIX + "childId", it) }
+        tap.collapseKey?.let { putExtra(PREFIX + "collapseKey", it) }
+    }
+
+    /** Hands a tap to the shared UI, which follows it underneath the lock and through the parent gate. */
     fun follow(intent: Intent?) {
         val extras = intent?.extras ?: return
         if (!extras.getBoolean(EXTRA_PUSH)) return
-        PushLinks.open(PushOpen(extras.getString(EXTRA_LINK), extras.getString(EXTRA_NOTIFICATION_ID), extras.getString(EXTRA_BROADCAST_ID), extras.getString(EXTRA_CHILD_ID)))
+        fun s(key: String) = extras.getString(PREFIX + key)
+        PushLinks.open(NotificationTap(s("kind").orEmpty(), s("link"), s("notificationId"), s("broadcastId"), s("childId"), s("collapseKey")))
         // Followed once: a configuration change or a later onNewIntent must not open it again.
-        listOf(EXTRA_PUSH, EXTRA_LINK, EXTRA_NOTIFICATION_ID, EXTRA_BROADCAST_ID, EXTRA_CHILD_ID).forEach(intent::removeExtra)
+        intent.removeExtra(EXTRA_PUSH)
     }
 }
 
@@ -122,13 +130,8 @@ class AndroidPushNotifier(
         // LAUNCHER) would only bring the old task forward, re-created from its first intent, and the tap's extras would
         // never arrive.
         val activity = context.packageManager.getLaunchIntentForPackage(context.packageName)?.component
-        val open = activity?.let { Intent(ACTION_OPEN).setComponent(it) }?.apply {
+        val open = activity?.let { PushIntents.put(Intent(ACTION_OPEN).setComponent(it), notice.tap) }?.apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            putExtra(PushIntents.EXTRA_PUSH, true)
-            notice.open.link?.let { putExtra(PushIntents.EXTRA_LINK, it) }
-            notice.open.childId?.let { putExtra(PushIntents.EXTRA_CHILD_ID, it) }
-            notice.open.notificationId?.let { putExtra(PushIntents.EXTRA_NOTIFICATION_ID, it) }
-            notice.open.broadcastId?.let { putExtra(PushIntents.EXTRA_BROADCAST_ID, it) }
         }
         val builder = NotificationCompat.Builder(context, notice.channel.id)
             .setSmallIcon(context.resources.getIdentifier("ic_launcher_monochrome", "drawable", context.packageName).takeIf { it != 0 } ?: context.applicationInfo.icon)

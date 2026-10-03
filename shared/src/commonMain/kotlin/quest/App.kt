@@ -5,6 +5,10 @@ import quest.feature.today.domain.TodayLink
 import quest.feature.push.domain.PushLinks
 import quest.feature.push.domain.PushRegistration
 import quest.feature.push.presentation.PushNavigator
+import quest.feature.push.domain.ParentGate
+import androidx.compose.runtime.DisposableEffect
+import androidx.navigation.NavController
+import androidx.navigation.NavDestination.Companion.hasRoute
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.filterNotNull
 import androidx.compose.runtime.rememberCoroutineScope
@@ -95,27 +99,34 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
             TodayLink.MESSAGES -> nav.navigate(Routes.ParentPin())      // messages are the parent's: her gate comes first
         }
     }
-    // M5: a tapped push. Like the widget, it is followed underneath the lock; a parent-area destination also goes
-    // through the parent gate, and only after it opens is the conversation (or Progress, or the feed) opened on top of
-    // the parent home. A link that leads nowhere any more — her child unlinked, the thread gone — ends on that home.
-    // Collected, not keyed: consuming the tap changes the flow, and a keyed effect would be cancelled mid-way by it.
+    // M5: a tapped push or Notifications row — one router for both. The navigation happens underneath the app's
+    // lock, like the widget's; every tap first passes the parent gate (biometric or PIN) unless it was passed a moment
+    // ago, and only then is the specific page opened. Collected, not keyed: consuming a tap changes the flow, and a
+    // keyed effect would be cancelled by that change before it navigated.
     val pushes: PushNavigator = koinInject()
+    val gate: ParentGate = koinInject()
     LaunchedEffect(Unit) {
-        PushLinks.pending.filterNotNull().collect { open ->
+        PushLinks.pending.filterNotNull().collect { tap ->
             PushLinks.consumed()
-            when (val route = pushes.beforeGate(open)) {
-                null -> Unit
-                Routes.WorldMap -> nav.navigate(Routes.WorldMap) { popUpTo(Routes.WorldMap) { inclusive = true } }
-                else -> nav.navigate(route)
-            }
+            val step = pushes.follow(tap)
+            if (step == PushNavigator.Step.Gate) PushLinks.waitForGate(tap)
+            nav.follow(step)
         }
     }
     LaunchedEffect(Unit) {
-        PushLinks.afterGate.filterNotNull().collect { link ->
+        PushLinks.unlocked.filterNotNull().collect { tap ->
             PushLinks.followed()
-            pushes.afterGate(link)?.let { nav.navigate(it) }
+            nav.follow(pushes.afterGate(tap))
         }
     }
+    // The child's side closes the parent gate at once, so a notification tapped there always asks again.
+    DisposableEffect(nav) {
+        val listener = NavController.OnDestinationChangedListener { _, destination, _ -> if (childSide.any { destination.hasRoute(it) }) gate.closed() }
+        nav.addOnDestinationChangedListener(listener)
+        onDispose { nav.removeOnDestinationChangedListener(listener) }
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { gate.away() }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { gate.back() }
     NavHost(navController = nav, startDestination = start) {
         // After sign-in the parent sees every child the school linked to the account, and picks whose home to open.
         composable<Routes.SignIn> {
@@ -177,5 +188,21 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
             }
         }
         parentGraph(nav)
+    }
+}
+
+/** The routes on the child's side of the parent gate. */
+private val childSide = listOf(Routes.SignIn::class, Routes.ChildPicker::class, Routes.WorldMap::class, Routes.Journey::class, Routes.StopPlayer::class, Routes.LessonComplete::class, Routes.ExamResult::class)
+
+/** One step of following a tap: the gate, a parent page on top of the parent home, or the child's home (and a page on it). */
+private fun NavHostController.follow(step: PushNavigator.Step) {
+    when (step) {
+        PushNavigator.Step.Nothing -> Unit
+        PushNavigator.Step.Gate -> navigate(Routes.ParentPin(push = true))
+        is PushNavigator.Step.Parent -> navigate(step.route)
+        is PushNavigator.Step.Child -> {
+            navigate(Routes.WorldMap) { popUpTo(0) { inclusive = true } }
+            step.route?.let { navigate(it) }
+        }
     }
 }
