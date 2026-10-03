@@ -51,7 +51,9 @@ public class ProgressService {
         List<SkillBand> out = new ArrayList<>(); Set<String> seen = new HashSet<>();
         for (var lesson : published) {
             var single = singleStopIds(playsByLesson.getOrDefault(lesson.getId(), List.of()));
-            var firstTries = mine.stream().filter(a -> a.getLessonId().equals(lesson.getId()) && single.contains(a.getStopId()) && a.getAttemptNumber() == 1).toList();
+            // B3 (D1): an exam's answers say nothing to anyone outside the school until the teacher releases it.
+            var firstTries = unreleasedExam(lesson) ? List.<Entities.AttemptEntity>of()
+                    : mine.stream().filter(a -> a.getLessonId().equals(lesson.getId()) && single.contains(a.getStopId()) && a.getAttemptNumber() == 1).toList();
             List<Boolean> results = firstTries.stream().map(Entities.AttemptEntity::isCorrect).toList();
             var acc = ProgressBands.INSTANCE.accuracy(results);
             var last = firstTries.isEmpty() ? null : firstTries.get(0).getAnsweredAt().toEpochMilli();
@@ -62,6 +64,15 @@ public class ProgressService {
             }
         }
         return out;
+    }
+
+    /**
+     * B3 (D1): an exam whose results the teacher has not released. Until she does, nothing derived from its answers —
+     * stars, bands, accuracy, a review island — reaches a parent- or child-facing route; the release is the same
+     * `released_at` the grading service and `results` read, so it appears the moment she releases.
+     */
+    public static boolean unreleasedExam(LessonEntity lesson) {
+        return quest.server.exams.ExamPlays.isExam(lesson) && lesson.getReleasedAt() == null;
     }
 
     private Set<String> singleStopIds(List<quest.server.content.Entities.PlayEntity> lessonPlays) {
