@@ -163,7 +163,8 @@ class FakeContentApi(
 
     override suspend fun lesson(id: String, version: Int?): PublishedLesson {
         net()
-        return Seeds.byId(id) ?: FakeExam.lesson.takeIf { it.id == id } ?: throw ApiException(ApiError(ApiError.NOT_FOUND, "No lesson $id"))
+        // B3 parity: the exam is never released on the fake server, so its paper always arrives sealed.
+        return Seeds.byId(id) ?: FakeExam.lesson.takeIf { it.id == id }?.sealedForChild() ?: throw ApiException(ApiError(ApiError.NOT_FOUND, "No lesson $id"))
     }
 
     override suspend fun uploadAttempts(childId: String, attempts: List<AttemptUpload>): AttemptAck {

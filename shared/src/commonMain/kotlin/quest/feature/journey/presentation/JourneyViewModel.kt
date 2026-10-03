@@ -164,7 +164,8 @@ class StopPlayerViewModel(
     private suspend fun onCompleted(stars: Int, answer: String, mistakes: Int, recording: ByteArray?, drawing: String?, correct: Boolean) {
         val stop = current.stop ?: return
         if (current.exam && (current.phase != PlayerContract.Phase.STOP || stop.id in current.stopStars)) return
-        record(stop.id, stars, answer, correct || !current.exam, 1, mistakes, recording, drawing)
+        if (sealed) record(stop.id, 0, answer, false, 1, 0, recording, drawing)
+        else record(stop.id, stars, answer, correct || !current.exam, 1, mistakes, recording, drawing)
         if (recording != null) launch { runCatching { media.uploadStopMedia(childId, stop.id, UploadFile("${stop.id}.m4a", "audio/mp4", recording), MediaKind.RECORDING) } }
         if (drawing != null) launch { runCatching { media.uploadStopMedia(childId, stop.id, UploadFile("${stop.id}.json", "application/json", drawing.encodeToByteArray()), MediaKind.DRAWING) } }
         if (current.exam) { acknowledge(); return }
@@ -182,13 +183,20 @@ class StopPlayerViewModel(
         val stop = current.stop ?: return
         val lesson = current.lesson ?: return; val play = current.play ?: return
         if (!current.exam || stop.category != StopCategory.EXIT || current.phase != PlayerContract.Phase.STOP || stop.id in current.stopStars) return
-        journey.recordAnswer(childId, lesson, play, i.questionId, i.answer, i.correct, i.stars)
+        if (sealed) journey.recordAnswer(childId, lesson, play, i.questionId, i.answer, correct = false, stars = 0)
+        else journey.recordAnswer(childId, lesson, play, i.questionId, i.answer, i.correct, i.stars)
     }
+
+    /**
+     * B3: a sealed paper's key fields are placeholders, so nothing the stop worked out about right or wrong means
+     * anything — the answer is recorded with no claim (`correct` false, no stars) and the server grades it.
+     */
+    private val sealed: Boolean get() = current.exam && current.play?.sealed == true
 
     /** One answer of a single-answer exam question; a second tap on the same question is ignored. */
     private suspend fun examAnswer(stopId: String, stars: Int, answer: String, correct: Boolean) {
         if (current.phase != PlayerContract.Phase.STOP || stopId in current.stopStars) return
-        record(stopId, stars, answer, correct, 1, if (correct) 0 else 1)
+        if (sealed) record(stopId, 0, answer, false, 1, 0) else record(stopId, stars, answer, correct, 1, if (correct) 0 else 1)
         acknowledge()
     }
 
