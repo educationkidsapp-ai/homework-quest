@@ -47,7 +47,7 @@ import quest.server.tenancy.TenantContext;
 
 /**
  * B6 (owner, 2026-10-03): complaints, apart from Messages. A complaint is a `chat_threads` row of its own —
- * `topic` `complaint`, `thread_key` its own id (V33) — opened by the parent with a title and a first message, never a
+ * `topic` `complaint`, `thread_key` its own id (V34) — opened by the parent with a title and a first message, never a
  * Messages thread relabelled. Its messages are ordinary `chat_messages` written through {@link ChatService#send}, so
  * the socket, the rate limit and the paging are the chat's; what is different is who reaches it, the bells it rings
  * and its status history ({@link ComplaintEventEntity}).
@@ -124,7 +124,6 @@ public class ComplaintService {
     public ComplaintDetail create(Principals.Parent parent, String childId, CreateComplaintRequest req) {
         if (req.getStaffId() == null || req.getStaffId().isBlank()) throw ApiException.badRequest("staffId is required.");
         String title = title(req.getTitle());
-        if (!req.getAttachmentIds().isEmpty()) throw ApiException.badRequest("Attachments are not accepted on this server yet.");
         var child = chat.placed(parent, childId);
         String role = chat.requireStaffOf(child, req.getStaffId());
         if (ChatService.ADMIN.equals(role)) throw ApiException.notFound("teacher");
@@ -136,7 +135,7 @@ public class ComplaintService {
         t.setId(id); t.setSchoolId(child.getSchoolId()); t.setChildId(child.getId()); t.setTeacherId(req.getStaffId()); t.setStaffRole(role);
         t.setTopic(ChatService.COMPLAINT); t.setStatus(ChatService.OPEN); t.setThreadKey(id); t.setTitle(title); t.setSubject(subject); t.setCreatedAt(clock.instant());
         threads.saveAndFlush(t);
-        chat.send(t, child.getParentId(), ChatService.PARENT, parent.parentId(), req.getBody(), req.getClientId(), false);
+        chat.send(t, child.getParentId(), ChatService.PARENT, parent.parentId(), req.getBody(), req.getAttachmentIds(), req.getClientId(), false);
         bells.complaintNew(t.getSchoolId(), t.getTeacherId(), id, parentName(parent.parentId()), title);
         return detail(threads.findOneById(id).orElseThrow(), parentViewer(parent, child), null, null, null);
     }
@@ -147,10 +146,10 @@ public class ComplaintService {
     }
 
     @Transactional
-    public ChatMessage parentSend(Principals.Parent parent, String childId, String complaintId, String body, String clientId) {
+    public ChatMessage parentSend(Principals.Parent parent, String childId, String complaintId, String body, List<String> files, String clientId) {
         var t = parentComplaint(chat.placed(parent, childId), complaintId);
-        var m = chat.send(t, parent.parentId(), ChatService.PARENT, parent.parentId(), body, clientId, false);
-        bells.complaintMessage(t.getSchoolId(), t.getTeacherId(), t.getId(), parentName(parent.parentId()), m.getBody());
+        var m = chat.send(t, parent.parentId(), ChatService.PARENT, parent.parentId(), body, files, clientId, false);
+        bells.complaintMessage(t.getSchoolId(), t.getTeacherId(), t.getId(), parentName(parent.parentId()), cue(m));
         return m;
     }
 
@@ -201,12 +200,12 @@ public class ComplaintService {
 
     /** The recipient's reply. A supervisor or the Admin reads the conversation and does not write in it (403). */
     @Transactional
-    public ChatMessage staffSend(ComplaintArea area, Principals.User caller, String complaintId, String body, String clientId) {
+    public ChatMessage staffSend(ComplaintArea area, Principals.User caller, String complaintId, String body, List<String> files, String clientId) {
         var viewer = viewer(area, caller);
         var t = recipientOnly(viewer, require(viewer, complaintId));
         String parentId = parentOf(t);
-        var m = chat.send(t, parentId, ChatService.TEACHER, caller.userId(), body, clientId, false);
-        bells.parentComplaintMessage(t.getSchoolId(), parentId, t.getChildId(), t.getId(), staffName(caller.userId()), m.getBody());
+        var m = chat.send(t, parentId, ChatService.TEACHER, caller.userId(), body, files, clientId, false);
+        bells.parentComplaintMessage(t.getSchoolId(), parentId, t.getChildId(), t.getId(), staffName(caller.userId()), cue(m));
         return m;
     }
 
@@ -416,6 +415,9 @@ public class ComplaintService {
         for (String id : ids) if (!out.containsKey(id)) users.findById(id).ifPresent(u -> out.put(id, u));
         return out;
     }
+
+    /** What a bell says for a message: its words, or — B5's files alone — "📷 Photo" / "📄 name". */
+    private static String cue(ChatMessage m) { return ChatAttachments.preview(m.getBody(), m.getAttachments() == null ? List.of() : m.getAttachments(), false); }
 
     private String staffName(String userId) { return users.findById(userId).map(ChatService::name).orElse(null); }
     private String parentName(String parentId) { return parents.findById(parentId).map(ChatService::name).orElse(null); }

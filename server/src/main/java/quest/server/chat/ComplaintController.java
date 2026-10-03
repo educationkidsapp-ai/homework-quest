@@ -88,7 +88,7 @@ public class ComplaintController {
     public String parentSendComplaintMessage(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id, @PathVariable String complaintId,
                                              @RequestBody String body) {
         var req = json.message(body);
-        return json.message(complaints.parentSend(parent, id, complaintId, req.getBody(), req.getClientId()));
+        return json.message(complaints.parentSend(parent, id, complaintId, req.getBody(), req.getAttachmentIds(), req.getClientId()));
     }
 
     @PostMapping(value = "/children/{id}/complaints/{complaintId}/read", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -132,7 +132,7 @@ public class ComplaintController {
     @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatMessage.class)))
     public String teacherSendComplaintMessage(@AuthenticationPrincipal Principals.User caller, @PathVariable String id, @RequestBody String body) {
         var req = json.message(body);
-        return json.message(complaints.staffSend(ComplaintArea.TEACHER, caller, id, req.getBody(), req.getClientId()));
+        return json.message(complaints.staffSend(ComplaintArea.TEACHER, caller, id, req.getBody(), req.getAttachmentIds(), req.getClientId()));
     }
 
     @PostMapping(value = "/teacher/complaints/{id}/read", produces = MediaType.APPLICATION_JSON_VALUE)

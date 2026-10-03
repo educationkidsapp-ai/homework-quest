@@ -22,7 +22,7 @@ public class ChatThreads {
     /**
      * The parent's Messages thread with one staff member; {@code staffRole} says which kind she is. B6: always a
      * `question` — a complaint is never this row but one of its own ({@link ComplaintService#create}), so the unique
-     * (child, staff, `''`) index V33 keeps is what makes two first messages one thread.
+     * (child, staff, `''`) index V34 keeps is what makes two first messages one thread.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Entities.ChatThreadEntity getOrCreate(ChildEntity child, String staffId, String staffRole) {
@@ -36,7 +36,7 @@ public class ChatThreads {
 
     /**
      * R4: a staff-to-staff thread — no child, and the pair de-duplicated by `chat_threads_staff_pair` the way the
-     * parent's is by `chat_threads_child_staff_key` (V33). The **subordinate** is always the `teacherId` side, so whichever
+     * parent's is by `chat_threads_child_staff_key` (V34). The **subordinate** is always the `teacherId` side, so whichever
      * of the two writes first gets one row.
      */
     public Entities.ChatThreadEntity getOrCreateStaff(String schoolId, String subordinateId, String supervisorId) {

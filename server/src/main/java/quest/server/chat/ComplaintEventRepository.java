@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
-/** V33 (B6): a complaint's status history, oldest first. Transactional for `ChildRepository`'s reason (the filter). */
+/** V34 (B6): a complaint's status history, oldest first. Transactional for `ChildRepository`'s reason (the filter). */
 @Transactional(readOnly = true)
 public interface ComplaintEventRepository extends JpaRepository<Entities.ComplaintEventEntity, String> {
     List<Entities.ComplaintEventEntity> findByThreadIdOrderByChangedAtAscIdAsc(String threadId);

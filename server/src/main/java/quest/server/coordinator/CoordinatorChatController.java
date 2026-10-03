@@ -155,7 +155,7 @@ public class CoordinatorChatController {
     @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatMessage.class)))
     public String coordinatorSendComplaintMessage(@AuthenticationPrincipal Principals.User caller, @PathVariable String id, @RequestBody String body) {
         var req = codec.message(body);
-        return codec.message(complaints.staffSend(ComplaintArea.COORDINATOR, caller, id, req.getBody(), req.getClientId()));
+        return codec.message(complaints.staffSend(ComplaintArea.COORDINATOR, caller, id, req.getBody(), req.getAttachmentIds(), req.getClientId()));
     }
 
     @PostMapping(value = "/coordinator/complaints/{id}/read", produces = MediaType.APPLICATION_JSON_VALUE)

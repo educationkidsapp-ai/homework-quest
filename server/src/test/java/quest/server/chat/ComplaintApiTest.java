@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -341,12 +342,12 @@ class ComplaintApiTest extends ApiTestSupport {
     }
 
     /**
-     * V33 on a complaint written before B6: a relabelled Messages thread (`thread_key` `''`, no title, already
+     * V34 on a complaint written before B6: a relabelled Messages thread (`thread_key` `''`, no title, already
      * resolved) becomes a complaint as it is — its own key, a title from its first message, its resolution as an
      * event — and leaves the Messages list, so the parent's next message to Rami's colleague opens a fresh thread.
      * Run twice, it changes nothing the second time.
      */
-    @Test @Order(7) void v33_turns_an_old_complaint_thread_into_a_complaint_once() throws Exception {
+    @Test @Order(7) void v34_turns_an_old_complaint_thread_into_a_complaint_once() throws Exception {
         String id = "cmp-legacy-" + UUID.randomUUID();
         var t = new Entities.ChatThreadEntity();
         t.setId(id); t.setSchoolId(SCHOOL); t.setChildId(childAmerican); t.setTeacherId(sami); t.setStaffRole("MANAGERIAL");
@@ -365,7 +366,7 @@ class ComplaintApiTest extends ApiTestSupport {
         legacy.setThreadKey("");
         threadRows.saveAndFlush(legacy);
         for (int run = 0; run < 2; run++)
-            try (var c = dataSource.getConnection()) { ScriptUtils.executeSqlScript(c, new ClassPathResource("db/migration/V33__complaints_separate.sql")); }
+            try (var c = dataSource.getConnection()) { ScriptUtils.executeSqlScript(c, new ClassPathResource("db/migration/V34__complaints_separate.sql")); }
 
         var row = threadRows.findById(id).orElseThrow();
         assertThat(row.getThreadKey()).isEqualTo(id);
@@ -419,9 +420,60 @@ class ComplaintApiTest extends ApiTestSupport {
                 .as("the row holds the newest event's status").isEqualTo(events.get(events.size() - 1).getStatus());
     }
 
+    /**
+     * B5 in a complaint: files go with the first message and with a reply exactly as in Messages, and their bytes answer
+     * to the complaint's two participants — the parent and the recipient — and nobody else, a supervisor who reads the
+     * conversation included (the same 404 an unknown id gets).
+     */
+    @Test @Order(9) void a_complaint_carries_files_and_only_its_participants_read_them() throws Exception {
+        String photo = json(perform(multipart("/children/" + childBritish + "/chat/attachments").file(file(png(), "bus.png")).with(SIZED)
+                .header("Authorization", bearer(BRITISH_PARENT))).andExpect(status().isCreated()).andReturn()).get("id").asText();
+        var created = parentPostJson(BRITISH_PARENT, "/children/" + childBritish + "/complaints",
+                "{\"staffId\":\"" + maya + "\",\"title\":\"Torn book\",\"attachmentIds\":[\"" + photo + "\"]}");
+        String id = created.get("complaint").get("id").asText();
+        var first = created.get("messages").get(0);
+        assertThat(first.get("body").asText()).as("files alone, no words").isEmpty();
+        assertThat(first.get("attachments").get(0).get("id").asText()).isEqualTo(photo);
+
+        String reply = json(perform(as(multipart("/media/chat-attachments").file(file(png(), "receipt.png")).with(SIZED), token(maya, "TEACHER")))
+                .andExpect(status().isCreated()).andReturn()).get("id").asText();
+        int pushed = PushProbe.sentTo(pushes, phone).size();
+        assertThat(json(perform(as(post("/teacher/complaints/" + id + "/messages").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"attachmentIds\":[\"" + reply + "\"]}"), token(maya, "TEACHER"))).andExpect(status().isCreated()).andReturn())
+                .get("attachments").get(0).get("id").asText()).isEqualTo(reply);
+        assertThat(names(parentJson(BRITISH_PARENT, "/children/" + childBritish + "/complaints/" + id).get("messages"), "id")).hasSize(2);
+        assertThat(PushProbe.await(pushes, phone, pushed + 1).get(pushed).message().getBody()).as("the push names the file").isEqualTo("📷 Photo");
+
+        for (String file : List.of(photo, reply)) {
+            perform(get("/media/attachments/" + file).header("Authorization", bearer(BRITISH_PARENT))).andExpect(status().isOk());
+            perform(as(get("/media/attachments/" + file), token(maya, "TEACHER"))).andExpect(status().isOk());
+            perform(as(get("/media/attachments/" + file), token(lina, "COORDINATOR"))).andExpect(status().isNotFound());
+            perform(as(get("/media/attachments/" + file), token(rami, "TEACHER"))).andExpect(status().isNotFound());
+            perform(get("/media/attachments/" + file).header("Authorization", bearer(AMERICAN_PARENT))).andExpect(status().isNotFound());
+        }
+    }
+
     // ---------------------------------------------------------------- plumbing
 
     @FunctionalInterface private interface Callable { void call() throws Exception; }
+
+    private static org.springframework.mock.web.MockMultipartFile file(byte[] bytes, String name) {
+        return new org.springframework.mock.web.MockMultipartFile("file", name, "application/octet-stream", bytes);
+    }
+
+    /** A real `Content-Length` for a MockMvc multipart request, which B5's upload limit reads (as `ChatAttachmentsApiTest` does). */
+    private static final org.springframework.test.web.servlet.request.RequestPostProcessor SIZED = r -> {
+        long n = 256;
+        if (r instanceof org.springframework.mock.web.MockMultipartHttpServletRequest m) for (var f : m.getFileMap().values()) n += f.getSize();
+        r.setContent(new byte[(int) n]);
+        return r;
+    };
+
+    private static byte[] png() throws Exception {
+        var out = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(8, 6, java.awt.image.BufferedImage.TYPE_INT_RGB), "png", out);
+        return out.toByteArray();
+    }
 
     /** Runs the requests at the same moment, each on its own thread and so in its own transaction. */
     private static void concurrently(List<Callable> requests) throws Exception {

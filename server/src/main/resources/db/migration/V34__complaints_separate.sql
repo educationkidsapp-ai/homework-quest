@@ -52,9 +52,9 @@ CREATE INDEX IF NOT EXISTS complaint_events_thread ON complaint_events(thread_id
 CREATE INDEX IF NOT EXISTS complaint_events_school ON complaint_events(school_id);
 
 INSERT INTO complaint_events (id, school_id, thread_id, status, actor_role, actor_id, changed_at)
-SELECT 'v33-' || t.id, t.school_id, t.id, 'resolved', 'staff', t.resolved_by, t.resolved_at
+SELECT 'v34-' || t.id, t.school_id, t.id, 'resolved', 'staff', t.resolved_by, t.resolved_at
 FROM chat_threads t
 WHERE t.topic = 'complaint' AND t.status = 'resolved' AND t.resolved_at IS NOT NULL AND t.resolved_by IS NOT NULL
-  AND NOT EXISTS (SELECT 1 FROM complaint_events e WHERE e.id = 'v33-' || t.id);
+  AND NOT EXISTS (SELECT 1 FROM complaint_events e WHERE e.id = 'v34-' || t.id);
 
 -- The Complaints lists read by topic and status within a school; `chat_threads_topic` (V20) already serves them.

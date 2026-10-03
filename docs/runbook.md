@@ -1495,9 +1495,9 @@ Owner, 2026-10-03: "Complaints must be separate from messages." Contract: `share
 **A complaint is its own conversation.** The parent opens it about one child, to one staff member — a teacher of the
 child's section, a coordinator of one of its subjects or the manager of its department (`GET
 /children/{id}/complaints/recipients`; anyone else, the Admin included, is 404) — with a `title` (1–120 characters) and a
-first message. It is a `chat_threads` row with `topic` `complaint` and `thread_key` = its own id (V33), so it sits
+first message. It is a `chat_threads` row with `topic` `complaint` and `thread_key` = its own id (V34), so it sits
 **beside** her Messages thread with the same person and she may hold several. Its messages are ordinary `ChatMessage`s
-(rate limit, paging, socket `message` frames named by the complaint's id; B5's attachments once they land). No Messages
+(rate limit, paging, socket `message` frames named by the complaint's id; B5's attachments: `attachmentIds` on the create and on every reply, bytes readable by the parent and the recipient only). No Messages
 list (`/children/{id}/chat/threads`, `/teacher/chat/**`, `/coordinator/chat/**`, `/management/chat/**`,
 `/admin/chat/**`) shows a complaint, no Messages route opens one (404), and no Complaints route opens a Messages
 thread. Replies, reads and status changes are REST only — the socket's commands address Messages threads.
@@ -1529,7 +1529,7 @@ parent's message → the recipient's `complaint.message` (one unread row per com
 parent's `complaint.message` row + push (`complaintId`, link `/children/{childId}/complaints/{id}`, collapse key
 `complaint:{id}`). Reading the complaint clears its `complaint.message` row. A complaint never writes `chat.message`.
 
-**Data written before B6.** V33 turns every `topic = complaint` row into a complaint as it is — messages, status and
+**Data written before B6.** V34 turns every `topic = complaint` row into a complaint as it is — messages, status and
 all, even one that began as a question thread: it gets its own `thread_key`, a title (the first 120 characters of its
 first message) and, when resolved, its resolution as an event. It leaves the Messages lists; the parent's next message
 to that person opens a fresh Messages thread. Flag: still `chat` (a complaint is stored and delivered as a

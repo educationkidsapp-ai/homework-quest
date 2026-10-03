@@ -9,7 +9,7 @@ import org.hibernate.annotations.Filter;
 
 /**
  * V15: one conversation per (child, teacher) and its messages (C1 `backend/chat-websocket`), widened by V20 (R4,
- * DR3) to a conversation between a parent and any staff peer, or between two staff members. V33 (B6) makes a
+ * DR3) to a conversation between a parent and any staff peer, or between two staff members. V34 (B6) makes a
  * complaint a conversation of its own beside them, with its status history in `complaint_events`.
  */
 public final class Entities {
@@ -26,7 +26,7 @@ public final class Entities {
      * {@code peerUserId} is the second staff member of a coordinator-to-manager thread and null on every parent
      * thread, which is the only shape that carries a {@code childId} at all.
      *
-     * <p>V33 (B6): {@code threadKey} is `""` on a Messages thread — one per (child, staff), as before — and the row's
+     * <p>V34 (B6): {@code threadKey} is `""` on a Messages thread — one per (child, staff), as before — and the row's
      * own id on a complaint (`topic` `complaint`), so a parent may hold any number of complaints beside her one
      * Messages thread with the same person; {@code title} is a complaint's subject line and {@code subject} the recipient's
      * subjects on the child's section when it was opened, both null on a Messages thread.
@@ -101,7 +101,7 @@ public final class Entities {
     }
 
     /**
-     * V33 (B6): one status change of a complaint — `resolved` or `open` (reopened), by `parent` or `staff`, with the
+     * V34 (B6): one status change of a complaint — `resolved` or `open` (reopened), by `parent` or `staff`, with the
      * person's id. Written by {@link ComplaintService} only, never from a request; `schoolId` is the complaint's.
      */
     @Entity(name = "ComplaintEventEntity") @Table(name = "complaint_events")

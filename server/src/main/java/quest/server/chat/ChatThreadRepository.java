@@ -17,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public interface ChatThreadRepository extends JpaRepository<Entities.ChatThreadEntity, String> {
     /**
-     * The parent's <em>Messages</em> thread with one staff member — the (child, staff, `''`) row V33's unique index
+     * The parent's <em>Messages</em> thread with one staff member — the (child, staff, `''`) row V34's unique index
      * keeps single. A complaint (B6) is never this row, whoever it is addressed to.
      */
     @Query("select t from ChatThreadEntity t where t.childId = :childId and t.teacherId = :teacherId and t.threadKey = ''")

@@ -158,7 +158,7 @@ public class ManagementChatController {
     @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatMessage.class)))
     public String managementSendComplaintMessage(@AuthenticationPrincipal Principals.User caller, @PathVariable String id, @RequestBody String body) {
         var req = codec.message(body);
-        return codec.message(complaints.staffSend(ComplaintArea.MANAGEMENT, caller, id, req.getBody(), req.getClientId()));
+        return codec.message(complaints.staffSend(ComplaintArea.MANAGEMENT, caller, id, req.getBody(), req.getAttachmentIds(), req.getClientId()));
     }
 
     @PostMapping(value = "/management/complaints/{id}/read", produces = MediaType.APPLICATION_JSON_VALUE)
