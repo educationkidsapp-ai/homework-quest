@@ -45,6 +45,8 @@ import quest.feature.content.domain.ChildResultsUseCase
 import quest.feature.notifications.data.ParentUnreadSource
 import quest.feature.notifications.domain.ParentBadges
 import quest.feature.notifications.domain.UnreadSource
+import quest.feature.notifications.domain.NotificationsRepository
+import quest.feature.notifications.data.NotificationsRepositoryImpl
 import quest.feature.school.domain.Flags
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -223,10 +225,11 @@ val broadcastsModule = module {
     // M4 (D5): the bottom bar's badges, one for the app, moved live by `/ws/chat`.
     single<UnreadSource> {
         val flags = get<FlagStore>()
-        ParentUnreadSource(get(), get(), announcementsOn = { flags.isEnabled(Flags.ANNOUNCEMENTS) }, chatOn = { flags.isEnabled(Flags.CHAT) })
+        ParentUnreadSource(get(), get(), get(), announcementsOn = { flags.isEnabled(Flags.ANNOUNCEMENTS) }, chatOn = { flags.isEnabled(Flags.CHAT) })
     }
     single { ParentBadges(get(), get()).also { it.start(CoroutineScope(SupervisorJob() + Dispatchers.Default), get<ChatRepository>().incomingFrames) } }
-    viewModel { BroadcastsViewModel(get(), get(), get<ChatRepository>().incomingFrames, get()) }
+    single<NotificationsRepository> { NotificationsRepositoryImpl(get()) }
+    viewModel { BroadcastsViewModel(get(), get(), get<ChatRepository>().incomingFrames, get(), get()) }
     viewModel { WeeklyPlanViewModel(get(), get()) }
 }
 
