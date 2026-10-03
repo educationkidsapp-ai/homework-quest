@@ -269,15 +269,16 @@ interface GlanceCard {
     .mg-filters {
       display: flex;
       flex-wrap: wrap;
-      gap: var(--hq-space-16);
       align-items: flex-end;
+      gap: var(--hq-space-16);
       margin-block-end: var(--hq-space-16);
-    }
 
-    .wp-grade-filter,
-    .mg-filters hq-select {
-      display: block;
-      margin-block-end: 20px;
+      hq-select,
+      hq-input {
+        flex: 0 1 auto;
+        min-inline-size: 160px;
+        margin: 0;
+      }
     }
 
     .wp__glance {
