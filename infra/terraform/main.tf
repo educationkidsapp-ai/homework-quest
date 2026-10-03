@@ -157,13 +157,10 @@ resource "google_storage_bucket_iam_member" "runtime_bucket" {
   member = "serviceAccount:${google_service_account.runtime.email}"
 }
 
-# B4: parents' push notifications. The Admin SDK's `send` needs `cloudmessaging.messages.create`; this is the narrowest
-# predefined role that carries it (the rest is topic subscriptions and delivery data, which the server does not use).
-resource "google_project_iam_member" "runtime_fcm" {
-  project = var.project_id
-  role    = "roles/firebasecloudmessaging.admin"
-  member  = "serviceAccount:${google_service_account.runtime.email}"
-}
+# B4: parents' push notifications need no grant here. FCM sends through the default Firebase app, which the server
+# initialises from FIREBASE_CREDENTIALS (the `firebase-adminsdk-fbsvc` key; that account already holds
+# `roles/firebase.sdkAdminServiceAgent`, which carries `cloudmessaging.messages.create`). A project IAM binding for the
+# runtime account is deliberately absent: the CI deployer may not set project IAM policy.
 
 resource "google_secret_manager_secret_iam_member" "runtime_secrets" {
   for_each  = google_secret_manager_secret.s

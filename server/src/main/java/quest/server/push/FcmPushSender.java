@@ -20,9 +20,10 @@ import quest.api.dto.DevicePlatform;
 import quest.api.dto.PushMessage;
 
 /**
- * Firebase Cloud Messaging through the Admin SDK, on the Firebase app {@code FirebaseTokenFilter} initialises — on
- * Cloud Run that is Application Default Credentials, the runtime service account, which Terraform grants
- * `roles/firebasecloudmessaging.admin`.
+ * Firebase Cloud Messaging through the Admin SDK, on the default Firebase app {@code FirebaseTokenFilter} initialises
+ * from {@code FIREBASE_CREDENTIALS} — the {@code firebase-adminsdk-fbsvc} key, whose account may already send. Without
+ * that secret the app falls back to Application Default Credentials (the runtime service account, which holds no FCM
+ * role) and FCM refuses the sends.
  *
  * <p><strong>Android: data-only, high priority.</strong> The app's `FirebaseMessagingService` then runs in the
  * foreground, the background and after a swipe-away alike and draws the notification itself — in its own channel, in
