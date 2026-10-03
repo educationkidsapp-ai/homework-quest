@@ -35,7 +35,9 @@ import quest.server.tenancy.TenantContext;
  *       description is written onto the message row, so history and frames are built from the message alone.</li>
  *   <li><strong>Read</strong> — {@link #readable}: the bytes answer to the thread's participants — the staff member on
  *       `teacher_id`, the second one on `peer_user_id` (the admin included, on the threads she is on), and the parent of
- *       the child the thread is about — and to nobody else, whose answer is the same 404 an unknown id gets.</li>
+ *       the child the thread is about — and to nobody else, whose answer is the same 404 an unknown id gets. B6b: on a
+ *       complaint, everyone who may read the complaint reads its files too — they are the evidence — so a supervising
+ *       coordinator or manager in scope and the Admin's read-only support are admitted ({@link ComplaintService#mayRead}).</li>
  * </ol>
  * An upload that is never sent is MH1's orphan and is swept after 24 hours ({@code UploadRetention}).
  */
@@ -47,11 +49,14 @@ public class ChatAttachments {
     private final AttachmentRepository files; private final AttachmentService uploads; private final ChatMessageRepository messages;
     private final ChatThreadRepository threads; private final ChildRepository children; private final ChildService childService;
     private final FeatureFlags flags; private final TenantContext tenant;
+    /** B6b: lazily, because `ComplaintService` writes its messages through `ChatService`, which claims files through this class. */
+    private final org.springframework.beans.factory.ObjectProvider<ComplaintService> complaints;
 
     public ChatAttachments(AttachmentRepository files, AttachmentService uploads, ChatMessageRepository messages, ChatThreadRepository threads,
-                           ChildRepository children, ChildService childService, FeatureFlags flags, TenantContext tenant) {
+                           ChildRepository children, ChildService childService, FeatureFlags flags, TenantContext tenant,
+                           org.springframework.beans.factory.ObjectProvider<ComplaintService> complaints) {
         this.files = files; this.uploads = uploads; this.messages = messages; this.threads = threads; this.children = children;
-        this.childService = childService; this.flags = flags; this.tenant = tenant;
+        this.childService = childService; this.flags = flags; this.tenant = tenant; this.complaints = complaints;
     }
 
     // ---------------------------------------------------------------- upload
@@ -142,7 +147,8 @@ public class ChatAttachments {
         if (!row.isChat() || row.getMessageId() == null) return false;
         var thread = messages.findOneById(row.getMessageId()).flatMap(m -> threads.findOneById(m.getThreadId())).orElse(null);
         if (thread == null || !flags.isOn(thread.getSchoolId(), FlagKeys.CHAT)) return false;
-        if (user != null) return user.userId().equals(thread.getTeacherId()) || user.userId().equals(thread.getPeerUserId());
+        if (user != null) return user.userId().equals(thread.getTeacherId()) || user.userId().equals(thread.getPeerUserId())
+                || (ChatService.COMPLAINT.equals(thread.getTopic()) && complaints.getObject().mayRead(thread, user));
         if (parent == null || thread.getChildId() == null) return false;
         return children.findOneById(thread.getChildId())
                 .filter(c -> c.getDeletedAt() == null && parent.parentId().equals(c.getParentId())).isPresent();

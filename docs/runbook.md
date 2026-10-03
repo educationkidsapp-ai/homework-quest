@@ -1497,7 +1497,7 @@ child's section, a coordinator of one of its subjects or the manager of its depa
 /children/{id}/complaints/recipients`; anyone else, the Admin included, is 404) — with a `title` (1–120 characters) and a
 first message. It is a `chat_threads` row with `topic` `complaint` and `thread_key` = its own id (V34), so it sits
 **beside** her Messages thread with the same person and she may hold several. Its messages are ordinary `ChatMessage`s
-(rate limit, paging, socket `message` frames named by the complaint's id; B5's attachments: `attachmentIds` on the create and on every reply, bytes readable by the parent and the recipient only). No Messages
+(rate limit, paging, socket `message` frames named by the complaint's id; B5's attachments: `attachmentIds` on the create and on every reply, bytes readable — B6b — by everyone who may read the complaint: the parent, the recipient, the supervising coordinator or manager in scope and support; 404 for anyone else). No Messages
 list (`/children/{id}/chat/threads`, `/teacher/chat/**`, `/coordinator/chat/**`, `/management/chat/**`,
 `/admin/chat/**`) shows a complaint, no Messages route opens one (404), and no Complaints route opens a Messages
 thread. Replies, reads and status changes are REST only — the socket's commands address Messages threads.

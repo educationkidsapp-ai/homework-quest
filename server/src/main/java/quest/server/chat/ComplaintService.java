@@ -234,6 +234,21 @@ public class ComplaintService {
         return rows(List.of(reread(t)), viewer).get(0);
     }
 
+    /**
+     * B6b: whether a dashboard user may read this complaint — the rule every Complaints route applies, through her own
+     * role's area (the recipient, a supervising coordinator or manager in scope, the Admin's support with `X-School-Id`).
+     * What `ChatAttachments` asks before it serves a complaint's file; anything the routes would refuse is false.
+     */
+    public boolean mayRead(ChatThreadEntity t, Principals.User user) {
+        if (user == null || !isComplaint(t)) return false;
+        var area = switch (user.role() == null ? "" : user.role()) {
+            case ChatService.ROLE_TEACHER -> ComplaintArea.TEACHER; case ChatService.COORDINATOR -> ComplaintArea.COORDINATOR;
+            case ChatService.MANAGERIAL -> ComplaintArea.MANAGEMENT; case ChatService.ADMIN -> ComplaintArea.ADMIN; default -> null; };
+        if (area == null) return false;
+        try { require(viewer(area, user), t.getId()); return true; }
+        catch (ApiException refused) { return false; }
+    }
+
     /** One complaint this staff member's area shows: 404 for another school's (the filter), a Messages thread, or one out of her scope. */
     private ChatThreadEntity require(Viewer viewer, String complaintId) {
         var t = threads.findOneById(complaintId).filter(ComplaintService::isComplaint).orElseThrow(() -> ApiException.notFound("complaint"));

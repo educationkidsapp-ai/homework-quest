@@ -421,11 +421,10 @@ class ComplaintApiTest extends ApiTestSupport {
     }
 
     /**
-     * B5 in a complaint: files go with the first message and with a reply exactly as in Messages, and their bytes answer
-     * to the complaint's two participants — the parent and the recipient — and nobody else, a supervisor who reads the
-     * conversation included (the same 404 an unknown id gets).
+     * B5 in a complaint: files go with the first message and with a reply exactly as in Messages, and (B6b) their bytes
+     * answer to everyone who may read the complaint and to nobody else.
      */
-    @Test @Order(9) void a_complaint_carries_files_and_only_its_participants_read_them() throws Exception {
+    @Test @Order(9) void a_complaint_carries_files_and_whoever_reads_the_complaint_reads_them() throws Exception {
         String photo = json(perform(multipart("/children/" + childBritish + "/chat/attachments").file(file(png(), "bus.png")).with(SIZED)
                 .header("Authorization", bearer(BRITISH_PARENT))).andExpect(status().isCreated()).andReturn()).get("id").asText();
         var created = parentPostJson(BRITISH_PARENT, "/children/" + childBritish + "/complaints",
@@ -444,11 +443,22 @@ class ComplaintApiTest extends ApiTestSupport {
         assertThat(names(parentJson(BRITISH_PARENT, "/children/" + childBritish + "/complaints/" + id).get("messages"), "id")).hasSize(2);
         assertThat(PushProbe.await(pushes, phone, pushed + 1).get(pushed).message().getBody()).as("the push names the file").isEqualTo("📷 Photo");
 
+        // B6b: everyone who may read the complaint reads its files — the parent, the recipient, Lina and Nour who
+        // supervise it, support with the school's header — and nobody else, with the 404 an unknown id gets.
+        String outOfSubject = coordinator("cmp-coord-english-british", "english", "british");
+        String outOfTrack = coordinator("cmp-coord-math-american", "math", "american");
         for (String file : List.of(photo, reply)) {
             perform(get("/media/attachments/" + file).header("Authorization", bearer(BRITISH_PARENT))).andExpect(status().isOk());
             perform(as(get("/media/attachments/" + file), token(maya, "TEACHER"))).andExpect(status().isOk());
-            perform(as(get("/media/attachments/" + file), token(lina, "COORDINATOR"))).andExpect(status().isNotFound());
+            perform(as(get("/media/attachments/" + file), token(lina, "COORDINATOR"))).andExpect(status().isOk());
+            perform(as(get("/media/attachments/" + file), token(nour, "MANAGERIAL"))).andExpect(status().isOk());
+            perform(as(get("/media/attachments/" + file), adminToken()).header("X-School-Id", SCHOOL)).andExpect(status().isOk());
             perform(as(get("/media/attachments/" + file), token(rami, "TEACHER"))).andExpect(status().isNotFound());
+            perform(as(get("/media/attachments/" + file), token(sami, "MANAGERIAL"))).andExpect(status().isNotFound());
+            perform(as(get("/media/attachments/" + file), token(outOfSubject, "COORDINATOR"))).andExpect(status().isNotFound());
+            perform(as(get("/media/attachments/" + file), token(outOfTrack, "COORDINATOR"))).andExpect(status().isNotFound());
+            perform(as(get("/media/attachments/" + file), jwt.issue("cmp-other", "o@seed.test", "COORDINATOR", OTHER_SCHOOL).token()))
+                    .andExpect(status().isNotFound());
             perform(get("/media/attachments/" + file).header("Authorization", bearer(AMERICAN_PARENT))).andExpect(status().isNotFound());
         }
     }
