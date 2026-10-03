@@ -59,7 +59,7 @@ class ChatAttachmentsApiTest extends ChatTestSupport {
     // ---------------------------------------------------------------- the parent and the teacher
 
     @Test void a_parent_sends_a_photo_and_only_the_threads_participants_can_open_it() throws Exception {
-        var uploaded = json(mvc.perform(parent(upload(png(40, 30), "photo.png").param("purpose", "chat").param("childId", maya)))
+        var uploaded = json(mvc.perform(parent(parentUpload(maya, png(40, 30), "photo.png")))
                 .andExpect(status().isCreated()).andReturn());
         String id = uploaded.get("id").asText();
         assertThat(uploaded.get("type").asText()).isEqualTo("image/png");
@@ -158,14 +158,14 @@ class ChatAttachmentsApiTest extends ChatTestSupport {
         // the Admin, on her own thread with the parent — `X-School-Id` names the school, as for her every chat write
         String adminThread = json(mvc.perform(as(post("/admin/chat/threads"), adminToken).header(TenantContext.HEADER, A)
                 .contentType(MediaType.APPLICATION_JSON).content("{\"childId\":\"" + maya + "\"}")).andExpect(status().isCreated()).andReturn()).get("id").asText();
-        mvc.perform(as(upload(png(8, 8), "d.png"), adminToken).param("purpose", "chat")).andExpect(status().isBadRequest());
+        mvc.perform(as(chatUpload(png(8, 8), "d.png"), adminToken)).andExpect(status().is4xxClientError());   // no school named
         String d = staffUpload(adminToken, png(8, 8), "d.png", A);
         mvc.perform(as(post("/admin/chat/threads/" + adminThread + "/messages"), adminToken).header(TenantContext.HEADER, A)
                 .contentType(MediaType.APPLICATION_JSON).content("{\"attachmentIds\":[\"" + d + "\"]}")).andExpect(status().isCreated());
         mvc.perform(parent(get("/media/attachments/" + d))).andExpect(status().isOk());
         mvc.perform(as(get("/media/attachments/" + d), adminToken).header(TenantContext.HEADER, A)).andExpect(status().isOk());
         // the parent answers with a file of her own, which the Admin opens
-        var mine = json(mvc.perform(parent(upload(png(8, 8), "e.png").param("purpose", "chat").param("childId", maya))).andReturn()).get("id").asText();
+        var mine = json(mvc.perform(parent(parentUpload(maya, png(8, 8), "e.png"))).andReturn()).get("id").asText();
         String adminId = json(mvc.perform(as(get("/admin/chat/threads").param("mine", "true"), adminToken).header(TenantContext.HEADER, A)).andReturn())
                 .get(0).get("teacherId").asText();
         parentPost("/children/" + maya + "/chat/threads/" + adminId + "/messages", "{\"attachmentIds\":[\"" + mine + "\"]}");
@@ -176,17 +176,16 @@ class ChatAttachmentsApiTest extends ChatTestSupport {
 
     @Test void the_limits_and_the_refusals() throws Exception {
         // the type is the bytes', and the sizes are MH1's
-        mvc.perform(parent(upload("hello".getBytes(), "note.png").param("purpose", "chat").param("childId", maya))).andExpect(status().isBadRequest());
+        mvc.perform(parent(parentUpload(maya, "hello".getBytes(), "note.png"))).andExpect(status().isBadRequest());
         byte[] big = new byte[5 * 1024 * 1024 + 1]; System.arraycopy(png(1, 1), 0, big, 0, 8);
-        mvc.perform(parent(upload(big, "big.png").param("purpose", "chat").param("childId", maya))).andExpect(status().isPayloadTooLarge());
+        mvc.perform(parent(parentUpload(maya, big, "big.png"))).andExpect(status().isPayloadTooLarge());
         byte[] bigPdf = new byte[10 * 1024 * 1024 + 1]; System.arraycopy("%PDF-".getBytes(), 0, bigPdf, 0, 5);
-        mvc.perform(parent(upload(bigPdf, "big.pdf").param("purpose", "chat").param("childId", maya))).andExpect(status().isPayloadTooLarge());
-        // a parent uploads for a conversation about her own child, and for nothing else
-        mvc.perform(parent(upload(png(2, 2), "x.png"))).andExpect(status().isBadRequest());
-        mvc.perform(parent(upload(png(2, 2), "x.png").param("purpose", "chat"))).andExpect(status().isBadRequest());
-        mvc.perform(parent(upload(png(2, 2), "x.png").param("purpose", "chat").param("childId", someoneElsesChild("Theirs")))).andExpect(status().isNotFound());
-        mvc.perform(as(upload(png(2, 2), "x.png").param("purpose", "chat"), other)).andExpect(status().isNotFound());
-        mvc.perform(as(upload(png(2, 2), "x.png").param("purpose", "gallery"), sara)).andExpect(status().isBadRequest());
+        mvc.perform(parent(parentUpload(maya, bigPdf, "big.pdf"))).andExpect(status().isPayloadTooLarge());
+        // a parent uploads for a conversation about her own child, and through her own route only
+        mvc.perform(parent(upload(png(2, 2), "x.png"))).andExpect(status().isForbidden());
+        mvc.perform(parent(chatUpload(png(2, 2), "x.png"))).andExpect(status().isNotFound());   // the flag fails closed for a parent with no child in the path
+        mvc.perform(parent(parentUpload(someoneElsesChild("Theirs"), png(2, 2), "x.png"))).andExpect(status().isNotFound());
+        mvc.perform(as(chatUpload(png(2, 2), "x.png"), other)).andExpect(status().isNotFound());   // school B has chat off
 
         // a send names only the sender's own chat uploads, at most five, and says something or sends something
         String saras = staffUpload(sara, png(2, 2), "s.png", null);
@@ -221,12 +220,16 @@ class ChatAttachmentsApiTest extends ChatTestSupport {
 
     private MockHttpServletRequestBuilder parent(MockHttpServletRequestBuilder b) { return b.header("Authorization", PARENT); }
 
-    private static MockMultipartHttpServletRequestBuilder upload(byte[] bytes, String name) {
-        return multipart("/media/attachments").file(new MockMultipartFile("file", name, "application/octet-stream", bytes));
+    /** MH1's broadcast upload, which a chat send refuses. */
+    private static MockMultipartHttpServletRequestBuilder upload(byte[] bytes, String name) { return multipart("/media/attachments").file(file(bytes, name)); }
+    private static MockMultipartHttpServletRequestBuilder chatUpload(byte[] bytes, String name) { return multipart("/media/chat-attachments").file(file(bytes, name)); }
+    private static MockMultipartHttpServletRequestBuilder parentUpload(String childId, byte[] bytes, String name) {
+        return multipart("/children/" + childId + "/chat/attachments").file(file(bytes, name));
     }
+    private static MockMultipartFile file(byte[] bytes, String name) { return new MockMultipartFile("file", name, "application/octet-stream", bytes); }
 
     private String staffUpload(String token, byte[] bytes, String name, String school) throws Exception {
-        var request = as(upload(bytes, name).param("purpose", "chat"), token);
+        var request = as(chatUpload(bytes, name), token);
         if (school != null) request = request.header(TenantContext.HEADER, school);
         return json(mvc.perform(request).andExpect(status().isCreated()).andReturn()).get("id").asText();
     }

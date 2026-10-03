@@ -27,9 +27,9 @@ import quest.server.tenancy.TenantContext;
  *
  * <p><strong>Three steps, three rules.</strong>
  * <ol>
- *   <li><strong>Upload</strong> — `POST /media/attachments` with `purpose=chat`: MH1's route, sniffing and limits
- *       (images ≤ 5 MB, a PDF ≤ 10 MB), into the caller's own school — a parent's is the school of the child she names,
- *       who must be hers — and only while that school has `chat` on.</li>
+ *   <li><strong>Upload</strong> — {@link ChatAttachmentController}: MH1's sniffing and limits (images ≤ 5 MB, a PDF
+ *       ≤ 10 MB), into the caller's own school — a parent's is the school of the child in the path, who must be hers —
+ *       and only while that school has `chat` on.</li>
  *   <li><strong>Send</strong> — {@link #claim}: each id named on the send must be the sender's own `chat` upload, in the
  *       thread's school, and not sent before; it is then bound to that one message (`attachments.message_id`) and its
  *       description is written onto the message row, so history and frames are built from the message alone.</li>
@@ -58,7 +58,6 @@ public class ChatAttachments {
 
     /** A parent's upload, filed under the school of {@code childId} — hers, or 404. */
     public AttachmentEntity uploadForParent(Principals.Parent parent, String childId, MultipartFile file) {
-        if (childId == null || childId.isBlank()) throw ApiException.badRequest("Send childId: the child this conversation is about.");
         var child = childService.owned(childId, parent);
         requireOn(child.getSchoolId());
         return uploads.store(child.getSchoolId(), parent.parentId(), file, quest.server.files.Entities.CHAT);
@@ -89,7 +88,7 @@ public class ChatAttachments {
         for (String id : wanted) {
             var a = byId.get(id);
             if (a == null || !a.isChat() || a.getMessageId() != null || !senderId.equals(a.getUploadedBy()) || !thread.getSchoolId().equals(a.getSchoolId()))
-                throw new ApiException(HttpStatus.BAD_REQUEST, "bad_request", "Upload the file to /media/attachments with purpose=chat first — that id is not one you can send.");
+                throw new ApiException(HttpStatus.BAD_REQUEST, "bad_request", "Upload the file to the chat upload route first — that id is not one you can send.");
             a.setMessageId(messageId);
             out.add(new ChatAttachment(a.getId(), a.getMimeType(), a.getName(), a.getSizeBytes(), a.getWidth(), a.getHeight()));
         }
@@ -102,10 +101,10 @@ public class ChatAttachments {
         return list.isEmpty() ? null : SchemaValidator.INSTANCE.getJson().encodeToString(LIST, list);
     }
 
-    /** The column back; an unreadable value is no attachments rather than a page of history that fails. */
+    /** The column back, null when there is none (absent on the wire); an unreadable value is none rather than a failed page. */
     static List<ChatAttachment> decode(String column) {
-        if (column == null || column.isBlank()) return List.of();
-        try { return SchemaValidator.INSTANCE.getJson().decodeFromString(LIST, column); } catch (RuntimeException e) { return List.of(); }
+        if (column == null || column.isBlank()) return null;
+        try { return SchemaValidator.INSTANCE.getJson().decodeFromString(LIST, column); } catch (RuntimeException e) { return null; }
     }
 
     private static final kotlinx.serialization.KSerializer<List<ChatAttachment>> LIST = BuiltinSerializersKt.ListSerializer(ChatAttachment.Companion.serializer());

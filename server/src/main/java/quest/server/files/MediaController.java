@@ -46,7 +46,7 @@ public class MediaController {
      */
     @io.swagger.v3.oas.annotations.media.Schema(name = "AttachmentRef")
     public record Attachment(String id, String name, String type, long sizeBytes, Integer width, Integer height) {
-        static Attachment of(Entities.AttachmentEntity row) {
+        public static Attachment of(Entities.AttachmentEntity row) {
             return new Attachment(row.getId(), row.getName(), row.getMimeType(), row.getSizeBytes(), row.getWidth(), row.getHeight());
         }
     }
@@ -65,12 +65,12 @@ public class MediaController {
     }
 
     private final FileStore files; private final PageImageRepository pageImages; private final ChildMediaRepository childMedia; private final MediaAccess access;
-    private final AttachmentRepository attachments; private final AttachmentService uploads; private final quest.server.chat.ChatAttachments chatFiles;
+    private final AttachmentRepository attachments; private final AttachmentService uploads;
 
     public MediaController(FileStore files, PageImageRepository pageImages, ChildMediaRepository childMedia, MediaAccess access,
-                           AttachmentRepository attachments, AttachmentService uploads, quest.server.chat.ChatAttachments chatFiles) {
+                           AttachmentRepository attachments, AttachmentService uploads) {
         this.files = files; this.pageImages = pageImages; this.childMedia = childMedia; this.access = access;
-        this.attachments = attachments; this.uploads = uploads; this.chatFiles = chatFiles;
+        this.attachments = attachments; this.uploads = uploads;
     }
 
     /**
@@ -79,38 +79,29 @@ public class MediaController {
      * `POST /management/broadcasts` is what ties the two together, and an upload nobody attaches is readable by its
      * uploader alone.
      */
-    /**
-     * B5: `purpose=chat` uploads a file for a chat message instead ({@link quest.server.chat.ChatAttachments}) — any
-     * dashboard role, and the one upload a <strong>parent</strong> may make, naming the child the conversation is about
-     * as `childId`. Absent (or `broadcast`) is MH1's upload, unchanged; a parent asking for that is 400.
-     */
     @PreAuthorize("@permit.has('media.attachment.write')")
     @PostMapping(value = "/media/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public Attachment uploadAttachment(@AuthenticationPrincipal Principals.User caller, @AuthenticationPrincipal Principals.Parent parent,
-                                       @RequestPart("file") org.springframework.web.multipart.MultipartFile file,
-                                       @RequestParam(value = "purpose", required = false) String purpose,
-                                       @RequestParam(value = "childId", required = false) String childId) {
-        boolean chat = Entities.CHAT.equals(purpose);
-        if (purpose != null && !chat && !Entities.BROADCAST.equals(purpose)) throw ApiException.badRequest("purpose is `chat` or `broadcast`.");
-        if (parent != null) {
-            if (!chat) throw ApiException.badRequest("Send purpose=chat and childId: a parent uploads files for a conversation.");
-            return Attachment.of(chatFiles.uploadForParent(parent, childId, file));
-        }
+    public Attachment uploadAttachment(@AuthenticationPrincipal Principals.User caller,
+                                       @RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
         if (caller == null) throw ApiException.unauthorized("Sign in first.");
-        return Attachment.of(chat ? chatFiles.uploadForStaff(caller, file) : uploads.upload(caller, file));
+        return Attachment.of(uploads.upload(caller, file));
     }
 
     /**
      * The bytes, to whoever may read a broadcast that carries them — or to the uploader before she has attached it
      * anywhere ({@link MediaAccess#requireAttachment}). Cached like a page crop and `private` for the same reason: it
      * is the answer to an authorised request and must never be served from a shared cache to the next caller.
+     *
+     * <p>B5: `?w=` is hidden from the OpenAPI document on purpose — a new parameter there would move the generated
+     * clients' positional `observe` argument, which every existing caller passes. It is documented in the runbook.
      */
     @PreAuthorize("@permit.has('media.attachment.read')")
     @GetMapping("/media/attachments/{id}")
     public ResponseEntity<byte[]> attachment(@PathVariable String id,
                                              @AuthenticationPrincipal Principals.Parent parent,
                                              @AuthenticationPrincipal Principals.User user,
+                                             @io.swagger.v3.oas.annotations.Parameter(hidden = true)
                                              @RequestParam(value = "w", required = false) Integer w) {
         var row = attachments.findOneById(id).orElseThrow(() -> ApiException.notFound("media"));
         access.requireAttachment(row, parent, user);

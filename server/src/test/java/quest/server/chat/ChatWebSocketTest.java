@@ -226,6 +226,7 @@ class ChatWebSocketTest extends ChatTestSupport {
      * Her commands are now scoped by the thread they name, and a thread she is not on is `not_found`.
      */
     @Test void every_staff_sides_typing_reaches_the_parent_and_the_admin_writes_on_the_socket() throws Exception {
+        // Teacher, manager and coordinator: these three paths were already right before B5 and are pinned here.
         var parent = new Frames();
         var parentSession = connect(PARENT.substring("Bearer ".length()), true, parent);
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/teacher/chat/threads/" + maya + "/messages")
@@ -245,7 +246,19 @@ class ChatWebSocketTest extends ChatTestSupport {
         String managerToken = manager(prefix() + "manager");
         String managerThread = postThread("/management/chat/threads", managerToken, null, "{\"childId\":\"" + maya + "\"}");
         connect(managerToken, true, new Frames()).sendMessage(new TextMessage("{\"type\":\"typing\",\"threadId\":\"" + managerThread + "\"}"));
-        assertThat(frameOfType(parent, "typing").get("threadId").asText()).isEqualTo(managerThread);
+        var fromManager = frameOfType(parent, "typing");
+        assertThat(fromManager.toString()).as("the exact frame the app receives")
+                .isEqualTo("{\"type\":\"typing\",\"threadId\":\"" + managerThread + "\",\"from\":\"teacher\"}");
+        // the same id the parent's own list names the manager's row by
+        assertThat(parentGet("/children/" + maya + "/managers").get(0).get("id").asText()).isEqualTo(managerThread);
+
+        // a coordinator of 1A's maths, on the thread the parent opened with her
+        String coordinatorId = prefix() + "coordinator", coordinatorToken = coordinator(coordinatorId);
+        String coordinatorThread = parentPost("/children/" + maya + "/chat/threads/" + coordinatorId + "/messages", send("A question")).get("threadId").asText();
+        connect(coordinatorToken, true, new Frames()).sendMessage(new TextMessage("{\"type\":\"typing\",\"threadId\":\"" + coordinatorThread + "\"}"));
+        var fromCoordinator = frameOfType(parent, "typing");
+        assertThat(fromCoordinator.get("threadId").asText()).isEqualTo(coordinatorThread);
+        assertThat(fromCoordinator.get("from").asText()).isEqualTo("teacher");
 
         String adminThread = postThread("/admin/chat/threads", adminToken, A, "{\"childId\":\"" + maya + "\"}");
         var admin = new Frames();
@@ -267,6 +280,21 @@ class ChatWebSocketTest extends ChatTestSupport {
         if (school != null) request = request.header(quest.server.tenancy.TenantContext.HEADER, school);
         return json(mvc.perform(request).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().is2xxSuccessful())
                 .andReturn()).get("id").asText();
+    }
+
+    /** A COORDINATOR of school A for British maths — 1A's maths, so Maya's parent may write to her (R4). */
+    private String coordinator(String userId) {
+        var u = users.findById(userId).orElseGet(quest.server.auth.Entities.UserEntity::new);
+        u.setId(userId); u.setSchoolId(A); u.setEmail(userId + "@seed.test"); u.setPasswordHash("x");
+        u.setRole("COORDINATOR"); u.setStatus("active"); u.setDisplayName("Ms Lina");
+        if (u.getCreatedAt() == null) u.setCreatedAt(java.time.Instant.now());
+        u.setUpdatedAt(java.time.Instant.now());
+        users.save(u);
+        var row = staffScopes.findById(userId + ":math").orElseGet(quest.server.tenancy.Entities.StaffScopeEntity::new);
+        row.setId(userId + ":math"); row.setSchoolId(A); row.setUserId(userId); row.setSubject("math"); row.setCurriculum("british");
+        if (row.getCreatedAt() == null) row.setCreatedAt(java.time.Instant.now());
+        staffScopes.save(row);
+        return token(userId, "COORDINATOR", A);
     }
 
     /** A MANAGERIAL account of school A with the British department — a `staff_scopes` row with no subject (DR5). */

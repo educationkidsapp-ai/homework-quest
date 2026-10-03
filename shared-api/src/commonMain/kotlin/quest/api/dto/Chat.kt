@@ -58,7 +58,8 @@ enum class ChatThreadStatus { @SerialName("open") OPEN, @SerialName("resolved") 
  * B5: [attachments] are the files sent with it, in the order they were sent (at most 5). A message may be files alone,
  * and then [body] is the empty string — a one-line preview (a thread row's `lastMessage`, a notification) says
  * "📷 Photo" for an image and "📄 <name>" for a PDF, localised by the client. A message written before B5 has no
- * attachments; one whose body carries the old client-side `[attachment:…]` tag is plain text like any other body.
+ * attachments; one whose body carries the old client-side `[attachment:…]` tag is plain text like any other body. Absent (null) when there are none —
+ * nullable only so that a generated client does not have to invent an empty list for every message it builds.
  */
 @Serializable
 data class ChatMessage(
@@ -69,13 +70,13 @@ data class ChatMessage(
     val body: String,
     val createdAt: Long,
     val readAt: Long? = null,
-    val attachments: List<ChatAttachment> = emptyList(),
+    val attachments: List<ChatAttachment>? = null,
 )
 
 /**
  * B5: one file on a [ChatMessage] — an image (`image/jpeg`, `image/png`, `image/webp`, at most 5 MB) or a PDF
- * (`application/pdf`, at most 10 MB). Uploaded first through `POST /media/attachments` with `purpose=chat` (a parent
- * also sends `childId`), then named by [id] in [SendChatMessageRequest.attachmentIds] / [ChatCommand.Send.attachmentIds],
+ * (`application/pdf`, at most 10 MB). Uploaded first — `POST /children/{id}/chat/attachments` from the app,
+ * `POST /media/chat-attachments` from the dashboard, multipart `file` — then named by [id] in [SendChatMessageRequest.attachmentIds] / [ChatCommand.Send.attachmentIds],
  * which binds it to the message. The bytes are `GET /media/attachments/{id}` with the caller's token, answered to the
  * thread's participants only (404 for everyone else); `?w=<px>` asks for an image downscaled to a JPEG that wide.
  * [contentType] is sniffed from the bytes, [size] is in bytes, [width] and [height] are an image's pixels (absent for
@@ -158,7 +159,7 @@ data class SendChatMessageRequest(
     val clientId: String? = null,
     val topic: ChatTopic? = null,
     /**
-     * B5: up to 5 ids from `POST /media/attachments` (`purpose=chat`), each the sender's own upload, in this thread's
+     * B5: up to 5 ids from the chat upload routes ([ChatAttachment]), each the sender's own upload, in this thread's
      * school, and not yet sent; anything else is 400. With at least one, [body] may be empty. Nullable only so the
      * OpenAPI document calls it optional.
      */

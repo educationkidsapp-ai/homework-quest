@@ -121,7 +121,7 @@ interface ContentApi {
         throw NotImplementedError("sendChatMessage needs a backend")
 
     /**
-     * B5 `POST /media/attachments` (multipart: `file`, `purpose=chat`, `childId`) — one photo (JPEG, PNG or WebP, at most
+     * B5 `POST /children/{id}/chat/attachments` (multipart `file`) — one photo (JPEG, PNG or WebP, at most
      * 5 MB) or one PDF (at most 10 MB) for a chat message about [childId], who must be hers (404 otherwise, and while
      * her school has `chat` off). Its id goes in the next send's `attachmentIds`; an upload never sent is deleted after
      * 24 hours. Read the bytes back from `GET /media/attachments/{id}` with the same token.

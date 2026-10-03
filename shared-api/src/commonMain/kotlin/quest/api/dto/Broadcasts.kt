@@ -55,7 +55,8 @@ data class BroadcastAttachment(
 
 /**
  * MH1: what `POST /media/attachments` answers — the id a composer then sends as [CreateBroadcastRequest.attachmentId],
- * or, B5, as one of a chat message's [SendChatMessageRequest.attachmentIds]. [width] and [height] are an image's pixels.
+ * — and, B5, what the chat upload routes answer, whose id a send names in [SendChatMessageRequest.attachmentIds].
+ * [width] and [height] are an image's pixels as the viewer sees it.
  */
 @Serializable
 data class AttachmentRef(val id: String, val name: String, val type: String, val sizeBytes: Long = 0, val width: Int? = null, val height: Int? = null)

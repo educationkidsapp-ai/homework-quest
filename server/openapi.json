@@ -734,7 +734,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "attachments", "body", "createdAt", "id", "sender", "senderId", "threadId" ],
+        "required" : [ "body", "createdAt", "id", "sender", "senderId", "threadId" ],
         "type" : "object"
       },
       "ChatReadReceipt" : {
@@ -11520,6 +11520,48 @@
         "tags" : [ "Broadcasts" ]
       }
     },
+    "/children/{id}/chat/attachments" : {
+      "post" : {
+        "operationId" : "uploadParentChatAttachment",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "file" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "file" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttachmentRef"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Chat" ]
+      }
+    },
     "/children/{id}/chat/threads" : {
       "get" : {
         "operationId" : "parentChatThreads",
@@ -14251,21 +14293,6 @@
     "/media/attachments" : {
       "post" : {
         "operationId" : "uploadAttachment",
-        "parameters" : [ {
-          "in" : "query",
-          "name" : "purpose",
-          "required" : false,
-          "schema" : {
-            "type" : "string"
-          }
-        }, {
-          "in" : "query",
-          "name" : "childId",
-          "required" : false,
-          "schema" : {
-            "type" : "string"
-          }
-        } ],
         "requestBody" : {
           "content" : {
             "multipart/form-data" : {
@@ -14307,14 +14334,6 @@
           "schema" : {
             "type" : "string"
           }
-        }, {
-          "in" : "query",
-          "name" : "w",
-          "required" : false,
-          "schema" : {
-            "format" : "int32",
-            "type" : "integer"
-          }
         } ],
         "responses" : {
           "200" : {
@@ -14330,6 +14349,40 @@
           }
         },
         "tags" : [ "Media" ]
+      }
+    },
+    "/media/chat-attachments" : {
+      "post" : {
+        "operationId" : "uploadChatAttachment",
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "file" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "file" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttachmentRef"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Chat" ]
       }
     },
     "/media/child/{id}" : {

@@ -1633,28 +1633,31 @@ the body; nothing was uploaded, so the other side could only print the name. Tho
 plain text, no migration — and a client that still parses the tag can show the name chip it always did (the id in it is
 the sender's browser-local id, never an `attachments` row). From B5 a message carries real files:
 
-1. **Upload** — `POST /media/attachments`, multipart: `file`, `purpose=chat` and, for a parent, `childId` (form fields or
-   query parameters). MH1's limits and sniffing, unchanged: JPEG / PNG / WebP ≤ 5 MB, PDF ≤ 10 MB, the type from the bytes
-   (`400` otherwise, `413 too_large`). The row is filed under the caller's school — a parent's is her child's (`404` for a
-   child who is not hers), the Admin's is her `X-School-Id` (`400` without one) — and only while that school has `chat`
-   on (`404` otherwise). The reply is `AttachmentRef {id, name, type, sizeBytes, width?, height?}`; an image's `width` and
-   `height` are as the viewer sees it (an EXIF-rotated phone photo is measured upright). Permission `media.attachment.write`,
-   now held by `PARENT` too; without `purpose` (or `broadcast`) it is MH1's upload, which a parent may not make.
+1. **Upload** — multipart `file` to **`POST /children/{id}/chat/attachments`** (the parent, permission `child.chat`) or
+   **`POST /media/chat-attachments`** (any dashboard role, `media.attachment.write`; the Admin sends `X-School-Id`), both
+   behind the `chat` flag. They are routes of their own rather than a parameter on MH1's `POST /media/attachments`, which
+   keeps its exact shape: a new parameter there would move the generated dashboard client's positional arguments. MH1's
+   limits and sniffing, unchanged: JPEG / PNG / WebP ≤ 5 MB, PDF ≤ 10 MB, the type from the bytes (`400` otherwise, `413
+   too_large`). The row is filed under the caller's school — a parent's is the school of the child in the path (`404` for a
+   child who is not hers) — and only while that school has `chat` on (`404` otherwise). The reply is MH1's
+   `AttachmentRef {id, name, type, sizeBytes, width?, height?}`; an image's `width` and `height` are as the viewer sees it
+   (an EXIF-rotated phone photo is measured upright).
 2. **Send** — `attachmentIds: [id…]` (at most 5) on any `POST …/messages` body or the socket's `message` command. Each must
    be the sender's own `chat` upload in the thread's school, not sent before — anything else, a broadcast's upload included,
    is one `400`. With a file the text may be empty (`body: ""`). The file is bound to that message
    (`attachments.message_id`, V33) and its description written onto the message row (`chat_messages.attachments`), so
    every `ChatMessage` — REST history, `lastMessage`, the `message` frame — carries
-   `attachments: [{id, contentType, name, size, width?, height?}]` (`[]` when none). A chat upload can never be attached to a
-   broadcast either.
+   `attachments: [{id, contentType, name, size, width?, height?}]` (the key is absent when there are none). A chat upload
+   can never be attached to a broadcast either.
 3. **Read** — `GET /media/attachments/{id}` with the same token answers a chat file to the thread's **participants only**:
    the staff member on `teacher_id`, the one on `peer_user_id` (so the Admin on the threads she is on, not on the ones she
    merely reads for support), and the parent of the child the thread is about; the uploader also reads her own file before
    it is sent. Everybody else — another parent, a teacher of the same child who is not on the thread, another school —
    gets the 404 an unknown id gets. `Content-Disposition: inline` with a sanitised file name, `X-Content-Type-Options:
    nosniff`, `Cache-Control: private, max-age=2592000`. **`?w=<px>`** (64–1600) answers a JPEG at most that wide, turned
-   upright — the thumbnail for a bubble; a PDF, a WebP or an image already that narrow answers the original. Weekly-plan
-   attachments keep MH1's rule.
+   upright — the thumbnail for a bubble; a PDF, a WebP or an image already that narrow answers the original. `w` is left
+   out of the OpenAPI document for the same reason as above, so a generated client appends it to the URL itself.
+   Weekly-plan attachments keep MH1's rule.
 4. **Retention** — an upload never sent, or whose message has gone with its thread, is swept after 24 hours with MH1's
    orphans (`UploadRetention`).
 
