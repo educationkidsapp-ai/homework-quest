@@ -3,6 +3,8 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
+  afterRenderEffect,
   computed,
   effect,
   inject,
@@ -10,6 +12,7 @@ import {
   output,
   signal,
   untracked,
+  viewChild,
 } from '@angular/core';
 import { rxResource, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
@@ -99,16 +102,20 @@ interface LocalMessage extends ChatMessage {
       <section class="complaint" [attr.aria-labelledby]="'complaint-title-' + c.id">
         <header class="complaint__head">
           <div class="complaint__heading">
-            <h2 class="complaint__title" [id]="'complaint-title-' + c.id">{{ c.title }}</h2>
+            <h2 class="complaint__title" [id]="'complaint-title-' + c.id">
+              <bdi>{{ c.title }}</bdi>
+            </h2>
             <p class="complaint__meta">
-              {{ c.childName }}
+              <bdi>{{ c.childName }}</bdi>
               @if (c.className) {
-                · {{ c.className }}
+                · <bdi>{{ c.className }}</bdi>
               }
-              · {{ 'complaints.from' | transloco }} {{ parentLabel() }} · {{ 'complaints.to' | transloco }}
-              {{ c.recipientName }} ({{ 'complaints.role.' + c.recipientRole | transloco }})
+              · {{ 'complaints.from' | transloco }} <bdi>{{ parentLabel() }}</bdi> ·
+              {{ 'complaints.to' | transloco }} <bdi>{{ c.recipientName }}</bdi> ({{
+                'complaints.role.' + c.recipientRole | transloco
+              }})
               @if (c.subject) {
-                · {{ c.subject }}
+                · <bdi>{{ c.subject }}</bdi>
               }
             </p>
           </div>
@@ -132,8 +139,8 @@ interface LocalMessage extends ChatMessage {
             } @else {
               @let mine = isMine(line.message);
               <li class="complaint__message" [class.complaint__message--mine]="mine">
-                <span class="complaint__sender">{{ senderOf(line.message) }}</span>
-                <p class="complaint__body">{{ line.message.body }}</p>
+                <bdi class="complaint__sender">{{ senderOf(line.message) }}</bdi>
+                <p class="complaint__body" dir="auto">{{ line.message.body }}</p>
                 <span class="complaint__time">
                   {{ day(line.at) }} {{ time(line.at) }}
                   @if (line.message.pending) {
@@ -173,6 +180,9 @@ interface LocalMessage extends ChatMessage {
             }}
           </p>
         }
+        <!-- The end of the conversation, under the composer: scrolled to on open and on every
+             new line, so the newest message sits right above the box rather than behind it. -->
+        <div #end></div>
       </section>
     }
   `,
@@ -353,8 +363,15 @@ export class ComplaintConversationComponent {
     ].sort((a, b) => a.at - b.at);
   });
 
+  private readonly end = viewChild<ElementRef<HTMLElement>>('end');
+
   constructor() {
     const destroyRef = inject(DestroyRef);
+
+    afterRenderEffect(() => {
+      // Instant, never smooth: it is where the screen opens, not a motion of its own.
+      if (this.lines().length > 0) this.end()?.nativeElement.scrollIntoView?.({ block: 'end' });
+    });
 
     effect(() => {
       const id = this.complaintId();

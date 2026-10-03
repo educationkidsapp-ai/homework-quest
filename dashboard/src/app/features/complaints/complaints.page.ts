@@ -110,22 +110,26 @@ import { ComplaintConversationComponent } from './complaint-conversation.compone
                   [queryParams]="{ open: row.id }"
                   queryParamsHandling="merge"
                 >
-                  <span class="hq-cell__title">{{ row.title }}</span>
+                  <span class="complaints__title" dir="auto">{{ row.title }}</span>
                 </a>
-                <span class="complaints__last hq-muted">{{ row.lastMessage?.body ?? '' }}</span>
+                <span class="complaints__last hq-muted" dir="auto">{{ row.lastMessage?.body ?? '' }}</span>
               }
               @case ('child') {
-                <span class="hq-cell__title">{{ row.childName }}</span>
+                <span class="complaints__line complaints__title">{{ row.childName }}</span>
                 @if (row.className) {
-                  <span class="hq-muted">{{ row.className }}</span>
+                  <span class="complaints__line hq-muted">{{ row.className }}</span>
                 }
               }
               @case ('parent') {
-                {{ row.parentName ?? ('chat.parent' | transloco: { child: row.childName }) }}
+                <span class="complaints__line">{{
+                  row.parentName ?? ('chat.parent' | transloco: { child: row.childName })
+                }}</span>
               }
               @case ('recipient') {
-                {{ row.recipientName }}
-                <span class="hq-muted">{{ 'complaints.role.' + row.recipientRole | transloco }}</span>
+                <span class="complaints__line">{{ row.recipientName }}</span>
+                <span class="complaints__line hq-muted">{{
+                  'complaints.role.' + row.recipientRole | transloco
+                }}</span>
               }
               @case ('status') {
                 <span class="complaints__status">
@@ -167,17 +171,31 @@ import { ComplaintConversationComponent } from './complaint-conversation.compone
       color: inherit;
       text-decoration: none;
 
-      &:hover .hq-cell__title,
-      &:focus-visible .hq-cell__title {
+      &:hover .complaints__title,
+      &:focus-visible .complaints__title {
         text-decoration: underline;
       }
     }
 
-    .complaints__last {
+    .complaints__title {
+      font-weight: var(--hq-text-weight-medium);
+    }
+
+    // Table cells size to their content, so nothing here may refuse to wrap: a long address or
+    // last message would push Status off the card.
+    .complaints__line,
+    .complaints__open {
       display: block;
+      overflow-wrap: anywhere;
+    }
+
+    .complaints__last {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
       overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      overflow-wrap: anywhere;
     }
 
     .complaints__status {
