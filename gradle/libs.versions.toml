@@ -68,8 +68,8 @@ sqldelight-android = { module = "app.cash.sqldelight:android-driver", version.re
 sqldelight-native = { module = "app.cash.sqldelight:native-driver", version.ref = "sqldelight" }
 sqldelight-sqlite = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqldelight" }
 
-filekit-core = { module = "io.github.vinceglb:filekit-core", version = "0.8.8" }
-filekit-compose = { module = "io.github.vinceglb:filekit-compose", version = "0.8.8" }
+filekit-core = { module = "io.github.vinceglb:filekit-core", version = "0.16.0" }
+filekit-compose = { module = "io.github.vinceglb:filekit-compose", version = "0.16.0" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
 
