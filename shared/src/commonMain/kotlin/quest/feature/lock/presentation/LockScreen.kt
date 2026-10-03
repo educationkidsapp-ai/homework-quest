@@ -59,6 +59,8 @@ import quest.ui.design.DashboardTokens
 import quest.ui.design.Dimens
 import quest.ui.design.MySchoolMark
 import quest.ui.design.ParentTheme
+import quest.ui.design.TestTags
+import androidx.compose.ui.platform.testTag
 
 /** The biometric's name as the copy says it — or, on a device without a usable one, its screen lock / passcode (M6). */
 fun Strings.biometricName(kind: BiometricKind?): String = when (kind) {
@@ -182,7 +184,7 @@ fun BiometricOffer(kind: BiometricKind?, s: Strings, app: String, onAccept: () -
             Spacer(Modifier.height(Dimens.s24))
             DashboardButton(s.biometricOfferAccept, onClick = onAccept, modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(Dimens.s12))
-            DashboardButton(s.biometricOfferDecline, onClick = onDecline, modifier = Modifier.fillMaxWidth(), variant = DashboardButtonVariant.SECONDARY)
+            DashboardButton(s.biometricOfferDecline, onClick = onDecline, modifier = Modifier.fillMaxWidth().testTag(TestTags.LOCK_OFFER_DECLINE), variant = DashboardButtonVariant.SECONDARY)
         }
     }
 }

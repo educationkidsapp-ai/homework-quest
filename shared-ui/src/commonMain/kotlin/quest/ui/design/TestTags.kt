@@ -24,5 +24,7 @@ object TestTags {
     const val LESSON_BACK_HOME = "lesson.backHome"
     fun pinKey(key: String) = "pin.key.$key"
     const val PARENT_HOME = "parent.home"
+    /** M2/M6: "Not now" on the one-time offer to lock the app (a simulator with a passcode is offered it). */
+    const val LOCK_OFFER_DECLINE = "lock.offer.decline"
     fun parentLesson(lessonId: String) = "parent.lesson.$lessonId"
 }
