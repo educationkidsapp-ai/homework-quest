@@ -168,7 +168,7 @@ public class ComplaintService {
         var viewer = parentViewer(parent, child);
         if (move(t, ChatService.OPEN, ChatService.PARENT, parent.parentId(), parent.parentId()))
             bells.staffComplaintStatus(t.getSchoolId(), t.getTeacherId(), t.getId(), false, parentName(parent.parentId()));
-        return rows(List.of(t), viewer).get(0);
+        return rows(List.of(reread(t)), viewer).get(0);
     }
 
     /** The parent reads every complaint about her own child; the teachers' subjects come from that one section. */
@@ -229,7 +229,7 @@ public class ComplaintService {
             bells.complaintStatus(t.getSchoolId(), parentOf(t), t.getChildId(), t.getId(), resolved, by);
             if (!caller.userId().equals(t.getTeacherId())) bells.staffComplaintStatus(t.getSchoolId(), t.getTeacherId(), t.getId(), resolved, by);
         }
-        return rows(List.of(t), viewer).get(0);
+        return rows(List.of(reread(t)), viewer).get(0);
     }
 
     /** One complaint this staff member's area shows: 404 for another school's (the filter), a Messages thread, or one out of her scope. */
@@ -288,15 +288,18 @@ public class ComplaintService {
 
     /**
      * Moves the complaint and records it — the event, the thread's latest resolution, the socket `status` frame to
-     * both parties — and answers whether anything changed. Setting the status it already has changes nothing, so a
-     * double tap rings no bell twice.
+     * both parties — and answers whether anything changed.
+     *
+     * <p><strong>Atomic.</strong> The move is one conditional statement ({@link ChatThreadRepository#moveComplaint},
+     * `… WHERE id = ? AND status <> ?`), not a read and then a save: the row lock it takes serialises two people
+     * pressing at once, so two resolves make one change — one event, one bell, one push — and the second is the
+     * no-op a double tap is. The event's time is read <em>after</em> the statement returns, i.e. after any move it
+     * waited on has committed, so the newest event is always the status the row holds.
      */
     private boolean move(ChatThreadEntity t, String status, String actorRole, String actorId, String parentId) {
-        if (status.equals(t.getStatus())) return false;
-        Instant now = clock.instant();
         boolean resolved = ChatService.RESOLVED.equals(status);
-        t.setStatus(status); t.setResolvedAt(resolved ? now : null); t.setResolvedBy(resolved ? actorId : null);
-        threads.save(t);
+        if (threads.moveComplaint(t.getId(), status, resolved ? clock.instant() : null, resolved ? actorId : null) == 0) return false;
+        Instant now = clock.instant();
         var e = new ComplaintEventEntity();
         e.setId(UUID.randomUUID().toString()); e.setSchoolId(t.getSchoolId()); e.setThreadId(t.getId()); e.setStatus(status);
         e.setActorRole(actorRole); e.setActorId(actorId); e.setChangedAt(now);
@@ -304,6 +307,9 @@ public class ComplaintService {
         chat.publish(ChatEvent.status(t.getSchoolId(), t.getId(), t.getChildId(), t.getTeacherId(), parentId, t.getPeerUserId(), status, now.toEpochMilli()));
         return true;
     }
+
+    /** The row as the database now holds it: {@link #move} wrote it with a statement, behind the persistence context's back. */
+    private ChatThreadEntity reread(ChatThreadEntity t) { return threads.findOneById(t.getId()).orElse(t); }
 
     // ---------------------------------------------------------------- shapes
 

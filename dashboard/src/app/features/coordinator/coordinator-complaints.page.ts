@@ -31,21 +31,19 @@ import { CoordinatorReadFailedComponent } from './read-failed.component';
 type StatusFilter = 'open' | 'resolved';
 
 /**
- * The complaints inbox (R7, DR3): the `complaint` threads she is the staff peer of.
+ * The complaints inbox (R7, DR3), on B6's routes: `GET /<area>/complaints?status=` (a
+ * `ComplaintList`, of which this screen draws `complaints`) and
+ * `PATCH /<area>/complaints/{id}/status`. Since B6 a complaint is its own conversation rather
+ * than a Messages thread with a label; the screen that opens and answers one is the B6 dashboard
+ * package's, and until it lands a row still links to the Messages screen.
  *
- * DR3 keeps a complaint **in the conversation it arrived in** rather than in a store of its own,
- * so this screen is a filter over `GET /coordinator/complaints` and every row opens the same
- * thread the Messages screen shows. That is why it carries `chat` and not N5.2's `complaints`
- * flag: there is no complaint record here to gate, only chat threads wearing a label.
+ * The one thing she may write in the whole of `/coordinator/**` is a complaint's status, and it is
+ * the only reason this screen has a confirm band. Resolving is visible to the parent (the server
+ * sends both parties a `status` frame), so it is worth one question first.
  *
- * The one thing she may write in the whole of `/coordinator/**` is a thread's status, and it is
- * the only reason this screen has a confirm band. Resolving is visible to the parent (R4 sends
- * both parties a `status` frame), so it is worth one question first.
- *
- * **One component, two areas** (D2, list 3): S1 gave the department manager the same pair —
- * `GET /management/complaints?status=` and `PATCH /management/chat/threads/{id}/status` — for the
- * threads a parent marks as a complaint to *her*. The role picks the routes and the Messages
- * screen a row opens; everything drawn is the same.
+ * **One component, two areas** (D2, list 3): the department manager has the same pair under
+ * `/management/complaints`. The role picks the routes and the screen a row opens; everything
+ * drawn is the same.
  */
 @Component({
   selector: 'hq-coordinator-complaints-page',

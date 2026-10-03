@@ -80,6 +80,17 @@ public interface ChatThreadRepository extends JpaRepository<Entities.ChatThreadE
     @Query("update ChatThreadEntity t set t.parentUnread = 0 where t.id = :id")
     int clearParentUnread(@Param("id") String id);
 
+    /**
+     * B6: a complaint's status move as one conditional statement — it changes the row only when the status is not
+     * already {@code status}, and answers how many rows it changed (0 or 1). The row lock serialises concurrent moves,
+     * so of two identical ones exactly one answers 1. It writes the status columns and nothing else (never the unread
+     * counters a concurrent message bumps), and clears the persistence context so the caller re-reads the row.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true) @Transactional
+    @Query("update ChatThreadEntity t set t.status = :status, t.resolvedAt = :at, t.resolvedBy = :by"
+            + " where t.id = :id and t.topic = 'complaint' and t.status <> :status")
+    int moveComplaint(@Param("id") String id, @Param("status") String status, @Param("at") Instant at, @Param("by") String by);
+
     /** The child's hard delete (`RosterService.delete`): no foreign key cascades here, so her threads go by hand. */
     @Modifying @Transactional
     @Query("delete from ChatThreadEntity t where t.childId = :childId")

@@ -1520,7 +1520,9 @@ supervisor or the parent (`resolved` from the parent is 403). A message on a res
 ("thank you" is the usual last word). Every real change writes a `complaint_events` row (who, when — the client draws
 "Resolved by Nour · 3 Oct" from `ComplaintEvent`), sends both parties the socket `status` frame, and rings the other
 side: the parent's `complaint.status` row + push when staff moved it, the recipient's `complaint.status` row when the
-parent or a supervisor did. Re-setting the same status changes nothing and tells nobody.
+parent or a supervisor did. Re-setting the same status changes nothing and tells nobody. The move is one conditional
+`UPDATE … WHERE status <> ?`, so two people resolving at once make one change (one event, one bell, one push), and the
+row always holds the newest event's status.
 
 **Bells.** A new complaint → the recipient's `complaint.new` (body = title, link `/{area}/complaints?open={id}`). A
 parent's message → the recipient's `complaint.message` (one unread row per complaint). The recipient's reply → the

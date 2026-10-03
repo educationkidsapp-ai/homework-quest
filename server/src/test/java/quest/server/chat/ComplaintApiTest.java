@@ -318,6 +318,14 @@ class ComplaintApiTest extends ApiTestSupport {
         // Another school's coordinator, read through her own school: nothing.
         perform(as(get("/coordinator/complaints/" + mayaComplaint), jwt.issue("cmp-other", "o@seed.test", "COORDINATOR", OTHER_SCHOOL).token()))
                 .andExpect(status().isNotFound());
+        // A coordinator of another subject on Maya's track, and one of Maya's subject on the other track: neither
+        // supervises a math teacher of a British section, so neither is told the complaint exists.
+        for (String other : List.of(coordinator("cmp-coord-english-british", "english", "british"), coordinator("cmp-coord-math-american", "math", "american"))) {
+            perform(as(get("/coordinator/complaints/" + mayaComplaint), token(other, "COORDINATOR"))).andExpect(status().isNotFound());
+            perform(as(patch("/coordinator/complaints/" + mayaComplaint + "/status").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"status\":\"open\"}"), token(other, "COORDINATOR"))).andExpect(status().isNotFound());
+            assertThat(names(staffGet(other, "COORDINATOR", "/coordinator/complaints").get("complaints"), "id")).doesNotContain(mayaComplaint);
+        }
         // Validation: a title is required, and support writes nothing.
         perform(post("/children/" + childBritish + "/complaints").header("Authorization", bearer(BRITISH_PARENT)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"staffId\":\"" + maya + "\",\"title\":\" \",\"body\":\"Hello\"}")).andExpect(status().isBadRequest());
@@ -359,7 +367,73 @@ class ComplaintApiTest extends ApiTestSupport {
         assertThat(fresh).isNotEqualTo(id);
     }
 
+    /**
+     * Review of #205: a move is one conditional statement, so two people resolving at the same moment make one change —
+     * one event, one push — and a burst of resolves and reopens leaves the row on the status of the newest event.
+     */
+    @Test @Order(8) void concurrent_moves_make_one_change_each_and_the_row_ends_on_the_last_event() throws Exception {
+        String id = parentPostJson(BRITISH_PARENT, "/children/" + childBritish + "/complaints",
+                "{\"staffId\":\"" + maya + "\",\"title\":\"Race\",\"body\":\"Two at once.\"}").get("complaint").get("id").asText();
+        int pushed = PushProbe.sentTo(pushes, phone).size();
+        concurrently(List.of(
+                () -> perform(as(patch("/teacher/complaints/" + id + "/status").contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"resolved\"}"),
+                        token(maya, "TEACHER"))).andExpect(status().isOk()),
+                () -> perform(as(patch("/coordinator/complaints/" + id + "/status").contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"resolved\"}"),
+                        token(lina, "COORDINATOR"))).andExpect(status().isOk())));
+        assertThat(eventRows.findByThreadIdOrderByChangedAtAscIdAsc(id)).as("two resolves, one change").hasSize(1);
+        assertThat(PushProbe.await(pushes, phone, pushed + 2)).as("and one push to the parent").hasSize(pushed + 1);
+
+        var moves = new ArrayList<Callable>();
+        for (int i = 0; i < 6; i++) {
+            boolean reopen = i % 2 == 0;
+            moves.add(() -> {
+                if (reopen) perform(patch("/children/" + childBritish + "/complaints/" + id + "/status").header("Authorization", bearer(BRITISH_PARENT))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"open\"}")).andExpect(status().isOk());
+                else perform(as(patch("/teacher/complaints/" + id + "/status").contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"resolved\"}"),
+                        token(maya, "TEACHER"))).andExpect(status().isOk());
+            });
+        }
+        concurrently(moves);
+        var events = eventRows.findByThreadIdOrderByChangedAtAscIdAsc(id);
+        for (int i = 1; i < events.size(); i++)
+            assertThat(events.get(i).getStatus()).as("every event is a change from the one before").isNotEqualTo(events.get(i - 1).getStatus());
+        assertThat(parentJson(BRITISH_PARENT, "/children/" + childBritish + "/complaints/" + id).get("complaint").get("status").asText())
+                .as("the row holds the newest event's status").isEqualTo(events.get(events.size() - 1).getStatus());
+    }
+
     // ---------------------------------------------------------------- plumbing
+
+    @FunctionalInterface private interface Callable { void call() throws Exception; }
+
+    /** Runs the requests at the same moment, each on its own thread and so in its own transaction. */
+    private static void concurrently(List<Callable> requests) throws Exception {
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(requests.size())) {
+            var futures = new ArrayList<java.util.concurrent.Future<?>>();
+            for (var r : requests) futures.add(pool.submit(() -> { start.await(); r.call(); return null; }));
+            start.countDown();
+            for (var f : futures) f.get(30, java.util.concurrent.TimeUnit.SECONDS);
+        }
+    }
+
+    /** A COORDINATOR of this school with one `(subject, curriculum)` scope row. */
+    private String coordinator(String id, String subject, String curriculum) {
+        users.findById(id).orElseGet(() -> {
+            var u = new UserEntity();
+            u.setId(id); u.setSchoolId(SCHOOL); u.setEmail(id + "@test.com"); u.setDisplayName(id);
+            u.setRole("COORDINATOR"); u.setStatus("active"); u.setPasswordHash("x");
+            u.setCreatedAt(Instant.now()); u.setUpdatedAt(Instant.now());
+            return users.save(u);
+        });
+        staffScopes.findById(id + "-scope").orElseGet(() -> {
+            var row = new quest.server.tenancy.Entities.StaffScopeEntity();
+            row.setId(id + "-scope"); row.setSchoolId(SCHOOL); row.setUserId(id);
+            row.setSubject(subject); row.setCurriculum(curriculum); row.setCreatedAt(Instant.now());
+            return staffScopes.save(row);
+        });
+        return id;
+    }
+
 
     private ResultActions perform(MockHttpServletRequestBuilder b) throws Exception { return mvc.perform(b); }
 
