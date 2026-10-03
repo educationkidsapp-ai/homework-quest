@@ -79,7 +79,8 @@ data class Strings(
     val online: String = "Online",
     val offline: String = "Offline",
     val connecting: String = "Connecting…",
-    val isTyping: String = "is typing…",
+    /** M7: files in a message and who is typing — kept apart, as [notices] is, to stay under the JVM's 255 parameters. */
+    val chatFiles: ChatFileStrings = ChatFileStrings.en,
     val emptyConversation: String = "No messages yet. Send a note to the teacher!",
     val retry: String = "Retry",
     val failedToSend: String = "Failed to send",
@@ -322,7 +323,7 @@ data class Strings(
             online = "متصل",
             offline = "غير متصل",
             connecting = "جارٍ الاتصال…",
-            isTyping = "يكتب الآن…",
+            chatFiles = ChatFileStrings.ar,
             emptyConversation = "لا توجد رسائل بعد. أرسل ملاحظة للمعلمة!",
             retry = "إعادة المحاولة",
             failedToSend = "فشل الإرسال",
@@ -498,6 +499,91 @@ data class NoticeStrings(
             updateExam = "اختبار جديد", updateClassNote = "ملاحظة للصف", updateQuestion = "سؤال من المعلّم",
             updateComplaint = "تحديث على الشكوى", updateNews = "أخبار المدرسة",
             fromYourNotification = "من الإشعار", itemGone = "هذا العنصر لم يعد متاحاً.",
+        )
+    }
+}
+
+/** M7: a message's photos and PDFs — previews, the attach menu, the upload tray and its refusals — and who is typing. */
+data class ChatFileStrings(
+    /** Who is typing, by the role the parent is writing to (N1's `peerRole`) — the header and the thread row. */
+    val typingTeacher: String,
+    val typingCoordinator: String,
+    val typingManager: String,
+    val typingAdmin: String,
+    val previewPhoto: String,
+    /** `{n}` photos on one message. */
+    val previewPhotos: String,
+    /** `{name}` is the PDF's file name. */
+    val previewPdf: String,
+    val attach: String,
+    val attachCamera: String,
+    val attachGallery: String,
+    val attachPdf: String,
+    val attachmentUploading: String,
+    val attachmentUploadFailed: String,
+    /** `{name}` is the file name, for a screen reader. */
+    val removeAttachment: String,
+    val attachTooMany: String,
+    val attachPhotoTooLarge: String,
+    val attachPdfTooLarge: String,
+    val attachWrongType: String,
+    val attachUnreadable: String,
+    val attachTooManyPixels: String,
+    val attachAlreadySent: String,
+    val photoFailed: String,
+    /** `{name}` is the file name, for a screen reader. */
+    val photoDescription: String,
+) {
+    companion object {
+        val en = ChatFileStrings(
+            typingTeacher = "Teacher is typing…",
+            typingCoordinator = "Coordinator is typing…",
+            typingManager = "Manager is typing…",
+            typingAdmin = "School administration is typing…",
+            previewPhoto = "📷 Photo",
+            previewPhotos = "📷 {n} photos",
+            previewPdf = "📄 {name}",
+            attach = "Attach",
+            attachCamera = "Take a photo",
+            attachGallery = "Photo from gallery",
+            attachPdf = "PDF document",
+            attachmentUploading = "Uploading…",
+            attachmentUploadFailed = "Not uploaded",
+            removeAttachment = "Remove {name}",
+            attachTooMany = "You can send up to 5 files in one message.",
+            attachPhotoTooLarge = "This photo is too large to send. Choose a smaller one.",
+            attachPdfTooLarge = "This PDF is larger than 10 MB. Choose a smaller one.",
+            attachWrongType = "Only photos (JPEG, PNG, WebP) and PDF files can be sent.",
+            attachUnreadable = "This file could not be read. Choose another one.",
+            attachTooManyPixels = "This photo is too large to send (over 40 megapixels). Choose a smaller one.",
+            attachAlreadySent = "That file was already sent in another message. Attach it again to send it once more.",
+            photoFailed = "The photo could not be downloaded. Try again when you are back online.",
+            photoDescription = "Photo {name}",
+        )
+        val ar = ChatFileStrings(
+            typingTeacher = "المعلّمة تكتب الآن…",
+            typingCoordinator = "منسّق المادة يكتب الآن…",
+            typingManager = "مدير القسم يكتب الآن…",
+            typingAdmin = "إدارة المدرسة تكتب الآن…",
+            previewPhoto = "📷 صورة",
+            previewPhotos = "📷 {n} صور",
+            previewPdf = "📄 {name}",
+            attach = "إرفاق",
+            attachCamera = "التقاط صورة",
+            attachGallery = "صورة من المعرض",
+            attachPdf = "مستند PDF",
+            attachmentUploading = "جارٍ الرفع…",
+            attachmentUploadFailed = "لم يُرفع",
+            removeAttachment = "إزالة {name}",
+            attachTooMany = "يمكنك إرسال 5 ملفات كحدّ أقصى في الرسالة الواحدة.",
+            attachPhotoTooLarge = "هذه الصورة أكبر من أن تُرسل. اختر صورة أصغر.",
+            attachPdfTooLarge = "حجم ملف PDF هذا أكبر من 10 ميغابايت. اختر ملفًا أصغر.",
+            attachWrongType = "يمكن إرسال الصور (JPEG وPNG وWebP) وملفات PDF فقط.",
+            attachUnreadable = "تعذّرت قراءة هذا الملف. اختر ملفًا آخر.",
+            attachTooManyPixels = "هذه الصورة أكبر من أن تُرسل (أكثر من 40 ميغابكسل). اختر صورة أصغر.",
+            attachAlreadySent = "سبق إرسال هذا الملف في رسالة أخرى. أرفقه من جديد لإرساله مرة أخرى.",
+            photoFailed = "لم يتم تنزيل الصورة. حاول مرة أخرى عند توفر الإنترنت.",
+            photoDescription = "صورة {name}",
         )
     }
 }

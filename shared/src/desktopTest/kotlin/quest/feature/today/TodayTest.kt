@@ -99,7 +99,8 @@ class TodayTest {
         override suspend fun coordinators(childId: String): List<ChatThread> = emptyList()
         override suspend fun managers(childId: String): List<ChatThread> = emptyList()
         override suspend fun messages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?) = emptyList<ChatMessage>()
-        override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic?) = error("not used")
+        override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic?, attachmentIds: List<String>) = error("not used")
+        override suspend fun uploadAttachment(childId: String, file: quest.feature.chat.domain.StagedUpload, onProgress: (Float) -> Unit): quest.api.dto.AttachmentRef = error("not used")
         override suspend fun markRead(childId: String, teacherId: String) {}
         override suspend fun sendTyping(childId: String, teacherId: String) {}
         override fun connect() {}

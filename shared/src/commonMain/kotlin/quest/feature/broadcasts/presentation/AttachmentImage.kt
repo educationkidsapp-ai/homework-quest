@@ -33,6 +33,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -60,6 +61,18 @@ private val decoded = LruCache<String, ImageBitmap>(MAX_DECODED)
 internal const val MAX_DECODED = 3
 
 /**
+ * M7: a chat thread is a column of small photos, so its decodes are kept apart from the three large ones above: a
+ * dozen thumbnails of at most [SMALL_DECODE_PX] are a fraction of one plan, and scrolling back up should not decode
+ * them again — nor push the pinned plan out of the cache.
+ */
+private val smallDecoded = LruCache<String, ImageBitmap>(MAX_SMALL_DECODED)
+
+internal const val MAX_SMALL_DECODED = 16
+internal const val SMALL_DECODE_PX = 1024
+
+private fun cacheFor(maxDimensionPx: Int) = if (maxDimensionPx in 1..SMALL_DECODE_PX) smallDecoded else decoded
+
+/**
  * The longest edge the **card** decodes to. The card is capped at 420 dp and the widest phone the app ships on is
  * about 430 dp at 3.5×, so this is already more pixels than it can draw; a plan straight off a camera is several times
  * larger again. [FULL_SIZE] is the viewer's bound — none, because zooming in is the whole reason to open it.
@@ -81,6 +94,7 @@ internal fun decodeKey(attachment: BroadcastAttachment, maxDimensionPx: Int) =
 private fun rememberAttachment(attachment: BroadcastAttachment, attempt: Int, maxDimensionPx: Int): State<Load> {
     val images = LocalAttachmentImages.current
     val key = decodeKey(attachment, maxDimensionPx)
+    val decoded = cacheFor(maxDimensionPx)
     return produceState<Load>(decoded[key]?.let { Load.Ready(it) } ?: Load.Loading, key, attempt, images) {
         decoded[key]?.let { value = Load.Ready(it); return@produceState }
         value = Load.Loading
@@ -101,21 +115,33 @@ private fun rememberAttachment(attachment: BroadcastAttachment, attempt: Int, ma
  * it opens the full-screen viewer, where it pinches and pans.
  */
 @Composable
-fun AttachmentImage(attachment: BroadcastAttachment, description: String, strings: Strings, modifier: Modifier = Modifier) {
+fun AttachmentImage(
+    attachment: BroadcastAttachment,
+    description: String,
+    strings: Strings,
+    modifier: Modifier = Modifier,
+    /** M7: what the viewer opens — a chat bubble shows the server's thumbnail and opens the full-size file. */
+    full: BroadcastAttachment = attachment,
+    maxHeight: Dp = 420.dp,
+    maxDimensionPx: Int = CARD_MAX_PX,
+    /** The placeholder's shape while loading, so a known photo does not jump when it lands. */
+    placeholderRatio: Float = 1.4f,
+    failedText: String = strings.imageFailed,
+) {
     var attempt by remember { mutableIntStateOf(0) }
-    val load by rememberAttachment(attachment, attempt, CARD_MAX_PX)
-    var full by remember { mutableStateOf(false) }
+    val load by rememberAttachment(attachment, attempt, maxDimensionPx)
+    var open by remember { mutableStateOf(false) }
 
     Box(
-        modifier.fillMaxWidth().heightIn(max = 420.dp).background(MaterialTheme.colorScheme.primaryContainer)
-            .then(if (load is Load.Ready) Modifier.clickable { full = true } else Modifier),
+        modifier.fillMaxWidth().heightIn(max = maxHeight).background(MaterialTheme.colorScheme.primaryContainer)
+            .then(if (load is Load.Ready) Modifier.clickable { open = true } else Modifier),
         contentAlignment = Alignment.Center,
     ) {
         when (val state = load) {
-            Load.Loading -> Box(Modifier.fillMaxWidth().aspectRatio(1.4f), contentAlignment = Alignment.Center) {
+            Load.Loading -> Box(Modifier.fillMaxWidth().aspectRatio(placeholderRatio), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = DashboardTokens.accentInk)
             }
-            Load.Failed -> Box(Modifier.fillMaxWidth().aspectRatio(1.4f).padding(Dimens.s16), contentAlignment = Alignment.Center) {
+            Load.Failed -> Box(Modifier.fillMaxWidth().aspectRatio(placeholderRatio).padding(Dimens.s16), contentAlignment = Alignment.Center) {
                 ParentButton(strings.tryAgain, { attempt++ }, primary = false, icon = "↻")
             }
             is Load.Ready -> Image(
@@ -127,10 +153,10 @@ fun AttachmentImage(attachment: BroadcastAttachment, description: String, string
         }
     }
     if (load is Load.Failed) {
-        Text(strings.imageFailed, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
+        Text(failedText, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
     }
-    // The viewer decodes the same bytes again at full size, so pinching to 6× shows detail the card never held.
-    if (full && load is Load.Ready) FullScreenImage(attachment, description, strings) { full = false }
+    // The viewer decodes the full-size bytes, so pinching to 6× shows detail the card never held.
+    if (open && load is Load.Ready) FullScreenImage(full, description, strings) { open = false }
 }
 
 /**

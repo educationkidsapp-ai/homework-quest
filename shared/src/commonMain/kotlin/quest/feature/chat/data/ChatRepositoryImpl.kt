@@ -3,18 +3,25 @@ package quest.feature.chat.data
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import quest.api.ContentApi
+import quest.api.UploadFile
+import quest.api.dto.AttachmentRef
 import quest.api.dto.ChatCommand
 import quest.api.dto.ChatFrame
 import quest.api.dto.ChatMessage
 import quest.api.dto.ChatThread
 import quest.api.dto.ChatTopic
 import quest.api.dto.SendChatMessageRequest
+import quest.feature.chat.domain.AttachmentUploader
 import quest.feature.chat.domain.ChatConnectionState
 import quest.feature.chat.domain.ChatRepository
+import quest.feature.chat.domain.StagedUpload
 
 class ChatRepositoryImpl(
     private val contentApi: ContentApi,
     private val socketClient: ChatSocketClient,
+    private val uploader: AttachmentUploader = AttachmentUploader { childId, file, _ ->
+        contentApi.uploadChatAttachment(childId, UploadFile(file.name, file.contentType, file.readBytes()))
+    },
 ) : ChatRepository {
 
     override val connectionState: StateFlow<ChatConnectionState> = socketClient.connectionState
@@ -48,12 +55,16 @@ class ChatRepositoryImpl(
         body: String,
         clientId: String,
         topic: ChatTopic?,
+        attachmentIds: List<String>,
     ): ChatMessage {
-        val request = SendChatMessageRequest(body = body.trim(), clientId = clientId, topic = topic)
+        val request = SendChatMessageRequest(body = body.trim(), clientId = clientId, topic = topic, attachmentIds = attachmentIds)
         // Sending via REST gives immediate guaranteed HTTP status (rate-limits, error handling)
         // while the server fans out the ChatFrame.Message(echo) to all active sessions including the socket.
         return contentApi.sendChatMessage(childId, teacherId, request)
     }
+
+    override suspend fun uploadAttachment(childId: String, file: StagedUpload, onProgress: (Float) -> Unit): AttachmentRef =
+        uploader.upload(childId, file, onProgress)
 
     override suspend fun markRead(childId: String, teacherId: String) {
         // Send socket command for immediate live notification to teacher

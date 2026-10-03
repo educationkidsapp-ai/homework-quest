@@ -459,9 +459,20 @@ class FakeContentApi(
             senderId = uid(),
             body = request.body.trim(),
             createdAt = 1_758_451_000_000L,
+            attachments = request.attachmentIds.orEmpty().mapNotNull { fakeUploads[it] },
         )
         list.add(msg)
         return msg
+    }
+
+    /** M7 (B5): uploads by id, so a send's `attachmentIds` come back on the message as the server's would. No bytes are kept. */
+    private val fakeUploads = mutableMapOf<String, quest.api.dto.ChatAttachment>()
+
+    override suspend fun uploadChatAttachment(childId: String, file: quest.api.UploadFile): quest.api.dto.AttachmentRef {
+        net()
+        val ref = quest.api.dto.AttachmentRef(id = "att-${Ids.random()}", name = file.fileName, type = file.mimeType, sizeBytes = file.bytes.size.toLong())
+        fakeUploads[ref.id] = quest.api.dto.ChatAttachment(ref.id, ref.type, ref.name, ref.sizeBytes)
+        return ref
     }
 
     override suspend fun markChatRead(childId: String, teacherId: String): ChatReadReceipt {

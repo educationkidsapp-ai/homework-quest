@@ -3,9 +3,13 @@ package quest.feature.content.data
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.onUpload
+import kotlinx.io.Buffer
+import kotlinx.io.Source
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.delete
+import io.ktor.client.request.forms.InputProvider
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.get
@@ -31,6 +35,7 @@ import quest.api.AuthProvider
 import quest.api.ContentApi
 import quest.api.UploadFile
 import quest.api.dto.ApiError
+import quest.api.dto.AttachmentRef
 import quest.api.dto.AttemptAck
 import quest.api.dto.AttemptUpload
 import quest.api.dto.BroadcastFeed
@@ -179,6 +184,30 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
                 setBody(request)
             }
         }
+
+    override suspend fun uploadChatAttachment(childId: String, file: UploadFile): AttachmentRef =
+        uploadChatAttachment(childId, file.fileName, file.mimeType, file.bytes.size.toLong(), { Buffer().apply { write(file.bytes) } }) {}
+
+    /**
+     * M7 (B5): `POST /children/{id}/chat/attachments` — one photo or PDF for a message about that child — streamed
+     * from [source] with its [size], so the part (and with it the request) carries a Content-Length the server
+     * requires, and nothing is held in memory. Reports the share of the bytes sent for the composer's progress. The
+     * part's file name loses its quotes, which would otherwise end the `filename="…"` it is written into.
+     */
+    suspend fun uploadChatAttachment(
+        childId: String, fileName: String, mimeType: String, size: Long, source: () -> Source, onProgress: (Float) -> Unit,
+    ): AttachmentRef = call {
+        client.post("$baseUrl/children/$childId/chat/attachments") {
+            authed()
+            setBody(MultiPartFormDataContent(formData {
+                append("file", InputProvider(size, source), Headers.build {
+                    append(HttpHeaders.ContentType, mimeType)
+                    append(HttpHeaders.ContentDisposition, "filename=\"${fileName.replace("\"", "_")}\"")
+                })
+            }))
+            onUpload { sent, total -> if (total != null && total > 0) onProgress((sent.toFloat() / total).coerceIn(0f, 1f)) }
+        }
+    }
 
     override suspend fun markChatRead(childId: String, teacherId: String): ChatReadReceipt =
         call { client.post("$baseUrl/children/$childId/chat/threads/$teacherId/read") { authed() } }

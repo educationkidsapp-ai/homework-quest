@@ -2,11 +2,18 @@ package quest.feature.chat.domain
 
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import quest.api.dto.AttachmentRef
 import quest.api.dto.ChatFrame
 import quest.api.dto.ChatMessage
 import quest.api.dto.ChatThread
 import quest.api.dto.ChatThreadStatus
 import quest.api.dto.ChatTopic
+
+/**
+ * M7: how long "… is typing" stays up without another `typing` frame. The dashboard sends one at most every 2 s while
+ * somebody types, so this outlasts two missed frames, and the next message from her clears it at once.
+ */
+const val TYPING_TIMEOUT_MS = 5_000L
 
 enum class ChatConnectionState {
     DISCONNECTED,
@@ -39,8 +46,17 @@ interface ChatRepository {
      */
     suspend fun managers(childId: String): List<ChatThread>
     suspend fun messages(childId: String, teacherId: String, before: String? = null, since: String? = null, limit: Int? = null): List<ChatMessage>
-    /** [topic] is read by the server only when this message creates the thread; `complaint` needs a coordinator peer. */
-    suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic? = null): ChatMessage
+    /**
+     * [topic] is read by the server only when this message creates the thread. M7 (B5): [attachmentIds] are uploads
+     * from [uploadAttachment], at most five, and [body] may then be empty.
+     */
+    suspend fun sendMessage(
+        childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic? = null,
+        attachmentIds: List<String> = emptyList(),
+    ): ChatMessage
+
+    /** M7 (B5): one staged photo or PDF for a message about [childId]; [onProgress] runs 0..1 while the bytes go up. */
+    suspend fun uploadAttachment(childId: String, file: StagedUpload, onProgress: (Float) -> Unit = {}): AttachmentRef
     suspend fun markRead(childId: String, teacherId: String)
     suspend fun sendTyping(childId: String, teacherId: String)
     fun connect()

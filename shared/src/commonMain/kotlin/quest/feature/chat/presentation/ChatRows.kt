@@ -1,5 +1,6 @@
 package quest.feature.chat.presentation
 
+import quest.feature.chat.domain.resolverOf
 import quest.core.text.isolate
 import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.background
@@ -93,22 +94,11 @@ fun staffLabel(thread: ChatThread, strings: Strings, department: String? = null)
     if (thread.withAdmin == true) thread.childName else
     staffLabel(thread.staffRole, thread.subject, thread.className, strings, department)
 
-/**
- * MH4: the one-line preview under a thread. An attachment travels in the body as `[attachment:id:type:name:size]`
- * (`parseMessageBody`), which the conversation's bubble turns into a card — but the thread list printed the tag
- * verbatim. The same decoder is used here so the row reads `📎 report.png`, with the parent's own words after it
- * when the message carried both.
- */
-fun threadPreview(body: String): String {
-    val parsed = parseMessageBody(body)
-    val attachment = parsed.attachment ?: return body
-    return if (parsed.text.isBlank()) "📎 ${attachment.name}" else "📎 ${attachment.name} · ${parsed.text}"
-}
-
 /** Screen-reader copy for a row: who, what about, and where it stands — the chips say the same thing visually. */
-fun threadDescription(thread: ChatThread, strings: Strings, department: String? = null): String = buildList {
+fun threadDescription(thread: ChatThread, strings: Strings, department: String? = null, typing: Boolean = false): String = buildList {
     add(staffName(thread, strings))
     add(staffLabel(thread, strings, department))
+    if (typing) add(typingLine(resolverOf(thread.peerRole, thread.staffRole, thread.withAdmin == true), strings))
     if (thread.topic == ChatTopic.COMPLAINT) add(strings.complaintBadge)
     if (thread.status == ChatThreadStatus.RESOLVED) add(strings.statusResolved)
     if (thread.unread > 0) add("${thread.unread} ${strings.messages}")
@@ -125,11 +115,13 @@ fun ChatThreadRow(
     onClick: () -> Unit,
     showStatus: Boolean = true,
     department: String? = null,
+    /** M7: the person on this row is typing — the preview line says so until she sends or stops. */
+    typing: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     ParentCard(
         modifier = modifier.fillMaxWidth().padding(bottom = Dimens.s8)
-            .clearAndSetSemantics { contentDescription = threadDescription(thread, strings, department) },
+            .clearAndSetSemantics { contentDescription = threadDescription(thread, strings, department, typing) },
         onClick = onClick,
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -172,10 +164,19 @@ fun ChatThreadRow(
                     overflow = TextOverflow.Ellipsis,
                 )
 
-                thread.lastMessage?.body?.let { body ->
+                if (typing) {
                     Spacer(Modifier.height(Dimens.s4))
                     Text(
-                        text = isolate(threadPreview(body)),
+                        text = typingLine(resolverOf(thread.peerRole, thread.staffRole, thread.withAdmin == true), strings),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = DashboardTokens.success,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                } else thread.lastMessage?.let { last ->
+                    Spacer(Modifier.height(Dimens.s4))
+                    Text(
+                        text = isolate(messagePreview(last, strings)),
                         style = MaterialTheme.typography.bodyMedium,
                         color = DashboardTokens.inkSoft,
                         maxLines = 1,
