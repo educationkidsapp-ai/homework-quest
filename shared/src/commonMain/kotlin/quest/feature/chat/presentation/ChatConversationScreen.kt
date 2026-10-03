@@ -110,6 +110,8 @@ import quest.feature.chat.domain.asChatAttachment
 import quest.feature.chat.domain.contentTypeOf
 import quest.feature.chat.domain.preparePhoto
 import quest.feature.chat.domain.refusalFor
+import quest.feature.chat.domain.refusalForUpload
+import quest.api.ApiException
 import quest.ui.design.AnimatedLoadingView
 import quest.ui.design.DashboardTokens
 import quest.ui.design.Dimens
@@ -319,6 +321,11 @@ class ChatConversationViewModel(
                 updateDraft(localId) { it.copy(ref = ref, progress = 1f) }
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: ApiException) {
+                // A refusal no retry can cure takes the file out of the tray and says why; anything else stays to retry.
+                val refusal = refusalForUpload(e.error.code, file.mimeType)
+                if (refusal == null) updateDraft(localId) { it.copy(failed = true) }
+                else { dropDraft(localId); reduce { copy(refusal = refusal) } }
             } catch (_: Throwable) {
                 updateDraft(localId) { it.copy(failed = true) }
             }
@@ -330,8 +337,14 @@ class ChatConversationViewModel(
 
     private fun removeDraft(localId: String) {
         uploadJobs.remove(localId)?.cancel()
+        dropDraft(localId)
+        reduce { copy(refusal = null) }
+    }
+
+    private fun dropDraft(localId: String) {
         pendingFiles.remove(localId)
-        reduce { copy(drafts = drafts.filterNot { it.localId == localId }, refusal = null) }
+        uploadJobs.remove(localId)
+        reduce { copy(drafts = drafts.filterNot { it.localId == localId }) }
     }
 
     private suspend fun sendMessage() {
@@ -393,12 +406,15 @@ class ChatConversationViewModel(
                     threadId = confirmed.threadId,
                 )
             }
-        } catch (_: Throwable) {
+        } catch (e: Throwable) {
+            if (e is CancellationException) throw e
+            // B5: `409 attachment_already_sent` — a retry would only be refused again, so the tray says what to do.
+            val alreadySent = (e as? ApiException)?.error?.code == "attachment_already_sent"
             reduce {
                 val updated = messages.map { msg ->
                     if (msg.clientId == clientId) msg.copy(isPending = false, isFailed = true) else msg
                 }
-                copy(messages = updated)
+                copy(messages = updated, refusal = if (alreadySent) AttachmentRefusal.ALREADY_SENT else refusal)
             }
         }
     }

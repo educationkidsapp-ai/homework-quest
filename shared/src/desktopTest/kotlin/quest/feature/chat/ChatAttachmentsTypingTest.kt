@@ -12,7 +12,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import quest.api.ApiException
 import quest.api.UploadFile
+import quest.api.dto.ApiError
 import quest.api.dto.AttachmentRef
 import quest.api.dto.ChatAttachment
 import quest.api.dto.ChatFrame
@@ -73,6 +75,8 @@ class ChatAttachmentsTypingTest {
         val uploads = mutableListOf<UploadFile>()
         val gates = mutableListOf<CompletableDeferred<Boolean>>()
         val sends = mutableListOf<Pair<String, List<String>>>()
+        var uploadError: Throwable? = null
+        var sendError: Throwable? = null
 
         override suspend fun threads(childId: String): List<ChatThread> { threadsAsked++; return rows }
         override suspend fun coordinators(childId: String): List<ChatThread> = emptyList()
@@ -80,6 +84,7 @@ class ChatAttachmentsTypingTest {
         override suspend fun messages(childId: String, teacherId: String, before: String?, since: String?, limit: Int?): List<ChatMessage> = emptyList()
         override suspend fun uploadAttachment(childId: String, file: UploadFile, onProgress: (Float) -> Unit): AttachmentRef {
             uploads += file
+            uploadError?.let { throw it }
             val gate = CompletableDeferred<Boolean>().also { gates += it }
             onProgress(0.5f)
             if (!gate.await()) error("upload failed")
@@ -87,6 +92,7 @@ class ChatAttachmentsTypingTest {
         }
         override suspend fun sendMessage(childId: String, teacherId: String, body: String, clientId: String, topic: ChatTopic?, attachmentIds: List<String>): ChatMessage {
             sends += body to attachmentIds
+            sendError?.let { throw it }
             return ChatMessage("m-${sends.size}", "th-nour", ChatSender.PARENT, "p1", body, 1L,
                 attachments = attachmentIds.map { ChatAttachment(it, "image/jpeg", "photo.jpg", 3) })
         }
@@ -150,7 +156,7 @@ class ChatAttachmentsTypingTest {
 
     @Test fun aThumbnailIsCachedApartFromTheFullSizeFile() {
         val file = ChatAttachment("a1", "image/jpeg", "p.jpg", 10)
-        assertTrue(file.asThumbnail().url.endsWith("/media/attachments/a1?w=720"))
+        assertTrue(file.asThumbnail().url.endsWith("/media/attachments/a1?w=640"))
         assertTrue(file.asThumbnail().id != file.id, "the thumbnail must never stand in for the full-size bytes")
     }
 
@@ -233,6 +239,34 @@ class ChatAttachmentsTypingTest {
 
         vm.dispatch(ChatConversationContract.Intent.RemoveDraft(full.drafts.first().localId))
         vm.state.await { it.drafts.size == 4 && it.refusal == null }
+    }
+
+    @Test fun theServersRefusalsAreNamedAndOnlyARetryableFailureStays() = runBlocking<Unit> {
+        val chat = FakeChat()
+        val vm = conversation(chat)
+        chat.uploadError = ApiException(ApiError("image_too_large", "An image may be at most 8192 pixels on a side"))
+        vm.dispatch(ChatConversationContract.Intent.AddFiles(listOf(photo())))
+        vm.state.await { it.refusal == AttachmentRefusal.PHOTO_TOO_MANY_PIXELS && it.drafts.isEmpty() }
+        chat.uploadError = ApiException(ApiError("too_large", "A PDF must be under 10 MB"))
+        vm.dispatch(ChatConversationContract.Intent.AddFiles(listOf(document("plan.pdf", 3))))
+        vm.state.await { it.refusal == AttachmentRefusal.PDF_TOO_LARGE && it.drafts.isEmpty() }
+        chat.uploadError = ApiException(ApiError(ApiError.NETWORK, "offline"))
+        vm.dispatch(ChatConversationContract.Intent.AddFiles(listOf(photo())))
+        vm.state.await { it.drafts.singleOrNull()?.failed == true }
+        assertTrue(Strings.ar.chatFiles.attachTooManyPixels.isNotBlank())
+    }
+
+    @Test fun aFileAlreadySentIsExplained() = runBlocking<Unit> {
+        val chat = FakeChat()
+        val vm = conversation(chat)
+        vm.dispatch(ChatConversationContract.Intent.AddFiles(listOf(photo())))
+        vm.state.await { chat.gates.isNotEmpty() }
+        chat.gates.single().complete(true)
+        vm.state.await { it.canSend }
+        chat.sendError = ApiException(ApiError("attachment_already_sent", "That file was already sent"))
+        vm.dispatch(ChatConversationContract.Intent.SendMessage)
+        val failed = vm.state.await { it.messages.singleOrNull()?.isFailed == true }
+        assertEquals(AttachmentRefusal.ALREADY_SENT, failed.refusal)
     }
 
     // ---- typing

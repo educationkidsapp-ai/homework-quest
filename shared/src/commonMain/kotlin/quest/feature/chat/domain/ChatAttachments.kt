@@ -15,8 +15,8 @@ const val MAX_PDF_BYTES: Long = MAX_DOCUMENT_BYTES
 
 const val PDF_TYPE = "application/pdf"
 
-/** The bound a bubble asks the server to downscale a photo to (`?w=`), and decodes it to. */
-const val THUMBNAIL_PX = 720
+/** The width a bubble asks the server to downscale a photo to (`?w=` takes 320, 640 or 1280), and decodes it to. */
+const val THUMBNAIL_PX = 640
 
 /**
  * The media type a picked file is sent as, from its extension — or null when it is not one of the four the server
@@ -33,7 +33,19 @@ fun contentTypeOf(fileName: String): String? = when (fileName.substringAfterLast
 fun isPdf(contentType: String) = contentType == PDF_TYPE
 
 /** Why a picked file is not added to the message. Each has its own sentence (EN/AR); none is an error colour (§7). */
-enum class AttachmentRefusal { TOO_MANY, PHOTO_TOO_LARGE, PDF_TOO_LARGE, WRONG_TYPE, UNREADABLE }
+enum class AttachmentRefusal { TOO_MANY, PHOTO_TOO_LARGE, PDF_TOO_LARGE, WRONG_TYPE, UNREADABLE, PHOTO_TOO_MANY_PIXELS, ALREADY_SENT }
+
+/**
+ * What the server's refusal of an upload means to the parent (B5): `too_large` over the byte caps, `image_too_large`
+ * over 8192 px a side or 40 MP, `bad_request` for a file it could not read or does not take. Null for anything a
+ * retry may cure (the network, a 5xx), which keeps the draft in the tray with its retry.
+ */
+fun refusalForUpload(code: String, contentType: String): AttachmentRefusal? = when (code) {
+    "too_large" -> if (isPdf(contentType)) AttachmentRefusal.PDF_TOO_LARGE else AttachmentRefusal.PHOTO_TOO_LARGE
+    "image_too_large" -> AttachmentRefusal.PHOTO_TOO_MANY_PIXELS
+    "bad_request" -> AttachmentRefusal.UNREADABLE
+    else -> null
+}
 
 /**
  * The check made before a byte is read: room on the message ([already] files picked), the type, and the size. A

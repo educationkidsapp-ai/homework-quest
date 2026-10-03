@@ -530,6 +530,8 @@ data class ChatFileStrings(
     val attachPdfTooLarge: String,
     val attachWrongType: String,
     val attachUnreadable: String,
+    val attachTooManyPixels: String,
+    val attachAlreadySent: String,
     val photoFailed: String,
     /** `{name}` is the file name, for a screen reader. */
     val photoDescription: String,
@@ -555,6 +557,8 @@ data class ChatFileStrings(
             attachPdfTooLarge = "This PDF is larger than 10 MB. Choose a smaller one.",
             attachWrongType = "Only photos (JPEG, PNG, WebP) and PDF files can be sent.",
             attachUnreadable = "This file could not be read. Choose another one.",
+            attachTooManyPixels = "This photo is too large to send (over 40 megapixels). Choose a smaller one.",
+            attachAlreadySent = "That file was already sent in another message. Attach it again to send it once more.",
             photoFailed = "The photo could not be downloaded. Try again when you are back online.",
             photoDescription = "Photo {name}",
         )
@@ -578,6 +582,8 @@ data class ChatFileStrings(
             attachPdfTooLarge = "حجم ملف PDF هذا أكبر من 10 ميغابايت. اختر ملفًا أصغر.",
             attachWrongType = "يمكن إرسال الصور (JPEG وPNG وWebP) وملفات PDF فقط.",
             attachUnreadable = "تعذّرت قراءة هذا الملف. اختر ملفًا آخر.",
+            attachTooManyPixels = "هذه الصورة أكبر من أن تُرسل (أكثر من 40 ميغابكسل). اختر صورة أصغر.",
+            attachAlreadySent = "سبق إرسال هذا الملف في رسالة أخرى. أرفقه من جديد لإرساله مرة أخرى.",
             photoFailed = "لم يتم تنزيل الصورة. حاول مرة أخرى عند توفر الإنترنت.",
             photoDescription = "صورة {name}",
         )

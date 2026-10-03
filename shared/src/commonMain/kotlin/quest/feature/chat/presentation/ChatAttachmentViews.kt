@@ -67,6 +67,8 @@ fun refusalText(refusal: AttachmentRefusal, strings: Strings): String = when (re
     AttachmentRefusal.PDF_TOO_LARGE -> strings.chatFiles.attachPdfTooLarge
     AttachmentRefusal.WRONG_TYPE -> strings.chatFiles.attachWrongType
     AttachmentRefusal.UNREADABLE -> strings.chatFiles.attachUnreadable
+    AttachmentRefusal.PHOTO_TOO_MANY_PIXELS -> strings.chatFiles.attachTooManyPixels
+    AttachmentRefusal.ALREADY_SENT -> strings.chatFiles.attachAlreadySent
 }
 
 /**
