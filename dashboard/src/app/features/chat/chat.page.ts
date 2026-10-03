@@ -32,22 +32,18 @@ import {
   CHAT_ACCEPT,
   CHAT_MAX_ATTACHMENTS,
   attachmentsOf,
-  formatBytes,
   isImageAttachment,
-  type ChatFileRefusal,
-  type ChatUploadFailure,
 } from '../../core/chat/chat-attachments';
 import { ChatUploads } from '../../core/chat/chat-uploads';
 import { ChatService } from '../../core/chat/chat.service';
 import { FeatureDirective } from '../../core/flags/feature.directive';
 import { FLAGS } from '../../core/flags/flag.service';
 import { ChatAttachmentsComponent } from './chat-attachments.component';
+import { ChatStagedFilesComponent } from './chat-staged-files.component';
 import {
-  BandComponent,
   ButtonComponent,
   DialogComponent,
   PageComponent,
-  ProgressBarComponent,
   type SelectOptionGroup,
   SelectComponent,
   type Tab,
@@ -201,7 +197,6 @@ interface ChatPreview {
 @Component({
   selector: 'hq-chat-page',
   imports: [
-    BandComponent,
     ButtonComponent,
     ChatAttachmentsComponent,
     DatePipe,
@@ -209,7 +204,7 @@ interface ChatPreview {
     FeatureDirective,
     FormsModule,
     PageComponent,
-    ProgressBarComponent,
+    ChatStagedFilesComponent,
     SelectComponent,
     TabsComponent,
     TranslocoPipe,
@@ -545,63 +540,7 @@ interface ChatPreview {
                 <div class="convo-composer__box">
                   <!-- D4: each picked file uploads at once, with its own bar; ✕ cancels one still
                        uploading and takes a finished one off the message. -->
-                  @if (uploads.staged().length > 0) {
-                    <ul class="composer-files" [attr.aria-label]="'chat.attachment.staged' | transloco">
-                      @for (file of uploads.staged(); track file.key) {
-                        <li class="composer-file" [class.is-failed]="file.state === 'failed'">
-                          @if (file.preview) {
-                            <img class="composer-file__thumb" [src]="file.preview" [alt]="file.name" />
-                          } @else {
-                            <span class="hq-badge composer-file__badge" aria-hidden="true">{{
-                              file.kind === 'pdf' ? 'PDF' : 'IMG'
-                            }}</span>
-                          }
-                          <span class="composer-file__text">
-                            <span class="composer-file__name" dir="auto" [title]="file.name">{{
-                              file.name
-                            }}</span>
-                            @if (file.state === 'uploading') {
-                              <hq-progress-bar
-                                [plain]="true"
-                                [value]="null"
-                                [label]="'chat.attachment.uploading' | transloco: { name: file.name }"
-                              />
-                            } @else {
-                              <span class="composer-file__size">{{ sizeOf(file.size) }}</span>
-                            }
-                          </span>
-                          <hq-button
-                            variant="icon"
-                            [ariaLabel]="
-                              (file.state === 'uploading'
-                                ? 'chat.attachment.cancel'
-                                : 'chat.attachment.remove'
-                              ) | transloco: { name: file.name }
-                            "
-                            (pressed)="uploads.remove(file.key)"
-                          >
-                            <svg
-                              viewBox="0 0 20 20"
-                              width="16"
-                              height="16"
-                              fill="none"
-                              stroke="currentColor"
-                              stroke-width="1.8"
-                              stroke-linecap="round"
-                              aria-hidden="true"
-                            >
-                              <path d="M5 5l10 10M15 5L5 15" />
-                            </svg>
-                          </hq-button>
-                        </li>
-                      }
-                    </ul>
-                  }
-                  @if (uploads.problem(); as problem) {
-                    <hq-band [open]="true" (dismissed)="uploads.problem.set(null)">
-                      {{ problemText(problem.reason) | transloco: { name: problem.name } }}
-                    </hq-band>
-                  }
+                  <hq-chat-staged-files />
 
                   <textarea
                     #composerInput
@@ -1242,63 +1181,6 @@ interface ChatPreview {
         border-color: var(--hq-color-accent, var(--hq-color-brand-600));
         box-shadow: 0 0 0 3px color-mix(in srgb, var(--hq-color-brand-600) 12%, transparent);
       }
-    }
-
-    .composer-files {
-      display: flex;
-      flex-direction: column;
-      gap: var(--hq-space-4);
-      margin: 0 0 var(--hq-space-8);
-      padding: 0;
-      list-style: none;
-    }
-
-    .composer-file {
-      display: flex;
-      align-items: center;
-      gap: var(--hq-space-8);
-      padding-inline-start: var(--hq-space-8);
-      border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
-      border-radius: var(--hq-radius-xs);
-      background: var(--hq-color-surface-sunken);
-      color: var(--hq-color-ink);
-
-      &.is-failed {
-        border-color: var(--hq-color-error-rule);
-        background: var(--hq-color-error-soft);
-      }
-    }
-
-    .composer-file__thumb {
-      flex: none;
-      inline-size: var(--hq-size-touch-target);
-      block-size: var(--hq-size-touch-target);
-      border-radius: var(--hq-radius-xs);
-      object-fit: cover;
-    }
-
-    .composer-file__badge {
-      flex: none;
-    }
-
-    .composer-file__text {
-      display: flex;
-      flex: 1;
-      flex-direction: column;
-      gap: var(--hq-space-4);
-      min-inline-size: 0;
-    }
-
-    .composer-file__name {
-      overflow: hidden;
-      font-weight: var(--hq-font-label-weight);
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .composer-file__size {
-      color: var(--hq-color-ink-muted);
-      font-size: var(--hq-text-note);
     }
 
     .convo-composer__input {
@@ -2329,14 +2211,6 @@ export class ChatPage implements AfterViewChecked {
     const files = input.files ? Array.from(input.files) : [];
     input.value = '';
     if (files.length > 0) this.uploads.add(files);
-  }
-
-  protected problemText(reason: ChatFileRefusal | ChatUploadFailure): string {
-    return `chat.upload.${reason}`;
-  }
-
-  protected sizeOf(bytes: number): string {
-    return formatBytes(bytes);
   }
 
   toggleEmojiPicker(event: Event): void {

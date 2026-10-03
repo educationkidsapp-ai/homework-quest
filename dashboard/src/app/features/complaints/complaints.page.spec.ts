@@ -466,4 +466,51 @@ describe('the Complaints page', () => {
     await settle();
     expect(lists(backend, '/teacher/complaints', [{ ...COMPLAINT, unread: 0 }])).toEqual(['open']);
   });
+
+  /** D4's composer on a complaint: a file uploads on pick and goes by id; a failed send keeps it. */
+  it('replies with a file — uploaded on pick, sent by id, and kept when the send fails', async () => {
+    const { backend } = await render(TEACHER_USER, 'teacher.complaints');
+    lists(backend, '/teacher/complaints', [COMPLAINT]);
+    await open('c-1');
+    detailOf(backend, '/teacher/complaints/c-1').flush({ ...DETAIL, complaint: { ...COMPLAINT, unread: 0 } });
+    await settle();
+
+    const picker = document.querySelector<HTMLInputElement>('hq-complaint-conversation input[type="file"]')!;
+    const pdf = new File(['%PDF-1.4'], 'marks.pdf', { type: 'application/pdf' });
+    fireEvent.change(picker, { target: { files: [pdf] } });
+    await settle();
+    const send = () => screen.getByRole<HTMLButtonElement>('button', { name: 'Send reply' });
+    // Still uploading: nothing may leave without its file.
+    expect(send().disabled).toBe(true);
+    const upload = backend.expectOne('/media/chat-attachments');
+    expect(upload.request.method).toBe('POST');
+    upload.flush({ id: 'att-1', contentType: 'application/pdf', name: 'marks.pdf', size: 8 });
+    await settle();
+
+    // Files alone are a reply.
+    send().click();
+    await settle();
+    const first = backend.expectOne('/teacher/complaints/c-1/messages');
+    expect(first.request.body).toMatchObject({ body: '', attachmentIds: ['att-1'] });
+    first.flush({ code: 'internal', message: 'Try again' }, { status: 500, statusText: 'Error' });
+    await settle();
+    // Rolled back with the file still staged, so the second press sends the same id.
+    expect(screen.getByRole('list', { name: 'Files on this message' }).textContent).toContain('marks.pdf');
+    send().click();
+    await settle();
+    const second = backend.expectOne('/teacher/complaints/c-1/messages');
+    expect(second.request.body).toMatchObject({ attachmentIds: ['att-1'] });
+    second.flush({
+      id: 'm-3',
+      threadId: 'c-1',
+      sender: 'teacher',
+      senderId: 'u-sara',
+      body: '',
+      createdAt: OCT_3 + 2000,
+      attachments: [{ id: 'att-1', contentType: 'application/pdf', name: 'marks.pdf', size: 8 }],
+    });
+    await settle();
+    expect(screen.queryByRole('list', { name: 'Files on this message' })).toBeNull();
+    expect(screen.getByRole('list', { name: 'Conversation' }).textContent).toContain('marks.pdf');
+  });
 });

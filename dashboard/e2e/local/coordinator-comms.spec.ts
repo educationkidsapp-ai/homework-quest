@@ -40,6 +40,10 @@ import {
  */
 const SECTION = '1A British';
 const TITLE = 'Homework not marked';
+/** The smallest document a PDF reader opens: B5 checks the bytes, not only the name. */
+const MINIMAL_PDF =
+  '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n' +
+  '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n';
 const SHOTS = resolve(process.cwd(), '../docs/screenshots/complaints-pages');
 
 let context: APIRequestContext;
@@ -143,8 +147,17 @@ test.describe('the coordinator’s messages, complaints and broadcasts', () => {
     await expect(stream).toContainText('Nobody has marked the homework');
 
     await page.getByRole('textbox', { name: 'Reply' }).fill('Thank you — I will speak to the teacher today.');
-    await page.getByRole('button', { name: 'Send reply' }).click();
+    // D4's composer on a complaint (B5): the file uploads on pick and goes with the reply by id.
+    await page.locator('hq-complaint-conversation input[type="file"]').setInputFiles({
+      name: 'marking-plan.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from(MINIMAL_PDF),
+    });
+    const send = page.getByRole('button', { name: 'Send reply' });
+    await expect(send).toBeEnabled();
+    await send.click();
     await expect(stream).toContainText('I will speak to the teacher today');
+    await expect(stream).toContainText('marking-plan.pdf');
     await expect(stream).not.toContainText('Sending…');
 
     await page.getByRole('button', { name: 'Mark resolved' }).click();

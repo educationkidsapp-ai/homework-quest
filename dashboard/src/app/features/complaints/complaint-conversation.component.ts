@@ -26,6 +26,8 @@ import {
   apiErrorOf,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
+import { CHAT_ACCEPT, CHAT_MAX_ATTACHMENTS, attachmentsOf } from '../../core/chat/chat-attachments';
+import { ChatUploads } from '../../core/chat/chat-uploads';
 import {
   COMPLAINT_PAGE,
   ComplaintsService,
@@ -33,6 +35,8 @@ import {
 } from '../../core/complaints/complaints.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import { PermissionService } from '../../core/permissions/permission.service';
+import { ChatAttachmentsComponent } from '../chat/chat-attachments.component';
+import { ChatStagedFilesComponent } from '../chat/chat-staged-files.component';
 import {
   BandComponent,
   ButtonComponent,
@@ -63,7 +67,11 @@ interface LocalMessage extends ChatMessage {
  */
 @Component({
   selector: 'hq-complaint-conversation',
+  // Its own staged files: they live and die with this composer, as Messages' do with its own.
+  providers: [ChatUploads],
   imports: [
+    ChatAttachmentsComponent,
+    ChatStagedFilesComponent,
     BandComponent,
     ButtonComponent,
     ListStaggerDirective,
@@ -164,7 +172,13 @@ interface LocalMessage extends ChatMessage {
                 [attr.data-key]="line.key"
               >
                 <bdi class="complaint__sender">{{ senderOf(line.message) }}</bdi>
-                <p class="complaint__body" dir="auto">{{ line.message.body }}</p>
+                @if (line.message.body) {
+                  <p class="complaint__body" dir="auto">{{ line.message.body }}</p>
+                }
+                @let files = attachmentsOf(line.message);
+                @if (files.length > 0) {
+                  <hq-chat-attachments class="complaint__files" [attachments]="files" />
+                }
                 <span class="complaint__time">
                   {{ day(line.at) }} {{ time(line.at) }}
                   @if (line.message.pending) {
@@ -179,7 +193,9 @@ interface LocalMessage extends ChatMessage {
         </ol>
 
         @if (canReply()) {
-          <form class="complaint__composer" (submit)="$event.preventDefault(); send()">
+          <!-- \`novalidate\`: files alone are a reply too, so an empty box must not stop the send. -->
+          <form class="complaint__composer" novalidate (submit)="$event.preventDefault(); send()">
+            <hq-chat-staged-files />
             <hq-textarea
               [label]="'complaints.reply' | transloco"
               [placeholder]="'complaints.replyPlaceholder' | transloco"
@@ -191,7 +207,15 @@ interface LocalMessage extends ChatMessage {
               (keydown.enter)="onEnter($event)"
             />
             <div class="complaint__send">
-              <hq-button variant="primary" type="submit" [disabled]="draft().trim() === ''">
+              <hq-button
+                variant="secondary"
+                [disabled]="sending() || uploads.staged().length >= maxFiles"
+                (pressed)="fileInput.click()"
+              >
+                {{ 'chat.attachFile' | transloco }}
+              </hq-button>
+              <input #fileInput type="file" multiple hidden [accept]="acceptedTypes" (change)="onFiles($event)" />
+              <hq-button variant="primary" type="submit" [disabled]="!canSend()" [loading]="sending()">
                 {{ 'complaints.send' | transloco }}
               </hq-button>
             </div>
@@ -323,9 +347,15 @@ interface LocalMessage extends ChatMessage {
       background: var(--hq-color-bg);
     }
 
+    .complaint__files {
+      display: block;
+      margin-block: var(--hq-space-4);
+    }
+
     .complaint__send {
       display: flex;
       justify-content: flex-end;
+      gap: var(--hq-space-8);
     }
 
     .complaint__readonly {
@@ -357,6 +387,11 @@ export class ComplaintConversationComponent {
   protected readonly asking = signal<ComplaintStatus | null>(null);
   protected readonly moving = signal(false);
   protected readonly failure = signal<string | null>(null);
+  protected readonly sending = signal(false);
+  protected readonly uploads = inject(ChatUploads);
+  protected readonly acceptedTypes = CHAT_ACCEPT;
+  protected readonly maxFiles = CHAT_MAX_ATTACHMENTS;
+  protected readonly attachmentsOf = attachmentsOf;
 
   /** The page that was read stopped at {@link COMPLAINT_PAGE}: there may be earlier messages. */
   protected readonly hasOlder = signal(false);
@@ -541,14 +576,32 @@ export class ComplaintConversationComponent {
     });
   }
 
+  /**
+   * Text, files, or both — never while a file is still uploading or was refused, so a reply never
+   * leaves without the file she attached (D4's rule, the same as Messages').
+   */
+  protected readonly canSend = computed(() => {
+    if (this.sending() || this.uploads.busy() || this.uploads.failed()) return false;
+    return this.draft().trim() !== '' || this.uploads.attachments().length > 0;
+  });
+
+  protected onFiles(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = input.files ? Array.from(input.files) : [];
+    input.value = '';
+    if (files.length > 0) this.uploads.add(files);
+  }
+
   protected send(): void {
     const body = this.draft().trim();
+    const attachments = this.uploads.attachments();
     const c = this.complaint();
-    if (body === '' || c === null || !this.canReply()) return;
+    if (!this.canSend() || c === null || !this.canReply()) return;
     const clientId = crypto.randomUUID();
     const me = this.auth.user()?.id ?? '';
     this.draft.set('');
     this.failure.set(null);
+    this.sending.set(true);
     this.patchMessages((list) => [
       ...list,
       {
@@ -557,23 +610,36 @@ export class ComplaintConversationComponent {
         pending: true,
         threadId: c.id,
         body,
+        attachments: [...attachments],
         sender: ChatMessageSenderEnum.TEACHER,
         senderId: me,
         createdAt: Date.now(),
       },
     ]);
-    this.complaints.reply(c.id, body, clientId).subscribe({
-      next: (message) => {
-        this.accept(message, clientId);
-        this.changed.emit();
-      },
-      // Rolled back: the bubble leaves, the words go back in the box, and the band says why.
-      error: (error: unknown) => {
-        this.patchMessages((list) => list.filter((m) => m.clientId !== clientId));
-        if (this.draft() === '') this.draft.set(body);
-        this.failure.set(this.reason(error, 'complaints.sendFailed'));
-      },
-    });
+    this.complaints
+      .reply(
+        c.id,
+        body,
+        clientId,
+        attachments.map((file) => file.id),
+      )
+      .subscribe({
+        next: (message) => {
+          this.sending.set(false);
+          // The files went with it: the composer is empty only now, so a failure keeps them.
+          this.uploads.clear();
+          this.accept(message, clientId);
+          this.changed.emit();
+        },
+        // Rolled back: the bubble leaves, the words go back in the box (the files never left it),
+        // and the band says why.
+        error: (error: unknown) => {
+          this.sending.set(false);
+          this.patchMessages((list) => list.filter((m) => m.clientId !== clientId));
+          if (this.draft() === '') this.draft.set(body);
+          this.failure.set(this.reason(error, 'complaints.sendFailed'));
+        },
+      });
   }
 
   /** The page before the oldest message shown, prepended, with the screen kept where it was. */

@@ -170,8 +170,18 @@ export class ComplaintsService {
     });
   }
 
-  reply(id: string, body: string, clientId: string): Observable<ChatMessage> {
-    const request = { body, clientId };
+  /** A reply: text, the ids `POST /media/chat-attachments` gave its files (B5), or both. */
+  reply(
+    id: string,
+    body: string,
+    clientId: string,
+    attachmentIds: readonly string[] = [],
+  ): Observable<ChatMessage> {
+    const request = {
+      body,
+      clientId,
+      ...(attachmentIds.length > 0 ? { attachmentIds: [...attachmentIds] } : {}),
+    };
     switch (this.area()) {
       case 'admin':
       case null:
