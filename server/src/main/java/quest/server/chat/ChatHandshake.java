@@ -52,7 +52,8 @@ public class ChatHandshake implements HandshakeInterceptor {
             if (!"ADMIN".equals(user.role()) && user.schoolId() == null) return refuse(response, HttpStatus.FORBIDDEN);
             // R4 and RM2: a COORDINATOR, a MANAGERIAL and an ADMIN write on the socket as a teacher does — each has a
             // chat of her own now — and the flag still decides it. An ADMIN's token carries no school, so hers is on
-            // only while she holds one (she writes over REST with `X-School-Id` otherwise); nobody else can be here.
+            // only while she holds one; nobody else can be here. B5: without one, `ChatSocketHandler` scopes her chat
+            // commands by the thread they name instead, as `X-School-Id` scopes her REST writes.
             boolean chat = user.schoolId() != null && flags.isOn(user.schoolId(), FlagKeys.CHAT);
             attributes.put(PEER, new ChatSessions.Peer(ChatService.key(ChatService.USER, user.userId()), user.role().toLowerCase(Locale.ROOT),
                     user.userId(), user.schoolId(), user, chat));

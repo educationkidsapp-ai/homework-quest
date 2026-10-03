@@ -358,6 +358,10 @@
       },
       "AttachmentRef" : {
         "properties" : {
+          "height" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
           "id" : {
             "type" : "string"
           },
@@ -370,6 +374,10 @@
           },
           "type" : {
             "type" : "string"
+          },
+          "width" : {
+            "format" : "int32",
+            "type" : "integer"
           }
         },
         "type" : "object"
@@ -666,8 +674,41 @@
         "required" : [ "currentPassword", "newPassword" ],
         "type" : "object"
       },
+      "ChatAttachment" : {
+        "properties" : {
+          "contentType" : {
+            "type" : "string"
+          },
+          "height" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "size" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "width" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "contentType", "id", "name", "size" ],
+        "type" : "object"
+      },
       "ChatMessage" : {
         "properties" : {
+          "attachments" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ChatAttachment"
+            },
+            "type" : "array"
+          },
           "body" : {
             "type" : "string"
           },
@@ -5441,6 +5482,12 @@
       },
       "SendChatMessageRequest" : {
         "properties" : {
+          "attachmentIds" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
           "body" : {
             "type" : "string"
           },
@@ -11473,6 +11520,48 @@
         "tags" : [ "Broadcasts" ]
       }
     },
+    "/children/{id}/chat/attachments" : {
+      "post" : {
+        "operationId" : "uploadParentChatAttachment",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "file" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "file" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttachmentRef"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Chat" ]
+      }
+    },
     "/children/{id}/chat/threads" : {
       "get" : {
         "operationId" : "parentChatThreads",
@@ -14260,6 +14349,40 @@
           }
         },
         "tags" : [ "Media" ]
+      }
+    },
+    "/media/chat-attachments" : {
+      "post" : {
+        "operationId" : "uploadChatAttachment",
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "file" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "file" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttachmentRef"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Chat" ]
       }
     },
     "/media/child/{id}" : {

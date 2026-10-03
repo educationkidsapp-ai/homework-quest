@@ -1,5 +1,6 @@
 package quest.api
 
+import quest.api.dto.ChatAttachment
 import quest.api.dto.ChatCommand
 import quest.api.dto.ChatFrame
 import quest.api.dto.ChatMessage
@@ -20,6 +21,10 @@ class ChatFrameTest {
         val frames = listOf(
             ChatFrame.Message(message, clientId = "c-1"),
             ChatFrame.Message(message),
+            // B5: files alone — an empty body is valid exactly because the message carries attachments
+            ChatFrame.Message(message.copy(body = "", attachments = listOf(
+                ChatAttachment("a1", "image/jpeg", "photo.jpg", 120_000, width = 1200, height = 900),
+                ChatAttachment("a2", "application/pdf", "plan.pdf", 300_000)))),
             ChatFrame.Read("t1", ChatSender.TEACHER, 1_700_000_000_500),
             ChatFrame.Typing("t1", ChatSender.PARENT),
             ChatFrame.Status("t1", ChatThreadStatus.RESOLVED, 1_700_000_000_900),
@@ -46,11 +51,16 @@ class ChatFrameTest {
         assertFalse(SchemaValidator.validateChatFrameJson("""{"type":"read","threadId":"t1","readBy":"admin","readAt":1}""").isValid)
         assertFalse(SchemaValidator.validateChatFrameJson("""{"type":"status","threadId":"t1","status":"closed","at":1}""").isValid)
         assertFalse(SchemaValidator.validateChatFrameJson("not json").isValid)
+        // B5: an attachment is one of the four sniffed types, with its id, name and size
+        assertFalse(SchemaValidator.validateChatFrameJson("""{"type":"message","message":{"id":"m","threadId":"t","sender":"parent","senderId":"p","body":"","createdAt":1,"attachments":[{"id":"a","contentType":"text/html","name":"x","size":1}]}}""").isValid)
     }
 
     @Test fun commandsDecodeFromTheDocumentedShapes() {
         val send = json.decodeFromString(ChatCommand.serializer(), """{"type":"message","childId":"ch1","teacherId":"te1","body":"hi","clientId":"c9"}""")
         assertEquals(ChatCommand.Send("ch1", "te1", "hi", "c9"), send)
+        // B5: files with no text — `body` may be left out altogether
+        assertEquals(ChatCommand.Send(threadId = "th1", attachmentIds = listOf("a1")),
+            json.decodeFromString(ChatCommand.serializer(), """{"type":"message","threadId":"th1","attachmentIds":["a1"]}"""))
         assertEquals(ChatCommand.Pong, json.decodeFromString(ChatCommand.serializer(), """{"type":"pong"}"""))
         assertEquals(ChatCommand.Read("ch1"), json.decodeFromString(ChatCommand.serializer(), """{"type":"read","childId":"ch1"}"""))
         // R4: a coordinator names the thread instead of the child, and the child may be absent altogether.

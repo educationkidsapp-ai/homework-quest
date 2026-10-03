@@ -20,6 +20,10 @@ spring:
   servlet.multipart:
     max-file-size: 25MB
     max-request-size: 120MB
+    # B5 review: parse a multipart body only when a handler asks for a part, never before the handler is chosen — so a
+    # path no route takes (a trailing slash, a typo) is a 404 with nothing read, and `ChatUploadLimit` always decides
+    # first on the chat upload routes.
+    resolve-lazily: true
 
 server:
   port: ${PORT:8080}

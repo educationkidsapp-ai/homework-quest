@@ -89,7 +89,7 @@ public class ChatController {
     @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatMessage.class)))
     public String parentSendChatMessage(@AuthenticationPrincipal Principals.Parent parent, @PathVariable String id, @PathVariable String teacherId, @RequestBody String body) {
         var req = decode(body);
-        return message(chat.parentSend(parent, id, teacherId, req.getBody(), req.getClientId(), req.getTopic()));
+        return message(chat.parentSend(parent, id, teacherId, req.getBody(), req.getAttachmentIds(), req.getClientId(), req.getTopic()));
     }
 
     @PostMapping(value = "/children/{id}/chat/threads/{teacherId}/read", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -121,7 +121,7 @@ public class ChatController {
     @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatMessage.class)))
     public String teacherSendChatMessage(@AuthenticationPrincipal Principals.User caller, @PathVariable String childId, @RequestBody String body) {
         var req = decode(body);
-        return message(chat.teacherSend(caller, childId, req.getBody(), req.getClientId()));
+        return message(chat.teacherSend(caller, childId, req.getBody(), req.getAttachmentIds(), req.getClientId()));
     }
 
     @PostMapping(value = "/teacher/chat/threads/{childId}/read", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -192,7 +192,7 @@ public class ChatController {
     @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatMessage.class)))
     public String teacherSendStaffMessage(@AuthenticationPrincipal Principals.User caller, @PathVariable String id, @RequestBody String body) {
         var req = decode(body);
-        return message(chat.teacherStaffSend(caller, id, req.getBody(), req.getClientId()));
+        return message(chat.teacherStaffSend(caller, id, req.getBody(), req.getAttachmentIds(), req.getClientId()));
     }
 
     @PostMapping(value = "/teacher/chat/staff-threads/{id}/read", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -247,7 +247,7 @@ public class ChatController {
     @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatMessage.class)))
     public String supportSendChatMessage(@AuthenticationPrincipal Principals.User caller, @PathVariable String threadId, @RequestBody String body) {
         var req = decode(body);
-        return message(chat.adminSend(caller, threadId, req.getBody(), req.getClientId()));
+        return message(chat.adminSend(caller, threadId, req.getBody(), req.getAttachmentIds(), req.getClientId()));
     }
 
     @PostMapping(value = "/admin/chat/threads/{threadId}/read", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -261,7 +261,7 @@ public class ChatController {
 
     private SendChatMessageRequest decode(String body) {
         try { return json.decodeShared(body, SendChatMessageRequest.Companion.serializer()); }
-        catch (RuntimeException e) { throw ApiException.badRequest("Send {\"body\": \"…\"} and, optionally, a clientId and a topic."); }
+        catch (RuntimeException e) { throw ApiException.badRequest("Send {\"body\": \"…\"} and, optionally, attachmentIds, a clientId and a topic."); }
     }
     private String threads(List<ChatThread> rows) { return json.encodeShared(rows, BuiltinSerializersKt.ListSerializer(ChatThread.Companion.serializer())); }
     private String messages(List<ChatMessage> rows) { return json.encodeShared(rows, BuiltinSerializersKt.ListSerializer(ChatMessage.Companion.serializer())); }

@@ -1401,7 +1401,7 @@ teacher of the section beforehand with `id: null`, so she can start one; a teach
 |---|---|---|
 | `GET /children/{id}/chat/threads` | `GET /teacher/chat/threads` | `ChatThread[]`: unread first, then newest. The teacher's spans all her sections. |
 | `GET /children/{id}/chat/threads/{teacherId}/messages?before=&since=&limit=` | `GET /teacher/chat/threads/{childId}/messages?…` | `ChatMessage[]`, **oldest first** within the page. No cursor = the newest page. |
-| `POST …/messages {body, clientId?}` | `POST …/messages {body, clientId?}` | 201 `ChatMessage`. |
+| `POST …/messages {body, clientId?, attachmentIds?}` | `POST …/messages {body, clientId?, attachmentIds?}` | 201 `ChatMessage`. B5: `body` may be empty when `attachmentIds` names a file. |
 | `POST …/read` | `POST …/read` | 200 `ChatReadReceipt`; 404 while no thread exists. |
 
 The coordinator's half is keyed by **thread**, not by child, because one of her threads has no child on it:
@@ -1622,6 +1622,76 @@ forces one, `auto` (the default) picks by the datasource's product name. If a li
 SQL restart) it reconnects after a second and logs `chat: listener connection lost`; nothing published in between
 is replayed — the client's `?since=` refetch is the recovery. `Tests: PostgresChatBusTest` (Testcontainers tag
 `postgres`) proves two buses on one database hear each other.
+
+### Attachments and typing (B5)
+
+The owner's report of 2026-10-03: *"an image or a PDF sent from the dashboard shows only its NAME in the app"* and
+*"the parent's typing shows on the dashboard, the manager's typing shows nothing in the app"*.
+
+**Files on a message.** Before B5 an attachment was a `[attachment:id:type:name:size]` tag the sender's client wrote into
+the body; nothing was uploaded, so the other side could only print the name. Those bodies are left exactly as they are —
+plain text, no migration — and a client that still parses the tag can show the name chip it always did (the id in it is
+the sender's browser-local id, never an `attachments` row). From B5 a message carries real files:
+
+1. **Upload** — multipart `file` to **`POST /children/{id}/chat/attachments`** (the parent, permission `child.chat`) or
+   **`POST /media/chat-attachments`** (any dashboard role, `media.attachment.write`; the Admin sends `X-School-Id`), both
+   behind the `chat` flag. They are routes of their own rather than a parameter on MH1's `POST /media/attachments`, which
+   keeps its exact shape: a new parameter there would move the generated dashboard client's positional arguments. MH1's
+   limits and sniffing, unchanged: JPEG / PNG / WebP ≤ 5 MB, PDF ≤ 10 MB, the type from the bytes (`400` otherwise, `413
+   too_large`). The row is filed under the caller's school — a parent's is the school of the child in the path (`404` for a
+   child who is not hers) — and only while that school has `chat` on (`404` otherwise). The reply is MH1's
+   `AttachmentRef {id, name, type, sizeBytes, width?, height?}`; an image's `width` and `height` are as the viewer sees it
+   (an EXIF-rotated phone photo is measured upright). **Limits checked before anything is parsed or held:** a body
+   whose `Content-Length` passes 10.5 MB is `413 too_large` and one without a `Content-Length` is `411` (filter
+   `ChatUploadLimit`, ahead of the multipart parser, matched on the decoded path so `%2D` or a trailing slash does not slip
+   past it — the application's own multipart limits are the lesson pipeline's 25 MB / 120 MB, and
+   `spring.servlet.multipart.resolve-lazily` means no body is parsed before a handler asks for it); the type is sniffed from the first bytes and the per-type size checked before the file is read into
+   memory; an image past 8192 px on a side or 40 megapixels is `400 image_too_large`; and the stored name loses line
+   breaks and every bidi/format character (`Cf`), so no RTL override can disguise it.
+2. **Send** — `attachmentIds: [id…]` (at most 5) on any `POST …/messages` body or the socket's `message` command. Each must
+   be the sender's own `chat` upload in the thread's school — anything else, a broadcast's upload included, is one `400` —
+   and not sent before: `409 attachment_already_sent`. The bind is one conditional `UPDATE … WHERE message_id IS NULL`
+   whose row count must match, so two sends racing for one file cannot both have it; the loser writes no message. With a file the text may be empty (`body: ""`). The file is bound to that message
+   (`attachments.message_id`, V33) and its description written onto the message row (`chat_messages.attachments`), so
+   every `ChatMessage` — REST history, `lastMessage`, the `message` frame — carries
+   `attachments: [{id, contentType, name, size, width?, height?}]` (the key is absent when there are none). A chat upload
+   can never be attached to a broadcast either.
+3. **Read** — `GET /media/attachments/{id}` with the same token answers a chat file to the thread's **participants only**:
+   the staff member on `teacher_id`, the one on `peer_user_id` (so the Admin on the threads she is on, not on the ones she
+   merely reads for support), and the parent of the child the thread is about; the uploader also reads her own file before
+   it is sent. Everybody else — another parent, a teacher of the same child who is not on the thread, another school —
+   gets the 404 an unknown id gets. `Content-Disposition: inline` with a sanitised file name, `X-Content-Type-Options:
+   nosniff`, `Cache-Control: private, max-age=31536000, immutable` (an id names one file for ever). **`?w=<px>`** is
+   rounded up to 320, 640 or 1280 (anything wider is 1280) and answers a JPEG that wide, turned upright — the thumbnail
+   for a bubble. Each width is made once and stored beside the original (`<path>.w320.jpg`), deleted with it; a PDF, a
+   WebP or an image already that narrow answers the original. `w` is left
+   out of the OpenAPI document for the same reason as above, so a generated client appends it to the URL itself.
+   Weekly-plan attachments keep MH1's rule.
+4. **Retention** — an upload never sent, or whose message has gone with its thread, is swept after 24 hours with MH1's
+   orphans (`UploadRetention`), with its `?w=` copies. The database picks the orphans 200 at a time (at most 50 pages an
+   hour), rather than the sweep loading every row.
+
+**Previews.** A message that is files alone has an empty body, so a one-line preview is written from `attachments`:
+"📷 Photo" (Arabic "📷 صورة") for an image, "📄 <name>" for a PDF. The server writes exactly that into the `chat.message`
+notification row and the parent's push (English row, Arabic push on an Arabic phone); the clients write the same for a
+thread's `lastMessage`.
+
+**Typing — what was wrong.** The server already fanned a teacher's, a coordinator's and a manager's `typing` to the
+parent's socket (`parent:<parentId>`) as `{"type":"typing","threadId":"…","from":"teacher"}`. The **Admin's** never left:
+her token names no school, so the handshake marked her socket chat-less and every chat command of hers came back as an
+`error` frame `forbidden` — and `staffTyping` had no Admin branch anyway. On QA the owner answers parents as the Admin. Her
+socket commands are now scoped by the thread they name (a thread she is not on is `not_found`; the `chat` flag of its
+school is checked as for her REST writes), so her `typing`, `message` and `read` all work on the socket.
+
+What each client must do:
+
+- **Send** `{"type":"typing","childId":"…","teacherId":"…"}` (parent), `{"type":"typing","childId":"…"}` (a teacher on a
+  parent thread) or `{"type":"typing","threadId":"…"}` (everybody else, and a teacher's staff thread), at most every 2–3 s
+  while the composer changes. It is never echoed to the sender's own sessions.
+- **Show** a `typing` frame whose `threadId` is the conversation on screen, **whatever `from` says**, for ~4 s. On a
+  staff-to-staff thread both ends are staff and `from` is `teacher` either way; the frame only ever reaches the *other*
+  party, so matching the thread is enough. (The dashboard used to show only `from: "parent"`, which hid staff ↔ staff
+  typing.) A parent's row with `id: null` has no thread yet, so nothing can be typed into it.
 
 ### Presence (T1)
 

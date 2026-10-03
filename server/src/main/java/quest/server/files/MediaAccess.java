@@ -22,11 +22,12 @@ import quest.server.content.LessonRepository;
 @Service
 public class MediaAccess {
     private final LessonRepository lessons; private final ChildRepository children; private final ChildService childService;
-    private final quest.server.broadcasts.BroadcastService broadcasts;
+    private final quest.server.broadcasts.BroadcastService broadcasts; private final quest.server.chat.ChatAttachments chatFiles;
 
     public MediaAccess(LessonRepository lessons, ChildRepository children, ChildService childService,
-                       quest.server.broadcasts.BroadcastService broadcasts) {
+                       quest.server.broadcasts.BroadcastService broadcasts, quest.server.chat.ChatAttachments chatFiles) {
         this.lessons = lessons; this.children = children; this.childService = childService; this.broadcasts = broadcasts;
+        this.chatFiles = chatFiles;
     }
 
     /**
@@ -83,6 +84,12 @@ public class MediaAccess {
     public void requireAttachment(Entities.AttachmentEntity row, Principals.Parent parent, Principals.User user) {
         if (user != null && user.userId().equals(row.getUploadedBy())) return;
         if (user == null && parent == null) throw hidden();
+        // B5: a chat file — the parent's own upload before she sends it, then the thread's participants and nobody else.
+        if (row.isChat()) {
+            if (parent != null && user == null && parent.parentId().equals(row.getUploadedBy())) return;
+            if (!chatFiles.readable(row, parent, user)) throw hidden();
+            return;
+        }
         var kids = user != null ? List.<ChildEntity>of()
                 : children.findByParentIdAndDeletedAtIsNullOrderByCreatedAt(parent.parentId());
         if (!broadcasts.readsAttachment(row.getId(), row.getSchoolId(), user, kids)) throw hidden();

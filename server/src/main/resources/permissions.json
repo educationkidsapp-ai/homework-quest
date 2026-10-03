@@ -139,6 +139,7 @@
     { "method": "GET", "path": "/media/pages/{id}", "permission": "media.page.read" },
     { "method": "GET", "path": "/media/attachments/{id}", "permission": "media.attachment.read" },
     { "method": "POST", "path": "/media/attachments", "permission": "media.attachment.write" },
+    { "method": "POST", "path": "/media/chat-attachments", "permission": "media.attachment.write" },
     { "method": "GET", "path": "/media/child/{id}", "permission": "media.child.read" },
 
     { "method": "POST", "path": "/admin/auth/sign-in", "permission": "auth.signIn" },
@@ -362,6 +363,7 @@
     { "method": "GET", "path": "/children/{id}/chat/threads", "permission": "child.chat" },
     { "method": "GET", "path": "/children/{id}/chat/threads/{teacherId}/messages", "permission": "child.chat" },
     { "method": "POST", "path": "/children/{id}/chat/threads/{teacherId}/messages", "permission": "child.chat" },
+    { "method": "POST", "path": "/children/{id}/chat/attachments", "permission": "child.chat" },
     { "method": "POST", "path": "/children/{id}/chat/threads/{teacherId}/read", "permission": "child.chat" },
     { "method": "GET", "path": "/teacher/managers", "permission": "teacher.chat" },
     { "method": "GET", "path": "/teacher/coordinators", "permission": "teacher.chat" },

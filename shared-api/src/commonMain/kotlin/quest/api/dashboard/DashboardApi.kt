@@ -963,6 +963,13 @@ interface DashboardApi {
      */
     suspend fun uploadAttachment(file: quest.api.UploadFile): quest.api.dto.AttachmentRef
 
+    /**
+     * B5 `POST /media/chat-attachments` (multipart `file`) — one image (at most 5 MB) or one PDF (at most 10 MB) for a chat
+     * message, in the caller's school (the Admin sends `X-School-Id`). Its id goes in the next send's `attachmentIds` on
+     * any of the staff routes or the socket; an upload never sent is deleted after 24 hours.
+     */
+    suspend fun uploadChatAttachment(file: quest.api.UploadFile): quest.api.dto.AttachmentRef
+
     /** `GET /management/admins` — whom `adminUserId` may name. `GET /management/coordinators` is the other chooser. */
     suspend fun managementAdmins(): List<ManagerAdmin>
 

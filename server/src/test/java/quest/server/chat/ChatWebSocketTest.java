@@ -218,6 +218,98 @@ class ChatWebSocketTest extends ChatTestSupport {
         assertThat(frameOfType(teacher, "error").get("code").asText()).isEqualTo("not_found");
     }
 
+    /**
+     * B5 (owner's report of 2026-10-03: "when the parent types the dashboard shows it, but when the manager types the app
+     * shows nothing"). Every staff side's `typing` reaches the parent's socket as `{"type":"typing","threadId",
+     * "from":"teacher"}` — a teacher naming the child, a manager naming the thread — and so does the Admin's, which is
+     * the case that was broken: her token names no school, so every chat command of hers was refused on the socket.
+     * Her commands are now scoped by the thread they name, and a thread she is not on is `not_found`.
+     */
+    @Test void every_staff_sides_typing_reaches_the_parent_and_the_admin_writes_on_the_socket() throws Exception {
+        // Teacher, manager and coordinator: these three paths were already right before B5 and are pinned here.
+        var parent = new Frames();
+        var parentSession = connect(PARENT.substring("Bearer ".length()), true, parent);
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/teacher/chat/threads/" + maya + "/messages")
+                .header("Authorization", "Bearer " + sara).contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(send("Hello")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isCreated());
+        String teacherThread = frameOfType(parent, "message").get("message").get("threadId").asText();
+
+        var teacher = new Frames();
+        var fromTeacher = typing(connect(sara, true, teacher), "{\"type\":\"typing\",\"childId\":\"" + maya + "\"}", parent);
+        assertThat(fromTeacher.get("threadId").asText()).isEqualTo(teacherThread);
+        assertThat(fromTeacher.get("from").asText()).isEqualTo("teacher");
+        // and the other way: the parent's typing reaches the teacher
+        assertThat(typing(parentSession, "{\"type\":\"typing\",\"childId\":\"" + maya + "\",\"teacherId\":\"" + SARA + "\"}", teacher)
+                .get("from").asText()).isEqualTo("parent");
+
+        String managerToken = manager(prefix() + "manager");
+        String managerThread = postThread("/management/chat/threads", managerToken, null, "{\"childId\":\"" + maya + "\"}");
+        var fromManager = typing(connect(managerToken, true, new Frames()), "{\"type\":\"typing\",\"threadId\":\"" + managerThread + "\"}", parent);
+        assertThat(fromManager.toString()).as("the exact frame the app receives")
+                .isEqualTo("{\"type\":\"typing\",\"threadId\":\"" + managerThread + "\",\"from\":\"teacher\"}");
+        // the same id the parent's own list names the manager's row by
+        assertThat(parentGet("/children/" + maya + "/managers").get(0).get("id").asText()).isEqualTo(managerThread);
+
+        // a coordinator of 1A's maths, on the thread the parent opened with her
+        String coordinatorId = prefix() + "coordinator", coordinatorToken = coordinator(coordinatorId);
+        String coordinatorThread = parentPost("/children/" + maya + "/chat/threads/" + coordinatorId + "/messages", send("A question")).get("threadId").asText();
+        var fromCoordinator = typing(connect(coordinatorToken, true, new Frames()), "{\"type\":\"typing\",\"threadId\":\"" + coordinatorThread + "\"}", parent);
+        assertThat(fromCoordinator.get("threadId").asText()).isEqualTo(coordinatorThread);
+        assertThat(fromCoordinator.get("from").asText()).isEqualTo("teacher");
+
+        String adminThread = postThread("/admin/chat/threads", adminToken, A, "{\"childId\":\"" + maya + "\"}");
+        var admin = new Frames();
+        var adminSession = connect(adminToken, true, admin);
+        var fromAdmin = typing(adminSession, "{\"type\":\"typing\",\"threadId\":\"" + adminThread + "\"}", parent);
+        assertThat(fromAdmin.get("threadId").asText()).isEqualTo(adminThread);
+        assertThat(fromAdmin.get("from").asText()).isEqualTo("teacher");
+        adminSession.sendMessage(new TextMessage("{\"type\":\"message\",\"threadId\":\"" + adminThread + "\",\"body\":\"From the office\",\"clientId\":\"a-1\"}"));
+        assertThat(frameOfType(admin, "message").get("clientId").asText()).as("the Admin's socket send is acked like anyone's").isEqualTo("a-1");
+        assertThat(frameOfType(parent, "message").get("message").get("body").asText()).isEqualTo("From the office");
+        adminSession.sendMessage(new TextMessage("{\"type\":\"typing\",\"threadId\":\"" + teacherThread + "\"}"));
+        assertThat(frameOfType(admin, "error").get("code").asText()).as("a thread she is not on").isEqualTo("not_found");
+    }
+
+    /**
+     * `typing` is droppable by contract — skipped on a socket that still has a frame queued, such as the `presence` the
+     * typist's own connect has just sent the same reader — so the test types until it is seen, as a person does.
+     */
+    private static JsonNode typing(WebSocketSession from, String command, Frames to) throws Exception {
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        for (int attempt = 0; attempt < 10; attempt++) {
+            from.sendMessage(new TextMessage(command));
+            long until = System.currentTimeMillis() + 500;
+            for (String p; (p = to.queue.poll(Math.max(1, until - System.currentTimeMillis()), TimeUnit.MILLISECONDS)) != null; ) {
+                var frame = mapper.readTree(p);
+                if ("typing".equals(frame.get("type").asText())) return frame;
+            }
+        }
+        throw new AssertionError("no typing frame arrived");
+    }
+
+    private String postThread(String path, String token, String school, String body) throws Exception {
+        var request = org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(path).header("Authorization", "Bearer " + token)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(body);
+        if (school != null) request = request.header(quest.server.tenancy.TenantContext.HEADER, school);
+        return json(mvc.perform(request).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().is2xxSuccessful())
+                .andReturn()).get("id").asText();
+    }
+
+    /** A COORDINATOR of school A for British maths — 1A's maths, so Maya's parent may write to her (R4). */
+    private String coordinator(String userId) {
+        var u = users.findById(userId).orElseGet(quest.server.auth.Entities.UserEntity::new);
+        u.setId(userId); u.setSchoolId(A); u.setEmail(userId + "@seed.test"); u.setPasswordHash("x");
+        u.setRole("COORDINATOR"); u.setStatus("active"); u.setDisplayName("Ms Lina");
+        if (u.getCreatedAt() == null) u.setCreatedAt(java.time.Instant.now());
+        u.setUpdatedAt(java.time.Instant.now());
+        users.save(u);
+        var row = staffScopes.findById(userId + ":math").orElseGet(quest.server.tenancy.Entities.StaffScopeEntity::new);
+        row.setId(userId + ":math"); row.setSchoolId(A); row.setUserId(userId); row.setSubject("math"); row.setCurriculum("british");
+        if (row.getCreatedAt() == null) row.setCreatedAt(java.time.Instant.now());
+        staffScopes.save(row);
+        return token(userId, "COORDINATOR", A);
+    }
+
     /** A MANAGERIAL account of school A with the British department — a `staff_scopes` row with no subject (DR5). */
     private String manager(String userId) {
         var u = users.findById(userId).orElseGet(quest.server.auth.Entities.UserEntity::new);

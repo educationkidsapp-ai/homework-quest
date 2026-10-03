@@ -45,16 +45,47 @@ class UploadRetentionTest {
         assertThat(fresh.getDeletedAt()).isNull();
     }
 
-    /** MH1 added the attachment half; this suite is the slides half, so both new collaborators answer "nothing". */
+    /**
+     * B5 review: the orphans come from the database a page at a time, each page deleted — bytes, `?w=` copies, row —
+     * before the next is asked for, and a short page ends the run.
+     */
+    @Test void the_sweep_deletes_each_page_of_orphans_with_their_copies() {
+        var store = new Store();
+        var old = Instant.now().minus(30, ChronoUnit.HOURS);
+        Entities.AttachmentEntity unsent = attachment("unsent", null, old), orphan = attachment("orphan", "m-gone", old);
+        for (var a : List.of(unsent, orphan)) {
+            store.put(a.getStoragePath(), new byte[] {1}, "image/png");
+            store.put(ImageInfo.copyPaths(a.getStoragePath()).get(0), new byte[] {2}, "image/jpeg");
+        }
+        store.put("attachments/s/kept", new byte[] {1}, "image/png");
+        var attachments = Mockito.mock(AttachmentRepository.class);
+        Mockito.when(attachments.orphans(Mockito.any(), Mockito.any())).thenReturn(List.of(unsent, orphan));
+        var sources = Mockito.mock(SourceFileRepository.class);
+        Mockito.when(sources.findAll()).thenReturn(List.of());
+
+        new UploadRetention(sources, store, attachments).sweep();
+
+        assertThat(store.blobs).containsOnlyKeys("attachments/s/kept");
+        Mockito.verify(attachments).delete(unsent);
+        Mockito.verify(attachments).delete(orphan);
+        Mockito.verify(attachments, Mockito.times(1)).orphans(Mockito.any(), Mockito.any());
+    }
+
+    private static Entities.AttachmentEntity attachment(String id, String messageId, Instant createdAt) {
+        var a = new Entities.AttachmentEntity();
+        a.setId(id); a.setSchoolId("s"); a.setUploadedBy("u"); a.setName("p.png"); a.setMimeType("image/png"); a.setSizeBytes(1);
+        a.setStoragePath("attachments/s/" + id); a.setCreatedAt(createdAt); a.setPurpose(Entities.CHAT); a.setMessageId(messageId);
+        return a;
+    }
+
+    /** MH1 added the attachment half; this suite is the slides half, so it answers "no orphans". */
     private UploadRetention retention(FileStore store, List<SourceFileEntity> rows) {
         var repo = Mockito.mock(SourceFileRepository.class);
         Mockito.when(repo.findAll()).thenReturn(rows);
         Mockito.when(repo.save(Mockito.any())).thenAnswer(i -> i.getArgument(0));
         var attachments = Mockito.mock(AttachmentRepository.class);
-        Mockito.when(attachments.findAll()).thenReturn(List.of());
-        var broadcasts = Mockito.mock(quest.server.broadcasts.BroadcastRepository.class);
-        Mockito.when(broadcasts.referencedAttachmentIds()).thenReturn(java.util.Set.of());
-        return new UploadRetention(repo, store, attachments, broadcasts);
+        Mockito.when(attachments.orphans(Mockito.any(), Mockito.any())).thenReturn(List.of());
+        return new UploadRetention(repo, store, attachments);
     }
 
     private static SourceFileEntity file(String id, Instant createdAt) {

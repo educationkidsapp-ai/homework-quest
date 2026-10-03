@@ -11,6 +11,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -44,7 +45,11 @@ public class MediaController {
      * and `type` are what was actually stored, not what was sent: the type is sniffed from the bytes.
      */
     @io.swagger.v3.oas.annotations.media.Schema(name = "AttachmentRef")
-    public record Attachment(String id, String name, String type, long sizeBytes) {}
+    public record Attachment(String id, String name, String type, long sizeBytes, Integer width, Integer height) {
+        public static Attachment of(Entities.AttachmentEntity row) {
+            return new Attachment(row.getId(), row.getName(), row.getMimeType(), row.getSizeBytes(), row.getWidth(), row.getHeight());
+        }
+    }
 
     /**
      * A file name safe to put inside a quoted header: the stored name is already plain text and lower-cased, but a
@@ -80,29 +85,54 @@ public class MediaController {
     public Attachment uploadAttachment(@AuthenticationPrincipal Principals.User caller,
                                        @RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
         if (caller == null) throw ApiException.unauthorized("Sign in first.");
-        var row = uploads.upload(caller, file);
-        return new Attachment(row.getId(), row.getName(), row.getMimeType(), row.getSizeBytes());
+        return Attachment.of(uploads.upload(caller, file));
     }
 
     /**
      * The bytes, to whoever may read a broadcast that carries them — or to the uploader before she has attached it
      * anywhere ({@link MediaAccess#requireAttachment}). Cached like a page crop and `private` for the same reason: it
      * is the answer to an authorised request and must never be served from a shared cache to the next caller.
+     *
+     * <p>B5: `?w=` is hidden from the OpenAPI document on purpose — a new parameter there would move the generated
+     * clients' positional `observe` argument, which every existing caller passes. It is documented in the runbook.
      */
     @PreAuthorize("@permit.has('media.attachment.read')")
     @GetMapping("/media/attachments/{id}")
     public ResponseEntity<byte[]> attachment(@PathVariable String id,
                                              @AuthenticationPrincipal Principals.Parent parent,
-                                             @AuthenticationPrincipal Principals.User user) {
+                                             @AuthenticationPrincipal Principals.User user,
+                                             @io.swagger.v3.oas.annotations.Parameter(hidden = true)
+                                             @RequestParam(value = "w", required = false) Integer w) {
         var row = attachments.findOneById(id).orElseThrow(() -> ApiException.notFound("media"));
         access.requireAttachment(row, parent, user);
-        var blob = files.get(row.getStoragePath()).orElseThrow(() -> ApiException.notFound("media file"));
-        return ResponseEntity.ok().cacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePrivate())
+        var blob = w == null ? null : copy(row, w);
+        if (blob == null) blob = files.get(row.getStoragePath()).orElseThrow(() -> ApiException.notFound("media file"));
+        // An id names one file for ever, so a reader may keep it as long as she likes — in her own cache only.
+        return ResponseEntity.ok().cacheControl(CacheControl.maxAge(365, TimeUnit.DAYS).cachePrivate().immutable())
                 // `nosniff` and an explicit `inline` disposition: only the sniffed types — three images and, S1, a
                 // PDF — can ever be the content type, so a browser shows the plan rather than guessing at it.
                 .header("X-Content-Type-Options", "nosniff")
                 .header("Content-Disposition", "inline; filename=\"" + downloadName(row) + "\"")
                 .contentType(MediaType.parseMediaType(blob.mimeType())).body(blob.bytes());
+    }
+
+    /**
+     * B5: `?w=` — a chat bubble's copy, a JPEG turned upright, at the fixed width {@code asked} rounds up to
+     * ({@link ImageInfo#WIDTHS}). Made once and stored beside the original, so a width is decoded once per image
+     * however often it is asked for; null — answer the original — for a PDF, a WebP, or an image already that narrow.
+     */
+    private FileStore.Blob copy(Entities.AttachmentEntity row, int asked) {
+        if (!row.getMimeType().startsWith("image/") || "image/webp".equals(row.getMimeType())) return null;
+        int width = ImageInfo.width(asked);
+        if (row.getWidth() != null && row.getWidth() <= width) return null;
+        String path = ImageInfo.copyPath(row.getStoragePath(), width);
+        var kept = files.get(path);
+        if (kept.isPresent()) return kept.get();
+        var original = files.get(row.getStoragePath()).orElseThrow(() -> ApiException.notFound("media file"));
+        byte[] small = ImageInfo.downscale(original.bytes(), original.mimeType(), width);
+        if (small == null) return null;
+        files.put(path, small, MediaType.IMAGE_JPEG_VALUE);
+        return new FileStore.Blob(small, MediaType.IMAGE_JPEG_VALUE);
     }
 
     @PreAuthorize("@permit.has('media.page.read')")

@@ -237,7 +237,8 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(BROADCASTS_API);
         assertThat(paths).containsAll(PUBLIC_API);
         // MH1: the upload and the download of a broadcast attachment — the app and the dashboard both call them.
-        assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}", "/media/attachments", "/media/attachments/{id}");
+        assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}", "/media/attachments", "/media/attachments/{id}", "/media/chat-attachments",
+                "/children/{id}/chat/attachments");
     }
 
     /**
@@ -311,6 +312,29 @@ class OpenApiContractTest extends ApiTestSupport {
                 .isEqualTo("#/components/schemas/AttachmentRef");
         assertThat(schemas.get("BroadcastView").get("properties").get("attachment").get("$ref").asText())
                 .isEqualTo("#/components/schemas/BroadcastAttachment");
+    }
+
+    /**
+     * B5: a chat message carries `attachments` of their own shape (optional, so a generated client need not invent one), a
+     * send names them by `attachmentIds` (optional too), and the two chat upload routes answer MH1's `AttachmentRef`.
+     */
+    @Test void chat_attachments_are_in_the_contract() throws Exception {
+        var doc = json(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn());
+        var schemas = doc.get("components").get("schemas");
+        assertThat(schemas.get("ChatMessage").get("properties").get("attachments").get("items").get("$ref").asText())
+                .isEqualTo("#/components/schemas/ChatAttachment");
+        assertThat(schemas.get("ChatAttachment").get("properties").fieldNames()).toIterable()
+                .containsExactlyInAnyOrder("id", "contentType", "name", "size", "width", "height");
+        assertThat(schemas.get("ChatMessage").get("required")).extracting(com.fasterxml.jackson.databind.JsonNode::asText).doesNotContain("attachments");
+        assertThat(schemas.get("SendChatMessageRequest").get("properties").has("attachmentIds")).isTrue();
+        assertThat(schemas.get("SendChatMessageRequest").get("required")).extracting(com.fasterxml.jackson.databind.JsonNode::asText).containsExactly("body");
+        assertThat(schemas.get("AttachmentRef").get("properties").has("width")).isTrue();
+        for (String path : List.of("/children/{id}/chat/attachments", "/media/chat-attachments"))
+            assertThat(doc.get("paths").get(path).get("post").get("responses").get("201").get("content").get(org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
+                    .get("schema").get("$ref").asText()).as(path).isEqualTo("#/components/schemas/AttachmentRef");
+        // MH1's two routes keep their exact parameters: a new one would move the generated dashboard client's arguments
+        assertThat(doc.get("paths").get("/media/attachments").get("post").has("parameters")).isFalse();
+        assertThat(doc.get("paths").get("/media/attachments/{id}").get("get").get("parameters")).extracting(p -> p.get("name").asText()).containsExactly("id");
     }
 
     private void collect(Class<?> root, List<Class<?>> out) {
