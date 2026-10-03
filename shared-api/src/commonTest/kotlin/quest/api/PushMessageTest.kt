@@ -29,6 +29,15 @@ class PushMessageTest {
         assertEquals("broadcast.posted", PushMessage.kindName(NotificationKind.BROADCAST_POSTED))
         assertEquals("exam.released", PushMessage.kindName(NotificationKind.EXAM_RELEASED))
         assertEquals("complaint.status", PushMessage.kindName(NotificationKind.COMPLAINT_STATUS))
+        assertEquals("complaint.new", PushMessage.kindName(NotificationKind.COMPLAINT_NEW))
+        assertEquals("complaint.message", PushMessage.kindName(NotificationKind.COMPLAINT_MESSAGE))
+    }
+
+    @Test fun aComplaintPushNamesTheComplaint() {
+        val push = PushMessage(NotificationKind.COMPLAINT_MESSAGE, "Reply from Ms Lina", "We have halved it.", notificationId = "n3",
+            childId = "c1", link = "/children/c1/complaints/k1", collapseKey = "complaint:k1", complaintId = "k1")
+        assertEquals("k1", push.toData()[PushMessage.COMPLAINT_ID])
+        assertEquals(push, PushMessage.fromData(push.toData()))
     }
 
     @Test fun aMapThatIsNotOursIsNull() {

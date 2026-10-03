@@ -40,18 +40,22 @@ data class UnregisterDeviceRequest(val token: String)
  * Firebase project) the same map rides beside an APNs alert built from [title] and [body], because iOS does not wake a
  * closed app for a data-only push.
  *
- * - [kind] — the [NotificationKind] serial name a parent can receive: `chat.message`, `complaint.status`,
- *   `broadcast.posted` (a weekly plan, announcement or event from a manager or coordinator), `announcement.posted` (a
- *   teacher's class note), `question.sent`, `homework.published`, `exam.published` or `exam.released`.
+ * - [kind] — the [NotificationKind] serial name a parent can receive: `chat.message`, `complaint.message` (B6),
+ *   `complaint.status`, `broadcast.posted` (a weekly plan, announcement or event from a manager or coordinator),
+ *   `announcement.posted` (a teacher's class note), `question.sent`, `homework.published`, `exam.published` or
+ *   `exam.released`.
  * - [notificationId] — the `/me/notifications` row the push is (mark it read with `POST /me/notifications/{id}/read`).
- * - [childId] — the child it is about; [link] — the row's app path (`/children/{id}/chat/{staffId}`, `…/progress`,
- *   `…/map`, `…/broadcasts?open={broadcastId}`, `…/announcements?open={id}`, `…/teacher-questions/{id}`).
+ * - [childId] — the child it is about; [link] — the row's app path (`/children/{id}/chat/{staffId}`,
+ *   `…/complaints/{complaintId}`, `…/progress`, `…/map`, `…/broadcasts?open={broadcastId}`, `…/announcements?open={id}`,
+ *   `…/teacher-questions/{id}`).
  * - [broadcastId] — on `broadcast.posted`, the broadcast (read it with `POST /children/{childId}/broadcasts/{id}/read`).
  * - [opensAt] / [closesAt] — on `exam.published`, the exam's window in epoch milliseconds, for the app to show in the
  *   phone's own time and language.
- * - [collapseKey] — one per thread (`chat:{threadId}`, `complaint.status` included), lesson (`lesson:{lessonId}`),
- *   broadcast (`broadcast:{id}`), announcement (`announcement:{id}`) or question (`question:{id}`); use it as the
- *   notification tag so a newer push replaces the older one in the shade.
+ * - [complaintId] — B6, on `complaint.message` and `complaint.status`: the complaint (open it with
+ *   `GET /children/{childId}/complaints/{complaintId}`), so the app routes to its Complaints page without parsing [link].
+ * - [collapseKey] — one per thread (`chat:{threadId}`), complaint (`complaint:{id}`, B6: its messages and its status
+ *   changes), lesson (`lesson:{lessonId}`), broadcast (`broadcast:{id}`), announcement (`announcement:{id}`) or question
+ *   (`question:{id}`); use it as the notification tag so a newer push replaces the older one in the shade.
  */
 data class PushMessage(
     val kind: NotificationKind,
@@ -64,6 +68,7 @@ data class PushMessage(
     val collapseKey: String,
     val opensAt: Long? = null,
     val closesAt: Long? = null,
+    val complaintId: String? = null,
 ) {
     /** The FCM data map; absent values are left out rather than sent as empty strings. */
     fun toData(): Map<String, String> = buildMap {
@@ -71,12 +76,13 @@ data class PushMessage(
         body?.let { put(BODY, it) }; notificationId?.let { put(NOTIFICATION_ID, it) }; childId?.let { put(CHILD_ID, it) }
         link?.let { put(LINK, it) }; broadcastId?.let { put(BROADCAST_ID, it) }
         opensAt?.let { put(OPENS_AT, it.toString()) }; closesAt?.let { put(CLOSES_AT, it.toString()) }
+        complaintId?.let { put(COMPLAINT_ID, it) }
     }
 
     companion object {
         const val KIND = "kind"; const val TITLE = "title"; const val BODY = "body"; const val NOTIFICATION_ID = "notificationId"
         const val CHILD_ID = "childId"; const val LINK = "link"; const val BROADCAST_ID = "broadcastId"; const val COLLAPSE_KEY = "collapseKey"
-        const val OPENS_AT = "opensAt"; const val CLOSES_AT = "closesAt"
+        const val OPENS_AT = "opensAt"; const val CLOSES_AT = "closesAt"; const val COMPLAINT_ID = "complaintId"
 
         /** The wire name of a kind (`chat.message`), as `/me/notifications` writes it. */
         fun kindName(kind: NotificationKind): String = NotificationKind.serializer().descriptor.getElementName(kind.ordinal)
@@ -85,7 +91,8 @@ data class PushMessage(
         fun fromData(data: Map<String, String>): PushMessage? {
             val kind = NotificationKind.entries.firstOrNull { kindName(it) == data[KIND] } ?: return null
             return PushMessage(kind, data[TITLE] ?: return null, data[BODY], data[NOTIFICATION_ID], data[CHILD_ID], data[LINK],
-                data[BROADCAST_ID], data[COLLAPSE_KEY] ?: return null, data[OPENS_AT]?.toLongOrNull(), data[CLOSES_AT]?.toLongOrNull())
+                data[BROADCAST_ID], data[COLLAPSE_KEY] ?: return null, data[OPENS_AT]?.toLongOrNull(), data[CLOSES_AT]?.toLongOrNull(),
+                data[COMPLAINT_ID])
         }
     }
 }

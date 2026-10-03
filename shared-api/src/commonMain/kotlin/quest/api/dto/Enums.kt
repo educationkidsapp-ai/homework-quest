@@ -82,6 +82,11 @@ data class ApiError(val code: String, val message: String) {
         const val IMAGE_TOO_LARGE = "image_too_large"
         /** 409 (B5): a chat file already went with another message; upload it again to send it twice. */
         const val ATTACHMENT_ALREADY_SENT = "attachment_already_sent"
+        /**
+         * 400 (B6): a Messages send carried `topic: complaint`. Complaints are their own conversations now — open one with
+         * `POST /children/{id}/complaints`.
+         */
+        const val COMPLAINT_MOVED = "complaint_moved"
         /** 429 (C1 chat): more than 30 messages in a minute from one sender. */
         const val RATE_LIMITED = "rate_limited"
         /** 409 (E5): a step of this lesson's pipeline is running, so nothing of it may be written over yet. */
