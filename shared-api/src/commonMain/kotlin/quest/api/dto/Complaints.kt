@@ -45,7 +45,10 @@ data class Complaint(
     val createdAt: Long,
     val parentName: String? = null,
     val className: String? = null,
-    /** The recipient's subjects on the child's section (a teacher's or a coordinator's), absent for a manager. */
+    /**
+     * The recipient's subjects on the child's section (a teacher's or a coordinator's) — the words
+     * [ComplaintRecipient.subject] showed when the complaint was opened, kept with it; absent for a manager.
+     */
     val subject: String? = null,
     val lastMessage: ChatMessage? = null,
     val unread: Int = 0,

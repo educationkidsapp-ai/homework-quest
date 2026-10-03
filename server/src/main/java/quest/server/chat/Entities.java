@@ -28,7 +28,8 @@ public final class Entities {
      *
      * <p>V33 (B6): {@code threadKey} is `""` on a Messages thread — one per (child, staff), as before — and the row's
      * own id on a complaint (`topic` `complaint`), so a parent may hold any number of complaints beside her one
-     * Messages thread with the same person; {@code title} is a complaint's subject line, null on a Messages thread.
+     * Messages thread with the same person; {@code title} is a complaint's subject line and {@code subject} the recipient's
+     * subjects on the child's section when it was opened, both null on a Messages thread.
      */
     @Entity(name = "ChatThreadEntity") @Table(name = "chat_threads")
     @Filter(name = "school", condition = "school_id = :schoolId")
@@ -49,6 +50,7 @@ public final class Entities {
         @Column(name = "teacher_unread", nullable = false) private int teacherUnread;
         @Column(name = "thread_key", nullable = false) private String threadKey = "";
         @Column private String title;
+        @Column private String subject;
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
         public String getChildId() { return childId; } public void setChildId(String v) { childId = v; }
@@ -65,6 +67,7 @@ public final class Entities {
         public String getResolvedBy() { return resolvedBy; } public void setResolvedBy(String v) { resolvedBy = v; }
         public String getThreadKey() { return threadKey; } public void setThreadKey(String v) { threadKey = v; }
         public String getTitle() { return title; } public void setTitle(String v) { title = v; }
+        public String getSubject() { return subject; } public void setSubject(String v) { subject = v; }
     }
 
     /**

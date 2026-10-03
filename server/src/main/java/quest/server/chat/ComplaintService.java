@@ -128,10 +128,13 @@ public class ComplaintService {
         var child = chat.placed(parent, childId);
         String role = chat.requireStaffOf(child, req.getStaffId());
         if (ChatService.ADMIN.equals(role)) throw ApiException.notFound("teacher");
+        // The subject the parent saw beside the name she chose, kept on the row so every read answers the same words.
+        String subject = recipients(parent, childId).stream().filter(r -> r.getStaffId().equals(req.getStaffId()))
+                .map(ComplaintRecipient::getSubject).filter(Objects::nonNull).findFirst().orElse(null);
         var t = new ChatThreadEntity();
         String id = UUID.randomUUID().toString();
         t.setId(id); t.setSchoolId(child.getSchoolId()); t.setChildId(child.getId()); t.setTeacherId(req.getStaffId()); t.setStaffRole(role);
-        t.setTopic(ChatService.COMPLAINT); t.setStatus(ChatService.OPEN); t.setThreadKey(id); t.setTitle(title); t.setCreatedAt(clock.instant());
+        t.setTopic(ChatService.COMPLAINT); t.setStatus(ChatService.OPEN); t.setThreadKey(id); t.setTitle(title); t.setSubject(subject); t.setCreatedAt(clock.instant());
         threads.saveAndFlush(t);
         chat.send(t, child.getParentId(), ChatService.PARENT, parent.parentId(), req.getBody(), req.getClientId(), false);
         bells.complaintNew(t.getSchoolId(), t.getTeacherId(), id, parentName(parent.parentId()), title);
@@ -352,6 +355,7 @@ public class ComplaintService {
         var accounts = staff(List.copyOf(people));
         var parentNames = chat.parentNames(kids.values());
         var last = chat.lastMessages(ts);
+        var coordinatorSubjects = new HashMap<String, Map<String, String>>();
         var out = new ArrayList<Complaint>(ts.size());
         for (var t : ts) {
             var kid = kids.get(t.getChildId());
@@ -363,7 +367,7 @@ public class ComplaintService {
             out.add(new Complaint(t.getId(), t.getChildId(), kid == null ? "" : kid.getName(), t.getTitle() == null ? "" : t.getTitle(),
                     ChatService.status(t.getStatus()), t.getTeacherId(), ChatService.name(recipient),
                     recipientRole(t, recipient), t.getCreatedAt().toEpochMilli(), kid == null ? null : parentNames.get(kid.getId()),
-                    section == null ? null : section.getName(), subject(t, kid, viewer.assignments()), last.get(t.getId()), unread,
+                    section == null ? null : section.getName(), subject(t, kid, section, viewer.assignments(), coordinatorSubjects), last.get(t.getId()), unread,
                     resolved && t.getResolvedAt() != null ? t.getResolvedAt().toEpochMilli() : null,
                     resolved && resolver != null ? ChatService.name(resolver) : null,
                     viewer.parentId() != null || viewer.isRecipient(t)));
@@ -372,11 +376,21 @@ public class ComplaintService {
     }
 
     /**
-     * The addressed teacher's subjects on the child's section, from the assignments the viewer's scope already read
-     * (hers, her reach's, the child's section's) — no statement per row. Absent for a coordinator or a manager.
+     * The subjects the complaint is about: what was stored when it was opened ({@link #create}) and, on a row written
+     * before B6, what can still be derived — a teacher's subjects on the child's section from the assignments the
+     * viewer's scope already read, a coordinator's from her scope on that section (one read per section on the page,
+     * never per row). Absent for a manager, whose complaints are about the department.
      */
-    private static String subject(ChatThreadEntity t, ChildEntity kid, List<TeachingAssignmentEntity> assignments) {
-        if (!ChatService.ROLE_TEACHER.equals(t.getStaffRole()) || kid == null || kid.getClassId() == null) return null;
+    private String subject(ChatThreadEntity t, ChildEntity kid, ClassEntity section, List<TeachingAssignmentEntity> assignments,
+                           Map<String, Map<String, String>> coordinatorSubjects) {
+        if (t.getSubject() != null && !t.getSubject().isBlank()) return t.getSubject();
+        if (kid == null || kid.getClassId() == null) return null;
+        if (ChatService.COORDINATOR.equals(t.getStaffRole())) {
+            if (section == null) return null;
+            return coordinatorSubjects.computeIfAbsent(section.getId(), k -> peers.coordinatorsOn(t.getSchoolId(), section).stream()
+                    .collect(Collectors.toMap(c -> c.user().getId(), ChatPeers.Coordinator::subjects, (a, b) -> a))).get(t.getTeacherId());
+        }
+        if (!ChatService.ROLE_TEACHER.equals(t.getStaffRole())) return null;
         String subject = assignments.stream().filter(a -> kid.getClassId().equals(a.getClassId()) && t.getTeacherId().equals(a.getTeacherId()))
                 .map(TeachingAssignmentEntity::getSubject).distinct().collect(Collectors.joining(", "));
         return subject.isEmpty() ? null : subject;

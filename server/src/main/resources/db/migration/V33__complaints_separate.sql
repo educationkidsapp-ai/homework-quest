@@ -9,7 +9,9 @@
 --    and the row's own id on a complaint, so each complaint is distinct. Staff-to-staff threads have no child and are
 --    untouched (`chat_threads_staff_pair` still de-duplicates them).
 -- 2. `title` — the complaint's short subject line. Rows written before B6 have none; theirs is the first 120 characters of
---    their first message, or empty for a complaint that has no message at all.
+--    their first message, or empty for a complaint that has no message at all. `subject` is the recipient's subjects on
+--    the child's section as the parent chose them (a teacher's or a coordinator's; NULL for a manager); a row written
+--    before B6 has none, and the server derives it when it reads one.
 -- 3. `complaint_events` — every status change with who and when (`resolved` / `open`, by the parent or a staff
 --    member), what a client draws as "Resolved by Nour · 3 Oct". `resolved_at` / `resolved_by` on the thread keep the
 --    latest resolution; the events keep all of them. A complaint already resolved before B6 gets its one event back.
@@ -23,6 +25,7 @@ DROP INDEX IF EXISTS chat_threads_child_teacher;
 
 ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS thread_key TEXT DEFAULT '' NOT NULL;
 ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS title      TEXT;
+ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS subject    TEXT;
 
 UPDATE chat_threads SET thread_key = id WHERE topic = 'complaint' AND thread_key = '';
 

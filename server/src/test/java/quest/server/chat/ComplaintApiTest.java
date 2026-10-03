@@ -280,6 +280,13 @@ class ComplaintApiTest extends ApiTestSupport {
                 "{\"staffId\":\"" + nour + "\",\"title\":\"The coordinator\",\"body\":\"Nobody answers.\"}").get("complaint").get("id").asText();
         var linas = staffGet(lina, "COORDINATOR", "/coordinator/complaints").get("complaints");
         assertThat(rowWith(linas, "id", toLina).get("canReply").asBoolean()).isTrue();
+        // The subject the chooser showed beside her name travels with the complaint, on every side's read.
+        assertThat(rowWith(linas, "id", toLina).get("subject").asText()).isEqualTo("math");
+        var parents = parentJson(BRITISH_PARENT, "/children/" + childBritish + "/complaints").get("complaints");
+        assertThat(rowWith(parents, "id", toLina).get("subject").asText()).isEqualTo("math");
+        assertThat(rowWith(parents, "id", toNour).has("subject")).as("a manager's complaint is about the department").isFalse();
+        assertThat(parentJson(BRITISH_PARENT, "/children/" + childBritish + "/complaints/" + toLina).get("complaint").get("subject").asText()).isEqualTo("math");
+        assertThat(threadRows.findById(toLina).orElseThrow().getSubject()).as("stored when it was opened").isEqualTo("math");
         assertThat(names(linas, "id")).doesNotContain(toNour);
         var nours = staffGet(nour, "MANAGERIAL", "/management/complaints").get("complaints");
         assertThat(rowWith(nours, "id", toNour).get("recipientRole").asText()).isEqualTo("MANAGERIAL");
@@ -350,6 +357,13 @@ class ComplaintApiTest extends ApiTestSupport {
         m.setId(id + "-m"); m.setSchoolId(SCHOOL); m.setThreadId(id); m.setSenderRole("parent"); m.setSenderId("p"); m.setBody("The bus is late every day.");
         m.setCreatedAt(Instant.now());
         messageRows.saveAndFlush(m);
+        // …and one to the British math coordinator: no stored subject, so the read derives it from her scope.
+        String toLina = "cmp-legacy-coord-" + UUID.randomUUID();
+        var legacy = new Entities.ChatThreadEntity();
+        legacy.setId(toLina); legacy.setSchoolId(SCHOOL); legacy.setChildId(childBritish); legacy.setTeacherId(lina); legacy.setStaffRole("COORDINATOR");
+        legacy.setTopic("complaint"); legacy.setStatus("open"); legacy.setCreatedAt(Instant.now()); legacy.setLastMessageAt(Instant.now());
+        legacy.setThreadKey("");
+        threadRows.saveAndFlush(legacy);
         for (int run = 0; run < 2; run++)
             try (var c = dataSource.getConnection()) { ScriptUtils.executeSqlScript(c, new ClassPathResource("db/migration/V33__complaints_separate.sql")); }
 
@@ -365,6 +379,10 @@ class ComplaintApiTest extends ApiTestSupport {
         String fresh = parentPostJson(AMERICAN_PARENT, "/children/" + childAmerican + "/chat/threads/" + sami + "/messages",
                 "{\"body\":\"Thank you for fixing the bus.\"}").get("threadId").asText();
         assertThat(fresh).isNotEqualTo(id);
+        assertThat(threadRows.findById(toLina).orElseThrow().getSubject()).isNull();
+        assertThat(rowWith(parentJson(BRITISH_PARENT, "/children/" + childBritish + "/complaints").get("complaints"), "id", toLina)
+                .get("subject").asText()).isEqualTo("math");
+        assertThat(rowWith(staffGet(lina, "COORDINATOR", "/coordinator/complaints").get("complaints"), "id", toLina).get("subject").asText()).isEqualTo("math");
     }
 
     /**
