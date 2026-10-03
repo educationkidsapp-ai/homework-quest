@@ -218,6 +218,57 @@ class ChatWebSocketTest extends ChatTestSupport {
         assertThat(frameOfType(teacher, "error").get("code").asText()).isEqualTo("not_found");
     }
 
+    /**
+     * B5 (owner's report of 2026-10-03: "when the parent types the dashboard shows it, but when the manager types the app
+     * shows nothing"). Every staff side's `typing` reaches the parent's socket as `{"type":"typing","threadId",
+     * "from":"teacher"}` — a teacher naming the child, a manager naming the thread — and so does the Admin's, which is
+     * the case that was broken: her token names no school, so every chat command of hers was refused on the socket.
+     * Her commands are now scoped by the thread they name, and a thread she is not on is `not_found`.
+     */
+    @Test void every_staff_sides_typing_reaches_the_parent_and_the_admin_writes_on_the_socket() throws Exception {
+        var parent = new Frames();
+        var parentSession = connect(PARENT.substring("Bearer ".length()), true, parent);
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/teacher/chat/threads/" + maya + "/messages")
+                .header("Authorization", "Bearer " + sara).contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(send("Hello")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isCreated());
+        String teacherThread = frameOfType(parent, "message").get("message").get("threadId").asText();
+
+        var teacher = new Frames();
+        connect(sara, true, teacher).sendMessage(new TextMessage("{\"type\":\"typing\",\"childId\":\"" + maya + "\"}"));
+        var fromTeacher = frameOfType(parent, "typing");
+        assertThat(fromTeacher.get("threadId").asText()).isEqualTo(teacherThread);
+        assertThat(fromTeacher.get("from").asText()).isEqualTo("teacher");
+        // and the other way: the parent's typing reaches the teacher
+        parentSession.sendMessage(new TextMessage("{\"type\":\"typing\",\"childId\":\"" + maya + "\",\"teacherId\":\"" + SARA + "\"}"));
+        assertThat(frameOfType(teacher, "typing").get("from").asText()).isEqualTo("parent");
+
+        String managerToken = manager(prefix() + "manager");
+        String managerThread = postThread("/management/chat/threads", managerToken, null, "{\"childId\":\"" + maya + "\"}");
+        connect(managerToken, true, new Frames()).sendMessage(new TextMessage("{\"type\":\"typing\",\"threadId\":\"" + managerThread + "\"}"));
+        assertThat(frameOfType(parent, "typing").get("threadId").asText()).isEqualTo(managerThread);
+
+        String adminThread = postThread("/admin/chat/threads", adminToken, A, "{\"childId\":\"" + maya + "\"}");
+        var admin = new Frames();
+        var adminSession = connect(adminToken, true, admin);
+        adminSession.sendMessage(new TextMessage("{\"type\":\"typing\",\"threadId\":\"" + adminThread + "\"}"));
+        var fromAdmin = frameOfType(parent, "typing");
+        assertThat(fromAdmin.get("threadId").asText()).isEqualTo(adminThread);
+        assertThat(fromAdmin.get("from").asText()).isEqualTo("teacher");
+        adminSession.sendMessage(new TextMessage("{\"type\":\"message\",\"threadId\":\"" + adminThread + "\",\"body\":\"From the office\",\"clientId\":\"a-1\"}"));
+        assertThat(frameOfType(admin, "message").get("clientId").asText()).as("the Admin's socket send is acked like anyone's").isEqualTo("a-1");
+        assertThat(frameOfType(parent, "message").get("message").get("body").asText()).isEqualTo("From the office");
+        adminSession.sendMessage(new TextMessage("{\"type\":\"typing\",\"threadId\":\"" + teacherThread + "\"}"));
+        assertThat(frameOfType(admin, "error").get("code").asText()).as("a thread she is not on").isEqualTo("not_found");
+    }
+
+    private String postThread(String path, String token, String school, String body) throws Exception {
+        var request = org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(path).header("Authorization", "Bearer " + token)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(body);
+        if (school != null) request = request.header(quest.server.tenancy.TenantContext.HEADER, school);
+        return json(mvc.perform(request).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().is2xxSuccessful())
+                .andReturn()).get("id").asText();
+    }
+
     /** A MANAGERIAL account of school A with the British department — a `staff_scopes` row with no subject (DR5). */
     private String manager(String userId) {
         var u = users.findById(userId).orElseGet(quest.server.auth.Entities.UserEntity::new);

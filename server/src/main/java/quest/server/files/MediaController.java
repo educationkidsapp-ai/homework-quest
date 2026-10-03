@@ -11,6 +11,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -44,7 +45,11 @@ public class MediaController {
      * and `type` are what was actually stored, not what was sent: the type is sniffed from the bytes.
      */
     @io.swagger.v3.oas.annotations.media.Schema(name = "AttachmentRef")
-    public record Attachment(String id, String name, String type, long sizeBytes) {}
+    public record Attachment(String id, String name, String type, long sizeBytes, Integer width, Integer height) {
+        static Attachment of(Entities.AttachmentEntity row) {
+            return new Attachment(row.getId(), row.getName(), row.getMimeType(), row.getSizeBytes(), row.getWidth(), row.getHeight());
+        }
+    }
 
     /**
      * A file name safe to put inside a quoted header: the stored name is already plain text and lower-cased, but a
@@ -60,12 +65,12 @@ public class MediaController {
     }
 
     private final FileStore files; private final PageImageRepository pageImages; private final ChildMediaRepository childMedia; private final MediaAccess access;
-    private final AttachmentRepository attachments; private final AttachmentService uploads;
+    private final AttachmentRepository attachments; private final AttachmentService uploads; private final quest.server.chat.ChatAttachments chatFiles;
 
     public MediaController(FileStore files, PageImageRepository pageImages, ChildMediaRepository childMedia, MediaAccess access,
-                           AttachmentRepository attachments, AttachmentService uploads) {
+                           AttachmentRepository attachments, AttachmentService uploads, quest.server.chat.ChatAttachments chatFiles) {
         this.files = files; this.pageImages = pageImages; this.childMedia = childMedia; this.access = access;
-        this.attachments = attachments; this.uploads = uploads;
+        this.attachments = attachments; this.uploads = uploads; this.chatFiles = chatFiles;
     }
 
     /**
@@ -74,14 +79,26 @@ public class MediaController {
      * `POST /management/broadcasts` is what ties the two together, and an upload nobody attaches is readable by its
      * uploader alone.
      */
+    /**
+     * B5: `purpose=chat` uploads a file for a chat message instead ({@link quest.server.chat.ChatAttachments}) — any
+     * dashboard role, and the one upload a <strong>parent</strong> may make, naming the child the conversation is about
+     * as `childId`. Absent (or `broadcast`) is MH1's upload, unchanged; a parent asking for that is 400.
+     */
     @PreAuthorize("@permit.has('media.attachment.write')")
     @PostMapping(value = "/media/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public Attachment uploadAttachment(@AuthenticationPrincipal Principals.User caller,
-                                       @RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
+    public Attachment uploadAttachment(@AuthenticationPrincipal Principals.User caller, @AuthenticationPrincipal Principals.Parent parent,
+                                       @RequestPart("file") org.springframework.web.multipart.MultipartFile file,
+                                       @RequestParam(value = "purpose", required = false) String purpose,
+                                       @RequestParam(value = "childId", required = false) String childId) {
+        boolean chat = Entities.CHAT.equals(purpose);
+        if (purpose != null && !chat && !Entities.BROADCAST.equals(purpose)) throw ApiException.badRequest("purpose is `chat` or `broadcast`.");
+        if (parent != null) {
+            if (!chat) throw ApiException.badRequest("Send purpose=chat and childId: a parent uploads files for a conversation.");
+            return Attachment.of(chatFiles.uploadForParent(parent, childId, file));
+        }
         if (caller == null) throw ApiException.unauthorized("Sign in first.");
-        var row = uploads.upload(caller, file);
-        return new Attachment(row.getId(), row.getName(), row.getMimeType(), row.getSizeBytes());
+        return Attachment.of(chat ? chatFiles.uploadForStaff(caller, file) : uploads.upload(caller, file));
     }
 
     /**
@@ -93,16 +110,24 @@ public class MediaController {
     @GetMapping("/media/attachments/{id}")
     public ResponseEntity<byte[]> attachment(@PathVariable String id,
                                              @AuthenticationPrincipal Principals.Parent parent,
-                                             @AuthenticationPrincipal Principals.User user) {
+                                             @AuthenticationPrincipal Principals.User user,
+                                             @RequestParam(value = "w", required = false) Integer w) {
         var row = attachments.findOneById(id).orElseThrow(() -> ApiException.notFound("media"));
         access.requireAttachment(row, parent, user);
         var blob = files.get(row.getStoragePath()).orElseThrow(() -> ApiException.notFound("media file"));
+        byte[] bytes = blob.bytes(); String type = blob.mimeType();
+        // B5: `?w=` — a chat bubble's copy, a JPEG at most that wide and turned upright. A PDF, a WebP, or an image
+        // already that narrow answers the original, so the parameter is always safe to send.
+        if (w != null) {
+            var small = ImageInfo.downscale(bytes, type, Math.clamp(w, ImageInfo.MIN_THUMB, ImageInfo.MAX_THUMB));
+            if (small != null) { bytes = small; type = MediaType.IMAGE_JPEG_VALUE; }
+        }
         return ResponseEntity.ok().cacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePrivate())
                 // `nosniff` and an explicit `inline` disposition: only the sniffed types — three images and, S1, a
                 // PDF — can ever be the content type, so a browser shows the plan rather than guessing at it.
                 .header("X-Content-Type-Options", "nosniff")
                 .header("Content-Disposition", "inline; filename=\"" + downloadName(row) + "\"")
-                .contentType(MediaType.parseMediaType(blob.mimeType())).body(blob.bytes());
+                .contentType(MediaType.parseMediaType(type)).body(bytes);
     }
 
     @PreAuthorize("@permit.has('media.page.read')")

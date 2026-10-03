@@ -6,7 +6,7 @@
     "media.page.read": ["PARENT", "ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR"],
     "media.child.read": ["PARENT", "ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR"],
     "media.attachment.read": ["PARENT", "ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR"],
-    "media.attachment.write": ["ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR"],
+    "media.attachment.write": ["PARENT", "ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR"],
     "auth.signIn": ["PUBLIC"],
     "auth.refresh": ["PUBLIC"],
     "auth.signOut": ["PUBLIC"],

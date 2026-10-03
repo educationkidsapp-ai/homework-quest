@@ -178,6 +178,14 @@ public class NotificationService {
      * writing five lines to a parent who has not opened the thread is one push, and the next one comes after she reads it.
      */
     public void parentChatMessage(String schoolId, String parentId, String childId, String threadId, String staffId, String from, String body) {
+        parentChatMessage(schoolId, parentId, childId, threadId, staffId, from, body, body);
+    }
+
+    /**
+     * B5: {@code bodyAr} is what the Arabic push says when the message is a file alone — "📷 صورة" where the English
+     * says "📷 Photo". Words the sender typed are the same in both, as ever.
+     */
+    public void parentChatMessage(String schoolId, String parentId, String childId, String threadId, String staffId, String from, String body, String bodyAr) {
         if (parentId == null || threadId == null) return;
         boolean named = from != null && !from.isBlank();
         String title = clip("Message from " + (named ? from : "your school"), TITLE_MAX);
@@ -189,7 +197,7 @@ public class NotificationService {
             // What she wrote is in her own words: the Arabic push changes the title only.
             if (upsert.fresh()) push.toParents(List.of(delivery(parentId, row,
                     new Note(NotificationKind.CHAT_MESSAGE, threadId, row.getTitle(), row.getBody(), row.getLink(), "chat:" + threadId)
-                            .arabic(named ? "رسالة من " + from : "رسالة من المدرسة", row.getBody()))));
+                            .arabic(named ? "رسالة من " + from : "رسالة من المدرسة", body.equals(bodyAr) ? row.getBody() : clip(bodyAr, CHAT_BODY_MAX)))));
         } catch (RuntimeException e) {
             log.warn("notifications: could not write a parent's chat.message for thread {}: {}", threadId, e.toString());
         }

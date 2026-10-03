@@ -91,17 +91,18 @@ public class ChatService {
     private final FeatureFlags flags; private final Clock clock; private final Json json;
     private final quest.server.auth.ParentRepository parents;
     private final ChatPresence presence; private final quest.server.notifications.NotificationService bells;
-    private final StaffDirectory directory;
+    private final StaffDirectory directory; private final ChatAttachments attachments;
 
     public ChatService(ChatThreadRepository threads, ChatMessageRepository messages, ChatThreads threadRows, ChatRateLimiter limiter, ChatBus bus,
                        ChildService childService, ChildRepository children, ClassRepository classes, UserRepository users, TeacherScope scope,
                        TenantContext tenant, CoordinatorScope coordinatorScope, ManagerScope managerScope,
                        ChatPeers peers, FeatureFlags flags, Clock clock, Json json, quest.server.auth.ParentRepository parents,
-                       ChatPresence presence, quest.server.notifications.NotificationService bells, StaffDirectory directory) {
+                       ChatPresence presence, quest.server.notifications.NotificationService bells, StaffDirectory directory,
+                       ChatAttachments attachments) {
         this.threads = threads; this.messages = messages; this.threadRows = threadRows; this.limiter = limiter; this.bus = bus;
         this.childService = childService; this.children = children; this.classes = classes; this.users = users; this.scope = scope;
         this.tenant = tenant; this.coordinatorScope = coordinatorScope; this.managerScope = managerScope; this.peers = peers; this.flags = flags; this.clock = clock;
-        this.json = json; this.parents = parents; this.presence = presence; this.bells = bells; this.directory = directory;
+        this.json = json; this.parents = parents; this.presence = presence; this.bells = bells; this.directory = directory; this.attachments = attachments;
     }
 
     /**
@@ -208,7 +209,7 @@ public class ChatService {
     }
 
     @Transactional
-    public ChatMessage parentSend(Principals.Parent parent, String childId, String staffId, String body, String clientId, ChatTopic topic) {
+    public ChatMessage parentSend(Principals.Parent parent, String childId, String staffId, String body, List<String> files, String clientId, ChatTopic topic) {
         var child = placed(parent, childId);
         String staffRole = requireStaffOf(child, staffId);
         var thread = threadRows.getOrCreate(child, staffId, staffRole, topic == null ? QUESTION : key(topic));
@@ -219,7 +220,7 @@ public class ChatService {
             thread.setTopic(COMPLAINT); thread.setStatus(OPEN); thread.setResolvedAt(null); thread.setResolvedBy(null);
             thread = threads.save(thread);
         }
-        return send(thread, child.getParentId(), PARENT, parent.parentId(), body, clientId);
+        return send(thread, child.getParentId(), PARENT, parent.parentId(), body, files, clientId);
     }
 
     @Transactional
@@ -261,9 +262,9 @@ public class ChatService {
     }
 
     @Transactional
-    public ChatMessage teacherSend(Principals.User caller, String childId, String body, String clientId) {
+    public ChatMessage teacherSend(Principals.User caller, String childId, String body, List<String> files, String clientId) {
         var teacher = TeacherScope.require(caller); var child = childOf(teacher, childId);
-        return send(threadRows.getOrCreate(child, teacher.userId(), ROLE_TEACHER, QUESTION), child.getParentId(), TEACHER, teacher.userId(), body, clientId);
+        return send(threadRows.getOrCreate(child, teacher.userId(), ROLE_TEACHER, QUESTION), child.getParentId(), TEACHER, teacher.userId(), body, files, clientId);
     }
 
     @Transactional
@@ -329,9 +330,9 @@ public class ChatService {
     }
 
     @Transactional
-    public ChatMessage teacherStaffSend(Principals.User caller, String threadId, String body, String clientId) {
+    public ChatMessage teacherStaffSend(Principals.User caller, String threadId, String body, List<String> files, String clientId) {
         var me = TeacherScope.require(caller); var t = ownTeacherThread(me, threadId);
-        return send(t, parentOf(t), roleOn(t, me.userId()), me.userId(), body, clientId);
+        return send(t, parentOf(t), roleOn(t, me.userId()), me.userId(), body, files, clientId);
     }
 
     @Transactional
@@ -359,7 +360,7 @@ public class ChatService {
         var t = threadRows.getOrCreateStaff(schoolId, caller.userId(), managerUserId);
         // No `chat.message` bell here: `TeacherMessageService` already writes the manager a `teacher.message` row for
         // this very sentence (MG1), and two bell entries for one note would be noise rather than news.
-        send(t, null, TEACHER, caller.userId(), body, null, false);
+        send(t, null, TEACHER, caller.userId(), body, List.of(), null, false);
         return t.getId();
     }
 
@@ -482,9 +483,9 @@ public class ChatService {
     }
 
     @Transactional
-    public ChatMessage coordinatorSend(Principals.User caller, String threadId, String body, String clientId) {
+    public ChatMessage coordinatorSend(Principals.User caller, String threadId, String body, List<String> files, String clientId) {
         var me = CoordinatorScope.require(caller); var t = ownThread(me, threadId);
-        return send(t, parentOf(t), roleOn(t, me.userId()), me.userId(), body, clientId);
+        return send(t, parentOf(t), roleOn(t, me.userId()), me.userId(), body, files, clientId);
     }
 
     @Transactional
@@ -585,9 +586,9 @@ public class ChatService {
     }
 
     @Transactional
-    public ChatMessage managerSend(Principals.User caller, String threadId, String body, String clientId) {
+    public ChatMessage managerSend(Principals.User caller, String threadId, String body, List<String> files, String clientId) {
         var me = ManagerScope.require(caller); var t = ownManagerThread(me, threadId);
-        return send(t, parentOf(t), roleOn(t, me.userId()), me.userId(), body, clientId);
+        return send(t, parentOf(t), roleOn(t, me.userId()), me.userId(), body, files, clientId);
     }
 
     @Transactional
@@ -706,9 +707,9 @@ public class ChatService {
     }
 
     @Transactional
-    public ChatMessage adminSend(Principals.User caller, String threadId, String body, String clientId) {
+    public ChatMessage adminSend(Principals.User caller, String threadId, String body, List<String> files, String clientId) {
         var t = ownAdminThread(caller, threadId);
-        return send(t, parentOf(t), roleOn(t, caller.userId()), caller.userId(), body, clientId);
+        return send(t, parentOf(t), roleOn(t, caller.userId()), caller.userId(), body, files, clientId);
     }
 
     @Transactional
@@ -742,10 +743,10 @@ public class ChatService {
      * holds no rule of its own; a role that reaches neither branch cannot send at all.
      */
     @Transactional
-    public ChatMessage staffSend(Principals.User caller, String threadId, String body, String clientId) {
-        if (CoordinatorScope.ROLE.equals(caller.role())) return coordinatorSend(caller, threadId, body, clientId);
-        if (MANAGERIAL.equals(caller.role())) return managerSend(caller, threadId, body, clientId);
-        return adminSend(caller, threadId, body, clientId);
+    public ChatMessage staffSend(Principals.User caller, String threadId, String body, List<String> files, String clientId) {
+        if (CoordinatorScope.ROLE.equals(caller.role())) return coordinatorSend(caller, threadId, body, files, clientId);
+        if (MANAGERIAL.equals(caller.role())) return managerSend(caller, threadId, body, files, clientId);
+        return adminSend(caller, threadId, body, files, clientId);
     }
 
     @Transactional
@@ -758,6 +759,28 @@ public class ChatService {
     public void staffTyping(Principals.User caller, String threadId) {
         if (CoordinatorScope.ROLE.equals(caller.role())) coordinatorTyping(caller, threadId);
         else if (MANAGERIAL.equals(caller.role())) managerTyping(caller, threadId);
+        else adminTyping(caller, threadId);
+    }
+
+    /**
+     * B5: the Admin's `typing`. Before this an ADMIN's command reached neither branch above and was dropped, so a parent
+     * (or a colleague) she was writing to never saw "typing…" — the owner's second report, since she answers parents
+     * as the platform admin. Only on a thread she is herself on, like her sends ({@link #ownAdminThread}).
+     */
+    public void adminTyping(Principals.User caller, String threadId) {
+        var t = ownAdminThread(caller, threadId);
+        String role = roleOn(t, caller.userId());
+        publish(ChatEvent.typing(t.getSchoolId(), t.getId(), t.getChildId(), t.getTeacherId(), parentOf(t), t.getPeerUserId(), key(role, caller.userId()), role));
+    }
+
+    /**
+     * B5: the school of a thread the Admin is on, for her socket. Her token names no school — over REST she sends
+     * `X-School-Id` — so her socket commands are scoped by the thread they name instead. Run outside any tenant scope,
+     * as the Admin's unfiltered reads are, and 404 for a thread she is not on, whoever's it is.
+     */
+    public String adminThreadSchool(Principals.User caller, String threadId) {
+        return threads.findOneById(threadId).filter(t -> caller.userId().equals(t.getTeacherId()) || caller.userId().equals(t.getPeerUserId()))
+                .map(ChatThreadEntity::getSchoolId).orElseThrow(() -> ApiException.notFound("thread"));
     }
 
     // ---------------------------------------------------------------- who reaches a coordinator's thread
@@ -838,20 +861,27 @@ public class ChatService {
      * `teacher_unread` is the staff peer's badge and `parent_unread` the counterpart's, whether that counterpart is
      * the child's parent or the manager on the other end of a staff thread.
      */
-    private ChatMessage send(ChatThreadEntity thread, String parentId, String role, String senderId, String rawBody, String clientId) {
-        return send(thread, parentId, role, senderId, rawBody, clientId, true);
+    private ChatMessage send(ChatThreadEntity thread, String parentId, String role, String senderId, String rawBody, List<String> files, String clientId) {
+        return send(thread, parentId, role, senderId, rawBody, files, clientId, true);
     }
 
-    private ChatMessage send(ChatThreadEntity thread, String parentId, String role, String senderId, String rawBody, String clientId, boolean bell) {
-        String body = clean(rawBody);
+    /**
+     * B5: {@code files} are `POST /media/attachments` ids ({@link ChatAttachments#claim}); with at least one, the text may
+     * be empty, and the bell and the push then say "📷 Photo" / "📄 name" instead of the words nobody wrote.
+     */
+    private ChatMessage send(ChatThreadEntity thread, String parentId, String role, String senderId, String rawBody, List<String> files, String clientId, boolean bell) {
+        boolean withFiles = files != null && files.stream().anyMatch(id -> id != null && !id.isBlank());
+        String body = withFiles ? cleanOptional(rawBody) : clean(rawBody);
         limiter.record(key(role, senderId));
         var m = new ChatMessageEntity();
         m.setId(UUID.randomUUID().toString()); m.setSchoolId(thread.getSchoolId()); m.setThreadId(thread.getId());
+        var attached = attachments.claim(thread, senderId, m.getId(), files);
         m.setSenderRole(role); m.setSenderId(senderId); m.setBody(body); m.setCreatedAt(clock.instant());
+        m.setAttachments(ChatAttachments.encode(attached));
         messages.save(m);
         if (TEACHER.equals(role)) threads.bumpParentUnread(thread.getId(), m.getCreatedAt()); else threads.bumpTeacherUnread(thread.getId(), m.getCreatedAt());
         var dto = dto(m);
-        if (bell) bell(thread, parentId, role, senderId, body);
+        if (bell) bell(thread, parentId, role, senderId, ChatAttachments.preview(body, attached, false), ChatAttachments.preview(body, attached, true));
         publish(ChatEvent.message(thread.getSchoolId(), thread.getId(), thread.getChildId(), thread.getTeacherId(), parentId, thread.getPeerUserId(),
                 key(role, senderId), clientId, dto.getId(), json.encodeShared(dto, ChatMessage.Companion.serializer())));
         return dto;
@@ -868,10 +898,10 @@ public class ChatService {
      * parent wrote, the second staff member on a staff thread, and — B3 (D5) — the child's parent when a staff member
      * wrote to her, on her own rows (`parent:<id>`), which her app reads over the same `/me/notifications`.
      */
-    private void bell(ChatThreadEntity thread, String parentId, String role, String senderId, String body) {
+    private void bell(ChatThreadEntity thread, String parentId, String role, String senderId, String body, String bodyAr) {
         if (TEACHER.equals(role) && thread.getPeerUserId() == null && parentId != null && thread.getChildId() != null) {
             bells.parentChatMessage(thread.getSchoolId(), parentId, thread.getChildId(), thread.getId(), thread.getTeacherId(),
-                    users.findById(senderId).map(ChatService::name).orElse(null), body);
+                    users.findById(senderId).map(ChatService::name).orElse(null), body, bodyAr);
             return;
         }
         String recipient = PARENT.equals(role) || PEER.equals(role) ? thread.getTeacherId() : thread.getPeerUserId();
@@ -982,15 +1012,21 @@ public class ChatService {
     /** Trimmed plain text, 1–2000 characters, with control characters other than line breaks and tabs removed. */
     static String clean(String raw) {
         if (raw == null) throw ApiException.badRequest("body is required");
-        String body = raw.replaceAll("[\\p{Cntrl}&&[^\\n\\t\\r]]", "").strip();
+        String body = cleanOptional(raw);
         if (body.isEmpty()) throw ApiException.badRequest("Write something first.");
+        return body;
+    }
+
+    /** B5: as {@link #clean}, except that nothing at all is allowed — a message that is only files. */
+    static String cleanOptional(String raw) {
+        String body = raw == null ? "" : raw.replaceAll("[\\p{Cntrl}&&[^\\n\\t\\r]]", "").strip();
         if (body.length() > MAX_BODY) throw ApiException.badRequest("Keep it under " + MAX_BODY + " characters.");
         return body;
     }
 
     static ChatMessage dto(ChatMessageEntity m) {
         return new ChatMessage(m.getId(), m.getThreadId(), sender(m.getSenderRole()), m.getSenderId(), m.getBody(), m.getCreatedAt().toEpochMilli(),
-                m.getReadAt() == null ? null : m.getReadAt().toEpochMilli());
+                m.getReadAt() == null ? null : m.getReadAt().toEpochMilli(), ChatAttachments.decode(m.getAttachments()));
     }
 
     static ChatSender sender(String role) { return PARENT.equals(role) ? ChatSender.PARENT : ChatSender.TEACHER; }

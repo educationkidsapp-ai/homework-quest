@@ -105,7 +105,7 @@ public class CoordinatorChatController {
     @ApiResponse(responseCode = "201", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ChatMessage.class)))
     public String coordinatorSendChatMessage(@AuthenticationPrincipal Principals.User caller, @PathVariable String id, @RequestBody String body) {
         var req = decode(body);
-        return json.encodeShared(chat.coordinatorSend(caller, id, req.getBody(), req.getClientId()), ChatMessage.Companion.serializer());
+        return json.encodeShared(chat.coordinatorSend(caller, id, req.getBody(), req.getAttachmentIds(), req.getClientId()), ChatMessage.Companion.serializer());
     }
 
     @PostMapping(value = "/coordinator/chat/threads/{id}/read", produces = MediaType.APPLICATION_JSON_VALUE)

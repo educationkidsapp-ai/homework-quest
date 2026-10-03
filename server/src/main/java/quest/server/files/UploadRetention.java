@@ -44,9 +44,12 @@ public class UploadRetention {
     private void sweepAttachments() {
         var cutoff = Instant.now().minus(GRACE_HOURS, ChronoUnit.HOURS);
         var referenced = broadcasts.referencedAttachmentIds();
+        // B5: a chat file is kept while the message it was sent with exists; one never sent, or whose message has
+        // gone with its thread, is an orphan like any other.
+        var sent = attachments.sentWithLiveMessage();
         int n = 0;
         for (var a : attachments.findAll()) {
-            if (referenced.contains(a.getId()) || !a.getCreatedAt().isBefore(cutoff)) continue;
+            if (referenced.contains(a.getId()) || sent.contains(a.getId()) || !a.getCreatedAt().isBefore(cutoff)) continue;
             delete(a.getStoragePath());
             attachments.delete(a);
             n++;

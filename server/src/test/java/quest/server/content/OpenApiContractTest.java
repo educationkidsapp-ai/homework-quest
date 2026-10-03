@@ -313,6 +313,25 @@ class OpenApiContractTest extends ApiTestSupport {
                 .isEqualTo("#/components/schemas/BroadcastAttachment");
     }
 
+    /**
+     * B5: a chat message carries `attachments` of their own shape, a send names them by `attachmentIds` (optional, so a
+     * generated client need not send it), the upload takes `purpose` and `childId`, and the read takes `w`.
+     */
+    @Test void chat_attachments_are_in_the_contract() throws Exception {
+        var doc = json(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn());
+        var schemas = doc.get("components").get("schemas");
+        assertThat(schemas.get("ChatMessage").get("properties").get("attachments").get("items").get("$ref").asText())
+                .isEqualTo("#/components/schemas/ChatAttachment");
+        assertThat(schemas.get("ChatAttachment").get("properties").fieldNames()).toIterable()
+                .containsExactlyInAnyOrder("id", "contentType", "name", "size", "width", "height");
+        assertThat(schemas.get("SendChatMessageRequest").get("properties").has("attachmentIds")).isTrue();
+        assertThat(schemas.get("SendChatMessageRequest").get("required")).extracting(com.fasterxml.jackson.databind.JsonNode::asText).containsExactly("body");
+        assertThat(schemas.get("AttachmentRef").get("properties").has("width")).isTrue();
+        assertThat(doc.get("paths").get("/media/attachments").get("post").get("parameters")).extracting(p -> p.get("name").asText())
+                .containsExactlyInAnyOrder("purpose", "childId");
+        assertThat(doc.get("paths").get("/media/attachments/{id}").get("get").get("parameters")).extracting(p -> p.get("name").asText()).contains("w");
+    }
+
     private void collect(Class<?> root, List<Class<?>> out) {
         if (root.getPermittedSubclasses() == null) return;
         for (Class<?> sub : root.getPermittedSubclasses()) { out.add(sub); collect(sub, out); }

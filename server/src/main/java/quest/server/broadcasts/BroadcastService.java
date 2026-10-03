@@ -458,7 +458,7 @@ public class BroadcastService {
         if (!blank(wanted)) {
             String id = wanted.trim();
             var file = attachments.findOneById(id)
-                    .filter(a -> schoolId.equals(a.getSchoolId()) && authorId.equals(a.getUploadedBy()))
+                    .filter(a -> schoolId.equals(a.getSchoolId()) && authorId.equals(a.getUploadedBy()) && !a.isChat())   // B5: a chat file stays in its chat
                     .orElseThrow(() -> ApiException.badRequest("Upload the image to /media/attachments first — that attachmentId is not one of yours."));
             // S1: a PDF is a weekly plan's alone — an announcement's attachment is drawn as an image by both clients.
             if (quest.server.files.AttachmentService.PDF.equals(file.getMimeType()) && !WEEKLY_PLAN.equals(row.getKind()))

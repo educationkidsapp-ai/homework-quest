@@ -45,6 +45,38 @@ class UploadRetentionTest {
         assertThat(fresh.getDeletedAt()).isNull();
     }
 
+    /**
+     * B5: a chat file is kept for as long as the message it was sent with exists; one never sent — or whose message went
+     * with its thread — is an orphan after its day, exactly as an unattached broadcast image is.
+     */
+    @Test void a_sent_chat_file_stays_and_an_unsent_or_orphaned_one_goes_after_its_day() {
+        var store = new Store();
+        var old = Instant.now().minus(30, ChronoUnit.HOURS);
+        Entities.AttachmentEntity sent = attachment("sent", "m-live", old), unsent = attachment("unsent", null, old),
+                orphan = attachment("orphan", "m-gone", old), fresh = attachment("fresh", null, Instant.now());
+        for (var a : List.of(sent, unsent, orphan, fresh)) store.put(a.getStoragePath(), new byte[] {1}, "image/png");
+        var attachments = Mockito.mock(AttachmentRepository.class);
+        Mockito.when(attachments.findAll()).thenReturn(List.of(sent, unsent, orphan, fresh));
+        Mockito.when(attachments.sentWithLiveMessage()).thenReturn(java.util.Set.of("sent"));
+        var sources = Mockito.mock(SourceFileRepository.class);
+        Mockito.when(sources.findAll()).thenReturn(List.of());
+        var broadcasts = Mockito.mock(quest.server.broadcasts.BroadcastRepository.class);
+        Mockito.when(broadcasts.referencedAttachmentIds()).thenReturn(java.util.Set.of());
+
+        new UploadRetention(sources, store, attachments, broadcasts).sweep();
+
+        assertThat(store.blobs).containsOnlyKeys(sent.getStoragePath(), fresh.getStoragePath());
+        Mockito.verify(attachments).delete(unsent);
+        Mockito.verify(attachments).delete(orphan);
+    }
+
+    private static Entities.AttachmentEntity attachment(String id, String messageId, Instant createdAt) {
+        var a = new Entities.AttachmentEntity();
+        a.setId(id); a.setSchoolId("s"); a.setUploadedBy("u"); a.setName("p.png"); a.setMimeType("image/png"); a.setSizeBytes(1);
+        a.setStoragePath("attachments/s/" + id); a.setCreatedAt(createdAt); a.setPurpose(Entities.CHAT); a.setMessageId(messageId);
+        return a;
+    }
+
     /** MH1 added the attachment half; this suite is the slides half, so both new collaborators answer "nothing". */
     private UploadRetention retention(FileStore store, List<SourceFileEntity> rows) {
         var repo = Mockito.mock(SourceFileRepository.class);

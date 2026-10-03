@@ -45,7 +45,16 @@ public class AttachmentService {
     /** The stored row; the caller then names its id on the broadcast she is composing. */
     @Transactional
     public Entities.AttachmentEntity upload(Principals.User caller, MultipartFile file) {
-        String schoolId = tenant.writeSchoolId();
+        return store(tenant.writeSchoolId(), caller.userId(), file, Entities.BROADCAST);
+    }
+
+    /**
+     * B5: the same upload for a chat message. {@code schoolId} and {@code uploadedBy} are the caller's — her token's
+     * school or, for a parent, the school of her own child — and never a form field; the size limits, the sniffing and
+     * the name are MH1's unchanged, so a chat photo is held to exactly what a weekly plan is.
+     */
+    @Transactional
+    public Entities.AttachmentEntity store(String schoolId, String uploadedBy, MultipartFile file, String purpose) {
         if (file == null || file.isEmpty()) throw ApiException.badRequest("Send the image or the PDF as `file`.");
         if (file.getSize() > MAX_PDF_BYTES)
             throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "too_large", "A PDF must be under 10 MB and an image under 5 MB.");
@@ -57,9 +66,12 @@ public class AttachmentService {
         String id = UUID.randomUUID().toString();
         var stored = files.put("attachments/" + schoolId + "/" + id, bytes, mime);
         var row = new Entities.AttachmentEntity();
-        row.setId(id); row.setSchoolId(schoolId); row.setUploadedBy(caller.userId());
+        row.setId(id); row.setSchoolId(schoolId); row.setUploadedBy(uploadedBy);
         row.setName(name(file.getOriginalFilename(), mime)); row.setMimeType(mime);
         row.setSizeBytes(stored.size()); row.setStoragePath(stored.path()); row.setCreatedAt(clock.instant());
+        row.setPurpose(purpose);
+        var size = ImageInfo.size(bytes, mime);
+        if (size != null) { row.setWidth(size.width()); row.setHeight(size.height()); }
         return rows.save(row);
     }
 

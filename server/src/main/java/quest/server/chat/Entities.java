@@ -75,6 +75,8 @@ public final class Entities {
         @Column(nullable = false, length = 4000) private String body;
         @Column(name = "created_at", nullable = false) private Instant createdAt;
         @Column(name = "read_at") private Instant readAt;
+        /** V33 (B5): the message's `ChatAttachment` list as JSON, written once at send; null when it has none. */
+        @Column private String attachments;
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
         public String getThreadId() { return threadId; } public void setThreadId(String v) { threadId = v; }
@@ -83,5 +85,6 @@ public final class Entities {
         public String getBody() { return body; } public void setBody(String v) { body = v; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
         public Instant getReadAt() { return readAt; } public void setReadAt(Instant v) { readAt = v; }
+        public String getAttachments() { return attachments; } public void setAttachments(String v) { attachments = v; }
     }
 }

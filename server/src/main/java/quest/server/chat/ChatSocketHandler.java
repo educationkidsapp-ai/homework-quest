@@ -53,7 +53,7 @@ public class ChatSocketHandler extends TextWebSocketHandler {
         try { command = json.decodeShared(message.getPayload(), ChatCommand.Companion.serializer()); }
         catch (RuntimeException e) { live.offer(hub.encode(new ChatFrame.Error("bad_request", "Unreadable frame.", null)), false); return; }
         String clientId = command instanceof ChatCommand.Send s ? s.getClientId() : null;
-        try { scoped(live.peer(), () -> run(live.peer(), command, live)); }
+        try { scoped(live.peer(), command, () -> run(live.peer(), command, live)); }
         catch (ApiException e) { live.offer(hub.encode(new ChatFrame.Error(e.error().code(), e.error().message(), clientId)), false); }
         catch (RuntimeException e) { log.error("chat: command failed for {}", live.peer().key(), e); live.offer(hub.encode(new ChatFrame.Error("internal", "Something went wrong on the server.", clientId)), false); }
     }
@@ -66,10 +66,10 @@ public class ChatSocketHandler extends TextWebSocketHandler {
         switch (command) {
             case ChatCommand.Send s -> {
                 chatOnly(peer);
-                if (parent) chat.parentSend((Principals.Parent) peer.principal(), required(s.getChildId(), "childId"), required(s.getTeacherId(), "teacherId"), s.getBody(), s.getClientId(), null);
-                else if (byThread) chat.staffSend((Principals.User) peer.principal(), required(s.getThreadId(), "threadId"), s.getBody(), s.getClientId());
-                else if (named(s.getThreadId())) chat.teacherStaffSend((Principals.User) peer.principal(), s.getThreadId(), s.getBody(), s.getClientId());
-                else chat.teacherSend((Principals.User) peer.principal(), required(s.getChildId(), "childId"), s.getBody(), s.getClientId());
+                if (parent) chat.parentSend((Principals.Parent) peer.principal(), required(s.getChildId(), "childId"), required(s.getTeacherId(), "teacherId"), s.getBody(), s.getAttachmentIds(), s.getClientId(), null);
+                else if (byThread) chat.staffSend((Principals.User) peer.principal(), required(s.getThreadId(), "threadId"), s.getBody(), s.getAttachmentIds(), s.getClientId());
+                else if (named(s.getThreadId())) chat.teacherStaffSend((Principals.User) peer.principal(), s.getThreadId(), s.getBody(), s.getAttachmentIds(), s.getClientId());
+                else chat.teacherSend((Principals.User) peer.principal(), required(s.getChildId(), "childId"), s.getBody(), s.getAttachmentIds(), s.getClientId());
             }
             case ChatCommand.Read r -> {
                 chatOnly(peer);
@@ -95,14 +95,32 @@ public class ChatSocketHandler extends TextWebSocketHandler {
      * stay gated exactly as chat REST is — the `chat` flag on, and a TEACHER or a parent behind them. Anyone else
      * gets the same `forbidden` error frame any other refusal produces.
      */
-    private static void chatOnly(ChatSessions.Peer peer) { if (!peer.chat()) throw ApiException.forbidden("Chat is not available for this account."); }
+    private static void chatOnly(ChatSessions.Peer peer) {
+        if (!peer.chat() && !admin(peer)) throw ApiException.forbidden("Chat is not available for this account.");
+    }
 
-    /** A teacher's commands run with her school's filter on, as her requests do; a parent has no scope, as ever. */
-    private void scoped(ChatSessions.Peer peer, Runnable work) {
-        if (peer.schoolId() == null) { work.run(); return; }
-        tenant.set(peer.role().toUpperCase(java.util.Locale.ROOT), peer.schoolId(), null);
+    /**
+     * A teacher's commands run with her school's filter on, as her requests do; a parent has no scope, as ever.
+     *
+     * <p>B5: the Admin's token names no school, so until now every chat command of hers was `forbidden` on the socket —
+     * her `typing` included, which is why a parent never saw her typing (the owner answers parents as the Admin). Her
+     * commands name a thread, and the thread's school is now her scope, exactly as `X-School-Id` is over REST: a thread
+     * she is not on is `not_found`, and the `chat` flag of that school is checked by the service as for her REST writes.
+     */
+    private void scoped(ChatSessions.Peer peer, ChatCommand command, Runnable work) {
+        String header = null;
+        if (peer.schoolId() == null && admin(peer)) {
+            String threadId = switch (command) {
+                case ChatCommand.Send s -> s.getThreadId(); case ChatCommand.Read r -> r.getThreadId(); case ChatCommand.Typing t -> t.getThreadId();
+                default -> null; };
+            if (named(threadId)) header = chat.adminThreadSchool((Principals.User) peer.principal(), threadId);
+        }
+        if (peer.schoolId() == null && header == null) { work.run(); return; }
+        tenant.set(peer.role().toUpperCase(java.util.Locale.ROOT), peer.schoolId(), header);
         try { work.run(); } finally { tenant.clear(); }
     }
+
+    private static boolean admin(ChatSessions.Peer peer) { return "ADMIN".equalsIgnoreCase(peer.role()); }
 
     /**
      * MG1: a TEACHER's commands are keyed by child, because her conversations are about one — <em>except</em> on the

@@ -159,9 +159,10 @@ data class SendChatMessageRequest(
     val topic: ChatTopic? = null,
     /**
      * B5: up to 5 ids from `POST /media/attachments` (`purpose=chat`), each the sender's own upload, in this thread's
-     * school, and not yet sent; anything else is 400. With at least one, [body] may be empty.
+     * school, and not yet sent; anything else is 400. With at least one, [body] may be empty. Nullable only so the
+     * OpenAPI document calls it optional.
      */
-    val attachmentIds: List<String> = emptyList(),
+    val attachmentIds: List<String>? = null,
 )
 
 /** `POST …/read`: everything the other party wrote is now read, as of [readAt]. */

@@ -31,6 +31,11 @@ public final class Entities {
         @Column(name = "size_bytes", nullable = false) private long sizeBytes;
         @Column(name = "storage_path", nullable = false) private String storagePath;
         @Column(name = "created_at", nullable = false) private Instant createdAt;
+        /** V33 (B5): `broadcast` or `chat`; a chat upload is sent with one message, which {@code messageId} names. */
+        @Column(nullable = false) private String purpose = BROADCAST;
+        @Column(name = "message_id") private String messageId;
+        @Column private Integer width;
+        @Column private Integer height;
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
         public String getUploadedBy() { return uploadedBy; } public void setUploadedBy(String v) { uploadedBy = v; }
@@ -39,5 +44,13 @@ public final class Entities {
         public long getSizeBytes() { return sizeBytes; } public void setSizeBytes(long v) { sizeBytes = v; }
         public String getStoragePath() { return storagePath; } public void setStoragePath(String v) { storagePath = v; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
+        public String getPurpose() { return purpose; } public void setPurpose(String v) { purpose = v; }
+        public String getMessageId() { return messageId; } public void setMessageId(String v) { messageId = v; }
+        public Integer getWidth() { return width; } public void setWidth(Integer v) { width = v; }
+        public Integer getHeight() { return height; } public void setHeight(Integer v) { height = v; }
+        public boolean isChat() { return CHAT.equals(purpose); }
     }
+
+    /** V33 `attachments.purpose`. */
+    public static final String BROADCAST = "broadcast", CHAT = "chat";
 }
