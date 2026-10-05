@@ -109,6 +109,35 @@ used for `docs/reports/app-parent-flows.md`. Start the server with `SEED_PROFILE
 `t3_parent_token_for_child`, and the `t3_exam_*`, `t3_plan_*`, `t3_event`, `t3_announcement`, complaint and
 `t3_parent_*` read functions listed at the top of the file. Nothing in it prints a password.
 
+### Feature tour screenshots (`e2e/local/feature-demo-data.sh`, `e2e/local/feature-tour/`)
+
+LOCAL only. One PNG per dashboard feature per role, the README tables and one PDF per role, in
+[docs/screenshots/feature-tour/dashboard/](../docs/screenshots/feature-tour/dashboard/README.md).
+
+```bash
+# 1. the server: full seed, FakeAuth, the dashboard bundle served from the jar (any free port; 8090 here)
+corepack pnpm --dir "$PWD/dashboard" build --configuration=production
+(cd server && SPRING_PROFILES_ACTIVE=h2 SEED_SCHOOL=true SEED_PROFILE=full SEED_STAFF_PASSWORD="$SEED_STAFF_PASSWORD" \
+  ADMIN_EMAIL=admin@quest.local ADMIN_PASSWORD="$ADMIN_PASSWORD" LLM_PROVIDER=fake FAKE_AUTH=true PORT=8090 \
+  PUBLIC_URL=http://localhost:8090 DASHBOARD_DIR="$PWD/../dashboard/dist/browser" java -jar target/server.jar)
+
+# 2. demo data, then the shots, the PNG pass and the README + PDFs (ADMIN_PASSWORD and SEED_STAFF_PASSWORD exported)
+export API=http://localhost:8090
+e2e/local/feature-demo-data.sh                      # idempotent; ~20 s
+node e2e/local/feature-tour/capture.mjs             # or: … capture.mjs teacher manager
+python3 e2e/local/feature-tour/optimize-png.py docs/screenshots/feature-tour/dashboard
+node e2e/local/feature-tour/build-docs.mjs
+```
+
+`feature-demo-data.sh` renames the default school “Green Valley Academy”, gives it a logo, phones and three workers,
+and writes a demo family (Mona Hassan, FakeAuth bearer `fake-token-demo-mona-hassan`, children Layla in 1A British and
+Omar in 2B American), Sara Al Harbi's lessons (one with levels 1–3 and Again, one assistant draft), an open exam with a
+released result, attendance, marks, weekly plans, an announcement and an event, staff attendance, chat threads with a
+photo and PDFs, and three complaints. `capture.mjs` signs each role in through `POST /auth/sign-in` and hands the
+dashboard the refresh token in `localStorage` — no password reaches the browser — then navigates in-app. A shot it
+cannot take is listed in the manifest and the README instead of failing the run. The H2 database is in memory:
+after a restart run `feature-demo-data.sh` again.
+
 ## Against QA
 
 QA is Cloud Run and may have scaled to zero; the first request then waits for a cold start. All four scripts retry a

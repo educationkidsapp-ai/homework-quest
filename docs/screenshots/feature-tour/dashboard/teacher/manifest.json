@@ -1,0 +1,129 @@
+[
+  {
+    "feature": "This week",
+    "file": "01-this-week.png",
+    "caption": "This week: lessons and exams per class and day, quick actions and the week’s alerts."
+  },
+  {
+    "feature": "This week — grid",
+    "file": "02-this-week-grid.png",
+    "caption": "The week grid: each class against Sunday to Thursday with lesson and exam status."
+  },
+  {
+    "feature": "This week — search",
+    "file": "03-this-week-search.png",
+    "caption": "Search this week by class, subject or lesson."
+  },
+  {
+    "feature": "New lesson — upload choice",
+    "file": "04-new-lesson-upload.png",
+    "caption": "New lesson: class, date and title, then where the questions come from — PDF, slides, photos or write it yourself."
+  },
+  {
+    "feature": "New lesson — write it yourself",
+    "file": "05-new-lesson-write.png",
+    "caption": "Choosing “Write it yourself”: an empty lesson the teacher fills question by question."
+  },
+  {
+    "feature": "Assistant draft",
+    "file": "06-assistant-draft.png",
+    "caption": "A lesson the assistant wrote from one sentence: three levels and an Again round, waiting for review."
+  },
+  {
+    "feature": "Lesson — levels 1–3 and Again",
+    "file": "07-lesson-levels.png",
+    "caption": "A published lesson: Level 1 as written, Levels 2 and 3 and an Again round, with a live phone preview."
+  },
+  {
+    "feature": "Publish dialog",
+    "file": "08-publish-dialog.png",
+    "caption": "Publishing to one or more classes."
+  },
+  {
+    "feature": "My class — Calendar",
+    "file": "09-my-class-calendar.png",
+    "caption": "A class’s calendar: lessons and exams by day."
+  },
+  {
+    "feature": "My class — Children",
+    "file": "10-my-class-children.png",
+    "caption": "The roster with parents."
+  },
+  {
+    "feature": "My class — Attendance",
+    "file": "11-my-class-attendance.png",
+    "caption": "Taking the roll: present, absent, late or excused, with notes."
+  },
+  {
+    "feature": "My class — Gradebook",
+    "file": "12-my-class-gradebook.png",
+    "caption": "The gradebook: every child against every lesson and exam, with average and band; CSV and Excel."
+  },
+  {
+    "feature": "My class — Exams",
+    "file": "13-my-class-exams.png",
+    "caption": "The class’s exams: open, scheduled and released."
+  },
+  {
+    "feature": "Results and marking",
+    "file": "14-results-marking.png",
+    "caption": "A lesson’s results: who played, scores per level, and marks and comments per child."
+  },
+  {
+    "feature": "Exam creation",
+    "file": "15-exam-create.png",
+    "caption": "A new exam: title, time limit, release mode, level, window and where the questions come from."
+  },
+  {
+    "feature": "Exam results",
+    "file": "16-exam-results.png",
+    "caption": "An exam’s results: how the class landed, question by question, every child, Re-open and Release."
+  },
+  {
+    "feature": "Messages with attachments",
+    "file": "17-messages.png",
+    "caption": "A parent conversation with a photo and PDFs both ways."
+  },
+  {
+    "feature": "Complaints",
+    "file": "18-complaints.png",
+    "caption": "A complaint addressed to the teacher, answered and resolved."
+  },
+  {
+    "feature": "Coordinators page",
+    "file": "19-coordinators.png",
+    "caption": "Her coordinator, with phone, email and Message."
+  },
+  {
+    "feature": "Manager page",
+    "file": "20-manager.png",
+    "caption": "Her manager, with phone, email and Message."
+  },
+  {
+    "feature": "Weekly plans",
+    "file": "21-weekly-plans.png",
+    "caption": "Weekly plans from management, in Announcements."
+  },
+  {
+    "feature": "Notification bell",
+    "file": "22-notifications.png",
+    "caption": "The bell: lessons the assistant finished, messages and complaints."
+  },
+  {
+    "feature": "Lesson ready toast",
+    "file": "23-lesson-ready-toast.png",
+    "caption": "When the assistant finishes a lesson the teacher is told at once — “Questions ready” — wherever she is in the dashboard."
+  },
+  {
+    "feature": "This week in dark mode",
+    "file": "24-this-week-dark.png",
+    "caption": "This week in dark mode.",
+    "theme": "dark"
+  },
+  {
+    "feature": "Lesson in Arabic (right-to-left)",
+    "file": "25-lesson-arabic.png",
+    "caption": "A lesson in Arabic.",
+    "language": "ar"
+  }
+]
