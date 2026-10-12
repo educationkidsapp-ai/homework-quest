@@ -8,7 +8,7 @@ old name and still appears in package names. The QA pilot school is *Learning In
 
 ## Read first
 - [docs/features/00-week-plan.md](docs/features/00-week-plan.md): the current week's specs, conventions and definition of done.
-- `docs/milestones/` (on the owner's machine, not yet committed): what is already built (milestones 01–12), in business terms.
+- [docs/milestones/README.md](docs/milestones/README.md): what is already built (milestones 01–12), in business terms.
 - [docs/runbook.md](docs/runbook.md): the reference for tenancy, roles, flags, themes, chat, notifications, push, exams and QA.
 - [docs/plan.md](docs/plan.md): the decision log (D1…, DR…) and the status table of every package and PR.
 - [.claude/AGENT_RULES.md](.claude/AGENT_RULES.md): git, pipeline and token rules for worker agents.
