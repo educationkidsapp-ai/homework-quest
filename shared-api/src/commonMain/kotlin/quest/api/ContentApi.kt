@@ -273,6 +273,8 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "join.byList" to false,
     // C1/C3: parent ↔ teacher chat (REST + `/ws/chat`).
     "chat" to false,
+    // Feature 13: staff sign in to the mobile app (V36).
+    "staffMobileApp" to false,
 )
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */
