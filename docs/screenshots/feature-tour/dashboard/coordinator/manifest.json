@@ -1,0 +1,78 @@
+[
+  {
+    "feature": "Home",
+    "file": "01-home.png",
+    "caption": "Coordinator home: her scope in numbers, what needs her, and shortcuts to teachers, classes and records."
+  },
+  {
+    "feature": "Teachers",
+    "file": "02-teachers.png",
+    "caption": "The teachers in her subject and grades, with phone and Message."
+  },
+  {
+    "feature": "Classes and month calendar",
+    "file": "03-classes-calendar.png",
+    "caption": "Classes in her scope by grade, and a class’s month of lessons and exams."
+  },
+  {
+    "feature": "Lessons with status chips",
+    "file": "04-lessons.png",
+    "caption": "Every lesson in her scope, filterable by status: draft, generating, ready to review, published…"
+  },
+  {
+    "feature": "Attendance",
+    "file": "05-attendance.png",
+    "caption": "Attendance for a class in her scope over a date range, read-only, with Export CSV."
+  },
+  {
+    "feature": "Gradebook",
+    "file": "06-gradebook.png",
+    "caption": "The class gradebook: each child’s score per lesson and exam, with bands."
+  },
+  {
+    "feature": "Exam results",
+    "file": "07-exam-results.png",
+    "caption": "An exam’s results in her scope: who sat it, scores, bands and the hardest questions."
+  },
+  {
+    "feature": "Child page",
+    "file": "08-child-page.png",
+    "caption": "One child: lessons, exam results and teacher comments."
+  },
+  {
+    "feature": "Weekly plans",
+    "file": "09-weekly-plans.png",
+    "caption": "Weekly plans from management, as teachers and coordinators see them."
+  },
+  {
+    "feature": "Compose an announcement",
+    "file": "10-announcement-compose.png",
+    "caption": "A coordinator writing an announcement to the classes in her scope."
+  },
+  {
+    "feature": "Messages",
+    "file": "11-messages.png",
+    "caption": "Her conversations with a parent and with a teacher."
+  },
+  {
+    "feature": "Complaints (supervision view)",
+    "file": "12-complaints.png",
+    "caption": "Every complaint in her scope — to her and to the teachers she supervises — open and resolved."
+  },
+  {
+    "feature": "Complaint — reply and resolve",
+    "file": "13-complaint-open.png",
+    "caption": "A complaint addressed to her: the history, the reply box, Attach image or PDF, and Mark resolved."
+  },
+  {
+    "feature": "Manager page",
+    "file": "14-manager.png",
+    "caption": "Who her managers are, with phone, email and Message."
+  },
+  {
+    "feature": "Home in Arabic (right-to-left)",
+    "file": "15-home-arabic.png",
+    "caption": "Coordinator home in Arabic.",
+    "language": "ar"
+  }
+]
