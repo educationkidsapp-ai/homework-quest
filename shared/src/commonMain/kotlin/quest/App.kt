@@ -48,6 +48,9 @@ import quest.feature.journey.presentation.LessonCompleteRoute
 import quest.feature.journey.presentation.StopPlayerRoute
 import quest.feature.map.presentation.WorldMapRoute
 import quest.feature.parent.presentation.parentGraph
+import quest.feature.staff.presentation.staffGraph
+import quest.feature.auth.domain.SessionRoles
+import quest.feature.staff.domain.RoleRouter
 import quest.feature.school.presentation.LevelGate
 import quest.feature.school.presentation.SchoolThemeHost
 import quest.ui.design.AcademicTheme
@@ -73,7 +76,14 @@ fun App() {
         val answers: PendingAnswersSync = koinInject()
         LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { answers.nudge() }
         val nav = rememberNavController()
-        val start: Any = if (auth.state.value is AuthState.SignedIn) Routes.WorldMap else Routes.SignIn
+        // Feature 13: one sign-in screen for everybody, so where the app opens is `RoleRouter`'s answer and not
+        // "the parent's home or the sign-in screen" any more.
+        val roles: SessionRoles = koinInject()
+        val start: Any = when (RoleRouter.start(roles.sides.value, roles.side.value)) {
+            RoleRouter.Start.SignIn -> if (auth.state.value is AuthState.SignedIn) Routes.WorldMap else Routes.SignIn
+            RoleRouter.Start.StaffHome, RoleRouter.Start.Choose -> Routes.StaffHome
+            RoleRouter.Start.ParentFlow -> Routes.WorldMap
+        }
         // Everything below sees the joined school's colours, name, logo and feature flags (§3, §4).
         SchoolThemeHost {
             AppLockHost(onSignedOut = { nav.navigate(Routes.SignIn) { popUpTo(0) { inclusive = true } } }) { QuestNavHost(nav, start) }
@@ -130,8 +140,19 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
     NavHost(navController = nav, startDestination = start) {
         // After sign-in the parent sees every child the school linked to the account, and picks whose home to open.
         composable<Routes.SignIn> {
-            // M2: a password sign-in is followed, once, by the offer to unlock with a biometric from now on.
-            SignInRoute(onSignedIn = { scope.launch { lock.signedIn() }; scope.launch { pushRegistration.signedIn() }; nav.navigate(Routes.ChildPicker) { popUpTo(Routes.SignIn) { inclusive = true } } })
+            // M2: a password sign-in is followed, once, by the offer to unlock with a biometric from now on — for a
+            // staff member exactly as for a parent (feature 13).
+            SignInRoute(onSignedIn = { signedIn ->
+                scope.launch { lock.signedIn() }
+                scope.launch { pushRegistration.signedIn() }
+                val target: Any = when {
+                    signedIn.mustChangePassword -> Routes.StaffChangePassword
+                    signedIn.start == RoleRouter.Start.ParentFlow -> Routes.ChildPicker
+                    signedIn.start == RoleRouter.Start.SignIn -> Routes.ChildPicker
+                    else -> Routes.StaffHome
+                }
+                nav.navigate(target) { popUpTo(Routes.SignIn) { inclusive = true } }
+            })
         }
         composable<Routes.ChildPicker> {
             ChildPickerRoute(
@@ -188,6 +209,8 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
             }
         }
         parentGraph(nav)
+        // Feature 13: every route in here stands behind `StaffGuard`, so a parent or a child who reaches one leaves again.
+        staffGraph(nav)
     }
 }
 
@@ -201,6 +224,9 @@ private fun NavHostController.follow(step: PushNavigator.Step) {
         PushNavigator.Step.Gate -> navigate(Routes.ParentPin(push = true))
         // One page of a kind: a tap on a row of the Notifications tab (or on a second push) replaces the page, not stacks it.
         is PushNavigator.Step.Parent -> navigate(step.route) { popUpTo(step.route::class) { inclusive = true } }
+        // Feature 13: a staff member has no parent gate — her app lock was already waited on — so her conversation
+        // opens directly, one page of a kind as the parent's pages are.
+        is PushNavigator.Step.Staff -> navigate(step.route) { popUpTo(Routes.StaffHome) { inclusive = false } }
         is PushNavigator.Step.Child -> {
             navigate(Routes.WorldMap) { popUpTo(0) { inclusive = true } }
             step.route?.let { navigate(it) }

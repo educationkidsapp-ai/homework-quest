@@ -68,5 +68,9 @@ class SettingsStore(private val db: Db) {
         const val KEY_PIN_HASH = "pinHash"
         const val KEY_FAKE_UID = "fakeAuthUid"
         const val KEY_FIREBASE_SESSION = "firebaseSession" // refreshToken|uid|email
+        /** Feature 13: the staff half of the session — `refreshToken|userId|login` (`StaffAuth`). */
+        const val KEY_STAFF_SESSION = "staffSession"
+        /** Feature 13: the Staff/Parent view a dual-role account last chose (`SessionSide.key`). */
+        const val KEY_SESSION_SIDE = "sessionSide"
     }
 }

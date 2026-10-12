@@ -28,8 +28,14 @@ object Flags {
     /** §8: exams. M4 (D4) gates the student's result screen on it. */
     const val EXAMS = "exams"
 
+    /**
+     * Feature 13: staff sign in to the mobile app. Off by default and turned on per school; its value comes from
+     * `GET /staff/me` (the staff member's **own** school), not from the current child's.
+     */
+    const val STAFF_MOBILE_APP = "staffMobileApp"
+
     /** Every key this app gates on. */
-    val used = listOf(RETELL_RECORDING, OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, CERTIFICATES, LEVEL_THREE, CHAT, ANNOUNCEMENTS, EXAMS)
+    val used = listOf(RETELL_RECORDING, OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, CERTIFICATES, LEVEL_THREE, CHAT, ANNOUNCEMENTS, EXAMS, STAFF_MOBILE_APP)
 
     /** True when the platform defines [key] at all — the contract's `DEFAULT_FLAGS` is the list of what exists. */
     fun isKnown(key: String): Boolean = key in DEFAULT_FLAGS

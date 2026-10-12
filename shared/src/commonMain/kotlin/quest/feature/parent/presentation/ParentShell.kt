@@ -60,6 +60,7 @@ import quest.feature.school.presentation.FeatureGate
 import quest.feature.school.presentation.featureEnabled
 import quest.ui.design.DashboardTokens
 import quest.ui.design.Dimens
+import quest.feature.staff.presentation.SideSwitch
 import quest.ui.design.ParentTheme
 
 import quest.ui.design.DashboardBottomNavigation
@@ -76,6 +77,8 @@ fun ParentShell(
     onBack: (() -> Unit)?,
     currentTab: DashboardTab? = null,
     onTabSelected: ((DashboardTab) -> Unit)? = null,
+    /** Feature 13: she switched to her staff view — the caller opens the staff home. */
+    onSwitchedSide: (() -> Unit)? = null,
     content: @Composable (Strings) -> Unit,
 ) {
     val parent: ParentRepository = koinInject()
@@ -126,6 +129,11 @@ fun ParentShell(
                             .weight(1f)
                             .padding(start = Dimens.s8),
                     )
+                    // Feature 13: the "الموظف / ولي الأمر" switch, at the top of the parent home as it is at the top
+                    // of the staff one. It draws nothing for an account that holds only this side.
+                    if (currentTab == DashboardTab.HOME) {
+                        SideSwitch(onSwitched = { onSwitchedSide?.invoke() }, modifier = Modifier.padding(end = Dimens.s8))
+                    }
                     FeatureGate(Flags.PARENT_PANEL_ARABIC) {
                         LanguageToggle(language) { code -> scope.launch { parent.setLanguage(code) } }
                     }

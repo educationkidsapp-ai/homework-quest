@@ -92,9 +92,16 @@ fun staffLabel(thread: ChatThread, strings: Strings, department: String? = null)
     staffLabel(thread.staffRole, thread.subject, thread.className, strings, department)
 
 /** Screen-reader copy for a row: who, whether she is typing, and how much is unread — the row says the same visually. */
-fun threadDescription(thread: ChatThread, strings: Strings, department: String? = null, typing: Boolean = false): String = buildList {
-    add(staffName(thread, strings))
-    add(staffLabel(thread, strings, department))
+fun threadDescription(
+    thread: ChatThread,
+    strings: Strings,
+    department: String? = null,
+    typing: Boolean = false,
+    name: String? = null,
+    label: String? = null,
+): String = buildList {
+    add(name ?: staffName(thread, strings))
+    add(label ?: staffLabel(thread, strings, department))
     if (typing) add(typingLine(resolverOf(thread.peerRole, thread.staffRole, thread.withAdmin == true), strings))
     if (thread.unread > 0) add("${thread.unread} ${strings.messages}")
 }.joinToString(", ")
@@ -109,10 +116,18 @@ fun ChatThreadRow(
     /** M7: the person on this row is typing — the preview line says so until she sends or stops. */
     typing: Boolean = false,
     modifier: Modifier = Modifier,
+    /**
+     * Feature 13: what the **staff** end of the row calls the other side — a parent's name, with the child and the
+     * section under it. Null on the parent side, which keeps the teacher's name and her subject exactly as they were.
+     */
+    name: String? = null,
+    label: String? = null,
 ) {
+    val rowName = name ?: staffName(thread, strings)
+    val rowLabel = label ?: staffLabel(thread, strings, department)
     ParentCard(
         modifier = modifier.fillMaxWidth().padding(bottom = Dimens.s8)
-            .clearAndSetSemantics { contentDescription = threadDescription(thread, strings, department, typing) },
+            .clearAndSetSemantics { contentDescription = threadDescription(thread, strings, department, typing, name, label) },
         onClick = onClick,
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -125,7 +140,7 @@ fun ChatThreadRow(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = avatarInitial(staffName(thread, strings)),
+                    text = avatarInitial(rowName),
                     style = MaterialTheme.typography.titleLarge,
                     color = DashboardTokens.ink,
                     fontWeight = FontWeight.Bold,
@@ -137,7 +152,7 @@ fun ChatThreadRow(
             Column(Modifier.weight(1f)) {
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                     Text(
-                        text = staffName(thread, strings),
+                        text = rowName,
                         style = MaterialTheme.typography.titleMedium,
                         color = DashboardTokens.ink,
                         fontWeight = FontWeight.SemiBold,
@@ -148,7 +163,7 @@ fun ChatThreadRow(
                 }
 
                 Text(
-                    text = staffLabel(thread, strings, department),
+                    text = rowLabel,
                     style = MaterialTheme.typography.bodySmall,
                     color = DashboardTokens.inkSoft,
                     maxLines = 1,

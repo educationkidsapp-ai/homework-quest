@@ -202,6 +202,14 @@ class AppLock(
      * the app itself is locked — the PIN screen was restored underneath the cover — this waits for that lock to be
      * lifted first, so the two never prompt on top of each other.
      */
+    /**
+     * Feature 13: waits until the app is not locked. A staff member has no parent PIN gate — her phone's own lock
+     * *is* the gate — so a tapped chat push opens her conversation the moment the biometric succeeds and not before.
+     */
+    suspend fun awaitUnlocked() {
+        _state.first { it.stage != Stage.LOCKED }
+    }
+
     suspend fun confirmOwner(reason: String): Boolean {
         if (!enabled()) return false
         _state.first { it.stage != Stage.LOCKED }

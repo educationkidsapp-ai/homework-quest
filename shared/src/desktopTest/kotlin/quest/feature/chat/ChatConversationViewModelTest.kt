@@ -20,12 +20,14 @@ import quest.api.ApiException
 import quest.api.dto.ApiError
 import quest.feature.chat.domain.ChatConnectionState
 import quest.feature.chat.domain.ChatPeer
+import quest.feature.chat.data.ParentConversationSource
 import quest.feature.chat.domain.ChatRepository
 import quest.feature.chat.domain.applyPresence
 import quest.feature.chat.presentation.presenceLine
 import quest.feature.parent.presentation.Strings
 import quest.feature.chat.presentation.ChatConversationContract
 import quest.feature.chat.presentation.ChatConversationViewModel
+import quest.feature.chat.presentation.conversationState
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -107,7 +109,7 @@ class ChatConversationViewModelTest {
     }
 
     private fun viewModel(peer: ChatPeer, chat: ChatRepository) =
-        ChatConversationViewModel(peer, chat, NoStaging).also { built.add(it) }
+        ChatConversationViewModel(ParentConversationSource(peer, chat), peer.conversationState(), NoStaging).also { built.add(it) }
 
     private fun peer(threadId: String? = OURS) = ChatPeer(
         childId = "c1", staffId = COORDINATOR, staffName = "Ms. Lina",

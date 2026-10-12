@@ -134,6 +134,8 @@ fun ParentHomeRoute(
     onBroadcasts: () -> Unit = {},
     onWeeklyPlan: () -> Unit = {},
     onComplaints: () -> Unit = {},
+    /** Feature 13: she switched to her staff view at the top of the home. */
+    onStaffSide: () -> Unit = {},
 ) {
     val vm: ParentHomeViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -160,6 +162,7 @@ fun ParentHomeRoute(
                 DashboardTab.SETTINGS -> onSettings()
             }
         },
+        onSwitchedSide = onStaffSide,
     ) { s ->
         ParentHomeScreen(
             state, s, vm::dispatch, onCalendar,
