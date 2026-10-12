@@ -1,6 +1,12 @@
 # Feature 13 — Staff mode in the mobile app
 
-**Status:** Not started · **Area:** mobile app, server · **Depends on:** — · **Feature switch:** `staff_mobile_app`
+**Status:** Done · **Area:** mobile app, server · **Depends on:** — · **Feature switch:** `staffMobileApp` (camelCase, like the repo's other keys)
+
+**Leftovers:**
+- Not yet run end to end on an emulator against a local H2 server, and a real FCM tap is not tested. Not yet deployed to QA or sent to testers.
+- No "Add parent view" sign-in from Account. The Staff / Parent switch appears only when the staff and parent passwords are the same.
+- The chat socket has no thread-id path for a teacher's `read`/`send` on a parent thread. The app uses REST for both, so nothing is broken today.
+- Workers have no chat partners yet. Their Messages tab is empty, and the socket does not admit them.
 
 ## Goal
 
