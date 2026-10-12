@@ -7,7 +7,7 @@ import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { of } from 'rxjs';
 import { catchError, debounceTime, map } from 'rxjs/operators';
 import { SchoolLogo, SchoolsApi, apiErrorOf } from '../../api';
-import { AuthService } from '../../core/auth/auth.service';
+import { AuthService, MobileOnlyAccountError } from '../../core/auth/auth.service';
 import { PlatformService } from '../../core/platform/platform.service';
 import { BandComponent, ButtonComponent, InputComponent } from '../../ui';
 import { AuthLayoutComponent } from './auth-layout.component';
@@ -42,10 +42,26 @@ const LOGO_DEBOUNCE_MS = 400;
       } @else {
         <!-- D3: neither a school's logo nor the platform's — the product's own mark. Projected
              here, not left to the layout's fallback: an empty block still fills the slot. -->
-        <img auth-logo class="sign-in__logo sign-in__logo--mark" src="assets/brand/myschool-mark.svg" alt="" />
+        <img
+          auth-logo
+          class="sign-in__logo sign-in__logo--mark"
+          src="assets/brand/myschool-mark.svg"
+          alt=""
+        />
       }
 
       <form class="sign-in" (submit)="submit($event)">
+        @if (mobileOnly()) {
+          <hq-band
+            variant="notice"
+            [open]="true"
+            [title]="'auth.signIn.mobileOnlyTitle' | transloco"
+            (dismissed)="mobileOnly.set(false)"
+          >
+            {{ 'auth.signIn.mobileOnly' | transloco }}
+          </hq-band>
+        }
+
         @if (ended(); as notice) {
           <hq-band
             variant="notice"
@@ -136,6 +152,14 @@ export class SignInPage {
    */
   protected readonly ended = signal<string | null>(null);
 
+  /**
+   * Set when the credentials were right and the account is a worker's: F13 gave workers the mobile
+   * app and nothing here. A notice rather than the red "Could not sign in" band, because nothing
+   * went wrong — she is simply at the wrong door, and the sentence says which one is hers.
+   * {@link AuthService.signIn} has already revoked the tokens the server issued.
+   */
+  protected readonly mobileOnly = signal(false);
+
   /** The typed address, once it has stopped changing and looks like an address at all. */
   private readonly settledEmail = toSignal(
     toObservable(this.email).pipe(
@@ -196,6 +220,7 @@ export class SignInPage {
     if (this.busy() || this.email().trim() === '' || this.password() === '') return;
     this.busy.set(true);
     this.failure.set(null);
+    this.mobileOnly.set(false);
     this.auth.signIn(this.email().trim(), this.password()).subscribe({
       next: () => {
         this.busy.set(false);
@@ -204,6 +229,10 @@ export class SignInPage {
       error: (error: unknown) => {
         this.busy.set(false);
         this.password.set('');
+        if (error instanceof MobileOnlyAccountError) {
+          this.mobileOnly.set(true);
+          return;
+        }
         this.failure.set(apiErrorOf(error)?.message ?? this.transloco.translate('band.unreachable'));
       },
     });

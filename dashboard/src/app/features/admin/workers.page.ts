@@ -6,7 +6,8 @@ import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { type Worker, WorkersApi, apiErrorOf } from '../../api';
+import { Observable } from 'rxjs';
+import { type Worker, type WorkerAccess, WorkersApi, apiErrorOf } from '../../api';
 import { BandService } from '../../core/band/band.service';
 import { MAX_PHONE_LENGTH, phoneErrorKey } from '../../core/forms/phone';
 import { activeLang } from '../../core/i18n/active-lang';
@@ -26,6 +27,7 @@ import {
   SkeletonComponent,
   TableComponent,
 } from '../../ui';
+import { OneTimePasswordComponent } from './one-time-password.component';
 
 /** A worker as the table shows her. */
 interface WorkerRow {
@@ -34,6 +36,8 @@ interface WorkerRow {
   readonly job: string;
   readonly phone: string;
   readonly active: boolean;
+  readonly username: string;
+  readonly hasAppAccess: boolean;
   readonly source: Worker;
 }
 
@@ -41,11 +45,21 @@ interface WorkerRow {
  * Workers (MA1 item 4, `docs/admin-flow.md`) — the staff who do not teach: the nurse, the drivers,
  * the caretakers, the office.
  *
- * **No account comes into being.** `POST /admin/workers` writes a row with a name, a job, a mobile
- * number and nothing else — no login, no password, no role — so this screen has no create-password
- * band, no reset and no email column, and it is the one people screen of the Admin's that cannot
- * lock anybody out. The reason is the server's: an account nobody signs in to is an account nobody
- * rotates.
+ * **Creating her does not create an account.** `POST /admin/workers` writes a name, a job and a
+ * mobile number and nothing else — no login, no password, no role. A sign-in is a second,
+ * deliberate act: F13 gave workers the mobile app, so **Enable app access**
+ * (`POST /admin/workers/{id}/app-access`, permission `worker.access`, the Admin's alone) mints a
+ * username and a temporary password, and from then on the row carries the username and a
+ * **Reset password**. Both answer the pair **once** and store a hash, so it lives in one signal and
+ * is drawn by {@link OneTimePasswordComponent} — the same band the coordinators' and managers'
+ * screens use, for the same reason.
+ *
+ * The username is the half that is easy to overlook: a nurse has no school email address to sign in
+ * with, so a password handed over without it is useless. Hence it is copied separately and shown in
+ * its own column afterwards, where whoever has to read it down a phone can find it.
+ *
+ * The reset is behind a red confirm band rather than the Undo strip: it invalidates the password
+ * that is already written on a note in somebody's pocket, and no later undo can bring that one back.
  *
  * **Retire, not delete.** `DELETE /admin/workers/{id}` sets `active = false` and removes no row, so
  * the confirm band says "retire" and the row stays on screen greyed rather than vanishing — a
@@ -66,6 +80,7 @@ interface WorkerRow {
     SkeletonComponent,
     BandComponent,
     DialogComponent,
+    OneTimePasswordComponent,
     CanDirective,
     CdkMenu,
     CdkMenuItem,
@@ -76,6 +91,26 @@ interface WorkerRow {
   template: `
     <hq-page [title]="'admin.workers.title' | transloco" [subtitle]="'admin.workers.subtitle' | transloco">
       <div class="workers">
+        <hq-one-time-password
+          [value]="accessPassword()"
+          [username]="accessUsername()"
+          [title]="accessTitle()"
+          (dismissed)="dismissAccess()"
+        />
+
+        @if (pendingReset(); as row) {
+          <hq-band
+            variant="confirm"
+            [open]="true"
+            [title]="'admin.workers.resetConfirm.title' | transloco"
+            [confirmLabel]="'admin.workers.resetConfirm.confirm' | transloco"
+            (confirmed)="confirmReset()"
+            (dismissed)="pendingReset.set(null)"
+          >
+            {{ 'admin.workers.resetConfirm.message' | transloco: { name: row.fullName } }}
+          </hq-band>
+        }
+
         @if (pendingRetire(); as row) {
           <hq-band
             variant="confirm"
@@ -154,6 +189,13 @@ interface WorkerRow {
               <span class="hq-muted">—</span>
             }
           }
+          @case ('username') {
+            @if (row.username) {
+              <code dir="ltr">{{ row.username }}</code>
+            } @else {
+              <span class="hq-muted">—</span>
+            }
+          }
           @case ('active') {
             <span
               class="hq-badge"
@@ -189,6 +231,27 @@ interface WorkerRow {
           >
             {{ 'admin.people.editAction' | transloco }}
           </button>
+          @if (menuRow()?.hasAppAccess) {
+            <button
+              type="button"
+              cdkMenuItem
+              class="hq-menu__item"
+              *hqCan="'worker.access'"
+              (cdkMenuItemTriggered)="pendingReset.set(menuRow())"
+            >
+              {{ 'admin.people.password.reset' | transloco }}
+            </button>
+          } @else {
+            <button
+              type="button"
+              cdkMenuItem
+              class="hq-menu__item"
+              *hqCan="'worker.access'"
+              (cdkMenuItemTriggered)="enableAccess(menuRow())"
+            >
+              {{ 'admin.workers.enableAccess' | transloco }}
+            </button>
+          }
           @if (menuRow()?.active) {
             <button
               type="button"
@@ -319,7 +382,8 @@ export class WorkersPage {
           !query ||
           (worker.fullName ?? '').toLowerCase().includes(query) ||
           (worker.job ?? '').toLowerCase().includes(query) ||
-          (worker.phone ?? '').includes(query),
+          (worker.phone ?? '').includes(query) ||
+          (worker.username ?? '').toLowerCase().includes(query),
       )
       .map((worker) => ({
         id: worker.id ?? '',
@@ -327,6 +391,8 @@ export class WorkersPage {
         job: worker.job ?? '',
         phone: worker.phone ?? '',
         active: worker.active !== false,
+        username: worker.username ?? '',
+        hasAppAccess: worker.hasAppAccess === true,
         source: worker,
       }));
   });
@@ -336,7 +402,8 @@ export class WorkersPage {
     return [
       { key: 'fullName', header: this.t('admin.people.table.name'), width: '28%' },
       { key: 'job', header: this.t('admin.workers.table.job') },
-      { key: 'phone', header: this.t('admin.people.table.phone'), width: '20%' },
+      { key: 'phone', header: this.t('admin.people.table.phone'), width: '18%' },
+      { key: 'username', header: this.t('admin.workers.table.username'), width: '18%' },
       { key: 'active', header: this.t('admin.people.table.status'), width: '14%' },
     ];
   });
@@ -442,6 +509,66 @@ export class WorkersPage {
       return;
     }
     this.api.createWorker(body).subscribe({ next: done, error: fail });
+  }
+
+  // ---- app access -----------------------------------------------------------------------------
+
+  /**
+   * The one place the minted pair lives: a signal, cleared the moment the band is dismissed.
+   * Never `localStorage`, never the resource's cache — the server will not answer it twice.
+   */
+  private readonly access = signal<{
+    readonly forName: string;
+    readonly username: string;
+    readonly password: string;
+  } | null>(null);
+
+  protected readonly accessPassword = computed(() => this.access()?.password ?? null);
+  protected readonly accessUsername = computed(() => this.access()?.username ?? null);
+
+  protected readonly accessTitle = computed(() => {
+    this.lang();
+    const shown = this.access();
+    return shown ? this.t('admin.people.password.title', { name: shown.forName }) : '';
+  });
+
+  protected dismissAccess(): void {
+    this.access.set(null);
+  }
+
+  protected readonly pendingReset = signal<WorkerRow | null>(null);
+
+  protected enableAccess(row: WorkerRow | null): void {
+    if (!row) return;
+    this.call(row, this.api.enableWorkerAppAccess(row.id));
+  }
+
+  protected confirmReset(): void {
+    const row = this.pendingReset();
+    this.pendingReset.set(null);
+    if (!row) return;
+    this.call(row, this.api.resetWorkerPassword(row.id));
+  }
+
+  /**
+   * Both calls answer the same shape and want the same handling, so they share it: show the pair,
+   * then reload the list — the row's `hasAppAccess` and `username` are the server's answer to
+   * whether there is anything left to enable, and guessing them here would be a second copy of it.
+   */
+  private call(row: WorkerRow, request: Observable<WorkerAccess>): void {
+    request.subscribe({
+      next: (minted: WorkerAccess) => {
+        if (minted.temporaryPassword) {
+          this.access.set({
+            forName: row.fullName,
+            username: minted.username ?? '',
+            password: minted.temporaryPassword,
+          });
+        }
+        this.staff.reload();
+      },
+      error: (error: unknown) => this.band.fail(apiErrorOf(error)?.message ?? this.t('band.unreachable')),
+    });
   }
 
   // ---- retire / reinstate ---------------------------------------------------------------------
