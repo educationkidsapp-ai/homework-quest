@@ -2203,6 +2203,42 @@ parents also edits the **parent's name** (`parentName` on `PATCH /admin/children
 **Gone from every account menu:** "Show me around" (the tour, its service, component and strings) and the Admin's
 "Show the raw JSON" (the view mode, the stop editor's Raw panel and the validator lines it showed).
 
+## Staff mobile app (feature 13)
+
+**Flag `staffMobileApp`** (V36, off by default, per school). With it off, every `/staff` route answers 404 and no
+staff push leaves; with it on, staff sign in to the same MySchool app the parents use.
+
+**Sign-in is the dashboard's.** `POST /auth/sign-in`, `/auth/refresh` and `/auth/change-password` — the app tries
+staff first and Firebase second, so one screen signs in both sides.
+
+**The fifth role, WORKER.** A member of the non-teaching staff signs in to the **app only**. `SecurityConfig` admits
+her to `/staff`, `/me/notifications` and `/me/devices`; a worker token on `/me`, `/teacher/…` or `/admin/…` is 403,
+which is what the dashboard shows the "this account uses the MySchool app" notice for.
+
+**Giving her a login.** `POST /admin/workers/{id}/app-access` (ADMIN, `worker.access`) mints it and answers
+`{username, temporaryPassword}` **once**: the username is generated, `w.<first name in ASCII>.<4 digits>`, and is
+stored in the login column (`users.email`); the password is `TemporaryPasswords.generate()` and the account carries
+`mustChangePassword`. A second call is 409. `POST /admin/workers/{id}/reset-password` answers the same shape with a
+new password and kills the old one. `DELETE /admin/workers/{id}` retires her **and** disables the account, revoking
+its refresh tokens. The Workers page shows `hasAppAccess` and `username`; neither route reads the password back.
+
+**The `/staff` facade** (`staff/StaffController`, `staff.app`): `GET /staff/me` (name, role, phone, school and that
+school's flag map) and four chat routes — `GET /staff/chat/threads`, `GET|POST /staff/chat/threads/{threadId}/messages`
+and `POST /staff/chat/threads/{threadId}/read`. It holds no rules of its own: every route delegates to `ChatService`
+under the caller's own role, so the scope is the dashboard's and the rows are the same rows. One difference: a thread
+is always named by **id**, because the app shows a teacher's parent threads and her staff threads in one inbox.
+A WORKER gets an empty list and 404 on a thread. Typing and live frames stay on `/ws/chat` with the staff token
+(`ChatHandshake.DASHBOARD_ROLES` does not include WORKER), uploads stay on `POST /media/chat-attachments`, and the
+bell stays on `/me/notifications`.
+
+**Staff push** (`push/StaffPush`, `staff_devices`). `POST /me/devices` and `/me/devices/unregister` now serve both
+sides under one permission, `device.register`: the principal decides the table, a parent's token writing
+`parent_devices` and a staff token `staff_devices`, and a token registered by the other side **moves**, because one
+phone receives one person's news. The sending core — pool, retries, dead-token delete — is `push/PushDispatch`,
+shared with `ParentPush`. `NotificationService.chatMessage` pushes a staff recipient exactly once per **new** unread
+bell row (the throttle a parent's chat push already uses) and only when the school has `staffMobileApp` on; the push
+is `kind=chat.message` with `threadId`, which is what the app opens the conversation by.
+
 ## The app and the contract
 
 **The app's JSON is strict, so app and server ship together.** `SchemaValidator.json` — the one `Json` the app's

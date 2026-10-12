@@ -29,6 +29,13 @@ public final class Entities {
         @Column(length = 20) private String phone;
         @Column(nullable = false) private boolean active = true;
         @Column(name = "created_at", nullable = false) private Instant createdAt;
+        /**
+         * Feature 13 (V36): the `users` row behind her, once an Admin has enabled the mobile app for her
+         * (`POST /admin/workers/{id}/app-access`). Null for every worker who has none, which is still most of them,
+         * and unique, because an account belongs to exactly one worker. The role on that row is WORKER, which reaches
+         * the app and no dashboard path at all.
+         */
+        @Column(name = "user_id") private String userId;
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
         public String getFullName() { return fullName; } public void setFullName(String v) { fullName = v; }
@@ -36,5 +43,6 @@ public final class Entities {
         public String getPhone() { return phone; } public void setPhone(String v) { phone = v; }
         public boolean isActive() { return active; } public void setActive(boolean v) { active = v; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
+        public String getUserId() { return userId; } public void setUserId(String v) { userId = v; }
     }
 }

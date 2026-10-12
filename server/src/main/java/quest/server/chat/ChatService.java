@@ -673,6 +673,15 @@ public class ChatService {
     }
 
     /**
+     * Feature 13: the messages of a thread the Admin is herself on. {@link #supportMessages} reads every thread of a
+     * school because that is what support <em>is</em>; the staff app's Messages tab is her own conversations, so it
+     * reads them under the same rule her sends and her reads follow ({@link #ownAdminThread}).
+     */
+    public List<ChatMessage> adminMessages(Principals.User caller, String threadId, String before, String since, Integer limit) {
+        return page(ownAdminThread(caller, threadId).getId(), before, since, limit);
+    }
+
+    /**
      * A thread the admin is herself on, inside the school she named. Support still <em>reads</em> every thread of a
      * school ({@link #supportThreads}); writing is only ever into her own conversation, so a `POST` cannot put words
      * into a parent's or a teacher's thread.
@@ -702,6 +711,50 @@ public class ChatService {
         if (MANAGERIAL.equals(caller.role())) return managerSend(caller, threadId, body, files, clientId);
         return adminSend(caller, threadId, body, files, clientId);
     }
+
+    /**
+     * Feature 13: {@link #staffSend}'s read half, for the staff app's Messages tab — the coordinator's, the
+     * manager's and the Admin's threads, each proved hers by her own role's scope, as her sends are.
+     */
+    public List<ChatMessage> staffMessages(Principals.User caller, String threadId, String before, String since, Integer limit) {
+        if (CoordinatorScope.ROLE.equals(caller.role())) return coordinatorMessages(caller, threadId, before, since, limit);
+        if (MANAGERIAL.equals(caller.role())) return managerMessages(caller, threadId, before, since, limit);
+        return adminMessages(caller, threadId, before, since, limit);
+    }
+
+    /**
+     * Feature 13: a <strong>teacher's</strong> thread named by id rather than by child. The dashboard names her
+     * parent threads by child (`/teacher/chat/threads/{childId}`) and her staff threads by id, which is right for
+     * two screens and wrong for one list: the app shows her both in a single inbox. A thread with a child and nobody
+     * on `peer_user_id` is a parent thread, so the child is resolved from the row and the work goes to
+     * {@link #teacherMessages}; anything else is a staff thread. Neither branch widens what she reaches — the row is
+     * looked up through a filtered query and then proved hers by {@link TeacherScope} inside the branch, as ever.
+     */
+    public List<ChatMessage> teacherThreadMessages(Principals.User caller, String threadId, String before, String since, Integer limit) {
+        var t = thread(threadId);
+        return parentThread(t) ? teacherMessages(caller, t.getChildId(), before, since, limit)
+                : teacherStaffMessages(caller, threadId, before, since, limit);
+    }
+
+    @Transactional
+    public ChatMessage teacherThreadSend(Principals.User caller, String threadId, String body, List<String> files, String clientId) {
+        var t = thread(threadId);
+        return parentThread(t) ? teacherSend(caller, t.getChildId(), body, files, clientId)
+                : teacherStaffSend(caller, threadId, body, files, clientId);
+    }
+
+    @Transactional
+    public ChatReadReceipt teacherThreadRead(Principals.User caller, String threadId) {
+        var t = thread(threadId);
+        return parentThread(t) ? teacherRead(caller, t.getChildId()) : teacherStaffRead(caller, threadId);
+    }
+
+    /** A thread of the caller's school, by id; 404 for another school's, because the lookup is a filtered query. */
+    private ChatThreadEntity thread(String threadId) {
+        return threads.findOneById(threadId).orElseThrow(() -> ApiException.notFound("thread"));
+    }
+
+    private static boolean parentThread(ChatThreadEntity t) { return t.getPeerUserId() == null && t.getChildId() != null; }
 
     @Transactional
     public ChatReadReceipt staffRead(Principals.User caller, String threadId) {

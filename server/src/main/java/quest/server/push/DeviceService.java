@@ -10,11 +10,20 @@ import quest.api.dto.RegisterDeviceRequest;
 import quest.server.auth.Principals;
 import quest.server.config.ApiException;
 import quest.server.push.Entities.ParentDeviceEntity;
+import quest.server.push.Entities.StaffDeviceEntity;
+import quest.server.tenancy.TenantContext;
 
 /**
  * B4: the parent's phones (V32). Upsert by token — a token registered by a second parent moves to her, because the
  * phone is hers now — and at most {@link #MAX_DEVICES} per parent, the one seen longest ago dropped for a new one. The
  * parent is always the caller's own, from her Firebase token; nothing here reads a parent id from a request.
+ *
+ * <p>Feature 13: and the <strong>staff</strong> phones (V36, `staff_devices`), on the very same two routes. Which
+ * table a registration lands in is the principal's, never the request's: a Firebase parent writes `parent_devices`
+ * exactly as before, a dashboard or worker token writes `staff_devices`. A token <em>moves between</em> the two —
+ * a teacher who hands her phone to her daughter, or signs in to the staff side herself — because the rule has always
+ * been that one phone receives one person's news, and the two tables are two halves of one answer to "whose phone is
+ * this". The per-person cap is the same ten.
  */
 @Service
 public class DeviceService {
@@ -25,8 +34,12 @@ public class DeviceService {
     private static final Pattern TOKEN = Pattern.compile("[A-Za-z0-9_:\\-.]+");
     private static final Pattern LOCALE = Pattern.compile("[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8}){0,3}");
 
-    private final ParentDeviceRepository devices; private final Clock clock;
-    public DeviceService(ParentDeviceRepository devices, Clock clock) { this.devices = devices; this.clock = clock; }
+    private final ParentDeviceRepository devices; private final StaffDeviceRepository staffDevices;
+    private final TenantContext tenant; private final Clock clock;
+
+    public DeviceService(ParentDeviceRepository devices, StaffDeviceRepository staffDevices, TenantContext tenant, Clock clock) {
+        this.devices = devices; this.staffDevices = staffDevices; this.tenant = tenant; this.clock = clock;
+    }
 
     @Transactional
     public void register(Principals.Parent parent, RegisterDeviceRequest request) {
@@ -35,6 +48,7 @@ public class DeviceService {
         String locale = locale(request.getLocale());
         String version = version(request.getAppVersion());
         var now = clock.instant();
+        staffDevices.deleteByTokenValue(token);                                 // the phone is a parent's again
         var row = devices.findByToken(token).orElseGet(() -> {
             var fresh = new ParentDeviceEntity();
             fresh.setId(UUID.randomUUID().toString()); fresh.setToken(token); fresh.setCreatedAt(now);
@@ -49,15 +63,48 @@ public class DeviceService {
         if (mine.size() > MAX_DEVICES) devices.deleteAllInBatch(mine.subList(MAX_DEVICES, mine.size()));
     }
 
+    /** Feature 13: the same thing for a member of staff, in `staff_devices` and in her own school. */
+    @Transactional
+    public void register(Principals.User caller, RegisterDeviceRequest request) {
+        String userId = require(caller);
+        String schoolId = tenant.writeSchoolId();
+        String token = token(request.getToken());
+        String locale = locale(request.getLocale());
+        String version = version(request.getAppVersion());
+        var now = clock.instant();
+        devices.deleteByTokenValue(token);                                      // the phone is hers, not her child's
+        var row = staffDevices.findByToken(token).orElseGet(() -> {
+            var fresh = new StaffDeviceEntity();
+            fresh.setId(UUID.randomUUID().toString()); fresh.setToken(token); fresh.setCreatedAt(now);
+            return fresh;
+        });
+        row.setUserId(userId); row.setSchoolId(schoolId); row.setPlatform(request.getPlatform().name());
+        row.setLocale(locale); row.setAppVersion(version); row.setLastSeenAt(now);
+        try { staffDevices.saveAndFlush(row); }
+        catch (org.springframework.dao.DataIntegrityViolationException raced) { throw ApiException.conflict("This phone is being registered already; try again."); }
+        var mine = staffDevices.findByUserIdOrderByLastSeenAtDescIdAsc(userId);
+        if (mine.size() > MAX_DEVICES) staffDevices.deleteAllInBatch(mine.subList(MAX_DEVICES, mine.size()));
+    }
+
     /** Sign-out. A token she does not hold — someone else's, or one already pruned — changes nothing and is not an error. */
     @Transactional
     public void unregister(Principals.Parent parent, String token) {
         devices.deleteOwned(token(token), require(parent));
     }
 
+    @Transactional
+    public void unregister(Principals.User caller, String token) {
+        staffDevices.deleteOwned(token(token), require(caller));
+    }
+
     private static String require(Principals.Parent parent) {
         if (parent == null) throw ApiException.unauthorized("Sign in first.");
         return parent.parentId();
+    }
+
+    private static String require(Principals.User caller) {
+        if (caller == null) throw ApiException.unauthorized("Sign in first.");
+        return caller.userId();
     }
 
     private static String token(String raw) {

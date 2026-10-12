@@ -32,6 +32,7 @@ class ChatApiTest extends ChatTestSupport {
     private String maya, omar;
     @Autowired PushSender pushes;
     @Autowired ParentDeviceRepository devices;
+    @Autowired quest.server.push.StaffDeviceRepository staffDevices;
 
     @BeforeEach void seed() throws Exception {
         seedSchools();
@@ -256,6 +257,39 @@ class ChatApiTest extends ChatTestSupport {
         mvc.perform(as(post("/teacher/chat/threads/" + maya + "/messages"), sara).contentType(MediaType.APPLICATION_JSON).content(send("Bye!"))).andExpect(status().isCreated());
         assertThat(PushProbe.await(pushes, phone, 2)).as("read, then a new message: a new push").hasSize(2);
         devices.deleteByTokenValue(phone); devices.deleteByTokenValue(arabic); devices.deleteByTokenValue(others);
+    }
+
+    /**
+     * Feature 13: the push the other way round. A message to a member of staff has always written the bell row and
+     * stopped there; now it reaches her phone too, on the row's own throttle — one push per new unread row, the next
+     * only after she has read the thread — and only where the school has `staffMobileApp` on, because a push to a
+     * school with no staff app is a wasted FCM call.
+     */
+    @Test void a_parents_message_pushes_the_teacher_once_per_unread_row_and_only_with_the_flag_on() throws Exception {
+        String phone = PushProbe.token("ch-sara-phone");
+        PushProbe.register(mvc, "Bearer " + sara, phone, "en");
+
+        parentPost("/children/" + maya + "/chat/threads/" + SARA + "/messages", send("Is Maya all right?"));
+        assertThat(PushProbe.sentTo(pushes, phone)).as("`staffMobileApp` is off: the bell row, and no push").isEmpty();
+
+        setFlag(adminToken, A, FlagKeys.STAFF_MOBILE_APP, true);
+        mvc.perform(as(post("/teacher/chat/threads/" + maya + "/read"), sara)).andExpect(status().isOk());
+        parentPost("/children/" + maya + "/chat/threads/" + SARA + "/messages", send("And her reading book?"));
+        parentPost("/children/" + maya + "/chat/threads/" + SARA + "/messages", send("Thank you!"));
+
+        var pushed = PushProbe.await(pushes, phone, 1);
+        assertThat(pushed).as("two messages, one unread row, one push").hasSize(1);
+        var push = pushed.get(0).message();
+        assertThat(push.getKind()).isEqualTo(NotificationKind.CHAT_MESSAGE);
+        assertThat(push.getThreadId()).as("what the app opens the conversation by").isNotBlank();
+        assertThat(push.getCollapseKey()).isEqualTo("chat:" + push.getThreadId());
+        assertThat(push.getBody()).isEqualTo("And her reading book?");
+        assertThat(push.getChildId()).as("a staff push is about a thread, not about one child").isNull();
+
+        mvc.perform(as(post("/teacher/chat/threads/" + maya + "/read"), sara)).andExpect(status().isOk());
+        parentPost("/children/" + maya + "/chat/threads/" + SARA + "/messages", send("One more thing."));
+        assertThat(PushProbe.await(pushes, phone, 2)).as("read, then a new message: a new push").hasSize(2);
+        staffDevices.deleteByTokenValue(phone);
     }
 
     // ---------------------------------------------------------------- helpers
