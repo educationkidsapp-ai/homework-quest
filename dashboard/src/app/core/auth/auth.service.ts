@@ -28,6 +28,27 @@ export type Role = 'ADMIN' | 'TEACHER' | 'MANAGERIAL' | 'COORDINATOR';
 export type AuthStatus = 'unknown' | 'anonymous' | 'authenticated';
 
 /**
+ * The one role whose account exists only on the phone (F13).
+ *
+ * A worker's app access is a real account with real credentials, and the server refuses it every
+ * dashboard route — `/me` included — with a 403. Signing in with it and then letting `/me` fail
+ * would put "You do not have permission" under a password that was perfectly correct, so the
+ * refusal is read off the sign-in answer itself, before a single token is stored.
+ */
+const MOBILE_ONLY_ROLE = 'WORKER';
+
+/**
+ * Thrown by {@link AuthService.signIn} for an account that belongs to the mobile app. The sign-in
+ * screen tells her which app to use; nothing else in the dashboard needs to know.
+ */
+export class MobileOnlyAccountError extends Error {
+  constructor() {
+    super('mobile-only account');
+    this.name = 'MobileOnlyAccountError';
+  }
+}
+
+/**
  * Where `/` sends each role, and where the nav's items hang off.
  *
  * `/teacher` is kept as the Teacher's home rather than `/teacher/week`: the area's own `''` row
@@ -130,7 +151,24 @@ export class AuthService {
   signIn(email: string, password: string): Observable<DashboardUser> {
     return this.api
       .dashboardSignIn({ email, password })
-      .pipe(switchMap((response: SignInResponse) => this.adopt(response)));
+      .pipe(
+        switchMap((response: SignInResponse) =>
+          response.role === MOBILE_ONLY_ROLE ? this.refuseMobileOnly(response) : this.adopt(response),
+        ),
+      );
+  }
+
+  /**
+   * Hands the refresh token straight back and fails. Nothing is adopted, so there is no session to
+   * end — but the tokens the server just issued are revoked rather than left live for their hour,
+   * which is what signing out means when the sign-in never completed.
+   */
+  private refuseMobileOnly(response: SignInResponse): Observable<never> {
+    const token = response.refreshToken;
+    const revoke = token
+      ? this.api.signOut({ refreshToken: token }).pipe(catchError(() => of(undefined)))
+      : of(undefined);
+    return revoke.pipe(switchMap(() => throwError(() => new MobileOnlyAccountError())));
   }
 
   /** Accepting an invitation signs the new account in, so it lands here too. */

@@ -35,6 +35,12 @@ data class NotificationTap(
     val outside: Boolean = false,
     /** M8 (B6): `PushMessage.complaintId` on `complaint.message` / `complaint.status` — the complaint to open. */
     val complaintId: String? = null,
+    /**
+     * Feature 13: the thread a **staff** push is about (`PushMessage.threadId`). A staff push carries no `childId`,
+     * so this is the only thing on it that names where to go, and it is what sends the router to the staff side
+     * first.
+     */
+    val threadId: String? = null,
 ) {
     /** The id after `prefix:` in the collapse key, else the row's own subject id. */
     fun idFor(prefix: String): String? =
@@ -43,7 +49,12 @@ data class NotificationTap(
     companion object {
         fun of(row: NotificationView): NotificationTap {
             val kind = PushMessage.kindName(row.kind)
-            return NotificationTap(kind, row.link, row.id, broadcastId = if (kind == "broadcast.posted") row.lessonId else null, childId = row.childId, subjectId = row.lessonId)
+            return NotificationTap(
+                kind, row.link, row.id, broadcastId = if (kind == "broadcast.posted") row.lessonId else null,
+                childId = row.childId, subjectId = row.lessonId,
+                // Feature 13: a staff row names its thread in the link (`/teacher/chat?thread=…`) and nowhere else.
+                threadId = if (row.childId == null) threadOf(row.link) else null,
+            )
         }
     }
 }
@@ -79,7 +90,8 @@ object PushPayload {
         val collapseKey = (known?.collapseKey ?: data[PushMessage.COLLAPSE_KEY])?.takeIf { it.isNotBlank() }
         val tag = collapseKey ?: notificationId?.let { "notification:$it" } ?: broadcastId?.let { "broadcast:$it" } ?: "kind:$kind"
         val complaintId = known?.complaintId ?: data[PushMessage.COMPLAINT_ID]
-        val tap = NotificationTap(kind, known?.link ?: data[PushMessage.LINK], notificationId, broadcastId, known?.childId ?: data[PushMessage.CHILD_ID], collapseKey, complaintId = complaintId)
+        val threadId = (known?.threadId ?: data[PushMessage.THREAD_ID])?.takeIf { it.isNotBlank() }
+        val tap = NotificationTap(kind, known?.link ?: data[PushMessage.LINK], notificationId, broadcastId, known?.childId ?: data[PushMessage.CHILD_ID], collapseKey, complaintId = complaintId, threadId = threadId)
         return PushNotice(channelOf(kind), tag, title, body, tap)
     }
 
@@ -96,6 +108,9 @@ object PushPayload {
 private val CHILD = Regex("^/children/([^/?#]+)")
 private val CHAT = Regex("^/children/[^/]+/chat/([^/?#]+)")
 private val OPEN = Regex("[?&]open=([^&#]+)")
+
+/** Feature 13: `?thread=<id>` on a staff bell row's link (`NotificationService.messagesLink`). */
+private val THREAD = Regex("[?&]thread=([^&#]+)")
 
 /** The app paths B4's contract writes on a row and a push (`ebbab61`), and B6's complaint path. */
 enum class LinkShape { CHAT, COMPLAINT, BROADCAST, ANNOUNCEMENT, TEACHER_QUESTION, MAP, PROGRESS, OTHER }
@@ -126,6 +141,8 @@ fun staffOf(link: String?): String? = link?.let { CHAT.find(it.trim())?.groupVal
 
 /** The `?open=` id of a broadcasts or announcements path. */
 fun openOf(link: String?): String? = link?.let { OPEN.find(it)?.groupValues?.get(1) }
+
+fun threadOf(link: String?): String? = link?.let { THREAD.find(it)?.groupValues?.get(1)?.takeIf { id -> id.isNotBlank() } }
 
 /**
  * Taps waiting to be followed, like the widget's `TodayLinks`: the app's root collects [pending], so the navigation

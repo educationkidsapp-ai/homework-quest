@@ -1,6 +1,7 @@
 package quest.feature.broadcasts.data
 
 import io.ktor.client.HttpClient
+import io.ktor.client.request.header
 import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
@@ -42,6 +43,8 @@ class AttachmentDocumentStore(
     private val directory: () -> String,
     private val maxBytes: Long = MAX_DOCUMENT_BYTES,
     private val io: CoroutineDispatcher = Dispatchers.IO,
+    /** Feature 13: `X-School-Id` for a staff request whose token names no school (an ADMIN's); null for a parent. */
+    private val schoolId: () -> String? = { null },
 ) : AttachmentDocuments {
 
     override suspend fun fetch(attachment: BroadcastAttachment): String? = withContext(io) {
@@ -83,7 +86,10 @@ class AttachmentDocumentStore(
         // The rename and the clean-up are inside the guard too: a full disk or a vanished directory is a failed
         // download, not an exception out of a click handler.
         val outcome = runCancellable {
-            client.prepareGet(url) { bearer(token) }.execute { response -> save(response, part) }
+            client.prepareGet(url) {
+                bearer(token)
+                schoolId()?.let { header(SCHOOL_HEADER, it) }
+            }.execute { response -> save(response, part) }
                 .also { if (it == Download.SAVED) SystemFileSystem.atomicMove(part, target) }
         }.getOrDefault(Download.FAILED)
         if (outcome != Download.SAVED) runCancellable { SystemFileSystem.delete(part, mustExist = false) }

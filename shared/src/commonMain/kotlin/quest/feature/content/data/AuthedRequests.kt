@@ -28,10 +28,10 @@ fun HttpRequestBuilder.bearer(token: String) = header(HttpHeaders.Authorization,
  * instead of leaking an anonymous request. A 401 is retried exactly once with a force-refreshed token: ID tokens
  * expire after an hour and a lesson can sit open for longer than that.
  */
-suspend fun HttpClient.getAuthedBytes(url: String, auth: AuthProvider): HttpResponse? {
+suspend fun HttpClient.getAuthedBytes(url: String, auth: AuthProvider, extraHeaders: Map<String, String> = emptyMap()): HttpResponse? {
     val token = auth.idToken() ?: return null
-    val first = get(url) { bearer(token) }
+    val first = get(url) { bearer(token); extraHeaders.forEach { (name, value) -> header(name, value) } }
     if (first.status != HttpStatusCode.Unauthorized) return first
     val refreshed = auth.idToken(forceRefresh = true) ?: return first
-    return get(url) { bearer(refreshed) }
+    return get(url) { bearer(refreshed); extraHeaders.forEach { (name, value) -> header(name, value) } }
 }

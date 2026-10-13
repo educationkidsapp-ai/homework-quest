@@ -52,6 +52,8 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
             onBroadcasts = { nav.navigate(Routes.Broadcasts()) },
             onWeeklyPlan = { nav.navigate(Routes.WeeklyPlan()) },
             onComplaints = { nav.navigate(Routes.Complaints) },
+            // Feature 13: her staff view, from its own first screen.
+            onStaffSide = { nav.navigate(Routes.StaffHome) { popUpTo(0) { inclusive = true } } },
         )
     }
     composable<Routes.Calendar> { CalendarRoute(onLessonPanel = { nav.navigate(Routes.LessonPanel(it)) }, onBack = { nav.popBackStack() }) }

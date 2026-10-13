@@ -17,6 +17,11 @@ import quest.feature.notifications.domain.NotificationsRepository
 sealed interface Destination {
     /** `chat.message`: the Messages thread itself. */
     data class Conversation(val thread: ChatThread) : Destination
+    /**
+     * Feature 13: a staff member's own conversation, named by thread — a staff push carries no child, and her
+     * Messages tab is one inbox keyed by thread id.
+     */
+    data class StaffConversation(val thread: ChatThread) : Destination
     /** M8: `complaint.message` and `complaint.status` — that complaint's own page, about [childId]. */
     data class Complaint(val childId: String, val complaintId: String) : Destination
     /** A weekly plan: the Weekly plan page, on that plan. */
@@ -52,9 +57,17 @@ class NotificationRouter(
     private val complaints: ComplaintsRepository,
     /** The lesson ids on the child's map (the home page's own window), or null when it cannot be read just now. */
     private val lessonsOnMap: suspend (Child) -> Set<String>?,
+    /**
+     * Feature 13: the signed-in staff member's own rows, or null when there is no staff session. A tap that names a
+     * thread is hers when one of them matches; anything else falls through to the parent side exactly as before.
+     */
+    private val staffThreads: suspend () -> List<ChatThread>? = { null },
 ) {
     suspend fun resolve(tap: NotificationTap): Destination {
         tap.notificationId?.let { id -> runCancellable { notifications.markRead(id) } }
+        // Feature 13: the staff side is asked first and only when the tap names a thread — a parent's chat push names
+        // a child and a staff member's never does, so the two cannot be taken for one another.
+        staffConversation(tap)?.let { return it }
         val childId = tap.childId ?: childOf(tap.link)
         val child = childId?.let { select(it) }
         if (childId != null && child == null) return Destination.Notifications(tap.notificationId, gone = true)
@@ -74,6 +87,14 @@ class NotificationRouter(
      * A kind this build does not know is followed by the shape of its link — every shape B4's contract writes — and,
      * where the link names nothing this app can open by itself, by its row on the Notifications tab.
      */
+    /** Her thread, when the tap names one she is on. Null means "not a staff tap", not "gone". */
+    private suspend fun staffConversation(tap: NotificationTap): Destination? {
+        val threadId = tap.threadId ?: return null
+        val rows = runCancellable { staffThreads() }.getOrNull() ?: return null
+        val thread = rows.firstOrNull { it.id == threadId } ?: return null
+        return Destination.StaffConversation(thread)
+    }
+
     private suspend fun byLink(tap: NotificationTap, child: Child?): Destination = when (linkShape(tap.link)) {
         LinkShape.CHAT -> conversation(tap, child)
         LinkShape.COMPLAINT -> complaint(tap, child)

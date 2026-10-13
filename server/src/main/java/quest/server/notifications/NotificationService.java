@@ -65,13 +65,16 @@ public class NotificationService {
     private final quest.server.children.ChildRepository children; private final org.springframework.transaction.support.TransactionTemplate own;
     private final ParentPush push; private final quest.server.exams.ExamSettingsRepository exams;
     private final quest.server.platform.SchoolCalendar calendar;
+    private final quest.server.push.StaffPush staffPush; private final quest.server.flags.FeatureFlags flags;
 
     public NotificationService(NotificationRepository rows, UserRepository users, ChatBus bus, Json json, Clock clock,
                               NotificationRows upserts, quest.server.children.ChildRepository children,
                               org.springframework.transaction.PlatformTransactionManager transactions, ParentPush push,
-                              quest.server.exams.ExamSettingsRepository exams, quest.server.platform.SchoolCalendar calendar) {
+                              quest.server.exams.ExamSettingsRepository exams, quest.server.platform.SchoolCalendar calendar,
+                              quest.server.push.StaffPush staffPush, quest.server.flags.FeatureFlags flags) {
         this.rows = rows; this.users = users; this.bus = bus; this.json = json; this.clock = clock; this.upserts = upserts;
         this.children = children; this.push = push; this.exams = exams; this.calendar = calendar;
+        this.staffPush = staffPush; this.flags = flags;
         this.own = new org.springframework.transaction.support.TransactionTemplate(transactions);
         this.own.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -162,14 +165,35 @@ public class NotificationService {
      */
     public void chatMessage(String schoolId, String userId, String threadId, String from, String body) {
         if (userId == null || threadId == null) return;
-        String title = clip("Message from " + (from == null || from.isBlank() ? "your school" : from), TITLE_MAX);
+        boolean named = from != null && !from.isBlank();
+        String title = clip("Message from " + (named ? from : "your school"), TITLE_MAX);
         try {
-            var row = upserts.upsertUnread(schoolId, userId, key(NotificationKind.CHAT_MESSAGE), threadId,
-                    title, clip(body, CHAT_BODY_MAX), messagesLink(roleOf(userId), threadId), null).row();
+            var upsert = upserts.upsertUnread(schoolId, userId, key(NotificationKind.CHAT_MESSAGE), threadId,
+                    title, clip(body, CHAT_BODY_MAX), messagesLink(roleOf(userId), threadId), null);
+            var row = upsert.row();
             publishAfterCommit(schoolId, userId, view(row));
+            if (upsert.fresh() && staffAppOn(schoolId)) staffPush.toUser(userId, staffChatPush(row, threadId, row.getTitle()),
+                    staffChatPush(row, threadId, clip(named ? "رسالة من " + from : "رسالة من المدرسة", TITLE_MAX)));
         } catch (RuntimeException e) {
             log.warn("notifications: could not write chat.message for thread {}: {}", threadId, e.toString());
         }
+    }
+
+    /**
+     * Feature 13: the bell row as a push to her phone. The throttle is the row's — a <strong>fresh</strong> unread row
+     * is pushed and a refreshed one is not — which is the rule {@link #parentChatMessage} already applies from the
+     * other end, so a colleague writing five lines to a teacher who has not opened the thread is one push and the next
+     * comes after she reads it. Only the title is translated: what was written is in the sender's own words.
+     */
+    private static PushMessage staffChatPush(NotificationEntity row, String threadId, String title) {
+        return new PushMessage(NotificationKind.CHAT_MESSAGE, title, row.getBody(), row.getId(), null, row.getLink(),
+                null, "chat:" + threadId, null, null, null, threadId);
+    }
+
+    /** No `staffMobileApp`, no staff push: nobody has the app yet, and a push to nowhere is a wasted FCM call. */
+    private boolean staffAppOn(String schoolId) {
+        try { return flags.isOn(schoolId, quest.server.flags.FlagKeys.STAFF_MOBILE_APP); }
+        catch (RuntimeException e) { return false; }
     }
 
     /**
@@ -422,10 +446,10 @@ public class NotificationService {
         String broadcastId = note.isBroadcast() ? note.entityId() : null;
         String complaintId = note.kind() == NotificationKind.COMPLAINT_MESSAGE || note.kind() == NotificationKind.COMPLAINT_STATUS ? note.entityId() : null;
         var english = new PushMessage(note.kind(), row.getTitle(), row.getBody(), row.getId(), row.getChildId(), row.getLink(), broadcastId,
-                note.collapseKey(), note.opensAt(), note.closesAt(), complaintId);
+                note.collapseKey(), note.opensAt(), note.closesAt(), complaintId, null);
         var arabic = note.titleAr() == null ? null : new PushMessage(note.kind(), clip(note.titleAr(), TITLE_MAX),
                 note.bodyAr() == null ? row.getBody() : clip(note.bodyAr(), BODY_MAX), row.getId(), row.getChildId(), row.getLink(), broadcastId,
-                note.collapseKey(), note.opensAt(), note.closesAt(), complaintId);
+                note.collapseKey(), note.opensAt(), note.closesAt(), complaintId, null);
         return new ParentPush.Delivery(parentId, english, arabic);
     }
 

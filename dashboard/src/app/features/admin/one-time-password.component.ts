@@ -25,6 +25,17 @@ import { BandComponent, ButtonComponent } from '../../ui';
     @if (value(); as password) {
       <hq-band variant="notice" [open]="true" [title]="title()" (dismissed)="dismissed.emit()">
         <p class="hq-otp__note">{{ 'admin.people.password.note' | transloco }}</p>
+        @if (username(); as name) {
+          <div class="hq-otp" role="status">
+            <code class="hq-otp__code" dir="ltr" data-hq-username>{{ name }}</code>
+            <hq-button variant="secondary" (pressed)="copyUsername(name)">
+              {{
+                (usernameCopied() ? 'admin.people.password.copied' : 'admin.people.password.copyUsername')
+                  | transloco
+              }}
+            </hq-button>
+          </div>
+        }
         <div class="hq-otp" role="status">
           <code class="hq-otp__code" dir="ltr" data-hq-temp-password>{{ password }}</code>
           <hq-button variant="secondary" (pressed)="copy(password)">
@@ -59,6 +70,13 @@ import { BandComponent, ButtonComponent } from '../../ui';
 export class OneTimePasswordComponent {
   /** The password, or `null` when there is none to show — the band is absent, not empty. */
   readonly value = input<string | null>(null);
+  /**
+   * The account's username, when the server minted one with the password (a worker's app access,
+   * F13) — a nurse has no email address to sign in with, so the username is half of what she is
+   * handed and is as unrepeatable as the password. `null` on every screen whose account signs in
+   * with its own address, and the row is then absent rather than empty.
+   */
+  readonly username = input<string | null>(null);
   readonly title = input.required<string>();
   readonly dismissed = output<void>();
 
@@ -71,10 +89,22 @@ export class OneTimePasswordComponent {
     computation: () => false,
   });
 
+  protected readonly usernameCopied = linkedSignal<string | null, boolean>({
+    source: this.username,
+    computation: () => false,
+  });
+
   protected copy(password: string): void {
     void navigator.clipboard?.writeText(password).then(
       () => this.copied.set(true),
       () => this.copied.set(false),
+    );
+  }
+
+  protected copyUsername(username: string): void {
+    void navigator.clipboard?.writeText(username).then(
+      () => this.usernameCopied.set(true),
+      () => this.usernameCopied.set(false),
     );
   }
 }

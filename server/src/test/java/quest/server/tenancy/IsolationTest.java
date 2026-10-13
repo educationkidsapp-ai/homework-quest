@@ -75,6 +75,8 @@ class IsolationTest extends ApiTestSupport {
     @Autowired TenantContext tenant;
     @Autowired AdminLessonService lessonService;
     @Autowired ChildService childService;
+    @Autowired quest.server.workers.WorkerRepository workers;
+    @Autowired quest.server.push.StaffDeviceRepository staffDevices;
 
     @BeforeEach void seedTwoSchools() {
         school(A, "Alpha Academy", "SCHLAA"); school(B, "Beta School", "SCHLBB");
@@ -117,6 +119,35 @@ class IsolationTest extends ApiTestSupport {
             tenant.resolveEagerly();
             assertThat(tenant.schoolId()).isEqualTo(A);
         } finally { tenant.clear(); }
+    }
+
+    /**
+     * Feature 13's two new tenant rows. A worker of B is not found by an Admin acting in A — the lookup is a filtered
+     * query, as every worker lookup is — and a phone registered by a teacher of A carries A, taken from her token and
+     * never from the request, so a push to a school's staff can only ever reach that school's phones.
+     */
+    @Test void feature_13s_worker_accounts_and_staff_phones_carry_the_callers_school() throws Exception {
+        var row = new quest.server.workers.Entities.WorkerEntity();
+        row.setId("iso-worker-b"); row.setSchoolId(B); row.setFullName("Samir Nour"); row.setJob("Driver");
+        row.setActive(true); row.setCreatedAt(java.time.Instant.now());
+        workers.save(row);
+        String admin = adminToken(), phone = "iso-staff-phone-" + java.util.UUID.randomUUID();
+        try {
+            mvc.perform(scoped(post("/admin/workers/iso-worker-b/app-access"), admin, A)).andExpect(status().isNotFound());
+            mvc.perform(scoped(post("/admin/workers/iso-worker-b/app-access"), admin, B)).andExpect(status().isCreated());
+
+            String teacher = jwt.issue("teacher-a", "teacher@alpha.test", "TEACHER", A).token();
+            mvc.perform(post("/me/devices").header("Authorization", "Bearer " + teacher)
+                            .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                            .content("{\"token\":\"" + phone + "\",\"platform\":\"ANDROID\"}"))
+                    .andExpect(status().isNoContent());
+            assertThat(staffDevices.findByToken(phone).orElseThrow().getSchoolId()).isEqualTo(A);
+        } finally {
+            staffDevices.deleteByTokenValue(phone);
+            String account = workers.findById("iso-worker-b").map(quest.server.workers.Entities.WorkerEntity::getUserId).orElse(null);
+            workers.deleteById("iso-worker-b");
+            if (account != null) users.findById(account).ifPresent(users::delete);
+        }
     }
 
     // ---------------------------------------------------------------- every route of /admin/lessons/{id}

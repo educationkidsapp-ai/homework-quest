@@ -103,7 +103,17 @@ fun refusalText(refusal: AttachmentRefusal, strings: Strings): String = when (re
  * token and hands it to the system viewer.
  */
 @Composable
-fun MessageAttachments(attachments: List<ChatAttachment>, strings: Strings, modifier: Modifier = Modifier) {
+fun MessageAttachments(
+    attachments: List<ChatAttachment>,
+    strings: Strings,
+    modifier: Modifier = Modifier,
+    /**
+     * Feature 13 (fix): this is her own message, drawn in the brand colour, so the sentence a file leaves behind when
+     * it cannot be fetched takes the on-primary ink. Dark ink on the blue bubble is what it read as before.
+     */
+    ownBubble: Boolean = false,
+) {
+    val failedTextColor = if (ownBubble) MaterialTheme.colorScheme.onPrimary else DashboardTokens.inkSoft
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Dimens.s8)) {
         attachments.forEach { file ->
             if (isPdf(file.contentType)) {
@@ -112,6 +122,7 @@ fun MessageAttachments(attachments: List<ChatAttachment>, strings: Strings, modi
                     strings = strings,
                     detail = "${strings.pdfDocument} · ${formatBytes(file.size)}",
                     stacked = true,
+                    failedTextColor = failedTextColor,
                 )
             } else {
                 val ratio = if ((file.width ?: 0) > 0 && (file.height ?: 0) > 0) file.width!!.toFloat() / file.height!! else 1.4f
@@ -125,6 +136,7 @@ fun MessageAttachments(attachments: List<ChatAttachment>, strings: Strings, modi
                     maxDimensionPx = THUMBNAIL_PX,
                     placeholderRatio = ratio.coerceIn(0.5f, 2f),
                     failedText = strings.chatFiles.photoFailed,
+                    failedTextColor = failedTextColor,
                 )
             }
         }

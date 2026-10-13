@@ -70,6 +70,13 @@ class PushRegistration(
     private val tokens: PushTokens,
     private val preferences: PushPreferences,
     private val locale: () -> String?,
+    /**
+     * Feature 13: the **staff** half, when a staff session is the one this device belongs to — non-null only then.
+     * One phone has one FCM token and the server moves it between `parent_devices` and `staff_devices`, so there is
+     * one registration here too, pointed at whichever side is signed in (the staff side wins, because that is the
+     * side she signed in to work on).
+     */
+    private val staff: () -> Pair<AuthProvider, PushRegistrar>? = { null },
 ) {
     enum class Status { OFF, PENDING, REGISTERED }
 
@@ -77,7 +84,10 @@ class PushRegistration(
     val status: StateFlow<Status> = _status.asStateFlow()
     private val mutex = Mutex()
 
-    private val signedIn: Boolean get() = auth.state.value is AuthState.SignedIn
+    /** The side this device registers with: the staff session when there is one, the parent's otherwise. */
+    private fun side(): Pair<AuthProvider, PushRegistrar> = staff() ?: (auth to registrar)
+
+    private val signedIn: Boolean get() = side().first.state.value is AuthState.SignedIn
 
     /** After a password sign-in, and at every launch of an app that is already signed in. */
     suspend fun signedIn() = mutex.withLock {
@@ -98,13 +108,13 @@ class PushRegistration(
         val platform = tokens.platform ?: return@withLock
         if (!signedIn) return@withLock
         val previous = preferences.registeredToken()
-        if (send(token, platform) && previous != null && previous != token) runCancellable { registrar.unregister(previous) }
+        if (send(token, platform) && previous != null && previous != token) runCancellable { side().second.unregister(previous) }
     }
 
     /** Called before the session ends, while its bearer still works. */
     suspend fun signingOut() = mutex.withLock {
         val registered = preferences.registeredToken()
-        if (registered != null && signedIn) runCancellable { registrar.unregister(registered) }
+        if (registered != null && signedIn) runCancellable { side().second.unregister(registered) }
         forget()
     }
 
@@ -119,7 +129,7 @@ class PushRegistration(
 
     private suspend fun send(token: String, platform: DevicePlatform): Boolean {
         _status.value = Status.PENDING
-        val ok = runCancellable { registrar.register(RegisterDeviceRequest(token, platform, tokens.appVersion, locale())) }.isSuccess
+        val ok = runCancellable { side().second.register(RegisterDeviceRequest(token, platform, tokens.appVersion, locale())) }.isSuccess
         if (ok) { preferences.setRegisteredToken(token); _status.value = Status.REGISTERED }
         return ok
     }

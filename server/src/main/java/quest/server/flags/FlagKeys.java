@@ -38,10 +38,16 @@ public final class FlagKeys {
     /** C1: parent ↔ teacher chat (`/children/{id}/chat/**`, `/teacher/chat/**`, `/ws/chat`). Seeded off by V15. */
     public static final String CHAT = "chat";
 
+    /**
+     * Feature 13: staff (Admin, Manager, Coordinator, Teacher and the new Worker) sign in to the same MySchool app
+     * the parents use — `/staff/**`, the staff half of `/me/devices` and the staff chat push. Seeded off by V36.
+     */
+    public static final String STAFF_MOBILE_APP = "staffMobileApp";
+
     public static final List<String> ALL = List.of(
             LESSONS_PDF, LESSONS_SLIDES, LESSONS_IMAGES, LESSONS_MANUAL, LEVELS_THREE, RETELL_RECORDING,
             OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, COMPLAINTS, ANNOUNCEMENTS, TEACHER_QUESTIONS,
             STICKERS_TREASURE_CHEST, PROGRESS_WEEKLY_EMAIL, CERTIFICATES,
             MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST,
-            CHAT);
+            CHAT, STAFF_MOBILE_APP);
 }

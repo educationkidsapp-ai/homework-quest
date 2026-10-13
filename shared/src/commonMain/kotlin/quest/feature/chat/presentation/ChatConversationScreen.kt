@@ -61,9 +61,7 @@ import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 import quest.api.dto.ChatFrame
 import quest.api.dto.ChatMessage
-import quest.api.dto.ChatSender
 import quest.api.dto.ChatStaffRole
-import quest.api.dto.ChatThread
 import quest.core.mvi.MviEffect
 import quest.core.mvi.MviIntent
 import quest.core.mvi.MviState
@@ -74,7 +72,7 @@ import quest.feature.chat.domain.ChatConnectionState
 import quest.feature.chat.domain.ChatPeer
 import quest.feature.chat.domain.Resolver
 import quest.feature.chat.domain.resolverOf
-import quest.feature.chat.domain.ChatRepository
+import quest.feature.chat.domain.ConversationSource
 import quest.feature.parent.domain.ParentRepository
 import quest.feature.parent.presentation.LocalStrings
 import quest.feature.parent.presentation.Strings
@@ -101,7 +99,8 @@ object ChatConversationContract {
     data class UiMessage(
         val id: String,
         val body: String,
-        val isFromParent: Boolean,
+        /** Written by whoever is signed in — the parent, or (feature 13) the staff member. The right-hand bubble. */
+        val isMine: Boolean,
         val createdAt: Long,
         val readAt: Long? = null,
         val isPending: Boolean = false,
@@ -149,6 +148,15 @@ object ChatConversationContract {
          * kept as failed and the screen points to the Complaints page instead.
          */
         val complaintMoved: Boolean = false,
+        /**
+         * Feature 13: what the staff end of the conversation calls the other side, when the parent's own labels do
+         * not fit. Null everywhere on the parent side, which keeps its header, its empty line and its typing line
+         * exactly as they were.
+         */
+        val headerName: String? = null,
+        val headerSubtitle: String? = null,
+        val emptyMessage: String? = null,
+        val typingText: String? = null,
     ) : MviState {
         /** Words, files or both — and only once every file is up, so nothing is sent without what she attached. */
         val canSend: Boolean
@@ -169,22 +177,26 @@ object ChatConversationContract {
     sealed interface Effect : MviEffect
 }
 
+/** The parent's end of a conversation, as the row she tapped describes it. */
+fun ChatPeer.conversationState(): ChatConversationContract.State = ChatConversationContract.State(
+    childId = childId, teacherId = staffId, teacherName = staffName,
+    staffRole = staffRole, subject = subject,
+    withAdmin = withAdmin,
+    threadId = threadId,
+    peerOnline = peerOnline,
+    resolver = resolverOf(peerRole, staffRole, withAdmin),
+)
+
+/**
+ * One open conversation. Feature 13: everything that differs between the parent's end and a staff member's lives in
+ * [ConversationSource] — the routes, and which side of the thread "mine" is — so both ends run this view model and
+ * draw [ChatConversationScreen].
+ */
 class ChatConversationViewModel(
-    private val peer: ChatPeer,
-    private val chat: ChatRepository,
+    private val source: ConversationSource,
+    initial: ChatConversationContract.State,
     private val staging: UploadStaging,
-) : MviViewModel<ChatConversationContract.State, ChatConversationContract.Intent, ChatConversationContract.Effect>(
-    ChatConversationContract.State(
-        childId = peer.childId, teacherId = peer.staffId, teacherName = peer.staffName,
-        staffRole = peer.staffRole, subject = peer.subject,
-        withAdmin = peer.withAdmin,
-        threadId = peer.threadId,
-        peerOnline = peer.peerOnline,
-        resolver = resolverOf(peer.peerRole, peer.staffRole, peer.withAdmin),
-    )
-) {
-    private val childId get() = peer.childId
-    private val teacherId get() = peer.staffId
+) : MviViewModel<ChatConversationContract.State, ChatConversationContract.Intent, ChatConversationContract.Effect>(initial) {
 
     private var typingJob: Job? = null
     private var lastTypingSentMillis: Long = 0L
@@ -193,7 +205,7 @@ class ChatConversationViewModel(
     private val files = AttachmentDrafts(
         scope = viewModelScope,
         staging = staging,
-        upload = { file, onProgress -> chat.uploadAttachment(childId, file, onProgress) },
+        upload = { file, onProgress -> source.upload(file, onProgress) },
         read = { DraftsState(current.drafts, current.refusal) },
         write = { change -> reduce { val next = DraftsState(drafts, refusal).change(); copy(drafts = next.drafts, refusal = next.refusal) } },
     )
@@ -214,16 +226,16 @@ class ChatConversationViewModel(
     }
 
     private suspend fun loadInitialMessages() {
-        chat.connect()
+        source.connect()
         try {
-            val history = chat.messages(childId, teacherId)
+            val history = source.messages()
             val uiList = history.map { it.toUiMessage() }
             reduce { copy(loading = false, messages = uiList, threadId = history.firstOrNull()?.threadId ?: threadId) }
             // M7: a thread with no history yet — one the staff side has just opened — still has an id the socket
             // names it by, so it is looked up rather than left null until somebody writes.
             if (current.threadId == null) resolveThreadId()
             // M4 (D11): a thread nobody has written in yet does not exist on the server, and `…/read` on it is a 404.
-            if (current.threadId != null) chat.markRead(childId, teacherId)
+            if (current.threadId != null) source.markRead()
         } catch (e: Throwable) {
             reduce { copy(loading = false, errorMessage = e.message) }
         }
@@ -234,7 +246,7 @@ class ChatConversationViewModel(
         val now = Today.epochMillis()
         if (text.isNotBlank() && now - lastTypingSentMillis > 3_500L) {
             lastTypingSentMillis = now
-            chat.sendTyping(childId, teacherId)
+            source.sendTyping()
         }
     }
 
@@ -248,7 +260,7 @@ class ChatConversationViewModel(
         val pendingMsg = ChatConversationContract.UiMessage(
             id = clientId,
             body = body,
-            isFromParent = true,
+            isMine = true,
             createdAt = Today.epochMillis(),
             isPending = true,
             clientId = clientId,
@@ -275,7 +287,7 @@ class ChatConversationViewModel(
     private suspend fun deliver(message: ChatConversationContract.UiMessage) {
         val clientId = message.clientId ?: return
         try {
-            val confirmed = chat.sendMessage(childId, teacherId, message.body, clientId, message.attachments.map { it.id })
+            val confirmed = source.send(message.body, clientId, message.attachments.map { it.id })
             reduce {
                 val updated = messages.map { msg ->
                     if (msg.clientId == clientId) confirmed.toUiMessage(isPending = false) else msg
@@ -300,7 +312,7 @@ class ChatConversationViewModel(
     init {
         // Collect connection status
         launch {
-            chat.connectionState.collect { conn ->
+            source.connectionState.collect { conn ->
                 val prev = current.connectionState
                 reduce { copy(connectionState = conn) }
                 if (prev != ChatConnectionState.CONNECTED && conn == ChatConnectionState.CONNECTED) {
@@ -308,11 +320,11 @@ class ChatConversationViewModel(
                     val lastId = current.messages.lastOrNull { !it.isPending }?.id
                     if (lastId != null) {
                         runCatching {
-                            val fresh = chat.messages(childId, teacherId, since = lastId)
+                            val fresh = source.messages(since = lastId)
                             if (fresh.isNotEmpty()) {
                                 val freshUi = fresh.map { it.toUiMessage() }
                                 reduce { copy(messages = messages + freshUi) }
-                                chat.markRead(childId, teacherId)
+                                source.markRead()
                             }
                         }
                     }
@@ -322,15 +334,14 @@ class ChatConversationViewModel(
 
         // Collect incoming socket frames
         launch {
-            chat.incomingFrames.collect { frame ->
+            source.incomingFrames.collect { frame ->
                 when (frame) {
                     is ChatFrame.Message -> {
                         val msg = frame.message
                         val clientAck = frame.clientId != null && current.messages.any { it.clientId == frame.clientId }
                         // M8: matched by thread, never by sender alone — the same staff member writes in the parent's
                         // complaints too, and those frames carry the complaint's id, which no Messages row ever lists.
-                        val senderTeacher = !clientAck && msg.sender == ChatSender.TEACHER && msg.senderId == teacherId &&
-                            isOursOrResolve(msg.threadId)
+                        val senderTeacher = !clientAck && source.isPeerMessage(msg) && isOursOrResolve(msg.threadId)
 
                         if (senderTeacher || clientAck) {
                             reduce { copy(threadId = msg.threadId) }
@@ -349,15 +360,15 @@ class ChatConversationViewModel(
                                 // M7: her message is what the dots were announcing — they stop with it, not 5 s later.
                                 typingJob?.cancel()
                                 reduce { copy(isTeacherTyping = false) }
-                                chat.markRead(childId, teacherId)
+                                source.markRead()
                             }
                         }
                     }
                     is ChatFrame.Read -> {
-                        if (frame.readBy == ChatSender.TEACHER && isOurs(frame.threadId)) {
+                        if (source.isPeerRead(frame.readBy) && isOurs(frame.threadId)) {
                             reduce {
                                 val updated = messages.map { m ->
-                                    if (m.isFromParent && m.readAt == null && m.createdAt <= frame.readAt) {
+                                    if (m.isMine && m.readAt == null && m.createdAt <= frame.readAt) {
                                         m.copy(readAt = frame.readAt)
                                     } else m
                                 }
@@ -366,7 +377,7 @@ class ChatConversationViewModel(
                         }
                     }
                     is ChatFrame.Typing -> {
-                        if (frame.from == ChatSender.TEACHER && isOursOrResolve(frame.threadId)) {
+                        if (source.isPeerTyping(frame.from) && isOursOrResolve(frame.threadId)) {
                             reduce { copy(isTeacherTyping = true) }
                             typingJob?.cancel()
                             typingJob = launch {
@@ -378,7 +389,8 @@ class ChatConversationViewModel(
                     // T1: the staff member on this thread came online or went offline. A frame about anybody else —
                     // the socket carries every thread of the parent's — leaves the header alone.
                     is ChatFrame.Presence -> {
-                        if (frame.userId != null && frame.userId == teacherId) reduce { copy(peerOnline = frame.online) }
+                        val who = frame.userId
+                        if (who != null && source.isPeer(who)) reduce { copy(peerOnline = frame.online) }
                     }
                     is ChatFrame.Error -> {
                         if (frame.clientId != null) {
@@ -425,24 +437,17 @@ class ChatConversationViewModel(
         return isOurs(frameThreadId)
     }
 
-    /**
-     * This conversation's thread id from the parent's own rows: her thread list (teachers, and every coordinator,
-     * manager and administration thread that exists), then the coordinator and manager choosers, whose rows carry
-     * the id too once a thread exists. The row is the one whose staff member is this conversation's.
-     */
+    /** This conversation's thread id from the signed-in person's own rows ([ConversationSource.resolveThreadId]). */
     private suspend fun resolveThreadId() {
-        val lists: List<suspend () -> List<ChatThread>> = listOf({ chat.threads(childId) }, { chat.coordinators(childId) }, { chat.managers(childId) })
-        for (list in lists) {
-            val id = runCatching { list() }.getOrNull()?.firstOrNull { it.teacherId == teacherId && it.id != null }?.id
-            if (id != null) { reduce { copy(threadId = id) }; return }
-        }
+        val id = source.resolveThreadId() ?: return
+        reduce { copy(threadId = id) }
     }
 
     private fun ChatMessage.toUiMessage(isPending: Boolean = false): ChatConversationContract.UiMessage =
         ChatConversationContract.UiMessage(
             id = id,
             body = body,
-            isFromParent = sender == ChatSender.PARENT,
+            isMine = source.isMine(this),
             createdAt = createdAt,
             readAt = readAt,
             isPending = isPending,
@@ -493,7 +498,7 @@ fun ChatConversationRoute(
  * typing line says who by role — "Manager is typing…" — because the frame itself only ever says `teacher` for staff.
  */
 fun presenceLine(state: ChatConversationContract.State, strings: Strings): Pair<String, Boolean>? = when {
-    state.isTeacherTyping -> typingLine(state.resolver, strings) to true
+    state.isTeacherTyping -> (state.typingText ?: typingLine(state.resolver, strings)) to true
     state.peerOnline == true -> strings.online to true
     state.peerOnline == false -> strings.offline to false
     else -> null
@@ -559,14 +564,16 @@ fun ChatConversationScreen(
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = if (state.withAdmin) strings.schoolAdministration else state.teacherName,
+                        text = state.headerName ?: if (state.withAdmin) strings.schoolAdministration else state.teacherName,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = DashboardTokens.ink,
                     )
                 }
-                if (!state.withAdmin) Text(
-                    text = staffLabel(state.staffRole, state.subject, null, strings),
+                val subtitle = state.headerSubtitle ?: if (state.withAdmin) null else staffLabel(state.staffRole, state.subject, null, strings)
+                // Blank is "no second line" — the school administration's thread carries no role word under its name.
+                if (!subtitle.isNullOrBlank()) Text(
+                    text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = DashboardTokens.inkSoft,
                 )
@@ -604,7 +611,7 @@ fun ChatConversationScreen(
             } else if (state.messages.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(Dimens.s24), contentAlignment = Alignment.Center) {
                     Text(
-                        text = if (state.withAdmin) strings.emptyConversationAdmin else when (state.staffRole) {
+                        text = state.emptyMessage ?: if (state.withAdmin) strings.emptyConversationAdmin else when (state.staffRole) {
                             ChatStaffRole.COORDINATOR -> strings.emptyConversationCoordinator
                             ChatStaffRole.MANAGERIAL -> strings.emptyConversationManager
                             ChatStaffRole.TEACHER -> strings.emptyConversation
@@ -721,7 +728,7 @@ private fun MessageBubble(
     strings: Strings,
     onRetry: (String) -> Unit,
 ) {
-    val isParent = msg.isFromParent
+    val isParent = msg.isMine
     val bubbleColor = if (isParent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
     val textColor = if (isParent) MaterialTheme.colorScheme.onPrimary else DashboardTokens.ink
     val shape = if (isParent) RoundedCornerShape(12.dp, 12.dp, 2.dp, 12.dp) else RoundedCornerShape(12.dp, 12.dp, 12.dp, 2.dp)
@@ -738,7 +745,7 @@ private fun MessageBubble(
         ) {
             // M7 (B5): the files themselves — photos to look at, PDFs to open — not their names.
             if (msg.attachments.isNotEmpty()) {
-                MessageAttachments(msg.attachments, strings)
+                MessageAttachments(msg.attachments, strings, ownBubble = isParent)
                 if (msg.body.isNotBlank()) Spacer(Modifier.height(Dimens.s8))
             }
 

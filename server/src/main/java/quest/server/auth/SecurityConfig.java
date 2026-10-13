@@ -43,10 +43,17 @@ public class SecurityConfig {
                 // from `?token=` (or the header when the client can) and refuses 401/403 itself — `ChatHandshake`.
                 .requestMatchers("/ws/chat").permitAll()
                 // B3 (D5): the one `/me` area a parent shares — her own notifications, resolved from her principal.
-                .requestMatchers("/me/notifications", "/me/notifications/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "PARENT")
-                // B4: the parent's phones for push. Hers alone — a dashboard user is not pushed to.
-                .requestMatchers("/me/devices", "/me/devices/**").hasRole("PARENT")
+                // Feature 13 adds WORKER: the app's Notifications tab is the one `/me` area she has.
+                .requestMatchers("/me/notifications", "/me/notifications/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "WORKER", "PARENT")
+                // B4: the phones for push. Feature 13: staff are pushed too, into `staff_devices` rather than
+                // `parent_devices` — one route, the principal decides the table (`DeviceService`).
+                .requestMatchers("/me/devices", "/me/devices/**").hasAnyRole("PARENT", "ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "WORKER")
                 .requestMatchers("/me", "/me/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR")
+                // Feature 13: the staff app's own facade, the only path a WORKER reaches besides her notifications
+                // and her phone. Every other dashboard matcher below leaves her out, so a worker's token on the
+                // dashboard is 403 rather than a half-drawn shell; what each role may do inside is the
+                // `@PreAuthorize` on the route and the scope the service it delegates to already applies.
+                .requestMatchers("/staff/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "WORKER")
                 // §6 screens 19–20: "my own school", with no school id in the path. Dashboard roles only; which of
                 // them may read what is the `@PreAuthorize` on each route, as everywhere else.
                 .requestMatchers("/school/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")

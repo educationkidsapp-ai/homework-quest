@@ -6218,6 +6218,36 @@
         },
         "type" : "object"
       },
+      "StaffMe" : {
+        "properties" : {
+          "displayName" : {
+            "type" : "string"
+          },
+          "flags" : {
+            "additionalProperties" : {
+              "type" : "boolean"
+            },
+            "type" : "object"
+          },
+          "phone" : {
+            "type" : "string"
+          },
+          "role" : {
+            "type" : "string"
+          },
+          "schoolId" : {
+            "type" : "string"
+          },
+          "schoolName" : {
+            "type" : "string"
+          },
+          "userId" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "displayName", "flags", "role", "schoolId", "userId" ],
+        "type" : "object"
+      },
       "StaffPerson" : {
         "properties" : {
           "displayName" : {
@@ -7993,6 +8023,9 @@
           "fullName" : {
             "type" : "string"
           },
+          "hasAppAccess" : {
+            "type" : "boolean"
+          },
           "id" : {
             "type" : "string"
           },
@@ -8000,6 +8033,20 @@
             "type" : "string"
           },
           "phone" : {
+            "type" : "string"
+          },
+          "username" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "WorkerAccess" : {
+        "properties" : {
+          "temporaryPassword" : {
+            "type" : "string"
+          },
+          "username" : {
             "type" : "string"
           }
         },
@@ -11323,6 +11370,58 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/Worker"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Workers" ]
+      }
+    },
+    "/admin/workers/{id}/app-access" : {
+      "post" : {
+        "operationId" : "enableWorkerAppAccess",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WorkerAccess"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Workers" ]
+      }
+    },
+    "/admin/workers/{id}/reset-password" : {
+      "post" : {
+        "operationId" : "resetWorkerPassword",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WorkerAccess"
                 }
               }
             },
@@ -15433,6 +15532,156 @@
         "tags" : [ "Themes" ]
       }
     },
+    "/staff/chat/threads" : {
+      "get" : {
+        "operationId" : "staffChatThreads",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChatThread"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff app" ]
+      }
+    },
+    "/staff/chat/threads/{threadId}/messages" : {
+      "get" : {
+        "operationId" : "staffChatMessages",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "threadId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "before",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "since",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChatMessage"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff app" ]
+      },
+      "post" : {
+        "operationId" : "staffSendChatMessage",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "threadId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SendChatMessageRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatMessage"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Staff app" ]
+      }
+    },
+    "/staff/chat/threads/{threadId}/read" : {
+      "post" : {
+        "operationId" : "staffMarkChatRead",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "threadId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatReadReceipt"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff app" ]
+      }
+    },
+    "/staff/me" : {
+      "get" : {
+        "operationId" : "staffMe",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StaffMe"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff app" ]
+      }
+    },
     "/teacher/announcements" : {
       "get" : {
         "operationId" : "teacherAnnouncements",
@@ -18305,9 +18554,6 @@
     "description" : "Dashboard sign-in",
     "name" : "Auth"
   }, {
-    "description" : "The parent's phones for push notifications (Firebase Cloud Messaging)",
-    "name" : "Devices"
-  }, {
     "description" : "A teacher's own lessons: create, move, copy, publish and the pipeline",
     "name" : "Teacher lessons"
   }, {
@@ -18344,6 +18590,9 @@
     "description" : "The weekly plan, announcements and events: composing them and the feeds that receive them",
     "name" : "Broadcasts"
   }, {
+    "description" : "The phones a parent or a member of staff receives push notifications on",
+    "name" : "Devices"
+  }, {
     "description" : "A department manager's staff register and her people directory",
     "name" : "Management people"
   }, {
@@ -18370,6 +18619,9 @@
   }, {
     "description" : "Parent-owned children, map, attempts and progress",
     "name" : "Children"
+  }, {
+    "description" : "Staff mode in the mobile app: the signed-in member of staff, and her messages",
+    "name" : "Staff app"
   }, {
     "description" : "Lesson pipeline, plays and stops",
     "name" : "Admin lessons"

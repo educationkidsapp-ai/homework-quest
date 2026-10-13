@@ -807,12 +807,11 @@ describe('RM3a — the management area', () => {
    * archive, so the card that says "no plan yet" and the list below it can never disagree.
    */
   describe('Weekly plans', () => {
-    // Every case here is written in the week of Sunday 2026-09-27, and the page reads "this week"
-    // from the clock — so the clock is pinned there, or the cases go stale as the calendar moves.
-    // Only `Date` is faked: timers and microtasks stay real.
+    // The fixtures below are written around the week of Sunday 2026-09-27, and the page picks "this week" from
+    // today's date — so today is pinned to that Wednesday. Only `Date` is faked: the screen's own timers stay real.
     beforeEach(() => {
       vi.useFakeTimers({ toFake: ['Date'] });
-      vi.setSystemTime(new Date('2026-09-29T09:00:00Z'));
+      vi.setSystemTime(new Date('2026-09-30T09:00:00Z'));
     });
     afterEach(() => vi.useRealTimers());
 

@@ -19,10 +19,13 @@ import quest.server.auth.Principals;
 import quest.server.tenancy.TeacherScope;
 
 /**
- * `/admin/workers/**` (MA1, the owner's item 4): the school's non-teaching staff — the caretaker, the driver, the
- * nurse, the secretary — as a name, a job and a mobile number. No account, no password, no role.
+ * `/admin/workers` (MA1, the owner's item 4): the school's non-teaching staff — the caretaker, the driver, the
+ * nurse, the secretary — as a name, a job and a mobile number.
  *
- * <p><strong>`worker.read` is ADMIN and MANAGERIAL, `worker.write` ADMIN only.</strong> The read costs one filtered
+ * <p>Feature 13 gave her the one thing she never had: an account, for the <strong>mobile app</strong> and nowhere
+ * else, minted and reset by the two routes below ({@link WorkerAccessService}). The page itself is unchanged.
+ *
+ * <p><strong>`worker.read` is ADMIN and MANAGERIAL, `worker.write` and `worker.access` ADMIN only.</strong> The read costs one filtered
  * statement and the department manager's people directory (RM5) is the screen that wants it beside her teachers and
  * coordinators; who is on the school's payroll is the Admin's to change.
  *
@@ -35,9 +38,9 @@ import quest.server.tenancy.TeacherScope;
 @RestController
 @Tag(name = "Workers", description = "The school's non-teaching staff (no accounts)")
 public class WorkerController {
-    private final WorkerService workers;
+    private final WorkerService workers; private final WorkerAccessService access;
 
-    public WorkerController(WorkerService workers) { this.workers = workers; }
+    public WorkerController(WorkerService workers, WorkerAccessService access) { this.workers = workers; this.access = access; }
 
     @GetMapping(value = "/admin/workers", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('worker.read')")
@@ -56,6 +59,26 @@ public class WorkerController {
     public WorkerDto.Worker updateWorker(@AuthenticationPrincipal Principals.User caller, @PathVariable String id,
                                         @RequestBody @Valid WorkerDto.UpdateWorkerRequest body) {
         return workers.update(TeacherScope.require(caller), id, body);
+    }
+
+    /**
+     * Feature 13: her mobile-app account — the one thing a worker never had. ADMIN only (`worker.access`, not
+     * `worker.write`): recording who sweeps the yard and handing that person a login are two different decisions,
+     * and only the second mints a password. 409 when she already has one; the username and the temporary password
+     * are answered <strong>once</strong>, and nothing reads them back.
+     */
+    @PostMapping(value = "/admin/workers/{id}/app-access", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("@permit.has('worker.access')")
+    public WorkerDto.WorkerAccess enableWorkerAppAccess(@AuthenticationPrincipal Principals.User caller, @PathVariable String id) {
+        return access.enable(TeacherScope.require(caller), id);
+    }
+
+    /** A new one-time password on that account, the Teachers page's own reset for a worker (`StaffAccounts.reset`). */
+    @PostMapping(value = "/admin/workers/{id}/reset-password", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('worker.access')")
+    public WorkerDto.WorkerAccess resetWorkerPassword(@AuthenticationPrincipal Principals.User caller, @PathVariable String id) {
+        return access.resetPassword(TeacherScope.require(caller), id);
     }
 
     /** Retires her rather than deleting the row: a person who has left is part of the school's record. */

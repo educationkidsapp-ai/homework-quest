@@ -8,45 +8,52 @@ import quest.feature.push.domain.NotificationTap
 import quest.feature.push.domain.ParentGate
 
 /**
- * M5 — where a tap navigates, for a push and for a row of the Notifications tab alike (the owner, 2026-10-03):
+ * One step of following a tapped push or notification row.
  *
- * 1. **The parent gate first.** A tap from the system shade always meets it; a row tapped inside the parent area skips
- *    it while the gate is still open ([ParentGate]). Otherwise the tap waits behind
- *    `Routes.ParentPin` — the biometric where the parent turned it on (M2), the PIN otherwise. Backing out of the gate
- *    drops the tap; the target is never shown. The app's own biometric lock sits over all of it, as for the widget.
- * 2. **Then the specific page**, found by [NotificationRouter]: [Step.Parent] opens on top of the parent home, and
- *    [Step.Child] replaces the stack with the child's home (an exam's card is hers).
+ * Feature 13: a staff tap takes a different road through this. A parent's tap waits behind the parent gate (Face ID
+ * or the PIN) because the parent area is behind it; a staff member has no such area — her whole app is the staff app
+ * — so hers waits behind the **app lock** instead, which is what [awaitUnlocked] is, and then opens the conversation.
  */
-class PushNavigator(private val router: NotificationRouter, private val gate: ParentGate, private val signedIn: () -> Boolean) {
+class PushNavigator(
+    private val router: NotificationRouter,
+    private val gate: ParentGate,
+    private val signedIn: () -> Boolean,
+    /** Feature 13: returns once the app is not locked (`AppLock.awaitUnlocked`). */
+    private val awaitUnlocked: suspend () -> Unit = {},
+) {
     sealed interface Step {
-        /** Not signed in: the tap only opened the app. */
         data object Nothing : Step
-        /** The parent gate, with the tap waiting behind it. */
         data object Gate : Step
         data class Parent(val route: Any) : Step
-        /** [route] null: the child's home itself. */
         data class Child(val route: Any?) : Step
+        /** Feature 13: a staff screen, opened once the app lock is past. */
+        data class Staff(val route: Any) : Step
     }
 
-    /** A tap arrived. */
-    suspend fun follow(tap: NotificationTap): Step = when {
-        !signedIn() -> Step.Nothing
-        tap.outside || !gate.isOpen -> Step.Gate
-        else -> step(router.resolve(tap))
+    suspend fun follow(tap: NotificationTap): Step {
+        if (!signedIn()) return Step.Nothing
+        // A tap that names a thread may be a staff member's. Resolving it is also what rules it out: a thread that is
+        // not one of hers answers null and the parent road below is taken, gate and all, exactly as before.
+        if (tap.threadId != null) {
+            val destination = router.resolve(tap)
+            if (destination is Destination.StaffConversation) { awaitUnlocked(); return step(destination) }
+            return if (tap.outside || !gate.isOpen) Step.Gate else step(destination)
+        }
+        if (tap.outside || !gate.isOpen) return Step.Gate
+        return step(router.resolve(tap))
     }
 
-    /** The gate opened with [tap] waiting. */
     suspend fun afterGate(tap: NotificationTap): Step = step(router.resolve(tap))
 
     companion object {
         fun step(destination: Destination): Step = when (destination) {
             is Destination.Conversation -> Step.Parent(destination.thread.asConversation())
+            is Destination.StaffConversation -> Step.Staff(Routes.StaffConversation(threadId = destination.thread.id.orEmpty()))
             is Destination.Complaint -> Step.Parent(Routes.Complaint(destination.childId, destination.complaintId))
             is Destination.WeeklyPlan -> Step.Parent(Routes.WeeklyPlan(focus = destination.planId))
             is Destination.Broadcast -> Step.Parent(Routes.Broadcasts(focusBroadcast = destination.broadcastId))
             is Destination.Notifications -> Step.Parent(Routes.Broadcasts(focusRow = destination.row, gone = destination.gone))
             Destination.Progress -> Step.Parent(Routes.Progress())
-            // The owner (2026-10-03): the parent's own view of the lesson and of the result — inside the parent area.
             is Destination.Lesson -> Step.Parent(Routes.LessonPanel(destination.lessonId))
             Destination.ExamCard -> Step.Child(null)
             is Destination.ExamResult -> Step.Parent(Routes.Progress(focusExam = destination.lessonId))
