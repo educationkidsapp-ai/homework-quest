@@ -150,6 +150,7 @@
         "title": "One-time password for {{name}}",
         "note": "Copy it now and hand it over. It is shown once and cannot be read again — use Reset password to issue a new one.",
         "copy": "Copy password",
+        "copyUsername": "Copy username",
         "copied": "Copied",
         "reset": "Reset password"
       },
@@ -211,7 +212,7 @@
     },
     "workers": {
       "title": "Workers",
-      "subtitle": "The staff who do not teach — the office, the nurse, the drivers. No sign-in is created.",
+      "subtitle": "The staff who do not teach — the office, the nurse, the drivers. Give one app access when she needs the mobile app.",
       "loading": "Loading workers",
       "empty": "No workers yet. Add the first one.",
       "createAction": "Add worker",
@@ -222,12 +223,14 @@
       "retired": "Retired",
       "retire": "Retire",
       "reinstate": "Bring back",
+      "enableAccess": "Enable app access",
       "filter": {
         "label": "Find a worker",
         "placeholder": "Name, job or number"
       },
       "table": {
-        "job": "Job"
+        "job": "Job",
+        "username": "Username"
       },
       "form": {
         "job": "Job",
@@ -238,6 +241,11 @@
         "title": "Retire this worker?",
         "message": "{{name}} is marked as no longer working here. Nothing is deleted and you can bring her back.",
         "confirm": "Retire"
+      },
+      "resetConfirm": {
+        "title": "Reset this worker's password?",
+        "message": "{{name}} can no longer sign in with the password she has now. A new one is shown once, and you have to hand it over.",
+        "confirm": "Reset password"
       },
       "undo": {
         "retired": "{{name}} retired"
@@ -346,7 +354,9 @@
       "failedTitle": "Could not sign in",
       "endedTitle": "This session ended",
       "takenOver": "You signed in as {{role}} in another tab of this browser, so this tab was signed out. Sign in again to carry on here.",
-      "signedOutElsewhere": "This session was signed out in another tab of this browser. Sign in again to carry on here."
+      "signedOutElsewhere": "This session was signed out in another tab of this browser. Sign in again to carry on here.",
+      "mobileOnlyTitle": "Use the MySchool app",
+      "mobileOnly": "This account uses the MySchool mobile app. Sign in there with the same username and password — the dashboard is for the office, and nothing here is yours to open."
     },
     "forgot": {
       "link": "Forgot your password?",

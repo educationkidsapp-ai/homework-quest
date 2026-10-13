@@ -12,7 +12,8 @@ import quest.server.ApiTestSupport;
 
 /** Every endpoint the server serves must be in `permissions.json`; a new route without an entry fails here. */
 class PermissionsTest extends ApiTestSupport {
-    private static final List<String> ROLES = List.of("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", Permissions.PARENT, Permissions.PUBLIC);
+    /** Feature 13 adds WORKER: a mobile-app-only account, so it holds `staff.app` and little else. */
+    private static final List<String> ROLES = List.of("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "WORKER", Permissions.PARENT, Permissions.PUBLIC);
 
     @Autowired Permissions permissions;
 
@@ -35,6 +36,9 @@ class PermissionsTest extends ApiTestSupport {
         assertThat(permissions.forRole("TEACHER")).doesNotContain("school.write", "user.impersonate");
         // R2 (DR2): the coordinator reads, and holds no write key at all — not the teacher's, not the Admin's, and
         // not `coordinator.manage`, which is how her own scope is changed.
+        // Feature 13: a worker reaches the app, her own bell and her own phone, and nothing a dashboard role holds.
+        assertThat(permissions.forRole("WORKER")).contains("staff.app", "device.register", "notifications.read", "auth.changePassword")
+                .doesNotContain("me.read", "teacher.chat", "worker.read", "worker.access", "chat.socket");
         assertThat(permissions.forRole("COORDINATOR")).contains("coordinator.read", "coordinator.lesson.read")
                 .doesNotContain("coordinator.manage", "lesson.write", "lesson.publish", "results.write",
                         "attendance.write", "roster.write", "teacher.manage", "school.write", "user.impersonate");

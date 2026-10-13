@@ -28,7 +28,13 @@ data class Strings(
     val accuracyWords: Map<String, String> = emptyMap(),
     // v3
     val signIn: String = "Sign in", val register: String = "Create account", val signInBody: String = "Parents sign in; children just play.",
-    val email: String = "Email", val password: String = "Password", val createAccount: String = "Create account", val googleSignIn: String = "Continue with Google",
+    val email: String = "Email",
+    /**
+     * Feature 13: the one sign-in screen's label. A worker signs in with a generated username (`w.ahmed.4821`)
+     * rather than an address, so the field cannot be called "Email" alone.
+     */
+    val emailOrUsername: String = "Email or username",
+    val password: String = "Password", val createAccount: String = "Create account", val googleSignIn: String = "Continue with Google",
     val haveAccount: String = "I already have an account", val noAccount: String = "New here? Create an account",
     val american: String = "American", val british: String = "British",
     val children: String = "Children", val signOut: String = "Sign out",
@@ -267,7 +273,7 @@ data class Strings(
             version = "الإصدار", today = "اليوم", noLessonsThatDay = "لا يوجد درس في هذا اليوم.",
             statusLabel = mapOf("uploading" to "جارٍ الرفع", "reading" to "جارٍ القراءة", "needs_confirmation" to "بانتظار موافقتك", "generating" to "إعداد الأسئلة", "ready" to "جاهز", "error" to "مشكلة"),
             signIn = "تسجيل الدخول", register = "إنشاء حساب", signInBody = "الأهل يسجّلون الدخول؛ الأطفال يلعبون فقط.",
-            email = "البريد الإلكتروني", password = "كلمة المرور", createAccount = "إنشاء حساب", googleSignIn = "المتابعة عبر Google",
+            email = "البريد الإلكتروني", emailOrUsername = "البريد الإلكتروني أو اسم المستخدم", password = "كلمة المرور", createAccount = "إنشاء حساب", googleSignIn = "المتابعة عبر Google",
             haveAccount = "لديّ حساب بالفعل", noAccount = "جديد هنا؟ أنشئ حسابًا",
             american = "أمريكي", british = "بريطاني",
             children = "الأطفال", signOut = "تسجيل الخروج",

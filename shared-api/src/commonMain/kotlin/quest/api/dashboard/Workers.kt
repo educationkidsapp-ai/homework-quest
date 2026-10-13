@@ -17,7 +17,13 @@ import kotlinx.serialization.Serializable
  * Kept in its own file for the reason [Coordinator] is: one screen's contract, read in one place.
  */
 
-/** One member of the school's non-teaching staff. [createdAt] is epoch milliseconds, as every other row's is. */
+/**
+ * One member of the school's non-teaching staff. [createdAt] is epoch milliseconds, as every other row's is.
+ *
+ * Feature 13 gave her one thing she never had: a login, for the **mobile app** only. [hasAppAccess] says whether an
+ * Admin has enabled it, and [username] is what she types in ([WorkerAccess.username]) — absent while she has no
+ * account. The password is never on this row: it is answered once, by the route that sets it.
+ */
 @Serializable
 data class Worker(
     val id: String,
@@ -26,7 +32,22 @@ data class Worker(
     val phone: String? = null,
     val active: Boolean = true,
     val createdAt: Long = 0,
+    val hasAppAccess: Boolean = false,
+    val username: String? = null,
 )
+
+/**
+ * Feature 13, the body of `POST /admin/workers/{id}/app-access` and of `POST /admin/workers/{id}/reset-password`:
+ * what the Admin reads out to her, **once**.
+ *
+ * [username] is generated rather than typed — `w.<first name in ASCII>.<4 digits>` — because a worker has no work
+ * address to sign in with, and it is stored in the login column so that `POST /auth/sign-in` takes it as it stands.
+ * [temporaryPassword] is `TemporaryPasswords.generate()`'s twelve characters and the account carries
+ * `mustChangePassword`, so it stops being a secret the first time she signs in. Neither value is readable
+ * afterwards: a worker who has lost her password gets a new one from the reset route.
+ */
+@Serializable
+data class WorkerAccess(val username: String, val temporaryPassword: String)
 
 /** `POST /admin/workers`: the three fields the owner's page asks for, the mobile number optional. */
 @Serializable

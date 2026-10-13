@@ -91,6 +91,8 @@ object PushIntents {
         tap.childId?.let { putExtra(PREFIX + "childId", it) }
         tap.collapseKey?.let { putExtra(PREFIX + "collapseKey", it) }
         tap.complaintId?.let { putExtra(PREFIX + "complaintId", it) }
+        // Feature 13: a staff push names its thread and nothing else — without this the tap would arrive with no target.
+        tap.threadId?.let { putExtra(PREFIX + "threadId", it) }
     }
 
     /** Hands a tap to the shared UI, which follows it underneath the lock and through the parent gate. */
@@ -98,7 +100,7 @@ object PushIntents {
         val extras = intent?.extras ?: return
         if (!extras.getBoolean(EXTRA_PUSH)) return
         fun s(key: String) = extras.getString(PREFIX + key)
-        PushLinks.open(NotificationTap(s("kind").orEmpty(), s("link"), s("notificationId"), s("broadcastId"), s("childId"), s("collapseKey"), outside = true, complaintId = s("complaintId")))
+        PushLinks.open(NotificationTap(s("kind").orEmpty(), s("link"), s("notificationId"), s("broadcastId"), s("childId"), s("collapseKey"), outside = true, complaintId = s("complaintId"), threadId = s("threadId")))
         // Followed once: a configuration change or a later onNewIntent must not open it again.
         intent.removeExtra(EXTRA_PUSH)
     }

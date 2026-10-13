@@ -19,28 +19,34 @@ import quest.server.config.ApiException;
 import quest.server.config.Json;
 
 /**
- * B4: the parent app registers the phone it runs on for push, and takes it back on sign-out. Parent-only (the
- * `/me/devices` matcher in `SecurityConfig`); her own rows, from her Firebase token. The permission is `parent.me.write`,
- * the one her own account already writes under: a phone is part of that account, and a key of its own would only be a
- * second name for the same "this parent, herself".
+ * B4: the app registers the phone it runs on for push, and takes it back on sign-out. Her own rows, resolved from her
+ * token and never from the request.
  *
- * <p>Carries no feature flag, and is listed as infrastructure in `FeatureFlagCoverageTest`: a phone is the parent's,
- * not a school's — she may have children in two — and sign-out has to be able to take the token back whatever any school
- * has switched off. What a push is <em>about</em> is gated where that feature lives: no `chat`, no message, no push.
+ * <p>Feature 13 opened both routes to staff as well, so the permission is now `device.register` — PARENT and the five
+ * staff roles — rather than `parent.me.write`, which is the parent's own account and nothing a teacher holds. Which
+ * table a registration lands in is the principal's: a Firebase parent writes `parent_devices`, a dashboard or worker
+ * token writes `staff_devices` ({@link DeviceService}).
+ *
+ * <p>Carries no feature flag, and is listed as infrastructure in `FeatureFlagCoverageTest`: a phone belongs to a
+ * person rather than to a school — a parent may have children in two — and sign-out has to be able to take the token
+ * back whatever any school has switched off. What a push is <em>about</em> is gated where that feature lives: no
+ * `chat`, no message, no push; no `staffMobileApp`, no staff push.
  */
 @RestController
-@Tag(name = "Devices", description = "The parent's phones for push notifications (Firebase Cloud Messaging)")
+@Tag(name = "Devices", description = "The phones a parent or a member of staff receives push notifications on")
 public class DeviceController {
     private final DeviceService devices; private final Json json;
     public DeviceController(DeviceService devices, Json json) { this.devices = devices; this.json = json; }
 
     @PostMapping(value = "/me/devices", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@permit.has('parent.me.write')")
+    @PreAuthorize("@permit.has('device.register')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RegisterDeviceRequest.class)))
     @ApiResponse(responseCode = "204", description = "Registered, or refreshed")
-    public void registerDevice(@AuthenticationPrincipal Principals.Parent parent, @RequestBody String body) {
-        devices.register(parent, decode(body, RegisterDeviceRequest.Companion.serializer()));
+    public void registerDevice(@AuthenticationPrincipal Object principal, @RequestBody String body) {
+        var request = decode(body, RegisterDeviceRequest.Companion.serializer());
+        if (principal instanceof Principals.User caller) devices.register(caller, request);
+        else devices.register(parent(principal), request);
     }
 
     /**
@@ -48,12 +54,20 @@ public class DeviceController {
      * record every path, and a token in one would be in the logs for as long as they are kept.
      */
     @PostMapping(value = "/me/devices/unregister", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@permit.has('parent.me.write')")
+    @PreAuthorize("@permit.has('device.register')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = UnregisterDeviceRequest.class)))
     @ApiResponse(responseCode = "204", description = "Gone, or never hers")
-    public void unregisterDevice(@AuthenticationPrincipal Principals.Parent parent, @RequestBody String body) {
-        devices.unregister(parent, decode(body, UnregisterDeviceRequest.Companion.serializer()).getToken());
+    public void unregisterDevice(@AuthenticationPrincipal Object principal, @RequestBody String body) {
+        String token = decode(body, UnregisterDeviceRequest.Companion.serializer()).getToken();
+        if (principal instanceof Principals.User caller) devices.unregister(caller, token);
+        else devices.unregister(parent(principal), token);
+    }
+
+    /** The two filters put exactly one of the two principals on the request; anything else never signed in. */
+    private static Principals.Parent parent(Object principal) {
+        if (principal instanceof Principals.Parent parent) return parent;
+        throw ApiException.unauthorized("Sign in first.");
     }
 
     /** The body is never echoed back or logged: it carries a token. */

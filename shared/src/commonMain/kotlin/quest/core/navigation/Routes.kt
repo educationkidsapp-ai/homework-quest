@@ -70,4 +70,35 @@ object Routes {
 
     /** M8: one complaint, its messages and its status changes (`/children/{childId}/complaints/{complaintId}`). */
     @Serializable data class Complaint(val childId: String, val complaintId: String)
+
+    // ---------------------------------------------------------------- feature 13: staff mode
+    /**
+     * The staff home — the Attendance tab, with the Today card on it. Every route below is behind a staff session:
+     * `StaffGuard` sends a parent or a child who reaches one back to the sign-in screen.
+     */
+    @Serializable object StaffHome
+    @Serializable object StaffMessages
+
+    /**
+     * One staff conversation, named by thread id — the only key the `/staff` facade has, because a teacher's parent
+     * threads and her staff threads are one inbox. The rest is what the row already said, so the header draws itself
+     * without a second request; a route from a tapped push carries the id alone and the screen looks the row up.
+     */
+    @Serializable data class StaffConversation(
+        val threadId: String,
+        val peerName: String = "",
+        val peerUserId: String = "",
+        val childId: String? = null,
+        val childName: String? = null,
+        /** `ChatThread.peerRole == PARENT`: the other end is a parent, which names who is typing. */
+        val withParent: Boolean = false,
+        /** `ChatThread.peerRole`'s wire name, which names who is typing on a staff-to-staff thread. */
+        val peerRole: String? = null,
+    )
+
+    @Serializable object StaffNotifications
+    @Serializable object StaffAccount
+
+    /** Her temporary password, replaced before she reaches the staff home (`SignInResponse.mustChangePassword`). */
+    @Serializable object StaffChangePassword
 }
