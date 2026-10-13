@@ -144,6 +144,15 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         labelKey: 'nav.childrenParents',
         permission: 'admin.children.read',
       },
+      // Feature 14: where and when staff must be present, and every employee's direct manager.
+      // Read with `attendance.settings.read` so a read-only "View as" session still sees the page.
+      {
+        id: 'attendance-settings',
+        path: 'attendance-settings',
+        labelKey: 'nav.attendanceSettings',
+        flag: FLAGS.staffAttendance,
+        permission: 'attendance.settings.read',
+      },
       // D13: while `multiSchool` is off there is one school, it is the Admin's own, and these
       // three screens have nothing to show — the rail hides them and the router refuses them,
       // rather than offering a list of one and a switcher that switches to itself.
@@ -352,6 +361,15 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         path: 'staff-attendance',
         labelKey: 'nav.staffAttendance',
         permission: 'management.staff.attendance',
+      },
+      // Feature 14: the rules her people are held to — hers to read, the Admin's to change.
+      {
+        id: 'attendance-settings',
+        path: 'attendance-settings',
+        labelKey: 'nav.attendanceSettings',
+        flag: FLAGS.staffAttendance,
+        permission: 'attendance.settings.read',
+        readOnly: true,
       },
       // MG2b (owner's items 3 and 4): the weekly plan per grade, and the archive of every one of
       // them. Her own row rather than a tab on Broadcasts, because it is the screen she *writes*

@@ -33,4 +33,6 @@ export const DEFAULT_FLAGS: Readonly<Record<string, boolean>> = {
   'join.byList': false,
   // V15 (C1): off until an Admin turns it on per school.
   chat: false,
+  // V37 (feature 14): off until an Admin turns it on per school.
+  staffAttendance: false,
 };

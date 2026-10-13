@@ -1,0 +1,445 @@
+<hq-page
+  [title]="'admin.attendanceSettings.title' | transloco"
+  [subtitle]="'admin.attendanceSettings.subtitle' | transloco"
+>
+  @if (settings.isLoading()) {
+    <hq-skeleton [loading]="true" [lines]="8" [label]="'admin.attendanceSettings.loading' | transloco" />
+  } @else if (settings.error()) {
+    <hq-card>
+      <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco" [dismissible]="false">
+        {{ 'band.unreachable' | transloco }}
+      </hq-band>
+      <div class="settings__actions">
+        <hq-button variant="secondary" (pressed)="settings.reload()">{{ 'ui.retry' | transloco }}</hq-button>
+      </div>
+    </hq-card>
+  } @else {
+    <div class="settings" data-hq-attendance-settings>
+      @if (!canWrite()) {
+        <p class="hq-muted" data-hq-read-only>{{ 'admin.attendanceSettings.readOnly' | transloco }}</p>
+      }
+
+      <!-- School location -->
+      <hq-card [title]="'admin.attendanceSettings.location.title' | transloco">
+        <div class="settings__location">
+          <div class="settings__fields">
+            <hq-input
+              type="number"
+              [label]="'admin.attendanceSettings.location.latitude' | transloco"
+              [value]="draft().latitude"
+              [disabled]="!canWrite()"
+              [error]="error('location')"
+              (valueChange)="set('latitude', $event)"
+            />
+            <hq-input
+              type="number"
+              [label]="'admin.attendanceSettings.location.longitude' | transloco"
+              [value]="draft().longitude"
+              [disabled]="!canWrite()"
+              (valueChange)="set('longitude', $event)"
+            />
+            <hq-input
+              type="number"
+              [label]="'admin.attendanceSettings.location.radius' | transloco"
+              [required]="true"
+              [hint]="
+                'admin.attendanceSettings.location.radiusHint' | transloco: { min: radiusMin, max: radiusMax }
+              "
+              [value]="draft().radius"
+              [disabled]="!canWrite()"
+              [error]="error('radius')"
+              (valueChange)="set('radius', $event)"
+            />
+            @if (canWrite()) {
+              <div>
+                <hq-button variant="secondary" [disabled]="locating()" (pressed)="useMyLocation()">
+                  {{
+                    (locating()
+                      ? 'admin.attendanceSettings.location.locating'
+                      : 'admin.attendanceSettings.location.useMine'
+                    ) | transloco
+                  }}
+                </hq-button>
+              </div>
+            }
+          </div>
+
+          <figure class="settings__preview" data-hq-circle-preview>
+            <svg
+              viewBox="0 0 200 200"
+              role="img"
+              [attr.aria-label]="
+                'admin.attendanceSettings.location.previewLabel' | transloco: { radius: draft().radius }
+              "
+            >
+              <rect class="settings__preview-ground" x="0" y="0" width="200" height="200" rx="12" />
+              <circle class="settings__preview-circle" cx="100" cy="100" [attr.r]="circleRadius()" />
+              @if (hasPin()) {
+                <path
+                  class="settings__preview-pin"
+                  d="M100 100 c-6 -9 -10 -14 -10 -20 a10 10 0 0 1 20 0 c0 6 -4 11 -10 20 z"
+                />
+                <circle class="settings__preview-dot" cx="100" cy="80" r="3.5" />
+              }
+            </svg>
+            <figcaption class="hq-muted">
+              @if (hasPin()) {
+                {{
+                  'admin.attendanceSettings.location.previewCaption' | transloco: { radius: draft().radius }
+                }}
+                <a [href]="mapLink()" target="_blank" rel="noopener noreferrer">
+                  {{ 'admin.attendanceSettings.location.openMap' | transloco }}
+                </a>
+              } @else {
+                {{ 'admin.attendanceSettings.location.noPin' | transloco }}
+              }
+            </figcaption>
+          </figure>
+        </div>
+      </hq-card>
+
+      <!-- Staff categories and work hours -->
+      <hq-card [title]="'admin.attendanceSettings.hours.title' | transloco">
+        <p class="hq-muted">{{ 'admin.attendanceSettings.hours.hint' | transloco }}</p>
+        @for (schedule of draft().schedules; track schedule.category; let i = $index) {
+          <fieldset class="settings__category" [attr.data-hq-category]="schedule.category">
+            <legend>{{ categoryLabel(schedule.category) }}</legend>
+            <div
+              class="settings__days"
+              role="group"
+              [attr.aria-label]="'admin.attendanceSettings.hours.days' | transloco"
+            >
+              @for (day of weekdays; track day) {
+                <hq-checkbox
+                  [label]="dayLabel(day)"
+                  [checked]="schedule.weekdays.includes(day)"
+                  [disabled]="!canWrite()"
+                  (checkedChange)="toggleDay(i, day, $event)"
+                />
+              }
+            </div>
+            @if (error('days.' + i); as message) {
+              <p class="settings__error" role="alert">{{ message }}</p>
+            }
+            <div class="settings__fields">
+              <hq-input
+                type="time"
+                [label]="'admin.attendanceSettings.hours.start' | transloco"
+                [required]="true"
+                [value]="schedule.start"
+                [disabled]="!canWrite()"
+                (valueChange)="setSchedule(i, { start: $event })"
+              />
+              <hq-input
+                type="time"
+                [label]="'admin.attendanceSettings.hours.end' | transloco"
+                [required]="true"
+                [value]="schedule.end"
+                [disabled]="!canWrite()"
+                [error]="error('hours.' + i)"
+                (valueChange)="setSchedule(i, { end: $event })"
+              />
+              <hq-input
+                type="time"
+                [label]="'admin.attendanceSettings.ramadan.start' | transloco"
+                [value]="schedule.ramadanStart"
+                [disabled]="!canWrite()"
+                (valueChange)="setSchedule(i, { ramadanStart: $event })"
+              />
+              <hq-input
+                type="time"
+                [label]="'admin.attendanceSettings.ramadan.end' | transloco"
+                [value]="schedule.ramadanEnd"
+                [disabled]="!canWrite()"
+                [error]="error('ramadanHours.' + i)"
+                (valueChange)="setSchedule(i, { ramadanEnd: $event })"
+              />
+            </div>
+          </fieldset>
+        }
+        <div class="settings__fields settings__ramadan">
+          <hq-input
+            type="date"
+            [label]="'admin.attendanceSettings.ramadan.from' | transloco"
+            [value]="draft().ramadanFrom"
+            [disabled]="!canWrite()"
+            (valueChange)="set('ramadanFrom', $event)"
+          />
+          <hq-input
+            type="date"
+            [label]="'admin.attendanceSettings.ramadan.to' | transloco"
+            [hint]="'admin.attendanceSettings.ramadan.hint' | transloco"
+            [value]="draft().ramadanTo"
+            [disabled]="!canWrite()"
+            [error]="error('ramadan')"
+            (valueChange)="set('ramadanTo', $event)"
+          />
+        </div>
+      </hq-card>
+
+      <!-- Holidays -->
+      <hq-card [title]="'admin.attendanceSettings.holidays.title' | transloco">
+        @if (draft().holidays.length === 0) {
+          <p class="hq-muted">{{ 'admin.attendanceSettings.holidays.empty' | transloco }}</p>
+        }
+        @for (holiday of draft().holidays; track $index; let i = $index) {
+          <div class="settings__holiday" data-hq-holiday>
+            <hq-input
+              [label]="'admin.attendanceSettings.holidays.name' | transloco"
+              [required]="true"
+              [placeholder]="'admin.attendanceSettings.holidays.namePlaceholder' | transloco"
+              [value]="holiday.name"
+              [maxLength]="80"
+              [disabled]="!canWrite()"
+              [error]="error('holidayName.' + i)"
+              (valueChange)="setHoliday(i, { name: $event })"
+            />
+            <hq-input
+              type="date"
+              [label]="'admin.attendanceSettings.holidays.from' | transloco"
+              [required]="true"
+              [value]="holiday.from"
+              [disabled]="!canWrite()"
+              (valueChange)="setHoliday(i, { from: $event })"
+            />
+            <hq-input
+              type="date"
+              [label]="'admin.attendanceSettings.holidays.to' | transloco"
+              [required]="true"
+              [value]="holiday.to"
+              [disabled]="!canWrite()"
+              [error]="error('holidayDates.' + i)"
+              (valueChange)="setHoliday(i, { to: $event })"
+            />
+            @if (canWrite()) {
+              <hq-button variant="quiet" (pressed)="removeHoliday(i)">
+                {{ 'admin.attendanceSettings.holidays.remove' | transloco }}
+              </hq-button>
+            }
+          </div>
+        }
+        @if (canWrite()) {
+          <div>
+            <hq-button variant="secondary" (pressed)="addHoliday()">
+              {{ 'admin.attendanceSettings.holidays.add' | transloco }}
+            </hq-button>
+          </div>
+        }
+      </hq-card>
+
+      <!-- Rules -->
+      <hq-card [title]="'admin.attendanceSettings.rules.title' | transloco">
+        <div class="settings__fields">
+          <hq-input
+            type="number"
+            [label]="'admin.attendanceSettings.rules.grace' | transloco"
+            [required]="true"
+            [hint]="'admin.attendanceSettings.rules.graceHint' | transloco"
+            [value]="draft().grace"
+            [disabled]="!canWrite()"
+            [error]="error('grace')"
+            (valueChange)="set('grace', $event)"
+          />
+          <hq-input
+            type="number"
+            [label]="'admin.attendanceSettings.rules.notArrived' | transloco"
+            [required]="true"
+            [hint]="'admin.attendanceSettings.rules.notArrivedHint' | transloco"
+            [value]="draft().notArrived"
+            [disabled]="!canWrite()"
+            [error]="error('notArrived')"
+            (valueChange)="set('notArrived', $event)"
+          />
+          <hq-input
+            type="number"
+            [label]="'admin.attendanceSettings.rules.missingCheckOut' | transloco"
+            [required]="true"
+            [hint]="'admin.attendanceSettings.rules.missingCheckOutHint' | transloco"
+            [value]="draft().missingCheckOut"
+            [disabled]="!canWrite()"
+            [error]="error('missingCheckOut')"
+            (valueChange)="set('missingCheckOut', $event)"
+          />
+        </div>
+      </hq-card>
+
+      <!-- Notifications -->
+      <hq-card [title]="'admin.attendanceSettings.notifications.title' | transloco">
+        <p class="hq-muted">{{ 'admin.attendanceSettings.notifications.directManager' | transloco }}</p>
+        <div class="settings__fields">
+          <hq-select
+            [label]="'admin.attendanceSettings.notifications.director' | transloco"
+            [options]="notifyOptions()"
+            [value]="draft().directorNotify"
+            [disabled]="!canWrite()"
+            (valueChange)="setNotify('directorNotify', $event)"
+          />
+          <hq-select
+            [label]="'admin.attendanceSettings.notifications.admin' | transloco"
+            [options]="notifyOptions()"
+            [value]="draft().adminNotify"
+            [disabled]="!canWrite()"
+            (valueChange)="setNotify('adminNotify', $event)"
+          />
+          <hq-input
+            type="time"
+            [label]="'admin.attendanceSettings.notifications.digestTime' | transloco"
+            [required]="true"
+            [value]="draft().digestTime"
+            [disabled]="!canWrite()"
+            [error]="error('digestTime')"
+            (valueChange)="set('digestTime', $event)"
+          />
+        </div>
+        <p class="settings__zone">
+          {{ 'admin.attendanceSettings.timeZone' | transloco }}
+          <strong dir="ltr">{{ timeZone() }}</strong>
+        </p>
+      </hq-card>
+
+      @if (canWrite()) {
+        <div class="settings__actions" data-hq-save-bar>
+          @if (saved() && !dirty()) {
+            <span class="hq-muted" role="status">{{ 'admin.attendanceSettings.saved' | transloco }}</span>
+          }
+          <hq-button variant="quiet" [disabled]="!dirty() || saving()" (pressed)="reset()">
+            {{ 'admin.attendanceSettings.discard' | transloco }}
+          </hq-button>
+          <hq-button variant="primary" [disabled]="!valid() || !dirty() || saving()" (pressed)="save()">
+            {{ 'ui.save' | transloco }}
+          </hq-button>
+        </div>
+      }
+
+      <!-- Direct managers -->
+      <hq-card [title]="'admin.attendanceSettings.staff.title' | transloco" [flush]="true">
+        <div class="settings__staff-head">
+          <p class="hq-muted">{{ 'admin.attendanceSettings.staff.hint' | transloco }}</p>
+          <div class="settings__staff-search">
+            <hq-input
+              type="search"
+              [label]="'admin.attendanceSettings.staff.filter' | transloco"
+              [value]="staffFilter()"
+              (valueChange)="staffFilter.set($event)"
+            />
+          </div>
+          @if (canWrite()) {
+            <div class="settings__bulk" data-hq-bulk>
+              <hq-checkbox
+                [label]="'admin.attendanceSettings.staff.selectAll' | transloco"
+                [checked]="allSelected()"
+                (checkedChange)="toggleAll($event)"
+              />
+              <span class="hq-muted">{{
+                'admin.attendanceSettings.staff.selected' | transloco: { count: selected().size }
+              }}</span>
+              <hq-select
+                [label]="'admin.attendanceSettings.staff.bulkManager' | transloco"
+                [placeholder]="'admin.attendanceSettings.staff.pickManager' | transloco"
+                [options]="managerOptions()"
+                [value]="bulkManager()"
+                [disabled]="selected().size === 0 || bulkSaving()"
+                (valueChange)="bulkManager.set($event)"
+              />
+              <hq-button
+                variant="primary"
+                [disabled]="selected().size === 0 || bulkManager() === '' || bulkSaving()"
+                (pressed)="applyBulk(false)"
+              >
+                {{ 'admin.attendanceSettings.staff.setManager' | transloco }}
+              </hq-button>
+              <hq-button
+                variant="quiet"
+                [disabled]="selected().size === 0 || bulkSaving()"
+                (pressed)="applyBulk(true)"
+              >
+                {{ 'admin.attendanceSettings.staff.clearManager' | transloco }}
+              </hq-button>
+            </div>
+          }
+        </div>
+
+        @if (staff.isLoading()) {
+          <hq-skeleton
+            [loading]="true"
+            [lines]="5"
+            [label]="'admin.attendanceSettings.staff.loading' | transloco"
+          />
+        } @else {
+          <hq-table
+            [rows]="staffRows()"
+            [columns]="staffColumns()"
+            [cellTemplate]="cell"
+            [overflowTemplate]="canWrite() ? overflow : null"
+            [trackBy]="trackStaff"
+            [isSelected]="isSelected"
+            [label]="'admin.attendanceSettings.staff.title' | transloco"
+          >
+            <hq-empty-state table-empty [message]="'admin.attendanceSettings.staff.empty' | transloco" />
+          </hq-table>
+        }
+      </hq-card>
+    </div>
+  }
+
+  <ng-template #cell let-row let-column="column">
+    @switch (column.key) {
+      @case ('select') {
+        <hq-checkbox
+          [hideLabel]="true"
+          [label]="'admin.attendanceSettings.staff.selectOne' | transloco: { name: row.fullName }"
+          [checked]="isSelected(row)"
+          (checkedChange)="toggleRow(row, $event)"
+        />
+      }
+      @case ('fullName') {
+        {{ row.fullName }}
+      }
+      @case ('role') {
+        {{ roleLabel(row.role) }}
+      }
+      @case ('category') {
+        {{ categoryLabel(row.category) }}
+        @if (!row.categorySet) {
+          <span class="hq-muted">· {{ 'admin.attendanceSettings.staff.byRole' | transloco }}</span>
+        }
+      }
+      @case ('manager') {
+        @if (row.managerName) {
+          {{ row.managerName }}
+        } @else {
+          <span class="hq-muted">{{ 'admin.attendanceSettings.staff.fallback' | transloco }}</span>
+        }
+      }
+    }
+  </ng-template>
+
+  <ng-template #overflow let-row>
+    <hq-button variant="quiet" (pressed)="openEdit(row)">
+      {{ 'admin.attendanceSettings.staff.edit' | transloco }}
+    </hq-button>
+  </ng-template>
+
+  <hq-dialog
+    [(open)]="editOpen"
+    [title]="'admin.attendanceSettings.staff.editTitle' | transloco: { name: editing()?.fullName ?? '' }"
+    [confirmLabel]="'ui.save' | transloco"
+    [loading]="editSaving()"
+    (confirmed)="saveEdit()"
+  >
+    <hq-select
+      [label]="'admin.attendanceSettings.staff.manager' | transloco"
+      [placeholder]="'admin.attendanceSettings.staff.fallback' | transloco"
+      [options]="editManagerOptions()"
+      [value]="editManager()"
+      (valueChange)="editManager.set($event)"
+    />
+    <hq-select
+      [label]="'admin.attendanceSettings.staff.category' | transloco"
+      [placeholder]="'admin.attendanceSettings.staff.byRole' | transloco"
+      [options]="categoryOptions()"
+      [value]="editCategory()"
+      (valueChange)="setEditCategory($event)"
+    />
+  </hq-dialog>
+</hq-page>

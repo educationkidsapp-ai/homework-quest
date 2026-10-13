@@ -3,7 +3,7 @@
    next to them is (`teachers.page.ts`). A school that has classes has the people who run them. */
 import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from '@angular/core';
 import { rxResource, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationStart, Router } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
@@ -18,6 +18,9 @@ import {
   apiErrorOf,
 } from '../../api';
 import { BandService } from '../../core/band/band.service';
+import { FLAGS } from '../../core/flags/flag.service';
+import { FeatureDirective } from '../../core/flags/feature.directive';
+import { StaffAttendanceFieldsComponent, thenAttendance } from './staff-attendance-fields.component';
 import { MAX_PHONE_LENGTH, phoneErrorKey } from '../../core/forms/phone';
 import { activeLang } from '../../core/i18n/active-lang';
 import { CanDirective } from '../../core/permissions/can.directive';
@@ -104,6 +107,8 @@ function pairKey(subject: Subject | '', curriculum: Curriculum | ''): string {
 @Component({
   selector: 'hq-staff-accounts-page',
   imports: [
+    StaffAttendanceFieldsComponent,
+    FeatureDirective,
     PageComponent,
     CardComponent,
     InputComponent,
@@ -245,6 +250,13 @@ export class StaffAccountsPage {
   protected readonly formError = signal<string | null>(null);
   protected readonly saving = signal(false);
   private readonly editing = signal<Person | null>(null);
+
+  /** Feature 14: the direct manager and category, on the edit form while `staffAttendance` is on. */
+  protected readonly staffAttendanceFlag = FLAGS.staffAttendance;
+  protected readonly editingId = computed(() =>
+    this.formMode() === 'edit' ? (this.editing()?.userId ?? null) : null,
+  );
+  private readonly attendanceFields = viewChild(StaffAttendanceFieldsComponent);
 
   protected readonly fullName = signal('');
   protected readonly email = signal('');
@@ -430,11 +442,14 @@ export class StaffAccountsPage {
     this.saving.set(true);
     const editing = this.editing();
     if (this.formMode() === 'edit' && editing) {
-      this.update(editing.userId, {
-        fullName: this.fullName().trim(),
-        phone: this.phone().trim(),
-        active: this.active(),
-      }).subscribe({ next: () => this.saved(), error: (error: unknown) => this.failed(error) });
+      thenAttendance(
+        this.update(editing.userId, {
+          fullName: this.fullName().trim(),
+          phone: this.phone().trim(),
+          active: this.active(),
+        }),
+        this.attendanceFields(),
+      ).subscribe({ next: () => this.saved(), error: (error: unknown) => this.failed(error) });
       return;
     }
     this.create().subscribe({

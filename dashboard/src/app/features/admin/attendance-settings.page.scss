@@ -1,0 +1,131 @@
+.settings {
+  display: grid;
+  gap: var(--hq-space-24);
+  margin-block-start: var(--hq-space-16);
+}
+
+.settings__fields {
+  display: grid;
+  gap: var(--hq-space-16);
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  align-items: start;
+}
+
+.settings__location {
+  display: grid;
+  gap: var(--hq-space-24);
+  grid-template-columns: minmax(0, 2fr) minmax(10rem, 1fr);
+  align-items: start;
+
+  @media (max-width: 48rem) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.settings__preview {
+  margin: 0;
+  display: grid;
+  gap: var(--hq-space-8);
+  justify-items: center;
+  text-align: center;
+
+  svg {
+    width: 100%;
+    max-width: 14rem;
+    height: auto;
+  }
+}
+
+.settings__preview-ground {
+  fill: var(--hq-color-surface-sunken);
+  stroke: var(--hq-color-rule);
+  stroke-width: 1;
+}
+
+.settings__preview-circle {
+  fill: var(--hq-color-accent-soft);
+  stroke: var(--hq-color-accent);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  transition: r 160ms ease-out;
+}
+
+.settings__preview-pin {
+  fill: var(--hq-color-accent-strong);
+}
+
+.settings__preview-dot {
+  fill: var(--hq-color-surface);
+}
+
+.settings__category {
+  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  border-radius: var(--hq-radius-card);
+  padding: var(--hq-space-16);
+  margin: 0 0 var(--hq-space-16);
+  display: grid;
+  gap: var(--hq-space-12);
+
+  legend {
+    font-weight: 600;
+    color: var(--hq-color-ink-strong);
+    padding-inline: var(--hq-space-4);
+  }
+}
+
+.settings__days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hq-space-8) var(--hq-space-16);
+}
+
+.settings__ramadan {
+  margin-block-start: var(--hq-space-8);
+}
+
+.settings__error {
+  color: var(--hq-color-error-ink);
+  margin: 0;
+}
+
+.settings__holiday {
+  display: grid;
+  gap: var(--hq-space-12);
+  grid-template-columns: minmax(10rem, 2fr) repeat(2, minmax(9rem, 1fr)) auto;
+  align-items: end;
+  margin-block-end: var(--hq-space-12);
+
+  @media (max-width: 48rem) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.settings__zone {
+  margin-block: var(--hq-space-16) 0;
+  color: var(--hq-color-ink-soft);
+}
+
+.settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hq-space-12);
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.settings__staff-head {
+  display: grid;
+  gap: var(--hq-space-12);
+  padding: var(--hq-space-16);
+}
+
+.settings__staff-search {
+  max-width: 28rem;
+}
+
+.settings__bulk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hq-space-12);
+  align-items: end;
+}

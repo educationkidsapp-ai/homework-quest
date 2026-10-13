@@ -284,6 +284,9 @@
         (checkedChange)="active.set($event)"
       />
     }
+    @if (editingId(); as id) {
+      <hq-staff-attendance-fields *hqFeature="staffAttendanceFlag" kind="USER" [staffId]="id" />
+    }
   </hq-dialog>
 
   <!-- Created only while it is open, like the Teachers page's assignment picker: `hq-dialog`

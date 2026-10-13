@@ -11,6 +11,7 @@ import { ADMIN_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
+import { FlagService } from '../../core/flags/flag.service';
 import { WorkersPage } from './workers.page';
 
 const providers: (Provider | EnvironmentProviders)[] = [
@@ -32,8 +33,12 @@ async function settle(rendered: { fixture: { detectChanges: () => void } }): Pro
   rendered.fixture.detectChanges();
 }
 
-async function renderSignedIn(rows: readonly unknown[] = [MONA], permissions = ADMIN_PERMISSIONS) {
-  const rendered = await renderHq(WorkersPage, { providers });
+async function renderSignedIn(
+  rows: readonly unknown[] = [MONA],
+  permissions = ADMIN_PERMISSIONS,
+  extra: (Provider | EnvironmentProviders)[] = [],
+) {
+  const rendered = await renderHq(WorkersPage, { providers: [...providers, ...extra] });
   const backend = TestBed.inject(HttpTestingController);
 
   TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
@@ -105,6 +110,42 @@ describe('Workers', () => {
       job: 'Head nurse',
       phone: '0501234567',
       active: true,
+    });
+  });
+
+  /** Feature 14: with `staffAttendance` on, the edit form also sets her direct manager. */
+  it('saves a direct manager from the edit form after the worker itself', async () => {
+    const { rendered, backend } = await renderSignedIn([MONA], ADMIN_PERMISSIONS, [
+      { provide: FlagService, useValue: { isOn: () => true } },
+    ]);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Mona' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
+    await settle(rendered);
+    backend.expectOne('/admin/staff/attendance-profiles').flush([
+      { kind: 'USER', id: 'u-dalia', fullName: 'Dalia', role: 'MANAGERIAL', category: 'ADMINISTRATIVE' },
+      {
+        kind: 'WORKER',
+        id: 'w-mona',
+        fullName: 'Mona',
+        role: 'WORKER',
+        category: 'WORKER',
+        categorySet: false,
+      },
+    ]);
+    await settle(rendered);
+    await userEvent.selectOptions(screen.getByLabelText(/^Direct manager/), 'u-dalia');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    const patch = backend.expectOne('/admin/workers/w-mona');
+    expect(patch.request.method).toBe('PATCH');
+    patch.flush(MONA);
+    await settle(rendered);
+    const put = backend.expectOne('/admin/staff/attendance-profiles');
+    expect(put.request.method).toBe('PUT');
+    expect(put.request.body).toEqual({
+      staff: [{ kind: 'WORKER', id: 'w-mona' }],
+      directManagerId: 'u-dalia',
     });
   });
 
