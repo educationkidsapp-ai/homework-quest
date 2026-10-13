@@ -41,7 +41,12 @@ class StaffApiTest extends ChatTestSupport {
                 .get(0).get("id").asText();
     }
 
-    @AfterEach void clean() { removeSeed(); }
+    /** The flag goes back off in both schools: a test class that runs after this one starts from the default. */
+    @AfterEach void clean() throws Exception {
+        setFlag(adminToken, A, FlagKeys.STAFF_MOBILE_APP, false);
+        setFlag(adminToken, B, FlagKeys.STAFF_MOBILE_APP, false);
+        removeSeed();
+    }
 
     @Test void a_parent_token_is_refused_on_every_staff_route() throws Exception {
         for (var route : new String[][] {{"GET", "/staff/me"}, {"GET", "/staff/chat/threads"},

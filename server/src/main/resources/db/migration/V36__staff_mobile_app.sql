@@ -1,20 +1,16 @@
 -- Feature 13 `staff mode in the mobile app`: staff sign in to the same MySchool app the parents use, and the school's
 -- non-teaching staff gain a login of their own.
 --
--- Three things, all additive and all idempotent, so a re-run against the QA school creates nothing twice:
+-- Additive and idempotent, so a re-run against the QA school creates nothing twice:
 --
 -- 1. The `staffMobileApp` flag, off until an Admin turns it on for a school. Same shape as `V15__chat.sql`'s `chat`
 --    row, which is `V5__flags_themes.sql`'s: `INSERT … WHERE NOT EXISTS`, so the seed is the definition and a second
 --    run is a no-op. The repo's flag keys are camelCase (`quest.server.flags.FlagKeys`), which is why it is not the
 --    spec's `staff_mobile_app`.
 --
--- 2. `users.role` gains WORKER, the fifth role and the first that is not a dashboard role: a worker signs in to the
---    app and is refused on every `/me`, `/teacher/**` and `/admin/**` path (`SecurityConfig`). The CHECK is dropped
---    and re-added rather than widened, because `V4__schools_roles.sql` wrote it as an inline list. Unlike R2's
---    `db/vendor/{vendor}/V19__coordinator_role.sql`, this one needs no dynamic SQL and no vendor twin: V19 left the
---    constraint *named* `users_role_check` on both engines, so `DROP CONSTRAINT IF EXISTS` finds it on PostgreSQL 16
---    and on H2 in PostgreSQL mode alike. Rolling the image back keeps working — the old code simply never writes the
---    new value.
+-- 2. `users.role` gains WORKER, the fifth role and the first that is not a dashboard role. That change replaces a
+--    CHECK constraint, which the migration check allows only under `db/vendor/{vendor}`, so it is the next file:
+--    `db/vendor/{postgresql,h2}/V36_1__worker_role.sql`. Nothing in this file needs the new value.
 --
 -- 3. `workers.user_id` and `staff_devices`. A worker row (V25) deliberately had no account; `user_id` is how one is
 --    linked when an Admin enables app access (`POST /admin/workers/{id}/app-access`), nullable because most workers
@@ -25,10 +21,6 @@
 INSERT INTO feature_flags (flag_key, description, default_on, rollout_stage, created_at)
 SELECT 'staffMobileApp', 'Staff sign in to the mobile app (attendance, messages, notifications)', FALSE, 'internal', CURRENT_TIMESTAMP
 WHERE NOT EXISTS (SELECT 1 FROM feature_flags f WHERE f.flag_key = 'staffMobileApp');
-
-ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-ALTER TABLE users ADD CONSTRAINT users_role_check
-    CHECK (role IN ('ADMIN', 'TEACHER', 'MANAGERIAL', 'COORDINATOR', 'WORKER'));
 
 ALTER TABLE workers ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id);
 

@@ -268,28 +268,33 @@ class ChatApiTest extends ChatTestSupport {
     @Test void a_parents_message_pushes_the_teacher_once_per_unread_row_and_only_with_the_flag_on() throws Exception {
         String phone = PushProbe.token("ch-sara-phone");
         PushProbe.register(mvc, "Bearer " + sara, phone, "en");
+        // Off on purpose rather than by default: the flag is the school's, and another class may have left it on.
+        setFlag(adminToken, A, FlagKeys.STAFF_MOBILE_APP, false);
+        try {
+            parentPost("/children/" + maya + "/chat/threads/" + SARA + "/messages", send("Is Maya all right?"));
+            assertThat(PushProbe.sentTo(pushes, phone)).as("`staffMobileApp` is off: the bell row, and no push").isEmpty();
 
-        parentPost("/children/" + maya + "/chat/threads/" + SARA + "/messages", send("Is Maya all right?"));
-        assertThat(PushProbe.sentTo(pushes, phone)).as("`staffMobileApp` is off: the bell row, and no push").isEmpty();
+            setFlag(adminToken, A, FlagKeys.STAFF_MOBILE_APP, true);
+            mvc.perform(as(post("/teacher/chat/threads/" + maya + "/read"), sara)).andExpect(status().isOk());
+            parentPost("/children/" + maya + "/chat/threads/" + SARA + "/messages", send("And her reading book?"));
+            parentPost("/children/" + maya + "/chat/threads/" + SARA + "/messages", send("Thank you!"));
 
-        setFlag(adminToken, A, FlagKeys.STAFF_MOBILE_APP, true);
-        mvc.perform(as(post("/teacher/chat/threads/" + maya + "/read"), sara)).andExpect(status().isOk());
-        parentPost("/children/" + maya + "/chat/threads/" + SARA + "/messages", send("And her reading book?"));
-        parentPost("/children/" + maya + "/chat/threads/" + SARA + "/messages", send("Thank you!"));
+            var pushed = PushProbe.await(pushes, phone, 1);
+            assertThat(pushed).as("two messages, one unread row, one push").hasSize(1);
+            var push = pushed.get(0).message();
+            assertThat(push.getKind()).isEqualTo(NotificationKind.CHAT_MESSAGE);
+            assertThat(push.getThreadId()).as("what the app opens the conversation by").isNotBlank();
+            assertThat(push.getCollapseKey()).isEqualTo("chat:" + push.getThreadId());
+            assertThat(push.getBody()).isEqualTo("And her reading book?");
+            assertThat(push.getChildId()).as("a staff push is about a thread, not about one child").isNull();
 
-        var pushed = PushProbe.await(pushes, phone, 1);
-        assertThat(pushed).as("two messages, one unread row, one push").hasSize(1);
-        var push = pushed.get(0).message();
-        assertThat(push.getKind()).isEqualTo(NotificationKind.CHAT_MESSAGE);
-        assertThat(push.getThreadId()).as("what the app opens the conversation by").isNotBlank();
-        assertThat(push.getCollapseKey()).isEqualTo("chat:" + push.getThreadId());
-        assertThat(push.getBody()).isEqualTo("And her reading book?");
-        assertThat(push.getChildId()).as("a staff push is about a thread, not about one child").isNull();
-
-        mvc.perform(as(post("/teacher/chat/threads/" + maya + "/read"), sara)).andExpect(status().isOk());
-        parentPost("/children/" + maya + "/chat/threads/" + SARA + "/messages", send("One more thing."));
-        assertThat(PushProbe.await(pushes, phone, 2)).as("read, then a new message: a new push").hasSize(2);
-        staffDevices.deleteByTokenValue(phone);
+            mvc.perform(as(post("/teacher/chat/threads/" + maya + "/read"), sara)).andExpect(status().isOk());
+            parentPost("/children/" + maya + "/chat/threads/" + SARA + "/messages", send("One more thing."));
+            assertThat(PushProbe.await(pushes, phone, 2)).as("read, then a new message: a new push").hasSize(2);
+        } finally {
+            setFlag(adminToken, A, FlagKeys.STAFF_MOBILE_APP, false);
+            staffDevices.deleteByTokenValue(phone);
+        }
     }
 
     // ---------------------------------------------------------------- helpers
