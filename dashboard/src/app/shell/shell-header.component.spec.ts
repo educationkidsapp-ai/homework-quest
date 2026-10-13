@@ -64,7 +64,13 @@ describe('hq-shell-header', () => {
       signIn(ADMIN_USER);
       await Promise.resolve();
       TestBed.tick();
-      TestBed.inject(HttpTestingController)
+      const backend = TestBed.inject(HttpTestingController);
+      // With the switcher hidden the one school is resolved before any flag is read
+      // (`SoleSchoolService`); none here, so the flags are the platform's.
+      for (const list of backend.match((request) => request.url.endsWith('/admin/schools'))) list.flush([]);
+      await Promise.resolve();
+      TestBed.tick();
+      backend
         .expectOne((request) => request.url.endsWith('/admin/flags'))
         .flush({ definitions: [{ key: 'multiSchool', defaultOn: true }] });
       await Promise.resolve();
@@ -155,9 +161,10 @@ describe('hq-shell-header', () => {
       admin.fixture.detectChanges();
       await userEvent.click(screen.getByRole('button', { name: /Platform Admin/ }));
 
-      expect(
-        (await screen.findAllByRole('menuitem')).map((item) => item.textContent?.trim()),
-      ).toEqual(['Profile', 'Sign out']);
+      expect((await screen.findAllByRole('menuitem')).map((item) => item.textContent?.trim())).toEqual([
+        'Profile',
+        'Sign out',
+      ]);
     });
 
     /**

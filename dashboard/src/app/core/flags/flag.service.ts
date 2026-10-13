@@ -6,6 +6,7 @@ import { catchError, map, tap } from 'rxjs/operators';
 import { FeatureFlagsApi } from '../../api';
 import { AuthService } from '../auth/auth.service';
 import { SchoolScopeStore } from '../auth/school-scope.store';
+import { SoleSchoolService } from '../auth/sole-school.service';
 import { BandService } from '../band/band.service';
 import { NAV_CONFIG } from '../nav/nav-config';
 import { DEFAULT_FLAGS } from './flags.defaults';
@@ -100,12 +101,16 @@ export class FlagService {
   private readonly transloco = inject(TranslocoService);
   private readonly scope = inject(SchoolScopeStore);
   private readonly navConfig = inject(NAV_CONFIG);
+  private readonly sole = inject(SoleSchoolService);
 
   /** Set only while the band on screen is the one this service put there — never dismiss someone else's. */
   private bandIsOurs = false;
 
   private readonly resource = rxResource<Record<string, boolean>, string | null | undefined>({
-    params: () => (this.auth.signedIn() ? this.auth.effectiveSchoolId() : undefined),
+    // Nothing is fetched while the scope is still being worked out (an Admin's one school, or a
+    // role not known yet): the platform defaults read in that gap had these flags off, and a guard
+    // that settled on them sent every reloaded Admin screen behind a flag to "Nothing here".
+    params: () => (this.auth.signedIn() && !this.sole.pending() ? this.auth.effectiveSchoolId() : undefined),
     stream: ({ params: schoolId }) => this.mapFor(schoolId),
     // Seeded from whatever this scope last fetched successfully, so a cold start with a slow
     // or briefly unreachable network shows the last real answer rather than a flash of "every
