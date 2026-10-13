@@ -25,6 +25,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -60,6 +61,8 @@ fun AttachmentDocument(
     detail: String = strings.pdfDocument,
     /** M7: a chat bubble is too narrow for name and button side by side, so the button goes under the name. */
     stacked: Boolean = false,
+    /** Feature 13 (fix): inside her own bubble the failure line is on the brand colour — see [AttachmentImage]. */
+    failedTextColor: Color = DashboardTokens.inkSoft,
 ) {
     val documents = LocalAttachmentDocuments.current
     val scope = rememberCoroutineScope()
@@ -100,7 +103,7 @@ fun AttachmentDocument(
             }
         }
         if (state == Opening.FAILED) {
-            Text(strings.documentFailed, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft, modifier = Modifier.padding(top = Dimens.s4))
+            Text(strings.documentFailed, style = MaterialTheme.typography.bodySmall, color = failedTextColor, modifier = Modifier.padding(top = Dimens.s4))
         }
     }
 }

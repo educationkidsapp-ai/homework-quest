@@ -34,14 +34,20 @@ public class WorkerService {
     private static final int MAX_NAME = 80, MAX_JOB = 40;
 
     private final WorkerRepository workers; private final TenantContext tenant; private final AuditService audit;
+    private final WorkerAccessService access;
 
-    public WorkerService(WorkerRepository workers, TenantContext tenant, AuditService audit) {
-        this.workers = workers; this.tenant = tenant; this.audit = audit;
+    public WorkerService(WorkerRepository workers, TenantContext tenant, AuditService audit, WorkerAccessService access) {
+        this.workers = workers; this.tenant = tenant; this.audit = audit; this.access = access;
     }
 
-    /** Every worker of the school, retired ones included, in name order: one statement. */
+    /**
+     * Every worker of the school, retired ones included, in name order: one statement, plus one more for the logins
+     * of whichever of them feature 13 gave an account to (never one query per row).
+     */
     public List<WorkerDto.Worker> list() {
-        return workers.findBySchoolIdOrderByFullNameAsc(tenant.writeSchoolId()).stream().map(WorkerService::dto).toList();
+        var rows = workers.findBySchoolIdOrderByFullNameAsc(tenant.writeSchoolId());
+        var usernames = access.usernames(rows.stream().map(WorkerEntity::getUserId).toList());
+        return rows.stream().map(row -> dto(row, row.getUserId() == null ? null : usernames.get(row.getUserId()))).toList();
     }
 
     @Transactional
@@ -68,12 +74,18 @@ public class WorkerService {
         return dto(row);
     }
 
-    /** Retires her: the row, and whatever the school's record says about her, stays. */
+    /**
+     * Retires her: the row, and whatever the school's record says about her, stays.
+     *
+     * <p>Feature 13: and the mobile-app account she may have goes with it — disabled, its refresh tokens revoked, so
+     * the phone in her pocket stops working now rather than when its access token runs out.
+     */
     @Transactional
     public void retire(Principals.User caller, String id) {
         var row = worker(id);
         row.setActive(false);
         workers.save(row);
+        access.disable(row);
         audit.record(caller.userId(), "worker.retire", "worker", row.getId(), row.getSchoolId(), Map.of());
     }
 
@@ -89,9 +101,14 @@ public class WorkerService {
                 .orElseThrow(() -> ApiException.notFound("worker"));
     }
 
-    private static WorkerDto.Worker dto(WorkerEntity row) {
+    /** One row's own shape, for the three writes: the login lookup only happens when she has an account at all. */
+    private WorkerDto.Worker dto(WorkerEntity row) {
+        return dto(row, row.getUserId() == null ? null : access.usernames(List.of(row.getUserId())).get(row.getUserId()));
+    }
+
+    private static WorkerDto.Worker dto(WorkerEntity row, String username) {
         return new WorkerDto.Worker(row.getId(), row.getFullName(), row.getJob(), row.getPhone(), row.isActive(),
-                row.getCreatedAt() == null ? 0L : row.getCreatedAt().toEpochMilli());
+                row.getCreatedAt() == null ? 0L : row.getCreatedAt().toEpochMilli(), row.getUserId() != null, username);
     }
 
     private static String text(String value, String field, int max) {

@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { BASE_PATH } from '../../api';
 import { ADMIN_USER, TEACHER_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
+import { AuthService } from '../../core/auth/auth.service';
 import { SESSION_OWNER_KEY } from '../../core/auth/session.store';
 import { SignInPage } from './sign-in.page';
 
@@ -78,5 +79,50 @@ describe('Sign in — where it lands', () => {
 
   it('follows a link opened in a browser that has held no session at all', async () => {
     expect(await signInAs(TEACHER_USER, '/teacher/classes/c-1a')).toBe('/teacher/classes/c-1a');
+  });
+});
+
+/**
+ * F13 — a worker's account is a real account that the dashboard is not for. The server answers
+ * `/me` with a 403 for it, so without this the right password would produce "You do not have
+ * permission" and a half-adopted session.
+ */
+describe('Sign in — an account that belongs to the mobile app', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  it('says which app is hers, revokes the tokens and never enters the shell', async () => {
+    const rendered = await renderHq(SignInPage, {
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([{ path: '**', children: [] }]),
+        { provide: BASE_PATH, useValue: '' },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({}) } } },
+      ],
+    });
+    const backend = TestBed.inject(HttpTestingController);
+
+    await userEvent.type(screen.getByLabelText('Email'), 'mona.nurse');
+    await userEvent.type(screen.getByLabelText('Password'), 'secret-enough');
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    backend.expectOne('/auth/sign-in').flush({ token: 'access', refreshToken: 'refresh', role: 'WORKER' });
+
+    // Handed straight back: the dashboard keeps no session it will not use.
+    const revoked = backend.expectOne('/auth/sign-out');
+    expect(revoked.request.body).toEqual({ refreshToken: 'refresh' });
+    revoked.flush(null);
+    for (let turn = 0; turn < 3; turn++) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      rendered.fixture.detectChanges();
+    }
+
+    expect(screen.getByText(/uses the MySchool mobile app/)).toBeInTheDocument();
+    // No `/me`, so nothing could have been adopted, and `/` was never followed.
+    backend.expectNone('/me');
+    expect(TestBed.inject(Router).url).toBe('/');
+    expect(TestBed.inject(AuthService).signedIn()).toBe(false);
   });
 });

@@ -21,11 +21,22 @@ const providers: (Provider | EnvironmentProviders)[] = [
   { provide: BASE_PATH, useValue: '' },
 ];
 
-const ADMIN_PERMISSIONS = { role: 'ADMIN', permissions: ['worker.read', 'worker.write'], readOnly: false };
+const ADMIN_PERMISSIONS = {
+  role: 'ADMIN',
+  permissions: ['worker.read', 'worker.write', 'worker.access'],
+  readOnly: false,
+};
+/** A write that is not `worker.access`: a manager may edit a worker and may not mint her a sign-in. */
+const NO_ACCESS = {
+  role: 'MANAGERIAL',
+  permissions: ['worker.read', 'worker.write'],
+  readOnly: false,
+};
 /** MANAGERIAL holds the read and not the write (`permissions.json`). */
 const READ_ONLY = { role: 'MANAGERIAL', permissions: ['worker.read'], readOnly: false };
 
 const MONA = { id: 'w-mona', fullName: 'Mona', job: 'Nurse', phone: '0501234567', active: true };
+const WITH_ACCESS = { ...MONA, hasAppAccess: true, username: 'mona.nurse' };
 
 async function settle(rendered: { fixture: { detectChanges: () => void } }): Promise<void> {
   await Promise.resolve();
@@ -64,12 +75,64 @@ describe('Workers', () => {
     expect(screen.getByRole('link', { name: '0501234567' })).toHaveAttribute('href', 'tel:0501234567');
   });
 
-  /** No account comes into being, so there is nothing to show once and nothing to reset. */
-  it('mints no password and offers no reset', async () => {
+  /** Creating her created no account, so the only offer is to create one. */
+  it('offers app access, and no reset, while there is no account', async () => {
     await renderSignedIn();
 
     await userEvent.click(screen.getByRole('button', { name: 'Actions for Mona' }));
+    expect(screen.getByRole('menuitem', { name: 'Enable app access' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Reset password' })).not.toBeInTheDocument();
+  });
+
+  it('mints a username and a password, shows both once, and then shows the username in the row', async () => {
+    const { rendered, backend } = await renderSignedIn();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Mona' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Enable app access' }));
+
+    const minted = backend.expectOne('/admin/workers/w-mona/app-access');
+    expect(minted.request.method).toBe('POST');
+    minted.flush({ username: 'mona.nurse', temporaryPassword: 'Ab3-xy-7' });
+    await settle(rendered);
+    // The server's answer is what says there is nothing left to enable, so the list is re-read.
+    backend.expectOne('/admin/workers').flush([WITH_ACCESS]);
+    await settle(rendered);
+
+    expect(document.querySelector('[data-hq-username]')?.textContent).toBe('mona.nurse');
+    expect(document.querySelector('[data-hq-temp-password]')?.textContent).toBe('Ab3-xy-7');
+    expect(screen.getByText(/shown once and cannot be read again/)).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'mona.nurse' })).toBeInTheDocument();
+  });
+
+  it('hides Enable app access once there is an account and resets behind a red confirm band', async () => {
+    const { rendered, backend } = await renderSignedIn([WITH_ACCESS]);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Mona' }));
+    expect(screen.queryByRole('menuitem', { name: 'Enable app access' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Reset password' }));
+    await settle(rendered);
+
+    // Nothing is sent until she confirms: the password in somebody's pocket dies with the reset.
+    expect(screen.getByText("Reset this worker's password?")).toBeInTheDocument();
+    backend.expectNone('/admin/workers/w-mona/reset-password');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reset password' }));
+    const reset = backend.expectOne('/admin/workers/w-mona/reset-password');
+    expect(reset.request.method).toBe('POST');
+    reset.flush({ username: 'mona.nurse', temporaryPassword: 'Cd9-zz-1' });
+    await settle(rendered);
+    backend.expectOne('/admin/workers').flush([WITH_ACCESS]);
+    await settle(rendered);
+
+    expect(document.querySelector('[data-hq-temp-password]')?.textContent).toBe('Cd9-zz-1');
+  });
+
+  it('offers no app access to an account that holds the write and not `worker.access`', async () => {
+    await renderSignedIn([MONA], NO_ACCESS);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Mona' }));
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Enable app access' })).not.toBeInTheDocument();
   });
 
   it('creates one from a name, a job and a number', async () => {

@@ -13,7 +13,6 @@ import quest.api.dto.DevicePlatform;
 import quest.api.dto.NotificationKind;
 import quest.api.dto.PushMessage;
 import quest.server.ApiTestSupport;
-import quest.server.auth.AdminJwtService;
 import quest.server.auth.ParentRepository;
 import quest.server.push.PushSender.Outcome;
 
@@ -27,13 +26,13 @@ class DeviceApiTest extends ApiTestSupport {
     private final java.util.List<String> tokens = new ArrayList<>();
 
     @Autowired ParentDeviceRepository devices;
+    @Autowired StaffDeviceRepository staffDevices;
     @Autowired ParentRepository parents;
     @Autowired ParentPush push;
     @Autowired PushSender sender;
-    @Autowired AdminJwtService jwt;
     @Autowired jakarta.persistence.EntityManagerFactory emf;
 
-    @AfterEach void clean() { tokens.forEach(devices::deleteByTokenValue); }
+    @AfterEach void clean() { tokens.forEach(t -> { devices.deleteByTokenValue(t); staffDevices.deleteByTokenValue(t); }); }
 
     @Test void a_phone_is_registered_refreshed_and_taken_back() throws Exception {
         String token = token("dv-one");
@@ -75,16 +74,42 @@ class DeviceApiTest extends ApiTestSupport {
         assertThat(mine).extracting(Entities.ParentDeviceEntity::getToken).doesNotContain(tokens.get(0));
     }
 
-    @Test void only_a_parent_registers_and_only_a_token_is_accepted() throws Exception {
+    @Test void only_a_signed_in_caller_registers_and_only_a_token_is_accepted() throws Exception {
         for (String body : new String[] {"{\"token\":\"\",\"platform\":\"ANDROID\"}", "{\"token\":\"a b\",\"platform\":\"ANDROID\"}",
                 "{\"token\":\"abc\",\"platform\":\"WINDOWS\"}", "{\"token\":\"abc\",\"platform\":\"IOS\",\"locale\":\"not a locale\"}", "nope"})
             mvc.perform(post("/me/devices").header("Authorization", PARENT).contentType(MediaType.APPLICATION_JSON).content(body))
                     .andExpect(status().isBadRequest());
-        String body = "{\"token\":\"dv-staff\",\"platform\":\"ANDROID\"}";
-        mvc.perform(post("/me/devices").contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
-        String teacher = jwt.issue("dv-teacher", "dv-teacher@test.local", "TEACHER", "default").token();
-        mvc.perform(post("/me/devices").header("Authorization", "Bearer " + teacher).contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isForbidden());
+        mvc.perform(post("/me/devices").contentType(MediaType.APPLICATION_JSON).content("{\"token\":\"dv-nobody\",\"platform\":\"ANDROID\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * Feature 13: the same two routes, a member of staff's token, and `staff_devices` instead. And the rule that was
+     * always there — one phone receives one person's news — now reaches across the two tables: a phone registered by
+     * a teacher stops being her daughter's, and the other way round.
+     */
+    @Test void a_members_of_staffs_phone_is_registered_taken_back_and_takes_the_token_from_the_parent_table() throws Exception {
+        String token = token("dv-teacher-phone");
+        register(PARENT, token, "ANDROID", "en");
+        assertThat(devices.findByToken(token)).isPresent();
+
+        String teacher = adminToken();                                          // the seeded Admin: a real `users` row
+        register("Bearer " + teacher, token, "ANDROID", "ar");
+        var row = staffDevices.findByToken(token).orElseThrow();
+        assertThat(row.getLocale()).isEqualTo("ar");
+        assertThat(row.getSchoolId()).isEqualTo("default");
+        assertThat(devices.findByToken(token)).as("the phone is hers now, not her child's").isEmpty();
+
+        register("Bearer " + teacher, token, "IOS", "en");
+        assertThat(staffDevices.findByToken(token).orElseThrow().getId()).as("upsert by token").isEqualTo(row.getId());
+
+        mvc.perform(post("/me/devices/unregister").header("Authorization", "Bearer " + teacher)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"token\":\"" + token + "\"}")).andExpect(status().isNoContent());
+        assertThat(staffDevices.findByToken(token)).isEmpty();
+
+        register(PARENT, token, "ANDROID", "en");
+        assertThat(devices.findByToken(token)).as("and back again when the child signs in on it").isPresent();
+        assertThat(staffDevices.findByToken(token)).isEmpty();
     }
 
     @Test void a_dead_token_is_deleted_and_a_live_one_kept() throws Exception {
@@ -144,7 +169,7 @@ class DeviceApiTest extends ApiTestSupport {
 
     /** The retry pause grows fourfold and is jittered ±50 %, so one burst's retries do not return together. */
     @Test void the_backoff_grows_and_is_jittered() throws Exception {
-        var standalone = new ParentPush(null, devices, sender, new PushProperties(false, 3, 1000L, 2, 10));
+        var standalone = new PushDispatch(sender, new PushProperties(false, 3, 1000L, 2, 10));
         try {
             for (int i = 0; i < 50; i++) {
                 assertThat(standalone.backoff(1)).isBetween(500L, 1500L);
@@ -173,6 +198,6 @@ class DeviceApiTest extends ApiTestSupport {
     }
 
     private static PushMessage message(String title) {
-        return new PushMessage(NotificationKind.CHAT_MESSAGE, title, null, "n-1", "c-1", "/children/c-1/chat/t-1", null, "chat:th-1", null, null, null);
+        return new PushMessage(NotificationKind.CHAT_MESSAGE, title, null, "n-1", "c-1", "/children/c-1/chat/t-1", null, "chat:th-1", null, null, null, null);
     }
 }

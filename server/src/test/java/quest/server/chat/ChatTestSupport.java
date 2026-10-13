@@ -17,20 +17,22 @@ import quest.server.tenancy.Entities.ClassEntity;
  * row is real, and every row carries the `ch-` prefix so {@link #removeSeed} takes it out of the shared database.
  */
 public abstract class ChatTestSupport extends GradingTestSupport {
-    static final String A = "ch-school-a", B = "ch-school-b";
-    static final String SARA = "ch-teacher-sara", NOOR = "ch-teacher-noor", OTHER = "ch-teacher-other";
-    static final String CLASS_1A = "ch-1a", CLASS_1B = "ch-1b", CLASS_OTHER = "ch-other";
+    // Public since feature 13: `quest.server.staff.StaffApiTest` reads the same two schools and the same teachers
+    // through the `/staff` facade, and a second copy of this fixture is a second fixture to keep in step.
+    public static final String A = "ch-school-a", B = "ch-school-b";
+    public static final String SARA = "ch-teacher-sara", NOOR = "ch-teacher-noor", OTHER = "ch-teacher-other";
+    public static final String CLASS_1A = "ch-1a", CLASS_1B = "ch-1b", CLASS_OTHER = "ch-other";
 
     @Autowired ChatThreadRepository threadRows;
     @Autowired ChatMessageRepository messageRows;
 
     protected final String OTHER_PARENT = "Bearer fake-token-parent-" + java.util.UUID.randomUUID().toString().substring(0, 8);
-    protected String adminToken, sara, noor, other;
-    protected ClassEntity section1a, section1b;
+    public String adminToken, sara, noor, other;
+    public ClassEntity section1a, section1b;
 
     @Override public String prefix() { return "ch-"; }
 
-    protected void seedSchools() throws Exception {
+    public void seedSchools() throws Exception {
         school(A, "Chat Academy", "CHSCHA"); school(B, "Quiet Academy", "CHSCHB");
         teacher(SARA, A, "Ms Sara"); teacher(NOOR, A, "Ms Noor"); teacher(OTHER, B, "Ms Other");
         section1a = klass(CLASS_1A, A, SARA, "1A");
@@ -57,9 +59,9 @@ public abstract class ChatTestSupport extends GradingTestSupport {
         return id;
     }
 
-    static String send(String body) { return "{\"body\":" + quote(body) + "}"; }
-    static String send(String body, String clientId) { return "{\"body\":" + quote(body) + ",\"clientId\":\"" + clientId + "\"}"; }
-    static String quote(String s) {
+    public static String send(String body) { return "{\"body\":" + quote(body) + "}"; }
+    public static String send(String body, String clientId) { return "{\"body\":" + quote(body) + ",\"clientId\":\"" + clientId + "\"}"; }
+    public static String quote(String s) {
         var sb = new StringBuilder("\"");
         for (char c : s.toCharArray()) {
             if (c == '"' || c == '\\') sb.append('\\').append(c);

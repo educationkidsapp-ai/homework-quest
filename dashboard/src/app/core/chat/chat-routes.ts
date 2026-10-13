@@ -1,6 +1,5 @@
-import { Injectable, computed, effect, inject } from '@angular/core';
-import { rxResource } from '@angular/core/rxjs-interop';
-import { Observable, catchError, map, of } from 'rxjs';
+import { Injectable, computed, inject } from '@angular/core';
+import { Observable } from 'rxjs';
 import {
   ChatApi,
   ChatMessage,
@@ -8,13 +7,11 @@ import {
   ChatThread,
   CoordinatorChatApi,
   ManagementChatApi,
-  SchoolsApi,
   SendChatMessageRequest,
 } from '../../api';
 import { AuthService } from '../auth/auth.service';
 import { SchoolScopeStore } from '../auth/school-scope.store';
-import { FLAGS, FlagService } from '../flags/flag.service';
-import { NAV_CONFIG } from '../nav/nav-config';
+import { SoleSchoolService } from '../auth/sole-school.service';
 import { ChatCommandKey } from './chat.models';
 
 /**
@@ -72,53 +69,16 @@ export class ChatRoutes {
   private readonly management = inject(ManagementChatApi);
   private readonly auth = inject(AuthService);
   private readonly scope = inject(SchoolScopeStore);
-  private readonly schools = inject(SchoolsApi);
-  private readonly flags = inject(FlagService);
-  private readonly navConfig = inject(NAV_CONFIG);
 
   /**
-   * **Which school an Admin's chat is read in.**
-   *
-   * `/admin/chat/**` is read one school at a time (`400 Send X-School-Id`). With `multiSchool` on
-   * that is whichever school she picked in the header. With it **off** there is exactly one school
-   * and no switcher to pick it with, so asking her to choose was a screen that could never load —
-   * this resolves the one row of `GET /admin/schools` instead, which is the call the switcher
-   * itself makes, and is deliberately the server's answer rather than the id in `localStorage`
-   * that D13's mask exists to distrust. More than one row with the flag off is a deployment
-   * disagreeing with itself: null, and the screen asks her to pick.
+   * **Which school an Admin's chat is read in.** `/admin/chat/**` is read one school at a time
+   * (`400 Send X-School-Id`): the school she picked in the header, or the one school
+   * {@link SoleSchoolService} resolved when there is no switcher to pick with.
    */
-  private readonly sole = rxResource<string | null, boolean>({
-    // D1: with the switcher hidden nobody can pick whatever `multiSchool` says, so the one school
-    // is resolved for every Admin — and **without waiting on the flags**: the store pins her to
-    // it (`SchoolScopeStore.schoolId`), which is the school the flag map is then read *for*, and a
-    // resolver that waited on that map would unresolve itself each time it reloaded.
-    params: () =>
-      this.auth.role() === 'ADMIN' &&
-      (!this.navConfig.schoolSurfaces || (this.flags.ready() && !this.flags.isOn(FLAGS.multiSchool))),
-    stream: ({ params }) =>
-      params
-        ? this.schools.listSchools().pipe(
-            map((rows) => {
-              if (rows.length === 1) return rows[0]?.id ?? null;
-              // D1 review: with the switcher hidden a second school must not leave her with no
-              // scope at all — `/admin/chat/**` answers 400 without one and nothing on screen can
-              // fix it. The first active school of the server's list is hers until the switcher
-              // is back; with the switcher on screen, several schools are still hers to choose.
-              if (this.navConfig.schoolSurfaces) return null;
-              return (rows.find((row) => row.status === 'active') ?? rows[0])?.id ?? null;
-            }),
-            catchError(() => of(null)),
-          )
-        : of(null),
-    defaultValue: null,
-  });
+  private readonly sole = inject(SoleSchoolService);
 
   /** The id the interceptor puts on `/admin/chat/**`; the store is HTTP-free, so it is told. */
-  readonly adminSchoolId = computed(() => this.scope.schoolId() ?? this.sole.value());
-
-  constructor() {
-    effect(() => this.scope.setSoleSchool(this.sole.value()));
-  }
+  readonly adminSchoolId = computed(() => this.scope.schoolId() ?? this.sole.id());
 
   /**
    * **A teacher's second half** (MG2b, owner's item 6): her threads with the department manager.

@@ -30,6 +30,14 @@ enum class Role {
      * teaching data (DR2) — her scope is `staff_scopes` and her area is `/coordinator` ([CoordinatorMe]).
      */
     @SerialName("COORDINATOR") COORDINATOR,
+    /**
+     * Feature 13: a member of the school's non-teaching staff who signs in to the **mobile app** and nowhere else —
+     * the caretaker, the driver, the nurse, the secretary, given an account by
+     * `POST /admin/workers/{id}/app-access` ([WorkerAccess]). She holds `staff.app` and her notifications, and is
+     * refused on `/me`, `/teacher`, `/admin` and every other dashboard path, so the dashboard shows a
+     * WORKER sign-in the "this account uses the MySchool app" notice rather than an empty shell.
+     */
+    @SerialName("WORKER") WORKER,
 }
 
 @Serializable
@@ -422,6 +430,14 @@ interface DashboardApi {
     suspend fun createWorker(request: CreateWorkerRequest): Worker
     suspend fun updateWorker(workerId: String, request: UpdateWorkerRequest): Worker
     suspend fun retireWorker(workerId: String)
+
+    /**
+     * Feature 13: `POST /admin/workers/{id}/app-access` mints her mobile-app account and
+     * `POST /admin/workers/{id}/reset-password` gives it a new one-time password (`worker.access`, ADMIN only).
+     * Both answer the username and the temporary password **once** — there is no route that reads them back.
+     */
+    suspend fun enableWorkerAppAccess(workerId: String): WorkerAccess
+    suspend fun resetWorkerPassword(workerId: String): WorkerAccess
 
     /** Feature 14: `GET`/`PUT /admin/attendance-settings` (`attendance.settings.read` / `.write`, `staffAttendance`). */
     suspend fun attendanceSettings(): AttendanceSettings

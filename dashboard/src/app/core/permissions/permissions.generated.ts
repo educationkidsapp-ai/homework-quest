@@ -31,6 +31,7 @@ export const WRITE_PERMISSIONS: ReadonlySet<string> = new Set([
   'coordinator.chat',
   'coordinator.complaints',
   'coordinator.manage',
+  'device.register',
   'flag.write',
   'invite.accept',
   'lesson.delete',
@@ -54,6 +55,7 @@ export const WRITE_PERMISSIONS: ReadonlySet<string> = new Set([
   'roster.write',
   'school.logo',
   'school.write',
+  'staff.app',
   'stop.write',
   'teacher.chat',
   'teacher.complaints',
@@ -68,5 +70,6 @@ export const WRITE_PERMISSIONS: ReadonlySet<string> = new Set([
   'user.impersonate',
   'user.invite',
   'user.write',
+  'worker.access',
   'worker.write',
 ]);

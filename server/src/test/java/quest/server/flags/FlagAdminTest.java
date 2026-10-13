@@ -24,7 +24,7 @@ class FlagAdminTest extends ApiTestSupport {
     @Test void the_flags_are_seeded_exactly_as_the_code_lists_them() {
         assertThat(definitions.findAllByOrderByKeyAsc()).extracting(Entities.FeatureFlagEntity::getKey)
                 .containsExactlyInAnyOrderElementsOf(FlagKeys.ALL);
-        assertThat(FlagKeys.ALL).hasSize(23);
+        assertThat(FlagKeys.ALL).hasSize(24);
 
         var on = definitions.findAllByOrderByKeyAsc().stream().filter(Entities.FeatureFlagEntity::isDefaultOn)
                 .map(Entities.FeatureFlagEntity::getKey).toList();
@@ -40,6 +40,8 @@ class FlagAdminTest extends ApiTestSupport {
                         FlagKeys.EXAMS, FlagKeys.TEACHER_ROSTER_EDIT, FlagKeys.JOIN_BY_LIST,
                         // C1: parent ↔ teacher chat, off until a school switches it on.
                         FlagKeys.CHAT,
+                        // Feature 13: staff mode in the mobile app, off until a school switches it on.
+                        FlagKeys.STAFF_MOBILE_APP,
                         // Feature 14: staff attendance, off until a school switches it on.
                         FlagKeys.STAFF_ATTENDANCE);
         assertThat(definitions.findAllByOrderByKeyAsc()).allSatisfy(f ->
@@ -92,7 +94,7 @@ class FlagAdminTest extends ApiTestSupport {
         assertThat(json(mvc.perform(get("/schools/" + b + "/flags")).andReturn()).get(FlagKeys.ANNOUNCEMENTS).asBoolean()).isFalse();
 
         var matrix = json(mvc.perform(admin(get("/admin/flags"), token)).andExpect(status().isOk()).andReturn());
-        assertThat(matrix.get("definitions")).hasSize(23);
+        assertThat(matrix.get("definitions")).hasSize(24);
         assertThat(matrix.get("definitions").get(0).get("rolloutStage").asText()).isIn("internal", "beta", "ga");
         assertThat(rowFor(matrix, a).get("flags").get(FlagKeys.ANNOUNCEMENTS).asBoolean()).isTrue();
         assertThat(rowFor(matrix, b).get("flags").get(FlagKeys.ANNOUNCEMENTS).asBoolean()).isFalse();
@@ -146,7 +148,7 @@ class FlagAdminTest extends ApiTestSupport {
                 .content("{\"email\":\"" + email + "\",\"password\":\"handed-over-1234\"}")).andExpect(status().isOk()).andReturn()).get("token").asText();
 
         var matrix = json(mvc.perform(admin(get("/admin/flags"), hers)).andExpect(status().isOk()).andReturn());
-        assertThat(matrix.get("definitions")).hasSize(23);
+        assertThat(matrix.get("definitions")).hasSize(24);
         assertThat(matrix.get("schools")).hasSize(1);
         assertThat(matrix.get("schools").get(0).get("schoolId").asText()).isEqualTo(mine);
 

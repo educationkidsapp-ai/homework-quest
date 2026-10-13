@@ -112,8 +112,10 @@ class OpenApiContractTest extends ApiTestSupport {
             "/admin/classes/{id}/roster/attach", "/admin/classes/{id}/roster/{childId}",
             "/admin/teachers", "/admin/teachers/{id}", "/admin/teachers/{id}/reset-password",
             "/admin/teachers/{id}/assignments",
-            // MA1: the school's non-teaching staff. No account behind a row, so no reset-password twin.
+            // MA1: the school's non-teaching staff. Feature 13 gave her an account for the mobile app, so the page
+            // now has the two writes every other staff page has — mint it, and give it a new password.
             "/admin/workers", "/admin/workers/{id}",
+            "/admin/workers/{id}/app-access", "/admin/workers/{id}/reset-password",
             "/teacher/classes/{classId}/children", "/teacher/classes/{classId}/children/unassigned",
             "/teacher/classes/{classId}/children/{childId}",
             "/teacher/classes/{classId}/roster/attach", "/teacher/classes/{classId}/roster/{childId}");
@@ -153,8 +155,22 @@ class OpenApiContractTest extends ApiTestSupport {
     static final List<String> NOTIFICATIONS_API = List.of(
             "/me/notifications", "/me/notifications/unread-count", "/me/notifications/{id}/read", "/me/notifications/read-all");
 
-    /** B4: the parent's phones for push (`quest.api.dto.Push.kt`, `ContentApi.registerDevice`/`unregisterDevice`). */
+    /**
+     * B4: the phones for push (`quest.api.dto.Push.kt`, `ContentApi.registerDevice`/`unregisterDevice`). Feature 13:
+     * the same two routes serve staff phones, which table a registration lands in being the principal's.
+     */
     static final List<String> DEVICES_API = List.of("/me/devices", "/me/devices/unregister");
+
+    /**
+     * Feature 13: the staff app's facade (`quest.api.staff.StaffApi`). Behind the `staffMobileApp` flag at run time
+     * and still in the document, for the reason every flagged area is: `server/openapi.json` describes the API the
+     * server can serve, not what one school has switched on. The app's other four needs are routes that already
+     * existed — `/auth/sign-in`, `/me/notifications`, `/me/devices` and `/media/chat-attachments` — and the socket,
+     * `/ws/chat`, is not an OpenAPI path.
+     */
+    static final List<String> STAFF_API = List.of(
+            "/staff/me", "/staff/chat/threads", "/staff/chat/threads/{threadId}/messages",
+            "/staff/chat/threads/{threadId}/read");
 
     /**
      * R2 and R3: the coordinator's read-only area and the Admin routes that create one
@@ -249,6 +265,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(COMPLAINTS_API);
         assertThat(paths).containsAll(NOTIFICATIONS_API);
         assertThat(paths).containsAll(DEVICES_API);
+        assertThat(paths).containsAll(STAFF_API);
         assertThat(paths).containsAll(COORDINATOR_API);
         assertThat(paths).containsAll(MANAGEMENT_API);
         assertThat(paths).containsAll(BROADCASTS_API);

@@ -127,6 +127,11 @@ fun AttachmentImage(
     /** The placeholder's shape while loading, so a known photo does not jump when it lands. */
     placeholderRatio: Float = 1.4f,
     failedText: String = strings.imageFailed,
+    /**
+     * Feature 13 (fix): the sentence under a failed photo sits **inside** the bubble, so a message of her own — drawn
+     * in the brand colour — needs the on-primary ink rather than the page's soft ink on blue.
+     */
+    failedTextColor: Color = DashboardTokens.inkSoft,
 ) {
     var attempt by remember { mutableIntStateOf(0) }
     val load by rememberAttachment(attachment, attempt, maxDimensionPx)
@@ -153,7 +158,7 @@ fun AttachmentImage(
         }
     }
     if (load is Load.Failed) {
-        Text(failedText, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
+        Text(failedText, style = MaterialTheme.typography.bodySmall, color = failedTextColor)
     }
     // The viewer decodes the full-size bytes, so pinching to 6× shows detail the card never held.
     if (open && load is Load.Ready) FullScreenImage(full, description, strings) { open = false }

@@ -31,6 +31,7 @@ import quest.feature.chat.data.source
 import quest.feature.chat.domain.ChatPeer
 import quest.feature.chat.domain.ChatRepository
 import quest.feature.chat.presentation.ChatConversationViewModel
+import quest.feature.chat.presentation.conversationState
 import quest.feature.chat.presentation.ChatThreadsViewModel
 import quest.feature.broadcasts.data.AttachmentImageStore
 import quest.feature.broadcasts.data.BroadcastsRepositoryImpl
@@ -119,6 +120,29 @@ import quest.feature.school.data.SchoolSessionImpl
 import quest.feature.school.domain.FlagStore
 import quest.feature.school.domain.SchoolLogoLoader
 import quest.feature.school.domain.SchoolSession
+import quest.feature.auth.domain.SessionRoles
+import quest.feature.chat.data.ParentConversationSource
+import quest.feature.staff.data.FakeStaffApi
+import quest.feature.staff.data.RemoteStaffApi
+import quest.feature.staff.data.SessionRolesImpl
+import quest.feature.staff.data.SessionAuth
+import quest.feature.staff.data.StaffAuth
+import quest.feature.staff.data.StaffConversationSource
+import quest.feature.staff.data.StaffPushRegistrar
+import quest.feature.staff.data.StaffSession
+import quest.feature.staff.data.StaffThreadsImpl
+import quest.feature.staff.domain.StaffBadges
+import quest.feature.staff.domain.StaffGateway
+import quest.feature.staff.domain.StaffSessionView
+import quest.feature.staff.domain.STAFF_CONVERSATION
+import quest.feature.staff.domain.StaffThreadKey
+import quest.feature.staff.domain.StaffThreads
+import quest.feature.staff.presentation.StaffAccountViewModel
+import quest.feature.staff.presentation.StaffMessagesViewModel
+import quest.feature.staff.presentation.StaffNotificationsViewModel
+import quest.feature.staff.presentation.StaffPasswordViewModel
+import quest.feature.staff.presentation.conversationState as staffConversationState
+import org.koin.core.qualifier.named
 import quest.ui.design.StickerKeys
 
 /** Which [ContentApi] sits behind the interface. Screens never know. */
@@ -179,9 +203,17 @@ fun apiModule(config: ApiConfig): Module = module {
     }
     single { ChatSocketClient(chatBaseUrl, get(), get()) }
     // MH3: `attachment.url` is root-relative and authenticated, so the loader needs the same base and the same bearer.
-    single<AttachmentImages> { AttachmentImageStore(chatBaseUrl, get(), get()) }
+    // Feature 13: the bearer is the **active side's** (`SessionAuth`) — a staff session's photo and PDF are fetched
+    // with her token (and her `X-School-Id`), a parent's with the Firebase one, exactly as before.
+    single<AttachmentImages> { AttachmentImageStore(chatBaseUrl, get<SessionAuth>(), get(), schoolId = { get<SessionAuth>().schoolId }) }
     // M1: a PDF is streamed into the document cache (10 MB cap), the directory the system viewer may read.
-    single<AttachmentDocuments> { AttachmentDocumentStore(chatBaseUrl, get(), get(), directory = { DocumentViewer.directory() }) }
+    single<AttachmentDocuments> {
+        AttachmentDocumentStore(
+            chatBaseUrl, get<SessionAuth>(), get(),
+            directory = { DocumentViewer.directory() },
+            schoolId = { get<SessionAuth>().schoolId },
+        )
+    }
     single<ChatRepository> { ChatRepositoryImpl(get(), get(), get()) }
     // M7 (review): picked files wait in the document cache — which sign-out empties — not in memory.
     single<UploadStaging> { FileUploadStaging(directory = { DocumentViewer.directory() }) }
@@ -192,7 +224,15 @@ val coreModule = module {
     single { SettingsStore(get()) }
     single { quest.feature.journey.data.LessonImages(get()) }
     // M5: once the session is restored, the push token is (re-)registered — and again whenever the app language changes.
-    single { AppInitializer(get(), get(), get(), get(), onRestored = { scope -> get<PushRegistration>().start(scope, get<ParentRepository>().language) }) }
+    single {
+        AppInitializer(
+            get(), get(), get(), get(),
+            // Feature 13: the staff half of the session comes back beside the parent's, and the sides are worked out
+            // before the first frame — the first screen is `RoleRouter`'s answer to them.
+            sessions = { get<StaffAuth>().restore(); get<SessionRolesImpl>().restored() },
+            onRestored = { scope -> get<PushRegistration>().start(scope, get<ParentRepository>().language) },
+        )
+    }
 }
 
 /**
@@ -256,7 +296,8 @@ val parentModule = module {
 val chatModule = module {
     viewModel { ChatThreadsViewModel(get(), get()) }
     viewModel { CoordinatorPickerViewModel(get(), get()) }
-    viewModel { (peer: ChatPeer) -> ChatConversationViewModel(peer, get(), get()) }
+    // Feature 13: the parent's end of a conversation — the same view model the staff end uses, with her source.
+    viewModel { (peer: ChatPeer) -> ChatConversationViewModel(ParentConversationSource(peer, get()), peer.conversationState(), get()) }
 }
 
 /** M8: B6's complaints — their own conversations and their own tab, apart from Messages. */
@@ -290,18 +331,91 @@ val broadcastsModule = module {
 val pushModule = module {
     single<PushPreferences> { PushPreferencesImpl(get()) }
     single<PushRegistrar> { ApiPushRegistrar(get()) }
-    single { PushRegistration(get(), get(), get(), get(), locale = { get<ParentRepository>().language.value }) }
+    single {
+        PushRegistration(
+            get(), get(), get(), get(), locale = { get<ParentRepository>().language.value },
+            // Feature 13: a signed-in staff session is the side this phone belongs to, so the token goes to
+            // `staff_devices` through her own bearer and leaves the same way.
+            staff = {
+                val staff = get<StaffAuth>()
+                if (staff.signedIn) staff to StaffPushRegistrar(get()) else null
+            },
+        )
+    }
     factory { PushPrompts(get(), get()) }
     // One gate memory for the app: the PIN screen opens it, the child's side and a minute away close it.
     single { ParentGate(elapsed = ::elapsedRealtimeMillis, graceMillis = AppLock.BACKGROUND_LIMIT_MILLIS) }
     factory {
         val maps = get<MapRepository>()
-        NotificationRouter(get(), get(), get(), get(), get(), lessonsOnMap = { child ->
+        NotificationRouter(get(), get(), get(), get(), get(), staffThreads = {
+            if (!get<StaffAuth>().signedIn) null else runCancellable { get<StaffThreads>().list() }.getOrNull()
+        }, lessonsOnMap = { child ->
             val today = Today.date()
             runCancellable { maps.map(child, today.minus(30, DateTimeUnit.DAY), today.plus(7, DateTimeUnit.DAY), today).islands.mapNotNull { it.lessonId }.toSet() }.getOrNull()
         })
     }
-    factory { PushNavigator(get(), get(), signedIn = { get<AuthProvider>().state.value is AuthState.SignedIn }) }
+    factory {
+        PushNavigator(
+            get(), get(),
+            // Feature 13: either side being signed in is a session, so a staff member's tap is followed too.
+            signedIn = { get<AuthProvider>().state.value is AuthState.SignedIn || get<StaffAuth>().signedIn },
+            // Her conversation opens once the app lock is past; there is no parent gate on the staff side.
+            awaitUnlocked = { get<AppLock>().awaitUnlocked() },
+        )
+    }
 }
 
-fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), connectivityModule(), apiModule(config), coreModule, schoolModule, contentModule, rewardsModule, parentModule, chatModule, complaintsModule, broadcastsModule, pushModule)
+/**
+ * Feature 13: staff mode. Everything here is one object per app — the staff session, her gateway and the socket she
+ * listens on — because they are the one session, and the view models are per screen as the parent's are.
+ *
+ * The socket is a **second** `ChatSocketClient`, named, with her bearer on it: `/ws/chat` is one connection per
+ * person and the two sides of a dual-role account are two different people as far as the server is concerned.
+ */
+fun staffModule(config: ApiConfig): Module = module {
+    val baseUrl = when (config) {
+        ApiConfig.Fake -> "http://localhost:8080"
+        is ApiConfig.Server -> config.baseUrl
+    }
+    single { StaffAuth(baseUrl, get(), get(), onSessionExpired = { get<StaffSession>().clear() }) }
+    // The bearer of whichever side is signed in, for everything that fetches bytes rather than JSON.
+    single { SessionAuth(get<AuthProvider>(), get<StaffAuth>()) }
+    when (config) {
+        // Parity with `FakeContentApi`: a build with no server still signs a teacher in and draws her tabs.
+        ApiConfig.Fake -> single<StaffGateway> { FakeStaffApi() }
+        is ApiConfig.Server -> single<StaffGateway> { RemoteStaffApi(baseUrl, get(), get()) }
+    }
+    single { StaffSession(get()) }
+    single<StaffSessionView> { get<StaffSession>() }
+    single(named(STAFF_SOCKET)) { ChatSocketClient(baseUrl, get<StaffAuth>(), get()) }
+    single<StaffThreads> { StaffThreadsImpl(get(), get(), get(named(STAFF_SOCKET))) }
+    // The counts listen to her own `/ws/chat` frames, so every staff screen — the home card included — moves with
+    // a message that arrives while it is open, and not only when a tab is reopened.
+    single {
+        StaffBadges(get()) { get<StaffSession>().profile.value }
+            .also { it.start(CoroutineScope(SupervisorJob() + Dispatchers.Default), get<StaffThreads>().frames) }
+    }
+    single {
+        SessionRolesImpl(
+            get(), get(), get(), get(),
+            onSignedIn = { get<PushRegistration>().signedIn() },
+            // The parent half of signing out is today's use case, which also withdraws the push token.
+            parentSignOut = { get<SignOutUseCase>()() },
+        )
+    }
+    single<SessionRoles> { get<SessionRolesImpl>() }
+
+    viewModel { StaffMessagesViewModel(get(), get()) }
+    viewModel { StaffNotificationsViewModel(get(), get()) }
+    viewModel { StaffAccountViewModel(get(), get(), get(), get()) }
+    viewModel { StaffPasswordViewModel(get()) }
+    // Her end of a conversation: the parent's view model, with the `/staff/chat` source under it.
+    viewModel(named(STAFF_CONVERSATION)) { (key: StaffThreadKey) ->
+        ChatConversationViewModel(StaffConversationSource(key, get(), get(named(STAFF_SOCKET))), key.staffConversationState(), get())
+    }
+}
+
+/** The staff member's own `/ws/chat` connection, told apart from the parent's by name. */
+private const val STAFF_SOCKET = "staffChatSocket"
+
+fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), connectivityModule(), apiModule(config), coreModule, schoolModule, contentModule, rewardsModule, parentModule, chatModule, complaintsModule, broadcastsModule, pushModule, staffModule(config))

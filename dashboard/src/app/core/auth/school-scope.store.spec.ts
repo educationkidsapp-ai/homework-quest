@@ -42,7 +42,10 @@ function configure(schoolSurfaces = true) {
  * `multiSchool` flag — only exist once something has asked for the service, exactly as the shell
  * does on its first render.
  */
-async function signInAdmin(flags: Record<string, boolean>): Promise<HttpTestingController> {
+async function signInAdmin(
+  flags: Record<string, boolean>,
+  schools: readonly { id: string; name: string; status?: string }[] = [],
+): Promise<HttpTestingController> {
   const backend = TestBed.inject(HttpTestingController);
   TestBed.inject(FlagService);
   TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
@@ -50,6 +53,15 @@ async function signInAdmin(flags: Record<string, boolean>): Promise<HttpTestingC
   backend.expectOne('/me').flush(ADMIN_USER);
   await Promise.resolve();
   TestBed.tick();
+
+  // With the switcher hidden the one school is resolved first (`SoleSchoolService`), and the flag
+  // map waits for it: the platform defaults are never read in between.
+  const list = backend.match('/admin/schools');
+  if (list.length > 0) {
+    list[0]!.flush(schools);
+    await Promise.resolve();
+    TestBed.tick();
+  }
 
   // An Admin with a scope reads that school's flags; with none, the platform matrix.
   const scoped = backend.match((request) => request.url.startsWith('/schools/'));
@@ -126,9 +138,41 @@ describe('the school scope, with the switcher hidden', () => {
 
     const backend = await signInAdmin({ multiSchool: true });
     expect(scope.schoolId()).toBeNull();
+    expect(localStorage.getItem(SCOPE_KEY)).toBeNull();
 
     TestBed.inject(HttpClient).get('/me/home').subscribe();
     expect(backend.expectOne('/me/home').request.headers.has('X-School-Id')).toBe(false);
+  });
+
+  /**
+   * The reload bug: guards run before the shell exists, so the one school has to be known before
+   * the flag map settles, or a reloaded Admin screen behind a flag reads the platform's defaults
+   * (where its flag is off) and goes to "Nothing here".
+   */
+  it('reads the flags of the one school, never the platform defaults, on a cold start', async () => {
+    configure(false);
+    const flags = TestBed.inject(FlagService);
+    const backend = TestBed.inject(HttpTestingController);
+    TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
+    TestBed.inject(AuthService).loadMe().subscribe();
+    backend.expectOne('/me').flush(ADMIN_USER);
+    await Promise.resolve();
+    TestBed.tick();
+
+    expect(flags.ready()).toBe(false);
+    backend.expectNone('/admin/flags');
+    backend.expectOne('/admin/schools').flush([{ id: 'school-now', name: 'Learning International' }]);
+    await Promise.resolve();
+    TestBed.tick();
+    expect(flags.ready()).toBe(false);
+
+    backend.expectNone('/admin/flags');
+    backend.expectOne('/schools/school-now/flags').flush({ staffAttendance: true, chat: true });
+    await Promise.resolve();
+    TestBed.tick();
+    expect(flags.ready()).toBe(true);
+    expect(flags.isOn('staffAttendance')).toBe(true);
+    expect(TestBed.inject(SchoolScopeStore).schoolId()).toBe('school-now');
   });
 
   /**

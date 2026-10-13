@@ -28,6 +28,7 @@ import quest.api.dto.Child
 import quest.api.dto.Curriculum
 import quest.feature.chat.domain.AttachmentRefusal
 import quest.feature.chat.domain.ChatConnectionState
+import quest.feature.chat.data.ParentConversationSource
 import quest.feature.chat.domain.ChatPeer
 import quest.feature.chat.domain.ChatRepository
 import quest.feature.chat.domain.MAX_PHOTO_BYTES
@@ -42,6 +43,7 @@ import quest.feature.chat.domain.preparePhoto
 import quest.feature.chat.domain.refusalFor
 import quest.feature.chat.presentation.ChatConversationContract
 import quest.feature.chat.presentation.ChatConversationViewModel
+import quest.feature.chat.presentation.conversationState
 import quest.feature.chat.presentation.ChatThreadsViewModel
 import quest.feature.chat.presentation.messagePreview
 import quest.feature.chat.presentation.presenceLine
@@ -134,10 +136,9 @@ class ChatAttachmentsTypingTest {
     }
 
     private fun conversation(chat: FakeChat, threadId: String? = thread) =
-        ChatConversationViewModel(
-            ChatPeer(childId = "c1", staffId = manager, staffName = "Ms. Nour", staffRole = ChatStaffRole.MANAGERIAL, threadId = threadId),
-            chat, staging,
-        ).also { built += it }
+        ChatPeer(childId = "c1", staffId = manager, staffName = "Ms. Nour", staffRole = ChatStaffRole.MANAGERIAL, threadId = threadId)
+            .let { ChatConversationViewModel(ParentConversationSource(it, chat), it.conversationState(), staging) }
+            .also { built += it }
 
     private suspend fun <S> StateFlow<S>.await(timeoutMs: Long = 2_000, predicate: (S) -> Boolean): S {
         repeat((timeoutMs / 5).toInt()) { if (predicate(value)) return value; delay(5) }
@@ -341,9 +342,8 @@ class ChatAttachmentsTypingTest {
             val chat = FakeChat()
             chat.rows = listOf(ChatThread(id = id, childId = "c1", childName = "Hala", teacherId = staff, teacherName = "X",
                 staffRole = case.role, peerRole = case.peerRole, withAdmin = if (case.admin) true else null))
-            val vm = ChatConversationViewModel(
-                ChatPeer("c1", staff, "X", staffRole = case.role, threadId = null, peerRole = case.peerRole, withAdmin = case.admin), chat, staging,
-            ).also { built += it }
+            val peer = ChatPeer("c1", staff, "X", staffRole = case.role, threadId = null, peerRole = case.peerRole, withAdmin = case.admin)
+            val vm = ChatConversationViewModel(ParentConversationSource(peer, chat), peer.conversationState(), staging).also { built += it }
             vm.dispatch(ChatConversationContract.Intent.Load)
             vm.state.await { it.threadId == id }
             chat.awaitCollectors()
