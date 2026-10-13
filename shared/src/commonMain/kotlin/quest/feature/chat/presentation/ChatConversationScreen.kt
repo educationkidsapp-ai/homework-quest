@@ -571,7 +571,8 @@ fun ChatConversationScreen(
                     )
                 }
                 val subtitle = state.headerSubtitle ?: if (state.withAdmin) null else staffLabel(state.staffRole, state.subject, null, strings)
-                if (subtitle != null) Text(
+                // Blank is "no second line" — the school administration's thread carries no role word under its name.
+                if (!subtitle.isNullOrBlank()) Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = DashboardTokens.inkSoft,
@@ -744,7 +745,7 @@ private fun MessageBubble(
         ) {
             // M7 (B5): the files themselves — photos to look at, PDFs to open — not their names.
             if (msg.attachments.isNotEmpty()) {
-                MessageAttachments(msg.attachments, strings)
+                MessageAttachments(msg.attachments, strings, ownBubble = isParent)
                 if (msg.body.isNotBlank()) Spacer(Modifier.height(Dimens.s8))
             }
 

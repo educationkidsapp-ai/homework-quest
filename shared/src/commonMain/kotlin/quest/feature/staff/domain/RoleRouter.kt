@@ -16,6 +16,13 @@ object RoleRouter {
         /** The staff home (the Attendance tab, with the Today card on it). */
         data object StaffHome : Start
 
+        /**
+         * Feature 13: she signed in with a temporary password and has not replaced it yet. It comes before the staff
+         * home on a **restored** session too — the flag is kept with the session (`SettingsStore.KEY_STAFF_MUST_CHANGE`)
+         * so being killed between the sign-in and the change does not let her past the step.
+         */
+        data object StaffPassword : Start
+
         /** Today's parent path — the child picker and the world map — exactly as it was. */
         data object ParentFlow : Start
 
@@ -26,8 +33,10 @@ object RoleRouter {
         data object Choose : Start
     }
 
-    fun start(sides: Set<SessionSide>, last: SessionSide?): Start = when {
+    fun start(sides: Set<SessionSide>, last: SessionSide?, mustChangePassword: Boolean = false): Start = when {
         sides.isEmpty() -> Start.SignIn
+        // Her temporary password is the first thing the app asks about, whichever other side she holds.
+        mustChangePassword && SessionSide.STAFF in sides -> Start.StaffPassword
         sides.size == 1 -> if (sides.first() == SessionSide.STAFF) Start.StaffHome else Start.ParentFlow
         last == SessionSide.PARENT -> Start.ParentFlow
         last == SessionSide.STAFF -> Start.StaffHome
@@ -35,11 +44,12 @@ object RoleRouter {
     }
 
     /** The side the app actually shows for [start] — [Start.Choose] is the staff side with the switch on it. */
-    fun side(sides: Set<SessionSide>, last: SessionSide?): SessionSide? = when (start(sides, last)) {
-        Start.SignIn -> null
-        Start.ParentFlow -> SessionSide.PARENT
-        Start.StaffHome, Start.Choose -> SessionSide.STAFF
-    }
+    fun side(sides: Set<SessionSide>, last: SessionSide?, mustChangePassword: Boolean = false): SessionSide? =
+        when (start(sides, last, mustChangePassword)) {
+            Start.SignIn -> null
+            Start.ParentFlow -> SessionSide.PARENT
+            Start.StaffHome, Start.Choose, Start.StaffPassword -> SessionSide.STAFF
+        }
 
     /** The switch is drawn only when there is something to switch between. */
     fun canSwitch(sides: Set<SessionSide>): Boolean = sides.size > 1

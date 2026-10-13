@@ -10,7 +10,16 @@ import kotlinx.datetime.LocalDate
  */
 fun isolate(text: String): String = if (text.isEmpty()) text else "$FSI$text$PDI"
 
+/**
+ * Feature 13 (fix): a value that is **always** read left to right — a phone number, a login, an account id. `+971…`
+ * in the Arabic app reads "971…+" without this, because the leading `+` is neutral and takes the paragraph's
+ * direction; a left-to-right isolate (U+2066 … U+2069) pins it whatever the screen does. For something somebody
+ * typed in her own language use [isolate] instead, which follows the text.
+ */
+fun ltr(text: String): String = if (text.isEmpty()) text else "$LRI$text$PDI"
+
 private const val FSI = '⁨'
+private const val LRI = '⁦'
 private const val PDI = '⁩'
 
 /**

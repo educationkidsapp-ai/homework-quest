@@ -20,6 +20,12 @@ interface SessionRoles {
     /** The side the app is showing, remembered across launches; null until there is a session. */
     val side: StateFlow<SessionSide?>
 
+    /**
+     * Her staff password is still the temporary one. True after a restore as well as after a sign-in, so the
+     * change-password step cannot be skipped by killing the app on it.
+     */
+    val mustChangeStaffPassword: StateFlow<Boolean>
+
     suspend fun signIn(login: String, password: String): SignIn
 
     /** Switches the Staff/Parent view and remembers it. Ignored for a side that is not signed in. */

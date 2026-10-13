@@ -104,7 +104,7 @@ fun threadDescription(
     add(label ?: staffLabel(thread, strings, department))
     if (typing) add(typingLine(resolverOf(thread.peerRole, thread.staffRole, thread.withAdmin == true), strings))
     if (thread.unread > 0) add("${thread.unread} ${strings.messages}")
-}.joinToString(", ")
+}.filter { it.isNotBlank() }.joinToString(", ")
 
 /** One tappable row. */
 @Composable
@@ -162,7 +162,8 @@ fun ChatThreadRow(
                     }
                 }
 
-                Text(
+                // Blank is "no label": the school administration's row is named and needs no role word under it.
+                if (rowLabel.isNotBlank()) Text(
                     text = rowLabel,
                     style = MaterialTheme.typography.bodySmall,
                     color = DashboardTokens.inkSoft,

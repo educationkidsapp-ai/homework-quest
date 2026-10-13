@@ -3,7 +3,6 @@ package quest
 import quest.feature.today.domain.TodayLinks
 import quest.feature.today.domain.TodayLink
 import quest.feature.push.domain.PushLinks
-import quest.feature.push.domain.PushRegistration
 import quest.feature.push.presentation.PushNavigator
 import quest.feature.push.domain.ParentGate
 import androidx.compose.runtime.DisposableEffect
@@ -79,9 +78,11 @@ fun App() {
         // Feature 13: one sign-in screen for everybody, so where the app opens is `RoleRouter`'s answer and not
         // "the parent's home or the sign-in screen" any more.
         val roles: SessionRoles = koinInject()
-        val start: Any = when (RoleRouter.start(roles.sides.value, roles.side.value)) {
+        val start: Any = when (RoleRouter.start(roles.sides.value, roles.side.value, roles.mustChangeStaffPassword.value)) {
             RoleRouter.Start.SignIn -> if (auth.state.value is AuthState.SignedIn) Routes.WorldMap else Routes.SignIn
             RoleRouter.Start.StaffHome, RoleRouter.Start.Choose -> Routes.StaffHome
+            // A session restored on a temporary password lands on the change-password step, not on her home.
+            RoleRouter.Start.StaffPassword -> Routes.StaffChangePassword
             RoleRouter.Start.ParentFlow -> Routes.WorldMap
         }
         // Everything below sees the joined school's colours, name, logo and feature flags (§3, §4).
@@ -94,7 +95,6 @@ fun App() {
 @Composable
 fun QuestNavHost(nav: NavHostController, start: Any) {
     val lock: AppLock = koinInject()
-    val pushRegistration: PushRegistration = koinInject()
     val scope = rememberCoroutineScope()   // outlives the sign-in screen, which is popped the moment it succeeds
     // M3: a tap on the home-screen widget. The navigation happens underneath the lock's cover, so a locked app still
     // asks for the biometric first and then shows where the tap pointed. Signed out, the tap just opens the app.
@@ -144,7 +144,8 @@ fun QuestNavHost(nav: NavHostController, start: Any) {
             // staff member exactly as for a parent (feature 13).
             SignInRoute(onSignedIn = { signedIn ->
                 scope.launch { lock.signedIn() }
-                scope.launch { pushRegistration.signedIn() }
+                // The device token is registered by `SessionRolesImpl.signIn` (the side that signed in knows which
+                // table it belongs in), so it is *not* registered a second time here.
                 val target: Any = when {
                     signedIn.mustChangePassword -> Routes.StaffChangePassword
                     signedIn.start == RoleRouter.Start.ParentFlow -> Routes.ChildPicker

@@ -126,11 +126,15 @@ internal fun ChatConversationContract.State.staffLabelled(
     staffStrings: StaffStrings,
     strings: Strings,
 ): ChatConversationContract.State = copy(
-    headerName = key.peerName.takeIf { it.isNotBlank() },
-    headerSubtitle = if (key.withParent) {
-        listOfNotNull(staffStrings.parent, key.childName?.takeIf { it.isNotBlank() }).joinToString(" · ")
-    } else {
-        staffLabel(key.staffRole(), null, null, strings)
+    // The platform admin's thread is titled by the school's own words rather than by the account behind it (whose
+    // `teacherName` is her login); the row the tap came from says the same.
+    headerName = if (key.peerRole == ChatPeerRole.ADMIN) strings.schoolAdministration else key.peerName.takeIf { it.isNotBlank() },
+    headerSubtitle = when {
+        key.withParent -> listOfNotNull(staffStrings.parent, key.childName?.takeIf { it.isNotBlank() }).joinToString(" · ")
+        // `staffRole` is `MANAGERIAL` on every thread the admin holds, so a role word here would read "Department
+        // manager". The title already names her.
+        key.peerRole == ChatPeerRole.ADMIN -> ""
+        else -> staffLabel(key.staffRole(), null, null, strings)
     },
     emptyMessage = if (key.withParent) staffStrings.emptyConversationParent else staffStrings.emptyConversationStaff,
     typingText = if (key.withParent) staffStrings.typingParent else typingLine(resolverOf(key.peerRole, ChatStaffRole.TEACHER, false), strings),

@@ -14,6 +14,31 @@ import kotlin.test.assertTrue
  */
 class RoleRouterTest {
 
+    /**
+     * The change-password step comes before the staff home on a **restored** session too: killing the app on it used
+     * to let her straight into the staff home with the temporary password still in place.
+     */
+    @Test fun `a temporary password comes before the staff home`() {
+        val staff = setOf(SessionSide.STAFF)
+        assertEquals(RoleRouter.Start.StaffPassword, RoleRouter.start(staff, null, mustChangePassword = true))
+        assertEquals(RoleRouter.Start.StaffPassword, RoleRouter.start(staff, SessionSide.STAFF, mustChangePassword = true))
+        assertEquals(SessionSide.STAFF, RoleRouter.side(staff, null, mustChangePassword = true))
+        assertEquals(RoleRouter.Start.StaffHome, RoleRouter.start(staff, null, mustChangePassword = false))
+    }
+
+    /** Both sides: the step is still first, and a remembered parent side does not slip past it. */
+    @Test fun `a temporary password comes before either side`() {
+        val both = setOf(SessionSide.STAFF, SessionSide.PARENT)
+        assertEquals(RoleRouter.Start.StaffPassword, RoleRouter.start(both, SessionSide.PARENT, mustChangePassword = true))
+        assertEquals(SessionSide.STAFF, RoleRouter.side(both, SessionSide.PARENT, mustChangePassword = true))
+    }
+
+    /** A parent has no staff password, so the flag — a leftover from a signed-out staff session — changes nothing. */
+    @Test fun `a parent is never asked for a staff password`() {
+        assertEquals(RoleRouter.Start.ParentFlow, RoleRouter.start(setOf(SessionSide.PARENT), null, mustChangePassword = true))
+        assertEquals(RoleRouter.Start.SignIn, RoleRouter.start(emptySet(), null, mustChangePassword = true))
+    }
+
     @Test fun `a parent lands on the parent flow`() {
         assertEquals(RoleRouter.Start.ParentFlow, RoleRouter.start(setOf(SessionSide.PARENT), null))
         assertEquals(SessionSide.PARENT, RoleRouter.side(setOf(SessionSide.PARENT), null))

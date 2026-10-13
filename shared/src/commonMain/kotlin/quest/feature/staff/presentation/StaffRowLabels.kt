@@ -18,7 +18,7 @@ fun staffRowName(thread: ChatThread, strings: Strings): String =
     if (thread.peerRole == ChatPeerRole.PARENT) {
         thread.parentName?.takeIf { it.isNotBlank() } ?: thread.childName.takeIf { it.isNotBlank() } ?: thread.teacherName
     } else {
-        if (thread.withAdmin == true) strings.schoolAdministration else thread.teacherName
+        if (thread.isAdminCounterpart) strings.schoolAdministration else thread.teacherName
     }
 
 fun staffRowLabel(thread: ChatThread, staffStrings: StaffStrings, strings: Strings): String =
@@ -28,6 +28,17 @@ fun staffRowLabel(thread: ChatThread, staffStrings: StaffStrings, strings: Strin
             thread.childName.takeIf { it.isNotBlank() },
             thread.className?.takeIf { it.isNotBlank() },
         ).joinToString(" · ")
+    } else if (thread.isAdminCounterpart) {
+        // The platform admin is not a department manager: `staffRole` is `MANAGERIAL` on every thread she holds,
+        // whoever is on the other end, so the row says who she is and adds no role word under it.
+        ""
     } else {
         staffLabel(thread.staffRole, thread.subject, thread.className, strings)
     }
+
+/**
+ * Feature 13: the other end is the **platform admin** — `withAdmin` on a row that carries it, and `peerRole` on a
+ * staff row, where the admin is the colleague rather than the staff side of a parent's thread.
+ */
+internal val ChatThread.isAdminCounterpart: Boolean
+    get() = withAdmin == true || peerRole == ChatPeerRole.ADMIN

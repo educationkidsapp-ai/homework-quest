@@ -28,22 +28,32 @@ class AttachmentImageStore(
     private val baseUrl: String,
     private val auth: AuthProvider,
     private val client: HttpClient,
+    /**
+     * Feature 13: the school a **staff** request names, for the ADMIN whose token carries none — the same
+     * `X-School-Id` header `RemoteStaffApi` sends. Null on the parent side, which never carries it.
+     */
+    private val schoolId: () -> String? = { null },
 ) : AttachmentImages {
 
     override suspend fun load(attachment: BroadcastAttachment): ByteArray? {
         val name = cacheName(attachment) ?: return null
         MediaFiles.read(MediaFiles.pathOf(name))?.takeIf { it.isNotEmpty() }?.let { return it }
-        val response = runCancellable { client.getAuthedBytes(absolute(attachment.url), auth) }.getOrNull() ?: return null
+        val response = runCancellable { client.getAuthedBytes(absolute(attachment.url), auth, schoolHeader()) }.getOrNull() ?: return null
         if (!response.status.isSuccess()) return null
         val bytes = runCancellable { response.readRawBytes() }.getOrNull()?.takeIf { it.isNotEmpty() } ?: return null
         runCatching { MediaFiles.save(name, bytes) }
         return bytes
     }
 
+    private fun schoolHeader(): Map<String, String> = schoolId()?.let { mapOf(SCHOOL_HEADER to it) } ?: emptyMap()
+
     /** The server answers a root-relative path so a browser on the dashboard needs no base; the app has to add one. */
     private fun absolute(url: String): String =
         if (url.startsWith("http://") || url.startsWith("https://")) url else baseUrl.trimEnd('/') + "/" + url.trimStart('/')
 }
+
+/** Feature 13: the header an ADMIN's school is resolved from, her token naming none. */
+internal const val SCHOOL_HEADER = "X-School-Id"
 
 /**
  * The cache file name for [attachment], or null when it has no id to key on. The id is reduced to characters every

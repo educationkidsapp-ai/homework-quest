@@ -61,6 +61,7 @@ import quest.feature.staff.domain.RoleRouter
 import quest.feature.staff.domain.StaffBadgeCounts
 import quest.feature.staff.domain.StaffBadges
 import quest.feature.staff.domain.StaffSessionView
+import quest.feature.staff.domain.StaffThreads
 import quest.ui.design.DashboardTokens
 import quest.ui.design.Dimens
 import quest.ui.design.ParentTheme
@@ -95,6 +96,10 @@ fun StaffShell(
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) { badges.refresh() }
+    // Her own socket, on every staff screen rather than only on the Messages tab: it is what keeps the bar's dots
+    // and the home's unread card moving while she is looking at them (`StaffBadges.start`).
+    val threads: StaffThreads = koinInject()
+    LaunchedEffect(Unit) { if (threads.hasChat()) threads.connect() }
     // §3 white label: a staff-only account has no child to take a school from, so her own school is what themes the
     // app. A dual-role account keeps the child's school, which is the same school anyway.
     val school: SchoolSession = koinInject()
@@ -102,7 +107,9 @@ fun StaffShell(
     val profile by session.profile.collectAsStateWithLifecycle()
     LaunchedEffect(profile?.schoolId) {
         val schoolId = profile?.schoolId ?: return@LaunchedEffect
-        if (children.currentChild.value == null) runCancellable { school.use(schoolId) }
+        // Only when it is a different school: `use` re-reads the flags and the theme, and every staff screen draws
+        // this shell, so an unconditional call fetched both again on each navigation.
+        if (children.currentChild.value == null && school.schoolId.value != schoolId) runCancellable { school.use(schoolId) }
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { scope.launch { badges.refresh() } }
 

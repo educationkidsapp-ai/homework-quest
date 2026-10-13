@@ -29,6 +29,7 @@ import quest.feature.chat.domain.StagedUpload
 import quest.feature.staff.data.SessionRolesImpl
 import quest.feature.staff.data.StaffAuth
 import quest.feature.staff.data.StaffSession
+import quest.feature.staff.domain.RoleRouter
 import quest.feature.staff.domain.SessionSide
 import quest.feature.staff.domain.StaffGateway
 import kotlin.test.Test
@@ -183,6 +184,41 @@ class SessionRolesTest {
         assertTrue(result.mustChangePassword)
     }
 
+    /**
+     * She was killed on the change-password screen. The flag is kept with the session, so the restored app asks again
+     * instead of opening the staff home with the temporary password still in place.
+     */
+    @Test fun `a restored session still has to replace a temporary password`() = runTest {
+        settings.load()
+        val (roles, _, auth) = roles(staffAccepts = true, parentAccepts = false, body = staffTemporary)
+        roles.signIn("t@x.com", "temp-pass")
+        assertEquals("1", settings.get(SettingsStore.KEY_STAFF_MUST_CHANGE))
+
+        auth.restore()
+        roles.restored()
+        assertEquals(setOf(SessionSide.STAFF), roles.sides.value)
+        assertTrue(roles.mustChangeStaffPassword.value, "the step comes back after the app was killed")
+        assertEquals(
+            RoleRouter.Start.StaffPassword,
+            RoleRouter.start(roles.sides.value, roles.side.value, roles.mustChangeStaffPassword.value),
+        )
+    }
+
+    /** A password that was never temporary leaves nothing behind, and the restore opens her home. */
+    @Test fun `a restored session with a real password opens the staff home`() = runTest {
+        settings.load()
+        val (roles, _, auth) = roles(staffAccepts = true, parentAccepts = false)
+        roles.signIn("w.ahmed.4821", "secret1")
+        assertNull(settings.get(SettingsStore.KEY_STAFF_MUST_CHANGE))
+        auth.restore()
+        roles.restored()
+        assertFalse(roles.mustChangeStaffPassword.value)
+        assertEquals(
+            RoleRouter.Start.StaffHome,
+            RoleRouter.start(roles.sides.value, roles.side.value, roles.mustChangeStaffPassword.value),
+        )
+    }
+
     @Test fun `signing out forgets both sides and the remembered choice`() = runTest {
         settings.load()
         val (roles, parent, auth) = roles(staffAccepts = true, parentAccepts = true)
@@ -193,6 +229,7 @@ class SessionRolesTest {
         assertFalse(auth.signedIn)
         assertNull(settings.get(SettingsStore.KEY_SESSION_SIDE))
         assertNull(settings.get(SettingsStore.KEY_STAFF_SESSION))
+        assertNull(settings.get(SettingsStore.KEY_STAFF_MUST_CHANGE))
         // The parent half goes through today's `SignOutUseCase`, which this test stands in for.
         assertEquals(0, parent.signedOut)
     }

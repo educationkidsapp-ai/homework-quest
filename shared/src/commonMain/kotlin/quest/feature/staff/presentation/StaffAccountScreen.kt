@@ -24,6 +24,8 @@ import quest.core.mvi.MviIntent
 import quest.core.mvi.MviState
 import quest.core.mvi.MviViewModel
 import quest.core.platform.BiometricKind
+import quest.core.text.isolate
+import quest.core.text.ltr
 import quest.feature.auth.domain.SessionRoles
 import quest.feature.lock.domain.AppLock
 import quest.feature.lock.presentation.biometricName
@@ -149,12 +151,14 @@ fun StaffAccountScreen(
             val profile = state.profile
             if (profile != null) {
                 ParentCard(Modifier.padding(top = Dimens.s8)) {
-                    Text(profile.displayName, style = MaterialTheme.typography.titleMedium, color = DashboardTokens.ink)
+                    // A worker's name is her generated login (`w.ahmed.4821`), which is a left-to-right value too.
+                    Text(isolate(profile.displayName), style = MaterialTheme.typography.titleMedium, color = DashboardTokens.ink)
                     Spacer(Modifier.height(Dimens.s4))
                     Text("${strings.role}: ${strings.roleName(profile.roleWire)}", style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft)
                     profile.phone?.let {
                         Spacer(Modifier.height(Dimens.s4))
-                        Text("${strings.phone}: $it", style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft)
+                        // `+971…` keeps its plus on the left in the Arabic app: a number is read left to right.
+                        Text("${strings.phone}: ${ltr(it)}", style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft)
                     }
                     profile.schoolName?.let {
                         Spacer(Modifier.height(Dimens.s4))

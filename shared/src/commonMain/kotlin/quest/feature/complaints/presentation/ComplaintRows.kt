@@ -192,7 +192,7 @@ fun ComplaintBubble(item: TimelineItem.Message, strings: Strings, onRetry: (Stri
         ) {
             // M7's bubbles: a photo as the server's thumbnail (opened full screen), a PDF as the plan's card.
             item.message.attachments?.takeIf { it.isNotEmpty() }?.let {
-                MessageAttachments(it, strings, Modifier.padding(bottom = if (item.message.body.isBlank()) 0.dp else Dimens.s8))
+                MessageAttachments(it, strings, Modifier.padding(bottom = if (item.message.body.isBlank()) 0.dp else Dimens.s8), ownBubble = mine)
             }
             if (item.message.body.isNotBlank()) Text(isolate(item.message.body), style = MaterialTheme.typography.bodyLarge, color = textColor)
             Spacer(Modifier.height(Dimens.s4))

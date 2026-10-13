@@ -111,7 +111,7 @@ fun SignInScreen(state: SignInContract.State, s: Strings, dispatch: (SignInContr
         Spacer(Modifier.height(Dimens.s12))
         Text(branding.displayName(s), style = MaterialTheme.typography.headlineMedium, color = DashboardTokens.ink)
         Spacer(Modifier.height(Dimens.s24))
-        OutlinedTextField(state.email, { dispatch(SignInContract.Intent.Email(it)) }, Modifier.fillMaxWidth().testTag(TestTags.SIGN_IN_EMAIL), label = { Text(s.email) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
+        OutlinedTextField(state.email, { dispatch(SignInContract.Intent.Email(it)) }, Modifier.fillMaxWidth().testTag(TestTags.SIGN_IN_EMAIL), label = { Text(s.emailOrUsername) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
         Spacer(Modifier.height(Dimens.s12))
         OutlinedTextField(state.password, { dispatch(SignInContract.Intent.Password(it)) }, Modifier.fillMaxWidth().testTag(TestTags.SIGN_IN_PASSWORD), label = { Text(s.password) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
         state.error?.let { Text(it, color = DashboardTokens.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = Dimens.s8)) }

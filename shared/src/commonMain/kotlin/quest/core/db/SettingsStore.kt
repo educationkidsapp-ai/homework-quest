@@ -70,6 +70,12 @@ class SettingsStore(private val db: Db) {
         const val KEY_FIREBASE_SESSION = "firebaseSession" // refreshToken|uid|email
         /** Feature 13: the staff half of the session — `refreshToken|userId|login` (`StaffAuth`). */
         const val KEY_STAFF_SESSION = "staffSession"
+        /**
+         * Feature 13: her temporary password is still unchanged (`SignInResponse.mustChangePassword`). It is kept
+         * beside the session because the change-password step has to come back after the app is killed: the restore
+         * path has only the refresh token to go on, and `/auth/refresh` does not repeat the flag.
+         */
+        const val KEY_STAFF_MUST_CHANGE = "staffMustChangePassword"
         /** Feature 13: the Staff/Parent view a dual-role account last chose (`SessionSide.key`). */
         const val KEY_SESSION_SIDE = "sessionSide"
     }

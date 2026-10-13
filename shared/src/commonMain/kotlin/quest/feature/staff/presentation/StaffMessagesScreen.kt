@@ -79,7 +79,9 @@ class StaffMessagesViewModel(
         try {
             val rows = threads.list()
             reduce { copy(loading = false, threads = rows, errorMessage = null, noChat = false) }
-            badges.refresh()
+            // The rows we just read carry the unread counts: the bar takes them from here rather than asking
+            // `GET /staff/chat/threads` a second time behind this one.
+            badges.observed(rows)
         } catch (e: Throwable) {
             reduce { copy(loading = false, errorMessage = e.message, threads = emptyList()) }
         }
@@ -106,7 +108,7 @@ class StaffMessagesViewModel(
                         runCatching {
                             val fresh = threads.list()
                             reduce { copy(threads = fresh) }
-                            badges.refresh()
+                            badges.observed(fresh)
                         }
                     }
                     else -> {}

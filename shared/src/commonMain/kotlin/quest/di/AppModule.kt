@@ -125,6 +125,7 @@ import quest.feature.chat.data.ParentConversationSource
 import quest.feature.staff.data.FakeStaffApi
 import quest.feature.staff.data.RemoteStaffApi
 import quest.feature.staff.data.SessionRolesImpl
+import quest.feature.staff.data.SessionAuth
 import quest.feature.staff.data.StaffAuth
 import quest.feature.staff.data.StaffConversationSource
 import quest.feature.staff.data.StaffPushRegistrar
@@ -202,9 +203,17 @@ fun apiModule(config: ApiConfig): Module = module {
     }
     single { ChatSocketClient(chatBaseUrl, get(), get()) }
     // MH3: `attachment.url` is root-relative and authenticated, so the loader needs the same base and the same bearer.
-    single<AttachmentImages> { AttachmentImageStore(chatBaseUrl, get(), get()) }
+    // Feature 13: the bearer is the **active side's** (`SessionAuth`) — a staff session's photo and PDF are fetched
+    // with her token (and her `X-School-Id`), a parent's with the Firebase one, exactly as before.
+    single<AttachmentImages> { AttachmentImageStore(chatBaseUrl, get<SessionAuth>(), get(), schoolId = { get<SessionAuth>().schoolId }) }
     // M1: a PDF is streamed into the document cache (10 MB cap), the directory the system viewer may read.
-    single<AttachmentDocuments> { AttachmentDocumentStore(chatBaseUrl, get(), get(), directory = { DocumentViewer.directory() }) }
+    single<AttachmentDocuments> {
+        AttachmentDocumentStore(
+            chatBaseUrl, get<SessionAuth>(), get(),
+            directory = { DocumentViewer.directory() },
+            schoolId = { get<SessionAuth>().schoolId },
+        )
+    }
     single<ChatRepository> { ChatRepositoryImpl(get(), get(), get()) }
     // M7 (review): picked files wait in the document cache — which sign-out empties — not in memory.
     single<UploadStaging> { FileUploadStaging(directory = { DocumentViewer.directory() }) }
@@ -369,6 +378,8 @@ fun staffModule(config: ApiConfig): Module = module {
         is ApiConfig.Server -> config.baseUrl
     }
     single { StaffAuth(baseUrl, get(), get(), onSessionExpired = { get<StaffSession>().clear() }) }
+    // The bearer of whichever side is signed in, for everything that fetches bytes rather than JSON.
+    single { SessionAuth(get<AuthProvider>(), get<StaffAuth>()) }
     when (config) {
         // Parity with `FakeContentApi`: a build with no server still signs a teacher in and draws her tabs.
         ApiConfig.Fake -> single<StaffGateway> { FakeStaffApi() }
@@ -378,7 +389,12 @@ fun staffModule(config: ApiConfig): Module = module {
     single<StaffSessionView> { get<StaffSession>() }
     single(named(STAFF_SOCKET)) { ChatSocketClient(baseUrl, get<StaffAuth>(), get()) }
     single<StaffThreads> { StaffThreadsImpl(get(), get(), get(named(STAFF_SOCKET))) }
-    single { StaffBadges(get()) { get<StaffSession>().profile.value } }
+    // The counts listen to her own `/ws/chat` frames, so every staff screen — the home card included — moves with
+    // a message that arrives while it is open, and not only when a tab is reopened.
+    single {
+        StaffBadges(get()) { get<StaffSession>().profile.value }
+            .also { it.start(CoroutineScope(SupervisorJob() + Dispatchers.Default), get<StaffThreads>().frames) }
+    }
     single {
         SessionRolesImpl(
             get(), get(), get(), get(),

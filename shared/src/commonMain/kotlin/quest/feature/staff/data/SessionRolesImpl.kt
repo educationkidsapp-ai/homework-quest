@@ -40,6 +40,9 @@ class SessionRolesImpl(
     private val _side = MutableStateFlow<SessionSide?>(null)
     override val side: StateFlow<SessionSide?> = _side.asStateFlow()
 
+    /** The staff session's own answer — it keeps the flag with the refresh token, so a restore has it too. */
+    override val mustChangeStaffPassword: StateFlow<Boolean> = staff.mustChangePassword
+
     /** After `AppInitializer` restored both halves: which sides came back, and which one she was last on. */
     suspend fun restored() {
         if (staff.signedIn) {
@@ -54,7 +57,7 @@ class SessionRolesImpl(
             if (parent.state.value is AuthState.SignedIn) add(SessionSide.PARENT)
         }
         val remembered = SessionSide.of(settings.get(SettingsStore.KEY_SESSION_SIDE))
-        _side.value = quest.feature.staff.domain.RoleRouter.side(_sides.value, remembered)
+        _side.value = quest.feature.staff.domain.RoleRouter.side(_sides.value, remembered, staff.mustChangePassword.value)
     }
 
     override suspend fun signIn(login: String, password: String): SignIn {

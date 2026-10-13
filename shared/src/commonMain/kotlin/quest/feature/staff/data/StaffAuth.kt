@@ -87,6 +87,9 @@ class StaffAuth(
         val saved = settings.get(SettingsStore.KEY_STAFF_SESSION)?.split('|', limit = 2)
         if (saved == null || saved.size < 2 || saved[1].isBlank()) { _state.value = AuthState.SignedOut; return }
         refreshToken = saved[0]
+        // The change-password step survives being killed: the flag is read back with the session, because
+        // `/auth/refresh` does not repeat it and `GET /staff/me` does not carry it at all.
+        _mustChangePassword.value = settings.get(SettingsStore.KEY_STAFF_MUST_CHANGE) == "1"
         // Her login is her identity on this device: the biometric choice and the push token are both keyed by it.
         _state.value = AuthState.SignedIn(saved[1], saved[1])
     }
@@ -102,7 +105,7 @@ class StaffAuth(
         _schoolId.value = body.schoolId
         _role.value = body.role.name
         _displayName.value = body.displayName?.takeIf { it.isNotBlank() } ?: body.email
-        _mustChangePassword.value = body.mustChangePassword
+        rememberMustChange(body.mustChangePassword)
         remembered(body.email)
     }
 
@@ -124,7 +127,7 @@ class StaffAuth(
         _schoolId.value = null
         _role.value = null
         _displayName.value = null
-        _mustChangePassword.value = false
+        rememberMustChange(false)
         _state.value = AuthState.SignedOut
     }
 
@@ -150,6 +153,11 @@ class StaffAuth(
 
     private fun login(): String = (_state.value as? AuthState.SignedIn)?.email.orEmpty()
 
+    private suspend fun rememberMustChange(must: Boolean) {
+        _mustChangePassword.value = must
+        settings.set(SettingsStore.KEY_STAFF_MUST_CHANGE, if (must) "1" else null)
+    }
+
     private suspend fun remembered(login: String) {
         settings.set(SettingsStore.KEY_STAFF_SESSION, "${refreshToken.orEmpty()}|$login")
         _state.value = AuthState.SignedIn(login, login)
@@ -166,6 +174,7 @@ class StaffAuth(
         accessToken = null
         refreshToken = null
         settings.set(SettingsStore.KEY_STAFF_SESSION, null)
+        rememberMustChange(false)
         _state.value = AuthState.SignedOut
         onSessionExpired()
     }
