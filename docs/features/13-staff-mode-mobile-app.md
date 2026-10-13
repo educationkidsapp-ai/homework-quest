@@ -3,7 +3,16 @@
 **Status:** Done · **Area:** mobile app, server · **Depends on:** — · **Feature switch:** `staffMobileApp` (camelCase, like the repo's other keys)
 
 **Leftovers:**
-- Not yet run end to end on an emulator against a local H2 server, and a real FCM tap is not tested. Not yet deployed to QA or sent to testers.
+- Checked on the Android emulator against a local H2 server (2026-10-13):
+  - teacher and worker sign-in, and the temporary-password step
+  - the four tabs
+  - live messages both ways
+  - photo and PDF send/open
+  - unregister on sign-out
+  - a chat push tap opening its conversation
+  - Arabic right to left, and dark mode
+- Not checked on a device: the app lock before a pushed conversation, because the emulator has no screen lock set (this is covered by unit tests). A real FCM delivery is not checked either. Not yet deployed to QA or sent to testers.
+- The Arabic unread count uses one plural form for every number above one.
 - No "Add parent view" sign-in from Account. The Staff / Parent switch appears only when the staff and parent passwords are the same.
 - The chat socket has no thread-id path for a teacher's `read`/`send` on a parent thread. The app uses REST for both, so nothing is broken today.
 - Workers have no chat partners yet. Their Messages tab is empty, and the socket does not admit them.

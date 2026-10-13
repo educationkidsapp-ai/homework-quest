@@ -100,7 +100,11 @@ fun StaffHomeScreen(
                 SectionTitle(strings.messages)
                 ParentCard(onClick = onMessages) {
                     Text(
-                        if (unreadMessages > 0) strings.unreadMessages.replace("{n}", unreadMessages.toString()) else strings.noUnreadMessages,
+                        when (unreadMessages) {
+                            0 -> strings.noUnreadMessages
+                            1 -> strings.oneUnreadMessage
+                            else -> strings.unreadMessages.replace("{n}", unreadMessages.toString())
+                        },
                         style = MaterialTheme.typography.titleMedium,
                         color = DashboardTokens.ink,
                     )
