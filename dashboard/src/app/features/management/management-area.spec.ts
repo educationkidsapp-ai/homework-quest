@@ -4,7 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { Router, RouterOutlet, provideRouter } from '@angular/router';
 import { screen } from '@testing-library/angular';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ADMIN_USER, MANAGERIAL_USER, TEACHER_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
 import { type CreateBroadcastRequest, type ManagementStats, BASE_PATH } from '../../api';
@@ -807,6 +807,14 @@ describe('RM3a — the management area', () => {
    * archive, so the card that says "no plan yet" and the list below it can never disagree.
    */
   describe('Weekly plans', () => {
+    // The fixtures below are written around the week of Sunday 2026-09-27, and the page picks "this week" from
+    // today's date — so today is pinned to that Wednesday. Only `Date` is faked: the screen's own timers stay real.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-09-30T09:00:00Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
     /** MH1: a plan is a grade, a week and an image — no title and no body on the wire at all. */
     const PLAN = {
       id: 'b-g1',
