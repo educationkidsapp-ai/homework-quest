@@ -129,7 +129,9 @@
     "admin.children.read": ["ADMIN"],
     "admin.children.write": ["ADMIN"],
     "worker.read": ["ADMIN", "MANAGERIAL"],
-    "worker.write": ["ADMIN"]
+    "worker.write": ["ADMIN"],
+    "attendance.settings.read": ["ADMIN", "MANAGERIAL"],
+    "attendance.settings.write": ["ADMIN"]
   },
   "endpoints": [
     { "method": "GET", "path": "/health", "permission": "health.read" },
@@ -259,6 +261,10 @@
     { "method": "POST", "path": "/admin/workers", "permission": "worker.write" },
     { "method": "PATCH", "path": "/admin/workers/{id}", "permission": "worker.write" },
     { "method": "DELETE", "path": "/admin/workers/{id}", "permission": "worker.write" },
+    { "method": "GET", "path": "/admin/attendance-settings", "permission": "attendance.settings.read" },
+    { "method": "PUT", "path": "/admin/attendance-settings", "permission": "attendance.settings.write" },
+    { "method": "GET", "path": "/admin/staff/attendance-profiles", "permission": "attendance.settings.read" },
+    { "method": "PUT", "path": "/admin/staff/attendance-profiles", "permission": "attendance.settings.write" },
 
     { "method": "GET", "path": "/admin/teachers", "permission": "teacher.read" },
     { "method": "POST", "path": "/admin/teachers", "permission": "teacher.manage" },

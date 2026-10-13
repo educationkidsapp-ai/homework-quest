@@ -392,6 +392,73 @@
         "required" : [ "accepted" ],
         "type" : "object"
       },
+      "AttendanceHoliday" : {
+        "properties" : {
+          "from" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "to" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "AttendanceSettings" : {
+        "properties" : {
+          "adminNotify" : {
+            "type" : "string"
+          },
+          "digestTime" : {
+            "type" : "string"
+          },
+          "directorNotify" : {
+            "type" : "string"
+          },
+          "graceMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "holidays" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AttendanceHoliday"
+            },
+            "type" : "array"
+          },
+          "latitude" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "longitude" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "missingCheckOutMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "notArrivedMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "radiusMeters" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "schedules" : {
+            "items" : {
+              "$ref" : "#/components/schemas/WorkSchedule"
+            },
+            "type" : "array"
+          },
+          "timeZone" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "Bilingual" : {
         "properties" : {
           "ar" : {
@@ -6059,6 +6126,35 @@
         },
         "type" : "object"
       },
+      "StaffAttendanceProfile" : {
+        "properties" : {
+          "category" : {
+            "type" : "string"
+          },
+          "categorySet" : {
+            "type" : "boolean"
+          },
+          "directManagerId" : {
+            "type" : "string"
+          },
+          "directManagerName" : {
+            "type" : "string"
+          },
+          "fullName" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "role" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "StaffAttendanceRow" : {
         "properties" : {
           "displayName" : {
@@ -6224,6 +6320,17 @@
             "type" : "string"
           },
           "userId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "StaffRef" : {
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "kind" : {
             "type" : "string"
           }
         },
@@ -7300,6 +7407,56 @@
         "required" : [ "candidates", "question" ],
         "type" : "object"
       },
+      "UpdateAttendanceSettingsRequest" : {
+        "properties" : {
+          "adminNotify" : {
+            "type" : "string"
+          },
+          "digestTime" : {
+            "type" : "string"
+          },
+          "directorNotify" : {
+            "type" : "string"
+          },
+          "graceMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "holidays" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AttendanceHoliday"
+            },
+            "type" : "array"
+          },
+          "latitude" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "longitude" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "missingCheckOutMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "notArrivedMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "radiusMeters" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "schedules" : {
+            "items" : {
+              "$ref" : "#/components/schemas/WorkSchedule"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
       "UpdateClassRequest" : {
         "properties" : {
           "clearTeacher" : {
@@ -7525,6 +7682,30 @@
             "type" : "string"
           }
         },
+        "type" : "object"
+      },
+      "UpdateStaffAttendanceProfilesRequest" : {
+        "properties" : {
+          "category" : {
+            "type" : "string"
+          },
+          "clearCategory" : {
+            "type" : "boolean"
+          },
+          "clearDirectManager" : {
+            "type" : "boolean"
+          },
+          "directManagerId" : {
+            "type" : "string"
+          },
+          "staff" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StaffRef"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "staff" ],
         "type" : "object"
       },
       "UpdateTeacherProfileRequest" : {
@@ -7963,6 +8144,38 @@
         } ],
         "required" : [ "id", "ingredient", "parentTip", "speak", "title", "type", "words" ]
       },
+      "WorkSchedule" : {
+        "properties" : {
+          "category" : {
+            "type" : "string"
+          },
+          "end" : {
+            "type" : "string"
+          },
+          "ramadanEnd" : {
+            "type" : "string"
+          },
+          "ramadanFrom" : {
+            "type" : "string"
+          },
+          "ramadanStart" : {
+            "type" : "string"
+          },
+          "ramadanTo" : {
+            "type" : "string"
+          },
+          "start" : {
+            "type" : "string"
+          },
+          "weekdays" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
       "WorkedExample" : {
         "properties" : {
           "answer" : {
@@ -8055,6 +8268,50 @@
   },
   "openapi" : "3.1.0",
   "paths" : {
+    "/admin/attendance-settings" : {
+      "get" : {
+        "operationId" : "attendanceSettings",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttendanceSettings"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff attendance settings" ]
+      },
+      "put" : {
+        "operationId" : "updateAttendanceSettings",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateAttendanceSettingsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttendanceSettings"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff attendance settings" ]
+      }
+    },
     "/admin/auth/sign-in" : {
       "post" : {
         "operationId" : "signIn",
@@ -10732,6 +10989,56 @@
           }
         },
         "tags" : [ "Dashboard users" ]
+      }
+    },
+    "/admin/staff/attendance-profiles" : {
+      "get" : {
+        "operationId" : "staffAttendanceProfiles",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/StaffAttendanceProfile"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff attendance settings" ]
+      },
+      "put" : {
+        "operationId" : "updateStaffAttendanceProfiles",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateStaffAttendanceProfilesRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/StaffAttendanceProfile"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff attendance settings" ]
       }
     },
     "/admin/stops/{stopId}" : {
@@ -18322,6 +18629,9 @@
   }, {
     "description" : "Published lesson content for the app",
     "name" : "Lessons"
+  }, {
+    "description" : "School pin, staff hours, holidays, rules and direct managers",
+    "name" : "Staff attendance settings"
   }, {
     "description" : "Sections, join codes and class rosters",
     "name" : "Classes"
