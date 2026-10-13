@@ -3,16 +3,14 @@
 **Status:** Done · **Area:** dashboard (Admin), server · **Depends on:** — · **Feature switch:** `staff_attendance`
 
 **Leftovers**
-- Not yet on QA or testers' phones: this needs the PR merged, and **feature 13 must merge first** (it holds
-  migration V36; this feature is V37). Then the Admin turns `staffAttendance` on for the pilot school.
+- Not yet on QA or testers' phones: this needs the PR merged (feature 13 and its V36 are already on develop;
+  this feature is V37). Then the Admin turns `staffAttendance` on for the pilot school.
 - "Set direct manager" for several at once lives on the staff list of the Attendance page, not on each of the
   four staff lists; the single-employee fields are on every staff edit form.
 - The school pin is the lighter option the spec allows: latitude and longitude, "Use my current location" and a
   drawn circle, with a link that opens the pin in OpenStreetMap. No interactive map.
 - A teacher's academy is `teachers.curriculum`; a teacher without one falls back to the Admin rather than to a
   director derived from her sections.
-- Reloading `/admin/attendance-settings` lands on "Nothing here"; every flag-gated Admin screen does this today
-  (separate fix). Opening it from the rail works.
 - After feature 13 merges: re-check that a worker with app access appears once (as a worker) in the staff list.
 - The switch key in code is `staffAttendance` (camelCase, like every other key), not `staff_attendance`.
 
