@@ -44,6 +44,8 @@ export class SchoolScopeStore {
   private readonly switchable = inject(NAV_CONFIG).schoolSurfaces;
   private readonly current = signal<SchoolScope | null>(this.switchable ? this.read() : null);
   private readonly multiSchool = signal(this.switchable);
+  /** What `FlagService` last said about `multiSchool` (D13); `SoleSchoolService` reads it. */
+  readonly multiSchoolOn = this.multiSchool.asReadonly();
 
   private readonly sole = signal<string | null>(null);
 
