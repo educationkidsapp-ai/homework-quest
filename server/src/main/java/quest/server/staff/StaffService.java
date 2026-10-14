@@ -35,10 +35,11 @@ import quest.server.tenancy.TenantContext;
 @Service
 public class StaffService {
     private final ChatService chat; private final UserRepository users; private final SchoolService schools;
-    private final FeatureFlags flags; private final TenantContext tenant;
+    private final FeatureFlags flags; private final TenantContext tenant; private final java.time.Clock clock;
 
-    public StaffService(ChatService chat, UserRepository users, SchoolService schools, FeatureFlags flags, TenantContext tenant) {
-        this.chat = chat; this.users = users; this.schools = schools; this.flags = flags; this.tenant = tenant;
+    public StaffService(ChatService chat, UserRepository users, SchoolService schools, FeatureFlags flags, TenantContext tenant,
+                        java.time.Clock clock) {
+        this.chat = chat; this.users = users; this.schools = schools; this.flags = flags; this.tenant = tenant; this.clock = clock;
     }
 
     /**
@@ -50,7 +51,20 @@ public class StaffService {
         String schoolId = tenant.writeSchoolId();
         String name = user.getDisplayName() == null || user.getDisplayName().isBlank() ? user.getEmail() : user.getDisplayName();
         return new StaffMe(user.getId(), name, user.getRole(), user.getPhone(), schoolId,
-                schools.namesOf(List.of(schoolId)).get(schoolId), flags.effective(schoolId));
+                schools.namesOf(List.of(schoolId)).get(schoolId), flags.effective(schoolId), user.isAfterHoursAlerts());
+    }
+
+    /**
+     * Feature 19: `PUT /staff/me/preferences` — her own choice to keep normal alerts for parent messages outside her
+     * office hours, which is hers alone and so takes no school and no target from the request. Answers the updated
+     * {@link StaffMe}, so the Account screen redraws from one response.
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public StaffMe preferences(Principals.User caller, boolean afterHoursAlerts) {
+        var user = users.findById(caller.userId()).orElseThrow(() -> ApiException.notFound("user"));
+        user.setAfterHoursAlerts(afterHoursAlerts); user.setUpdatedAt(java.time.Instant.now(clock));
+        users.save(user);
+        return me(caller);
     }
 
     /**

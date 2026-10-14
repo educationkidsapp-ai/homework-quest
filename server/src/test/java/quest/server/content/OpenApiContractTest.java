@@ -170,7 +170,9 @@ class OpenApiContractTest extends ApiTestSupport {
      */
     static final List<String> STAFF_API = List.of(
             "/staff/me", "/staff/chat/threads", "/staff/chat/threads/{threadId}/messages",
-            "/staff/chat/threads/{threadId}/read");
+            "/staff/chat/threads/{threadId}/read",
+            // Feature 19: her own after-hours alerts choice, under the same flag and the same permission.
+            "/staff/me/preferences");
 
     /**
      * R2 and R3: the coordinator's read-only area and the Admin routes that create one

@@ -26,6 +26,8 @@ public final class Entities {
         /** V7, N2.1: this school's own teaching days and timezone, or null to follow the platform's (§A). */
         @Column(name = "school_week_json") private String schoolWeekJson;
         @Column private String timezone;
+        /** V40 (feature 19): the number a parent's office-hours banner offers for urgent matters; null without one. */
+        @Column private String phone;
         /** V27 (S1): the uploaded logo — its `FileStore` key, sniffed image type and version; all null without one. */
         @Column(name = "logo_path") private String logoPath;
         @Column(name = "logo_type") private String logoType;
@@ -44,6 +46,7 @@ public final class Entities {
         public String getStatus() { return status; } public void setStatus(String v) { status = v; }
         public String getSchoolWeekJson() { return schoolWeekJson; } public void setSchoolWeekJson(String v) { schoolWeekJson = v; }
         public String getTimezone() { return timezone; } public void setTimezone(String v) { timezone = v; }
+        public String getPhone() { return phone; } public void setPhone(String v) { phone = v; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
     }
 

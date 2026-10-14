@@ -79,6 +79,7 @@ class IsolationTest extends ApiTestSupport {
     @Autowired quest.server.push.StaffDeviceRepository staffDevices;
     @Autowired quest.server.staffattendance.StaffAttendanceDayRepository attendanceDays;
     @Autowired quest.server.staffattendance.StaffAttendanceAlertRepository attendanceAlerts;
+    @Autowired quest.server.chat.ChatAfterHoursRepository afterHours;
 
     @BeforeEach void seedTwoSchools() {
         school(A, "Alpha Academy", "SCHLAA"); school(B, "Beta School", "SCHLBB");
@@ -176,6 +177,32 @@ class IsolationTest extends ApiTestSupport {
         } finally {
             tenant.clear();
             attendanceDays.deleteById("iso-day-b"); attendanceAlerts.deleteById("iso-alert-b");
+        }
+    }
+
+    /**
+     * Feature 19's tenant table. A message B counted as after-hours is invisible to a principal of A, and the summary
+     * job itself names the school on every query — including the claim, which is a bulk update and so outside the
+     * `school` filter: `ChatOfficeHoursApiTest` runs it for one school and reads only that school's rows.
+     */
+    @Test void feature_19s_after_hours_rows_stay_in_their_school() {
+        var now = java.time.Instant.now();
+        var row = new quest.server.chat.Entities.ChatAfterHoursEntity();
+        row.setId("iso-after-hours-b"); row.setSchoolId(B); row.setUserId("teacher-b");
+        row.setThreadId("iso-thread-b"); row.setMessageId("iso-message-b");
+        row.setReceivedAt(now); row.setDueDay(DATE_B);
+        afterHours.save(row);
+        try {
+            tenant.set("MANAGERIAL", A, null);
+            assertThat(afterHours.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(afterHours.dueRecipients(A, DATE_B)).as("A owes nobody a summary").isEmpty();
+            assertThat(afterHours.dueRecipients(B, DATE_B)).as("and cannot ask about B's either").isEmpty();
+            tenant.set("MANAGERIAL", B, null);
+            assertThat(afterHours.findAll()).anyMatch(r -> "iso-after-hours-b".equals(r.getId()));
+            assertThat(afterHours.dueRecipients(B, DATE_B)).containsExactly("teacher-b");
+        } finally {
+            tenant.clear();
+            afterHours.deleteById("iso-after-hours-b");
         }
     }
 
