@@ -17,6 +17,27 @@
         "required" : [ "password" ],
         "type" : "object"
       },
+      "AdminCorrection" : {
+        "properties" : {
+          "checkIn" : {
+            "type" : "string"
+          },
+          "checkOut" : {
+            "type" : "string"
+          },
+          "correctionKind" : {
+            "type" : "string"
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "correctionKind", "date", "reason" ],
+        "type" : "object"
+      },
       "AdminLesson" : {
         "properties" : {
           "analysis" : {
@@ -391,6 +412,7 @@
             "type" : "integer"
           }
         },
+        "required" : [ "id", "name", "sizeBytes", "type" ],
         "type" : "object"
       },
       "AttemptAck" : {
@@ -415,6 +437,74 @@
             "type" : "string"
           }
         },
+        "type" : "object"
+      },
+      "AttendanceRequestList" : {
+        "properties" : {
+          "requests" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AttendanceRequestView"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "requests" ],
+        "type" : "object"
+      },
+      "AttendanceRequestView" : {
+        "properties" : {
+          "attachment" : {
+            "$ref" : "#/components/schemas/AttachmentRef"
+          },
+          "checkIn" : {
+            "type" : "string"
+          },
+          "checkOut" : {
+            "type" : "string"
+          },
+          "correctionKind" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "decidedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "decidedBy" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "originalCheckIn" : {
+            "type" : "string"
+          },
+          "originalCheckOut" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "staff" : {
+            "type" : "string"
+          },
+          "staffName" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "createdAt", "date", "id", "reason", "staff", "staffName", "status", "type" ],
         "type" : "object"
       },
       "AttendanceSettings" : {
@@ -4515,6 +4605,33 @@
         },
         "type" : "object"
       },
+      "NewAttendanceRequest" : {
+        "properties" : {
+          "attachmentId" : {
+            "type" : "string"
+          },
+          "checkIn" : {
+            "type" : "string"
+          },
+          "checkOut" : {
+            "type" : "string"
+          },
+          "correctionKind" : {
+            "type" : "string"
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "date", "reason", "type" ],
+        "type" : "object"
+      },
       "NotificationView" : {
         "properties" : {
           "body" : {
@@ -4531,7 +4648,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message", "attendance.reminder", "attendance.alert", "attendance.digest" ],
+            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message", "attendance.reminder", "attendance.alert", "attendance.digest", "attendance.request", "attendance.decision", "attendance.remote_day" ],
             "type" : "string"
           },
           "lessonId" : {
@@ -5249,6 +5366,36 @@
           }
         },
         "required" : [ "correct", "stopId", "title" ],
+        "type" : "object"
+      },
+      "RemoteDay" : {
+        "properties" : {
+          "academy" : {
+            "type" : "string"
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "date", "reason" ],
+        "type" : "object"
+      },
+      "RemoteDayList" : {
+        "properties" : {
+          "days" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RemoteDay"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "days" ],
         "type" : "object"
       },
       "ResetPasswordRequest" : {
@@ -8482,6 +8629,69 @@
         "tags" : [ "Staff attendance settings" ]
       }
     },
+    "/admin/attendance/remote-days" : {
+      "get" : {
+        "operationId" : "remoteDays",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RemoteDayList"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance requests" ]
+      },
+      "post" : {
+        "operationId" : "createRemoteDay",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RemoteDay"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RemoteDay"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance requests" ]
+      }
+    },
+    "/admin/attendance/remote-days/{id}" : {
+      "delete" : {
+        "operationId" : "deleteRemoteDay",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "tags" : [ "Attendance requests" ]
+      }
+    },
     "/admin/auth/sign-in" : {
       "post" : {
         "operationId" : "signIn",
@@ -11211,6 +11421,49 @@
         "tags" : [ "Staff attendance settings" ]
       }
     },
+    "/admin/staff/{kind}/{id}/attendance-corrections" : {
+      "post" : {
+        "operationId" : "adminAttendanceCorrection",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "kind",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AdminCorrection"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttendanceRequestView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance requests" ]
+      }
+    },
     "/admin/staff/{kind}/{id}/attendance-device" : {
       "delete" : {
         "operationId" : "resetApprovedDevice",
@@ -11923,6 +12176,84 @@
           }
         },
         "tags" : [ "Workers" ]
+      }
+    },
+    "/attendance/requests" : {
+      "get" : {
+        "operationId" : "attendanceRequestsToDecide",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttendanceRequestList"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance requests" ]
+      }
+    },
+    "/attendance/requests/{id}/approve" : {
+      "post" : {
+        "operationId" : "approveAttendanceRequest",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttendanceRequestView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance requests" ]
+      }
+    },
+    "/attendance/requests/{id}/reject" : {
+      "post" : {
+        "operationId" : "rejectAttendanceRequest",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttendanceRequestView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance requests" ]
       }
     },
     "/auth/change-password" : {
@@ -16026,6 +16357,40 @@
         "tags" : [ "Themes" ]
       }
     },
+    "/staff/attendance/attachments" : {
+      "post" : {
+        "operationId" : "staffAttendanceAttachment",
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "file" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "file" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttachmentRef"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance requests" ]
+      }
+    },
     "/staff/attendance/check-in" : {
       "post" : {
         "operationId" : "staffCheckIn",
@@ -16106,6 +16471,50 @@
           }
         },
         "tags" : [ "Staff check-in" ]
+      }
+    },
+    "/staff/attendance/requests" : {
+      "get" : {
+        "operationId" : "myAttendanceRequests",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttendanceRequestList"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance requests" ]
+      },
+      "post" : {
+        "operationId" : "createAttendanceRequest",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/NewAttendanceRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttendanceRequestView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance requests" ]
       }
     },
     "/staff/attendance/today" : {
@@ -19177,6 +19586,9 @@
   }, {
     "description" : "A coordinator's threads with parents and her manager, and her Complaints inbox",
     "name" : "Coordinator chat"
+  }, {
+    "description" : "Remote days and attendance corrections, and their approval",
+    "name" : "Attendance requests"
   }, {
     "description" : "Per-school white label (§3)",
     "name" : "Themes"

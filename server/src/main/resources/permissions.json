@@ -136,7 +136,9 @@
     "attendance.settings.read": ["ADMIN", "MANAGERIAL"],
     "attendance.settings.write": ["ADMIN"],
     "attendance.self": ["ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "WORKER"],
-    "attendance.device.reset": ["ADMIN"]
+    "attendance.device.reset": ["ADMIN"],
+    "attendance.requests.decide": ["ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR"],
+    "attendance.correction.write": ["ADMIN"]
   },
   "endpoints": [
     { "method": "GET", "path": "/health", "permission": "health.read" },
@@ -274,6 +276,13 @@
     { "method": "PUT", "path": "/admin/staff/attendance-profiles", "permission": "attendance.settings.write" },
     { "method": "GET", "path": "/admin/staff/{kind}/{id}/attendance-device", "permission": "attendance.settings.read" },
     { "method": "DELETE", "path": "/admin/staff/{kind}/{id}/attendance-device", "permission": "attendance.device.reset" },
+    { "method": "POST", "path": "/admin/staff/{kind}/{id}/attendance-corrections", "permission": "attendance.correction.write" },
+    { "method": "GET", "path": "/admin/attendance/remote-days", "permission": "attendance.settings.read" },
+    { "method": "POST", "path": "/admin/attendance/remote-days", "permission": "attendance.settings.write" },
+    { "method": "DELETE", "path": "/admin/attendance/remote-days/{id}", "permission": "attendance.settings.write" },
+    { "method": "GET", "path": "/attendance/requests", "permission": "attendance.requests.decide" },
+    { "method": "POST", "path": "/attendance/requests/{id}/approve", "permission": "attendance.requests.decide" },
+    { "method": "POST", "path": "/attendance/requests/{id}/reject", "permission": "attendance.requests.decide" },
 
     { "method": "GET", "path": "/admin/teachers", "permission": "teacher.read" },
     { "method": "POST", "path": "/admin/teachers", "permission": "teacher.manage" },
@@ -429,6 +438,9 @@
     { "method": "POST", "path": "/staff/attendance/check-out", "permission": "attendance.self" },
     { "method": "GET", "path": "/staff/attendance/today", "permission": "attendance.self" },
     { "method": "GET", "path": "/staff/attendance/month", "permission": "attendance.self" },
+    { "method": "POST", "path": "/staff/attendance/attachments", "permission": "attendance.self" },
+    { "method": "POST", "path": "/staff/attendance/requests", "permission": "attendance.self" },
+    { "method": "GET", "path": "/staff/attendance/requests", "permission": "attendance.self" },
     { "method": "GET", "path": "/me/broadcasts", "permission": "broadcast.read" },
     { "method": "GET", "path": "/me/weekly-plans", "permission": "broadcast.read" },
     { "method": "POST", "path": "/me/broadcasts/{id}/read", "permission": "broadcast.write" },
