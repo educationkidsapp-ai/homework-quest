@@ -78,5 +78,20 @@ class SettingsStore(private val db: Db) {
         const val KEY_STAFF_MUST_CHANGE = "staffMustChangePassword"
         /** Feature 13: the Staff/Parent view a dual-role account last chose (`SessionSide.key`). */
         const val KEY_SESSION_SIDE = "sessionSide"
+        /**
+         * Feature 15: this install's own random id, which the first successful check-in binds to the employee. It is
+         * the app's id and not the device's — Android gives no stable hardware id to an app, and one that survived a
+         * reinstall would be worse for the employee, who then needs the Admin to reset nothing.
+         */
+        const val KEY_INSTALL_ID = "installId"
+        /** Feature 15: the privacy rationale before the first check-in has been read, so it is shown once. */
+        const val KEY_LOCATION_RATIONALE_SEEN = "locationRationaleSeen"
     }
 }
+
+/**
+ * Feature 15: this install's id, generated the first time it is asked for and then kept
+ * ([SettingsStore.KEY_INSTALL_ID]).
+ */
+suspend fun SettingsStore.installId(): String =
+    get(SettingsStore.KEY_INSTALL_ID) ?: quest.core.platform.Ids.random().also { set(SettingsStore.KEY_INSTALL_ID, it) }

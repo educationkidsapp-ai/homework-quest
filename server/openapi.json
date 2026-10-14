@@ -307,6 +307,17 @@
         "required" : [ "code", "message" ],
         "type" : "object"
       },
+      "ApprovedDevice" : {
+        "properties" : {
+          "firstSeen" : {
+            "type" : "string"
+          },
+          "installId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "AssignmentInput" : {
         "properties" : {
           "classId" : {
@@ -882,6 +893,118 @@
           }
         },
         "required" : [ "childId", "childName", "staffRole", "status", "teacherId", "teacherName", "topic", "unread" ],
+        "type" : "object"
+      },
+      "CheckInDay" : {
+        "properties" : {
+          "checkIn" : {
+            "type" : "string"
+          },
+          "checkOut" : {
+            "type" : "string"
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "lateMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "mode" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "date", "status" ],
+        "type" : "object"
+      },
+      "CheckInMonth" : {
+        "properties" : {
+          "days" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CheckInDay"
+            },
+            "type" : "array"
+          },
+          "month" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "days", "month" ],
+        "type" : "object"
+      },
+      "CheckInRequest" : {
+        "properties" : {
+          "accuracyMeters" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "installId" : {
+            "type" : "string"
+          },
+          "latitude" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "longitude" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "mocked" : {
+            "type" : "boolean"
+          },
+          "phoneTime" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "accuracyMeters", "installId", "latitude", "longitude", "mocked" ],
+        "type" : "object"
+      },
+      "CheckInResult" : {
+        "properties" : {
+          "distanceMeters" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "lateMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "result" : {
+            "type" : "string"
+          },
+          "serverTime" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "result" ],
+        "type" : "object"
+      },
+      "CheckInToday" : {
+        "properties" : {
+          "checkIn" : {
+            "type" : "string"
+          },
+          "checkOut" : {
+            "type" : "string"
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "lateMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "workDay" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "date", "workDay" ],
         "type" : "object"
       },
       "Child" : {
@@ -11088,6 +11211,70 @@
         "tags" : [ "Staff attendance settings" ]
       }
     },
+    "/admin/staff/{kind}/{id}/attendance-device" : {
+      "delete" : {
+        "operationId" : "resetApprovedDevice",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "kind",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApprovedDevice"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff attendance settings" ]
+      },
+      "get" : {
+        "operationId" : "approvedDevice",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "kind",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApprovedDevice"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff attendance settings" ]
+      }
+    },
     "/admin/stops/{stopId}" : {
       "delete" : {
         "operationId" : "deleteStop",
@@ -15839,6 +16026,106 @@
         "tags" : [ "Themes" ]
       }
     },
+    "/staff/attendance/check-in" : {
+      "post" : {
+        "operationId" : "staffCheckIn",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CheckInRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CheckInResult"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff check-in" ]
+      }
+    },
+    "/staff/attendance/check-out" : {
+      "post" : {
+        "operationId" : "staffCheckOut",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CheckInRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CheckInResult"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff check-in" ]
+      }
+    },
+    "/staff/attendance/month" : {
+      "get" : {
+        "operationId" : "staffCheckInMonth",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "month",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CheckInMonth"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff check-in" ]
+      }
+    },
+    "/staff/attendance/today" : {
+      "get" : {
+        "operationId" : "staffCheckInToday",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CheckInToday"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff check-in" ]
+      }
+    },
     "/staff/chat/threads" : {
       "get" : {
         "operationId" : "staffChatThreads",
@@ -18929,6 +19216,9 @@
   }, {
     "description" : "Parent-owned children, map, attempts and progress",
     "name" : "Children"
+  }, {
+    "description" : "Geofenced check-in and check-out from the staff app, and the employee's own record",
+    "name" : "Staff check-in"
   }, {
     "description" : "Staff mode in the mobile app: the signed-in member of staff, and her messages",
     "name" : "Staff app"

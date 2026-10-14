@@ -16,6 +16,18 @@ import quest.api.dto.NotificationView
 import quest.api.dto.RegisterDeviceRequest
 import quest.api.dto.SendChatMessageRequest
 import quest.api.dto.UnreadCount
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import quest.api.staff.CheckInDay
+import quest.api.staff.CheckInMode
+import quest.api.staff.CheckInMonth
+import quest.api.staff.CheckInOutcome
+import quest.api.staff.CheckInRefusal
+import quest.api.staff.CheckInRequest
+import quest.api.staff.CheckInResult
+import quest.api.staff.CheckInRules
+import quest.api.staff.CheckInToday
 import quest.api.staff.StaffMe
 import quest.core.platform.Ids
 import quest.core.platform.Today
@@ -46,7 +58,8 @@ class FakeStaffApi(private val delayMillis: Long = 250) : StaffGateway {
         return StaffMe(
             userId = ME, displayName = "Ms Noor", role = role, phone = "+966500000000",
             schoolId = "school-fake", schoolName = "Learning International School",
-            flags = DEFAULT_FLAGS + mapOf("chat" to true, "staffMobileApp" to flagsOn),
+            // Feature 15 is on in the fake school, so a build with no server still draws the check-in card.
+            flags = DEFAULT_FLAGS + mapOf("chat" to true, "staffMobileApp" to flagsOn, "staffAttendance" to flagsOn),
         )
     }
 
@@ -105,6 +118,79 @@ class FakeStaffApi(private val delayMillis: Long = 250) : StaffGateway {
 
     override suspend fun registerDevice(request: RegisterDeviceRequest) { net(); devices[request.token] = request }
     override suspend fun unregisterDevice(token: String) { net(); devices.remove(token) }
+
+    // ---------------------------------------------------------------- feature 15: check in and out
+
+    /** Today's record, kept in memory: the fake school's geofence always contains the phone. */
+    private var checkInAt: String? = null
+    private var checkOutAt: String? = null
+    private var lateMinutes: Int? = null
+
+    override suspend fun checkIn(request: CheckInRequest): CheckInResult {
+        net()
+        refuse(request)?.let { return it }
+        checkInAt?.let { return CheckInResult(CheckInOutcome.ALREADY, serverTime = it, lateMinutes = lateMinutes) }
+        val now = clock()
+        checkInAt = now
+        // Late after 07:00, as a plausible school start — the real answer is the server's `ScheduleResolver`.
+        lateMinutes = ((minutesOf(now) - 7 * 60).coerceAtLeast(0))
+        return CheckInResult(CheckInOutcome.RECORDED, serverTime = now, lateMinutes = lateMinutes, distanceMeters = 35)
+    }
+
+    override suspend fun checkOut(request: CheckInRequest): CheckInResult {
+        net()
+        refuse(request)?.let { return it }
+        if (checkInAt == null) return CheckInResult(CheckInOutcome.REFUSED, reason = CheckInRefusal.NOT_CHECKED_IN)
+        val now = clock()
+        checkOutAt = now
+        return CheckInResult(CheckInOutcome.RECORDED, serverTime = now, distanceMeters = 35)
+    }
+
+    /** The two checks the fake can honestly make: everything else needs the school's pin, which lives on the server. */
+    private fun refuse(request: CheckInRequest): CheckInResult? = when {
+        request.mocked -> CheckInResult(CheckInOutcome.REFUSED, reason = CheckInRefusal.MOCK_LOCATION)
+        request.accuracyMeters > CheckInRules.MAX_ACCURACY_METERS ->
+            CheckInResult(CheckInOutcome.REFUSED, reason = CheckInRefusal.WEAK_ACCURACY)
+        else -> null
+    }
+
+    override suspend fun checkInToday(): CheckInToday {
+        net()
+        return CheckInToday(date = Today.date().toString(), checkIn = checkInAt, checkOut = checkOutAt, lateMinutes = lateMinutes)
+    }
+
+    override suspend fun checkInMonth(month: String?): CheckInMonth {
+        net()
+        val today = Today.date()
+        val asked = month ?: "${today.year}-${two(today.monthNumber)}"
+        val days = (1..today.dayOfMonth).map { day ->
+            val date = "$asked-${two(day)}"
+            when {
+                day == today.dayOfMonth -> CheckInDay(
+                    date = date, checkIn = checkInAt, checkOut = checkOutAt, mode = CheckInMode.ONSITE,
+                    status = if (checkInAt == null) "ABSENT" else if ((lateMinutes ?: 0) > 0) "LATE" else "ON_TIME",
+                    lateMinutes = lateMinutes,
+                )
+                // A plausible month: one late day, two days off, the rest on time.
+                day % 7 == 0 -> CheckInDay(date = date, status = "DAY_OFF")
+                day % 11 == 0 -> CheckInDay(date = date, checkIn = "07:12", checkOut = "14:05", status = "LATE", lateMinutes = 12, mode = CheckInMode.ONSITE)
+                else -> CheckInDay(date = date, checkIn = "06:52", checkOut = "14:02", status = "ON_TIME", lateMinutes = 0, mode = CheckInMode.ONSITE)
+            }
+        }
+        return CheckInMonth(asked, days)
+    }
+
+    private fun clock(): String {
+        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        return "${two(now.hour)}:${two(now.minute)}"
+    }
+
+    private fun minutesOf(clock: String): Int {
+        val parts = clock.split(":")
+        return (parts.getOrNull(0)?.toIntOrNull() ?: 0) * 60 + (parts.getOrNull(1)?.toIntOrNull() ?: 0)
+    }
+
+    private fun two(value: Int): String = if (value < 10) "0$value" else "$value"
 
     // ---------------------------------------------------------------- the fake school
 

@@ -50,6 +50,20 @@ class AttendanceStaff {
         return Optional.empty();
     }
 
+    /**
+     * Feature 15: who the caller of `/staff/attendance/**` is, as an employee. A WORKER principal carries the
+     * `users` row feature 13 minted for her, so she is resolved to her `workers` row; a teacher, coordinator or
+     * manager <em>is</em> her `users` row. A platform ADMIN is nobody's employee and comes back empty, which is how
+     * the routes refuse her: she runs the school from the dashboard and has no attendance of her own.
+     */
+    Optional<Employee> forPrincipal(String schoolId, quest.server.auth.Principals.User caller) {
+        if (caller == null || schoolId == null) return Optional.empty();
+        if ("WORKER".equals(caller.role()))
+            return workers.findOneBySchoolIdAndUserId(schoolId, caller.userId()).filter(w -> w.isActive())
+                    .map(w -> new Employee(StaffAttendanceDto.KIND_WORKER, w.getId(), w.getFullName(), "WORKER", null));
+        return user(schoolId, caller.userId()).map(AttendanceStaff::employee);
+    }
+
     /** An active teacher, coordinator or manager of this school: the people who may be a direct manager. */
     Optional<UserEntity> user(String schoolId, String id) {
         if (id == null) return Optional.empty();

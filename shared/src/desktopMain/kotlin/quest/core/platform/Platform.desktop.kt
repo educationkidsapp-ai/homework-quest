@@ -38,5 +38,7 @@ actual fun platformModule(): Module = module {
     single<ExamSittingPresenter> { NoExamSittingPresenter }
     // M5: the desktop app has no push.
     single<PushTokens> { NoPushTokens }
+    // Feature 15: no location hardware to ask; a fixed fix keeps the check-in card clickable.
+    single<LocationReader> { FakeLocationReader() }
 }
 

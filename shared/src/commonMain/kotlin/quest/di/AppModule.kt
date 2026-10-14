@@ -137,6 +137,10 @@ import quest.feature.staff.domain.StaffSessionView
 import quest.feature.staff.domain.STAFF_CONVERSATION
 import quest.feature.staff.domain.StaffThreadKey
 import quest.feature.staff.domain.StaffThreads
+import quest.feature.staff.data.SettingsCheckInPrefs
+import quest.feature.staff.domain.CheckInPrefs
+import quest.feature.staff.presentation.CheckInViewModel
+import quest.feature.staff.presentation.MyRecordViewModel
 import quest.feature.staff.presentation.StaffAccountViewModel
 import quest.feature.staff.presentation.StaffMessagesViewModel
 import quest.feature.staff.presentation.StaffNotificationsViewModel
@@ -409,6 +413,11 @@ fun staffModule(config: ApiConfig): Module = module {
     viewModel { StaffNotificationsViewModel(get(), get()) }
     viewModel { StaffAccountViewModel(get(), get(), get(), get()) }
     viewModel { StaffPasswordViewModel(get()) }
+    // Feature 15: the install id, the rationale bit and the language, on the device.
+    single<CheckInPrefs> { SettingsCheckInPrefs(get()) }
+    // Feature 15: the check-in card and her own month of records.
+    viewModel { CheckInViewModel(get(), get(), get(), get()) }
+    viewModel { MyRecordViewModel(get()) }
     // Her end of a conversation: the parent's view model, with the `/staff/chat` source under it.
     viewModel(named(STAFF_CONVERSATION)) { (key: StaffThreadKey) ->
         ChatConversationViewModel(StaffConversationSource(key, get(), get(named(STAFF_SOCKET))), key.staffConversationState(), get())

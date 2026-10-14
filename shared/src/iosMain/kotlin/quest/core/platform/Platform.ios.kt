@@ -44,5 +44,7 @@ actual fun platformModule(): Module = module {
     // M5: no push on iOS yet. The later step: an Apple developer account, an APNs key uploaded to the Firebase project,
     // the Firebase Messaging SDK in iosApp and an actual PushTokens here — B4 already sends the APNs alert beside the data.
     single<PushTokens> { NoPushTokens }
+    // Feature 15: `CLLocationManager`, while-in-use only. Untested until the Apple developer account exists.
+    single<LocationReader> { IosLocationReader() }
 }
 

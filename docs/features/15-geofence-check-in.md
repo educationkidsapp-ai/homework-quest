@@ -1,7 +1,20 @@
 # Feature 15 — Geofenced check-in and check-out
 
-**Status:** Not started · **Area:** mobile app (staff), server, dashboard (Admin) · **Depends on:** 13, 14 ·
+**Status:** Done · **Area:** mobile app (staff), server, dashboard (Admin) · **Depends on:** 13, 14 ·
 **Feature switch:** `staff_attendance`
+
+**Leftovers**
+- Not yet on QA or testers' phones: this needs the PR merged (migration V38), then the Admin turns `staffAttendance`
+  (and `staffMobileApp`) on for the pilot school, and `scripts/distribute-qa-apk.sh` sends the build to testers.
+- Android location and the permission dialog are compile-checked and unit-tested through fakes, not yet tried on a
+  real phone. iPhone location and biometrics compile but stay untested until the Apple Developer account exists; on
+  iPhone the mock flag is always false.
+- The "late N minutes" figure counts from the expected start; the grace period only decides whether it is late.
+  Full statuses and alerts are feature 16.
+- "My record" lets the employee step to a future month; the server answers it with upcoming days.
+- The platform Admin (who is nobody's employee) gets 403 on the check-in routes.
+- The switch key in code is `staffAttendance`, not `staff_attendance`. The record's date column is `work_day`
+  (`day` is reserved in H2).
 
 ## Goal
 

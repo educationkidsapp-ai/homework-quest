@@ -4,6 +4,13 @@
     <!-- M4: answers kept offline go up the moment the network is back (`AndroidConnectivity`). -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!--
+      Feature 15: the staff check-in reads one fix at the moment the employee taps, while the app is open.
+      ACCESS_BACKGROUND_LOCATION is deliberately absent and must stay absent: nothing in this app ever reads a
+      location the employee did not ask for.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <queries>
         <intent>
             <action android:name="android.speech.tts.engine.INSTALL_TTS_DATA" />

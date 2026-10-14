@@ -9,6 +9,8 @@ export const WRITE_PERMISSIONS: ReadonlySet<string> = new Set([
   'admin.chat',
   'admin.children.write',
   'announcement.write',
+  'attendance.device.reset',
+  'attendance.self',
   'attendance.settings.write',
   'attendance.write',
   'auth.changePassword',

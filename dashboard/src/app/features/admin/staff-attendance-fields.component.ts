@@ -1,10 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { type Observable, map, of, switchMap } from 'rxjs';
-import { type StaffAttendanceProfile, StaffAttendanceSettingsApi } from '../../api';
+import { type ApprovedDevice, type StaffAttendanceProfile, StaffAttendanceSettingsApi, apiErrorOf } from '../../api';
+import { BandService } from '../../core/band/band.service';
 import { activeLang } from '../../core/i18n/active-lang';
-import { type SelectOption, SelectComponent } from '../../ui';
+import { CanDirective } from '../../core/permissions/can.directive';
+import { BandComponent, ButtonComponent, type SelectOption, SelectComponent } from '../../ui';
 import { CATEGORIES, type Category } from './attendance-settings.models';
 
 /**
@@ -15,10 +17,14 @@ import { CATEGORIES, type Category } from './attendance-settings.models';
  * {@link commit} once its own save has succeeded: the profile is a row of its own on the server
  * (`PUT /admin/staff/attendance-profiles`), so the two writes stay two, and the second is skipped
  * when neither field moved.
+ *
+ * Feature 15 adds the **approved device** under them: the phone the employee's first successful
+ * check-in bound, its first-seen date, and the Admin's **Reset** (`attendance.device.reset`) so the
+ * next successful check-in binds a new phone. The reset is immediate, not part of the form's save.
  */
 @Component({
   selector: 'hq-staff-attendance-fields',
-  imports: [SelectComponent, TranslocoPipe],
+  imports: [BandComponent, ButtonComponent, CanDirective, SelectComponent, TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <fieldset class="fields" data-hq-attendance-fields>
@@ -40,6 +46,38 @@ import { CATEGORIES, type Category } from './attendance-settings.models';
         [disabled]="profiles.isLoading()"
         (valueChange)="setCategory($event)"
       />
+      <div class="device" data-hq-approved-device>
+        <span class="device__label">{{ 'admin.attendanceFields.device.title' | transloco }}</span>
+        <span class="device__value">
+          @if (firstSeen(); as seen) {
+            {{ 'admin.attendanceFields.device.firstSeen' | transloco: { date: seen } }}
+          } @else {
+            {{ 'admin.attendanceFields.device.none' | transloco }}
+          }
+        </span>
+        @if (firstSeen()) {
+          <hq-button
+            *hqCan="'attendance.device.reset'"
+            variant="secondary"
+            [loading]="resetting()"
+            (pressed)="confirming.set(true)"
+          >
+            {{ 'admin.attendanceFields.device.reset' | transloco }}
+          </hq-button>
+        }
+      </div>
+      @if (confirming()) {
+        <hq-band
+          variant="confirm"
+          [open]="true"
+          [title]="'admin.attendanceFields.device.confirmTitle' | transloco"
+          [confirmLabel]="'admin.attendanceFields.device.reset' | transloco"
+          (confirmed)="confirmReset()"
+          (dismissed)="confirming.set(false)"
+        >
+          {{ 'admin.attendanceFields.device.confirmMessage' | transloco }}
+        </hq-band>
+      }
     </fieldset>
   `,
   styles: `
@@ -56,11 +94,29 @@ import { CATEGORIES, type Category } from './attendance-settings.models';
       color: var(--hq-color-ink-strong);
       margin-block-end: var(--hq-space-8);
     }
+
+    .device {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--hq-space-8) var(--hq-space-12);
+    }
+
+    .device__label {
+      font-weight: 600;
+      color: var(--hq-color-ink-strong);
+    }
+
+    .device__value {
+      flex: 1;
+      color: var(--hq-color-ink-soft);
+    }
   `,
 })
 export class StaffAttendanceFieldsComponent {
   private readonly api = inject(StaffAttendanceSettingsApi);
   private readonly transloco = inject(TranslocoService);
+  private readonly band = inject(BandService);
   private readonly lang = activeLang();
 
   /** `USER` for a teacher, coordinator or manager (`users.id`); `WORKER` for a worker. */
@@ -72,6 +128,38 @@ export class StaffAttendanceFieldsComponent {
     stream: () => this.api.staffAttendanceProfiles(),
     defaultValue: [],
   });
+
+  protected readonly device = rxResource<ApprovedDevice | null, { kind: string; id: string }>({
+    params: () => ({ kind: this.kind(), id: this.staffId() }),
+    stream: ({ params }) => this.api.approvedDevice(params.kind, params.id),
+    defaultValue: null,
+  });
+
+  /** The bound phone's first-seen date in the active language, or `null` when none is bound. */
+  protected readonly firstSeen = computed(() => {
+    const lang = this.lang();
+    const device = this.device.value();
+    if (!device?.installId || !device.firstSeen) return null;
+    return new Intl.DateTimeFormat(lang, { dateStyle: 'medium' }).format(new Date(device.firstSeen));
+  });
+
+  protected readonly confirming = signal(false);
+  protected readonly resetting = signal(false);
+
+  protected confirmReset(): void {
+    this.confirming.set(false);
+    this.resetting.set(true);
+    this.api.resetApprovedDevice(this.kind(), this.staffId()).subscribe({
+      next: (device) => {
+        this.resetting.set(false);
+        this.device.set(device);
+      },
+      error: (error: unknown) => {
+        this.resetting.set(false);
+        this.band.fail(apiErrorOf(error)?.message ?? this.transloco.translate<string>('band.unreachable'));
+      },
+    });
+  }
 
   private readonly mine = computed(
     () => this.profiles.value().find((p) => p.kind === this.kind() && p.id === this.staffId()) ?? null,

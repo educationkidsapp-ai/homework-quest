@@ -33,6 +33,13 @@ public final class TestClock extends Clock {
     /** Pins every "now" in the context to noon UTC on `day`, and answers `day` so a fixture can read as one line. */
     public LocalDate pinTo(LocalDate day) { pinned.set(day.atTime(12, 0).toInstant(ZoneOffset.UTC)); return day; }
 
+    /**
+     * Pins every "now" to one instant, for the tests the hour is the point of: feature 15 records the time a staff
+     * member checks in, and 21:30Z is yesterday in UTC and today in Asia/Riyadh. {@link #pinTo(LocalDate)} is the
+     * form to reach for otherwise — it is deliberately away from the edges of a day.
+     */
+    public Instant pinTo(Instant at) { pinned.set(at); return at; }
+
     /** Back to the wall clock. Every test that pins releases it again, in an `@AfterEach`. */
     public void release() { pinned.set(null); }
 

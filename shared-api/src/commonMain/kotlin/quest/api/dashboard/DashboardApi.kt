@@ -447,6 +447,14 @@ interface DashboardApi {
     suspend fun staffAttendanceProfiles(): List<StaffAttendanceProfile>
     suspend fun updateStaffAttendanceProfiles(request: UpdateStaffAttendanceProfilesRequest): List<StaffAttendanceProfile>
 
+    /**
+     * Feature 15: `GET`/`DELETE /admin/staff/{kind}/{id}/attendance-device` — the phone bound to an employee's
+     * check-ins (`attendance.settings.read`) and the Admin's reset (`attendance.device.reset`). [kind] is `USER` or
+     * `WORKER`, as in [StaffAttendanceProfile].
+     */
+    suspend fun approvedDevice(kind: String, id: String): quest.api.staff.ApprovedDevice
+    suspend fun resetApprovedDevice(kind: String, id: String): quest.api.staff.ApprovedDevice
+
     /** Puts an app-registered child on a section's roster, and takes her off it again; both answer the child. */
     suspend fun attachChildToClass(classId: String, request: AttachChildRequest): RosterChild
     suspend fun detachChildFromClass(classId: String, childId: String): RosterChild
