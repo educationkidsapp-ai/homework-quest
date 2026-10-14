@@ -30,6 +30,14 @@ import quest.feature.school.presentation.LocalFlags
 import quest.feature.staff.domain.StaffProfile
 import quest.feature.staff.domain.StaffRole
 import quest.feature.staff.presentation.LocalStaffStrings
+import quest.api.staff.CheckInDay
+import quest.api.staff.CheckInMonth
+import quest.api.staff.CheckInToday
+import quest.feature.staff.presentation.CheckInCardContent
+import quest.feature.staff.presentation.CheckInContract
+import quest.feature.staff.presentation.CheckInMessage
+import quest.feature.staff.presentation.MyRecordContract
+import quest.feature.staff.presentation.StaffMyRecordScreen
 import quest.feature.staff.presentation.StaffAccountContract
 import quest.feature.staff.presentation.StaffAccountScreen
 import quest.feature.staff.presentation.StaffHomeScreen
@@ -46,9 +54,9 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * Feature 13 — the four staff tabs: the Today card with "Coming soon", her one inbox, the bell and حسابي, in English
- * and Arabic, light and dark. The staff flag is provided here because every staff screen gates on it, which is the
- * point of the gate.
+ * Feature 13 — the four staff tabs: the Today card (feature 15's check-in), her one inbox, the bell and حسابي, in
+ * English and Arabic, light and dark. The staff flags are provided here because every staff screen gates on them,
+ * which is the point of the gate.
  */
 class StaffScreensScreenshotTest {
 
@@ -57,7 +65,7 @@ class StaffScreensScreenshotTest {
     /** Her school with the staff app switched on — what `GET /staff/me` answers. */
     private object StaffFlags : FlagStore {
         override val flags: StateFlow<Map<String, Boolean>> =
-            MutableStateFlow(DEFAULT_FLAGS + mapOf(Flags.STAFF_MOBILE_APP to true, Flags.CHAT to true))
+            MutableStateFlow(DEFAULT_FLAGS + mapOf(Flags.STAFF_MOBILE_APP to true, Flags.CHAT to true, Flags.STAFF_ATTENDANCE to true))
     }
 
     private val profile = StaffProfile(
@@ -106,14 +114,60 @@ class StaffScreensScreenshotTest {
         assertTrue(file.length() > 0, "${file.name} was not written")
     }
 
+    /** Feature 15: before the first tap of the day, and after a recorded arrival. */
+    private fun checkInCard(state: CheckInContract.State): @Composable (StaffStrings) -> Unit = { staff ->
+        CheckInCardContent(state, staff, onTap = {}, onRationaleAccepted = {}, onRationaleDismissed = {}, onMyRecord = {})
+    }
+
+    private val beforeArrival = CheckInContract.State(loading = false, today = CheckInToday(date = "2026-10-14"))
+
+    private val afterArrival = CheckInContract.State(
+        loading = false,
+        today = CheckInToday(date = "2026-10-14", checkIn = "06:52", lateMinutes = 0),
+        message = CheckInMessage.Recorded("06:52", 0),
+    )
+
     @Test fun staffHome() {
         listOf("staff-home-en" to StaffStrings.en, "staff-home-ar" to StaffStrings.ar).forEach { (name, s) ->
             shot(name, s, dark = false, title = { it.attendance }) { staff, _ ->
-                StaffHomeScreen(staff, unreadMessages = 3, hasChat = true, onMessages = {}, switch = {})
+                StaffHomeScreen(staff, unreadMessages = 3, hasChat = true, onMessages = {}, today = { checkInCard(beforeArrival)(staff) }, switch = {})
             }
         }
         shot("staff-home-dark", StaffStrings.en, dark = true, title = { it.attendance }) { staff, _ ->
-            StaffHomeScreen(staff, unreadMessages = 0, hasChat = true, onMessages = {}, switch = {})
+            StaffHomeScreen(staff, unreadMessages = 0, hasChat = true, onMessages = {}, today = { checkInCard(afterArrival)(staff) }, switch = {})
+        }
+    }
+
+    /** Feature 15: the check-in card on its own, and "My record". */
+    @Test fun staffCheckIn() {
+        listOf("staff-check-in-en" to StaffStrings.en, "staff-check-in-ar" to StaffStrings.ar).forEach { (name, s) ->
+            shot(name, s, dark = false, title = { it.today }) { staff, _ -> checkInCard(beforeArrival)(staff) }
+        }
+        shot("staff-check-in-outside", StaffStrings.ar, dark = false, title = { it.today }) { staff, _ ->
+            checkInCard(beforeArrival.copy(message = CheckInMessage.Outside(400)))(staff)
+        }
+        shot("staff-check-in-dark", StaffStrings.en, dark = true, title = { it.today }) { staff, _ ->
+            checkInCard(afterArrival)(staff)
+        }
+    }
+
+    @Test fun staffMyRecord() {
+        val month = MyRecordContract.State(
+            loading = false,
+            month = "2026-10",
+            days = listOf(
+                CheckInDay(date = "2026-10-12", checkIn = "06:50", checkOut = "14:02", status = "ON_TIME", lateMinutes = 0, mode = "onsite"),
+                CheckInDay(date = "2026-10-13", checkIn = "07:04", checkOut = "14:00", status = "LATE", lateMinutes = 12, mode = "onsite"),
+                CheckInDay(date = "2026-10-14", status = "DAY_OFF"),
+            ),
+        )
+        listOf("staff-my-record-en" to StaffStrings.en, "staff-my-record-ar" to StaffStrings.ar).forEach { (name, s) ->
+            shot(name, s, dark = false, title = { it.myRecord }) { staff, _ ->
+                StaffMyRecordScreen(month, staff, onPreviousMonth = {}, onNextMonth = {})
+            }
+        }
+        shot("staff-my-record-dark", StaffStrings.en, dark = true, title = { it.myRecord }) { staff, _ ->
+            StaffMyRecordScreen(month, staff, onPreviousMonth = {}, onNextMonth = {})
         }
     }
 

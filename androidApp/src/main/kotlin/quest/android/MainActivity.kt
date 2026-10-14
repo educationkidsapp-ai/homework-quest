@@ -2,6 +2,7 @@ package quest.android
 
 import android.content.Intent
 import android.os.Bundle
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -10,6 +11,7 @@ import quest.App
 import quest.core.platform.AndroidTodaySnapshotStore
 import quest.core.platform.AppVisibility
 import quest.core.platform.BiometricHost
+import quest.core.platform.LocationPermissionHost
 import quest.core.platform.PushIntents
 import quest.feature.push.domain.isNewLaunch
 import quest.feature.today.domain.TodayLinks
@@ -33,6 +35,7 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         BiometricHost.attach(this)
+        attachLocationPermissions()
         followWidgetTap(intent)
         // M5: a tapped push that started the app — but not the same old intent again after process death or from Recents.
         val fromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
@@ -51,11 +54,30 @@ class MainActivity : FragmentActivity() {
         PushIntents.follow(intent)                      // M5: a tapped push while the app was in the background or open
     }
 
+    /**
+     * Feature 15: the staff check-in asks for the while-in-use location permission from shared code, which has no
+     * activity of its own. The launcher is registered here and handed to `LocationPermissionHost`, exactly as
+     * `BiometricPrompt` is handed this activity.
+     */
+    private fun attachLocationPermissions() {
+        var pending: ((Boolean) -> Unit)? = null
+        val launcher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+            val answer = pending
+            pending = null
+            answer?.invoke(granted.values.any { it })
+        }
+        LocationPermissionHost.attach { permissions, onResult ->
+            pending = onResult
+            launcher.launch(permissions)
+        }
+    }
+
     /** M3: hands the tap to the shared UI, which follows it underneath the biometric lock — never around it. */
     private fun followWidgetTap(intent: Intent?) = TodayLinks.open(intent?.getStringExtra(AndroidTodaySnapshotStore.EXTRA_LINK))
 
     override fun onDestroy() {
         BiometricHost.detach(this)
+        LocationPermissionHost.detach()
         super.onDestroy()
     }
 }

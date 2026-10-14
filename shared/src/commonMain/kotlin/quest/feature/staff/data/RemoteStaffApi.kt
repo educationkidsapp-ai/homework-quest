@@ -33,6 +33,10 @@ import quest.api.dto.RegisterDeviceRequest
 import quest.api.dto.SendChatMessageRequest
 import quest.api.dto.UnregisterDeviceRequest
 import quest.api.dto.UnreadCount
+import quest.api.staff.CheckInMonth
+import quest.api.staff.CheckInRequest
+import quest.api.staff.CheckInResult
+import quest.api.staff.CheckInToday
 import quest.api.staff.StaffMe
 import quest.core.json.AppJson
 import quest.feature.chat.data.source
@@ -101,6 +105,19 @@ class RemoteStaffApi(
             onUpload { sent, total -> if (total != null && total > 0) onProgress((sent.toFloat() / total).coerceIn(0f, 1f)) }
         }
     }
+
+    // ---------------------------------------------------------------- feature 15: check in and out
+
+    override suspend fun checkIn(request: CheckInRequest): CheckInResult =
+        call { client.post("$baseUrl/staff/attendance/check-in") { staffed(); contentType(ContentType.Application.Json); setBody(request) } }
+
+    override suspend fun checkOut(request: CheckInRequest): CheckInResult =
+        call { client.post("$baseUrl/staff/attendance/check-out") { staffed(); contentType(ContentType.Application.Json); setBody(request) } }
+
+    override suspend fun checkInToday(): CheckInToday = call { client.get("$baseUrl/staff/attendance/today") { staffed() } }
+
+    override suspend fun checkInMonth(month: String?): CheckInMonth =
+        call { client.get("$baseUrl/staff/attendance/month") { staffed(); month?.let { parameter("month", it) } } }
 
     override suspend fun notifications(limit: Int): List<NotificationView> =
         call { client.get("$baseUrl/me/notifications") { staffed(); parameter("limit", limit) } }

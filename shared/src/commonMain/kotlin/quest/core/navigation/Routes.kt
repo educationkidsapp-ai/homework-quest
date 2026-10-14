@@ -101,4 +101,7 @@ object Routes {
 
     /** Her temporary password, replaced before she reaches the staff home (`SignInResponse.mustChangePassword`). */
     @Serializable object StaffChangePassword
+
+    /** Feature 15: "سجلي / My record" — her own month of check-ins, behind `staffAttendance`. */
+    @Serializable object StaffMyRecord
 }

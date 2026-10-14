@@ -32,6 +32,7 @@ fun NavGraphBuilder.staffGraph(nav: NavHostController) {
             LaunchedEffect(lock) { lock.parentHomeOpened() }
             StaffHomeRoute(
                 onMessages = { nav.navigate(Routes.StaffMessages) },
+                onMyRecord = { nav.navigate(Routes.StaffMyRecord) },
                 onNotifications = { nav.navigate(Routes.StaffNotifications) },
                 onAccount = { nav.navigate(Routes.StaffAccount) },
                 onParentSide = { nav.toParentSide() },
@@ -72,6 +73,11 @@ fun NavGraphBuilder.staffGraph(nav: NavHostController) {
                 onParentSide = { nav.toParentSide() },
                 onSignedOut = { nav.navigate(Routes.SignIn) { popUpTo(0) { inclusive = true } } },
             )
+        }
+    }
+    composable<Routes.StaffMyRecord> {
+        StaffGuard(nav) {
+            StaffMyRecordRoute(onBack = { nav.popBackStack() })
         }
     }
     composable<Routes.StaffChangePassword> {

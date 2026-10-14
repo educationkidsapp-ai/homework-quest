@@ -16,6 +16,7 @@
 	<key>NSFaceIDUsageDescription</key><string>Unlock MySchool with Face ID instead of your password.</string>
 	<key>NSMicrophoneUsageDescription</key><string>Record your child retelling the story.</string>
 	<key>NSCameraUsageDescription</key><string>Take a photo to send to the school in Messages.</string>
+	<key>NSLocationWhenInUseUsageDescription</key><string>Staff check in and out at the school. We read your location only at the moment of check-in and do not keep it.</string>
 	<key>NSSupportsLiveActivities</key><true/>
 	<key>APP_GROUP</key><string>group.$(BUNDLE_ID)</string>
 	<key>API_BASE_URL</key><string>$(API_BASE_URL)</string>

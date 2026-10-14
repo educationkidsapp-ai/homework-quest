@@ -67,6 +67,8 @@ actual fun platformModule(): Module = module {
     single<ExamSittingPresenter> { AndroidExamSittingPresenter(androidContext(), get()) }
     // M5: push for parents over FCM (off where the app has no google-services.json).
     single<PushTokens> { FcmPushTokens(androidContext()) }
+    // Feature 15: one while-in-use fix per check-in tap, through `LocationPermissionHost` in MainActivity.
+    single<LocationReader> { AndroidLocationReader(androidContext()) }
     single {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         AndroidPushNotifier(androidContext(), language = { get<ParentRepository>().language.value }, onForeground = { scope.launch { get<ParentBadges>().refresh() } })

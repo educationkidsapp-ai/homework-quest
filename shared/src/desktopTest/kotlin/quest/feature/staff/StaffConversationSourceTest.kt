@@ -73,6 +73,11 @@ class StaffConversationSourceTest {
         override suspend fun markAllNotificationsRead(): UnreadCount = UnreadCount(0)
         override suspend fun registerDevice(request: RegisterDeviceRequest) = Unit
         override suspend fun unregisterDevice(token: String) = Unit
+        // Feature 15 rounds out the port; this fake answers none of it.
+        override suspend fun checkIn(request: quest.api.staff.CheckInRequest): quest.api.staff.CheckInResult = error("not used")
+        override suspend fun checkOut(request: quest.api.staff.CheckInRequest): quest.api.staff.CheckInResult = error("not used")
+        override suspend fun checkInToday(): quest.api.staff.CheckInToday = error("not used")
+        override suspend fun checkInMonth(month: String?): quest.api.staff.CheckInMonth = error("not used")
     }
 
     /** A socket that records commands instead of opening one; `sendCommand` answers false with no live session. */

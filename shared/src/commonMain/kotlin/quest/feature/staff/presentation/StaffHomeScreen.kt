@@ -29,13 +29,14 @@ import quest.ui.design.DashboardTokens
 import quest.ui.design.Dimens
 
 /**
- * The staff home: the Attendance tab. Feature 15 puts today's state and the check-in button on the Today card; until
- * then the card says "قريبًا / Coming soon" behind the switch, and under it is the one thing a staff member opens
- * this app for today — her unread messages.
+ * The staff home: the Attendance tab. Feature 15's Today card carries today's times and the one check-in button
+ * (behind `staffAttendance`, so a school that does not use it sees no card at all), and under it is the other thing a
+ * staff member opens this app for — her unread messages.
  */
 @Composable
 fun StaffHomeRoute(
     onMessages: () -> Unit,
+    onMyRecord: () -> Unit,
     onNotifications: () -> Unit,
     onAccount: () -> Unit,
     onParentSide: () -> Unit,
@@ -61,6 +62,7 @@ fun StaffHomeRoute(
             unreadMessages = counts.messages,
             hasChat = profile?.hasChat ?: true,
             onMessages = onMessages,
+            today = { CheckInCard(onMyRecord = onMyRecord) },
             switch = { SideSwitch(onSwitched = { onParentSide() }) },
         )
     }
@@ -72,6 +74,8 @@ fun StaffHomeScreen(
     unreadMessages: Int,
     hasChat: Boolean,
     onMessages: () -> Unit,
+    /** Feature 15's check-in card, as a slot for the same reason the switch is one: it reads Koin for its view model. */
+    today: @Composable () -> Unit,
     /**
      * The Staff/Parent switch, as a slot: it reads the session itself, which a screenshot has no Koin graph for, so
      * the screen takes it rather than reaching for it.
@@ -83,19 +87,7 @@ fun StaffHomeScreen(
             Spacer(Modifier.height(Dimens.s8))
             switch()
             SectionTitle(strings.today)
-            ParentCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        strings.comingSoon,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = DashboardTokens.ink,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Chip(strings.attendance, DashboardTokens.secondarySoft)
-                }
-                Spacer(Modifier.height(Dimens.s4))
-                Text(strings.comingSoonBody, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.inkSoft)
-            }
+            today()
             if (hasChat) {
                 SectionTitle(strings.messages)
                 ParentCard(onClick = onMessages) {

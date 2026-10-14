@@ -34,8 +34,17 @@ object Flags {
      */
     const val STAFF_MOBILE_APP = "staffMobileApp"
 
+    /**
+     * Feature 15: geofenced check-in and check-out. A school that does not use it sees no Check in button and no
+     * "My record"; the server answers 404 to the four `/staff/attendance` routes while it is off.
+     */
+    const val STAFF_ATTENDANCE = "staffAttendance"
+
     /** Every key this app gates on. */
-    val used = listOf(RETELL_RECORDING, OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, CERTIFICATES, LEVEL_THREE, CHAT, ANNOUNCEMENTS, EXAMS, STAFF_MOBILE_APP)
+    val used = listOf(
+        RETELL_RECORDING, OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, CERTIFICATES, LEVEL_THREE, CHAT, ANNOUNCEMENTS,
+        EXAMS, STAFF_MOBILE_APP, STAFF_ATTENDANCE,
+    )
 
     /** True when the platform defines [key] at all — the contract's `DEFAULT_FLAGS` is the list of what exists. */
     fun isKnown(key: String): Boolean = key in DEFAULT_FLAGS

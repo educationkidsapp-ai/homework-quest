@@ -49,9 +49,68 @@ data class StaffStrings(
     val passwordMismatch: String,
     val passwordTooShort: String,
     val changePassword: String,
+    // ---- feature 15: check in and out
+    val checkIn: String,
+    val checkOut: String,
+    val myRecord: String,
+    val confirmIdentity: String,
+    val privacyTitle: String,
+    val privacyBody: String,
+    val continueWord: String,
+    val cancel: String,
+    val notCheckedInYet: String,
+    val checkedInLabel: String,
+    val checkedOutLabel: String,
+    val dayOffToday: String,
+    val attendanceNotEnabled: String,
+    val recordedAt: String,
+    val onTime: String,
+    val lateByMinutes: String,
+    val checkedOutAt: String,
+    val alreadyCheckedIn: String,
+    val outsideDistance: String,
+    val weakAccuracy: String,
+    val mockLocation: String,
+    val deviceNotApproved: String,
+    val noGeofence: String,
+    val checkInFirst: String,
+    val locationPermissionNeeded: String,
+    val checkInFailed: String,
+    val offlineCheckIn: String,
+    val noRecordThisMonth: String,
+    val recordFailed: String,
+    val previousMonth: String,
+    val nextMonth: String,
+    val statusNames: Map<String, String>,
+    val modeNames: Map<String, String>,
     val roleNames: Map<String, String>,
 ) {
     fun roleName(wire: String): String = roleNames[wire.uppercase()] ?: wire
+
+    /** A `CheckInDay.status` / `mode` wire word in her language; an unknown word is shown as it came. */
+    fun statusName(wire: String): String = statusNames[wire.uppercase()] ?: wire
+    fun modeName(wire: String): String = modeNames[wire.lowercase()] ?: wire
+
+    /**
+     * Feature 15's one line under the button. The view model holds the outcome and this holds the words, so the same
+     * state reads in Arabic and in English and no sentence is ever built in a view model.
+     */
+    fun checkInMessage(message: CheckInMessage): String = when (message) {
+        is CheckInMessage.Recorded -> recordedAt
+            .replace("{time}", message.time)
+            .replace("{status}", if ((message.lateMinutes ?: 0) <= 0) onTime else lateByMinutes.replace("{n}", message.lateMinutes.toString()))
+        is CheckInMessage.CheckedOut -> checkedOutAt.replace("{time}", message.time)
+        is CheckInMessage.Already -> alreadyCheckedIn.replace("{time}", message.time)
+        is CheckInMessage.Outside -> outsideDistance.replace("{m}", (message.distanceMeters ?: 0).toString())
+        CheckInMessage.WeakAccuracy -> weakAccuracy
+        CheckInMessage.MockLocation -> mockLocation
+        CheckInMessage.DeviceNotApproved -> deviceNotApproved
+        CheckInMessage.NoGeofence -> noGeofence
+        CheckInMessage.NotCheckedIn -> checkInFirst
+        CheckInMessage.NoPermission -> locationPermissionNeeded
+        CheckInMessage.Offline -> offlineCheckIn
+        CheckInMessage.Failed -> checkInFailed
+    }
 
     companion object {
         val en = StaffStrings(
@@ -95,6 +154,44 @@ data class StaffStrings(
             passwordMismatch = "The passwords did not match.",
             passwordTooShort = "The password needs at least 8 characters.",
             changePassword = "Save password",
+            checkIn = "Check in",
+            checkOut = "Check out",
+            myRecord = "My record",
+            confirmIdentity = "Confirm it is you",
+            privacyTitle = "Location permission",
+            privacyBody = "We read your location only at the moment you check in and never keep it.",
+            continueWord = "Continue",
+            cancel = "Cancel",
+            notCheckedInYet = "You have not checked in today.",
+            checkedInLabel = "Check-in",
+            checkedOutLabel = "Check-out",
+            dayOffToday = "Today is not a working day.",
+            attendanceNotEnabled = "Check-in is not enabled for your school.",
+            recordedAt = "Checked in at {time} — {status}",
+            onTime = "on time",
+            lateByMinutes = "{n} minutes late",
+            checkedOutAt = "Checked out at {time}",
+            alreadyCheckedIn = "You already checked in at {time}.",
+            outsideDistance = "You are {m} m from the school.",
+            weakAccuracy = "Location accuracy is weak — try again.",
+            mockLocation = "A mock location is not allowed. Turn mock-location apps off and try again.",
+            deviceNotApproved = "This phone is not approved. Ask the administration to approve the new device.",
+            noGeofence = "The school has not set its location yet. Tell the administration.",
+            checkInFirst = "Check in first.",
+            locationPermissionNeeded = "We need the location permission to record your attendance.",
+            checkInFailed = "We could not record it. Try again.",
+            offlineCheckIn = "You need an internet connection to check in.",
+            noRecordThisMonth = "No days recorded this month.",
+            recordFailed = "We could not load your record.",
+            previousMonth = "Previous month",
+            nextMonth = "Next month",
+            statusNames = mapOf(
+                "ON_TIME" to "On time", "LATE" to "Late", "ABSENT" to "Absent", "DAY_OFF" to "Day off",
+                "HOLIDAY" to "Holiday", "UPCOMING" to "—",
+            ),
+            modeNames = mapOf(
+                "onsite" to "On site", "remote" to "Remote", "device" to "Device", "correction" to "Correction",
+            ),
             roleNames = mapOf(
                 "ADMIN" to "Administrator", "TEACHER" to "Teacher", "MANAGERIAL" to "Department manager",
                 "COORDINATOR" to "Subject coordinator", "WORKER" to "Staff member",
@@ -142,6 +239,44 @@ data class StaffStrings(
             passwordMismatch = "كلمتا المرور غير متطابقتين.",
             passwordTooShort = "كلمة المرور تحتاج 8 أحرف على الأقل.",
             changePassword = "حفظ كلمة المرور",
+            checkIn = "تسجيل حضور",
+            checkOut = "تسجيل انصراف",
+            myRecord = "سجلي",
+            confirmIdentity = "تأكيد هويتك",
+            privacyTitle = "إذن الموقع",
+            privacyBody = "نقرأ موقعك لحظة التسجيل فقط ولا نحتفظ به.",
+            continueWord = "متابعة",
+            cancel = "إلغاء",
+            notCheckedInYet = "لم تسجّل حضورك اليوم.",
+            checkedInLabel = "الحضور",
+            checkedOutLabel = "الانصراف",
+            dayOffToday = "اليوم ليس يوم عمل.",
+            attendanceNotEnabled = "تسجيل الحضور غير مُفعّل لمدرستك.",
+            recordedAt = "سُجّل حضورك {time} — {status}",
+            onTime = "في الوقت",
+            lateByMinutes = "متأخر {n} دقيقة",
+            checkedOutAt = "سُجّل انصرافك {time}",
+            alreadyCheckedIn = "سجّلت حضورك الساعة {time}.",
+            outsideDistance = "أنت على بعد {m} م من المدرسة.",
+            weakAccuracy = "دقة الموقع ضعيفة، حاول مرة أخرى.",
+            mockLocation = "الموقع الوهمي غير مسموح. أوقف تطبيقات الموقع الوهمي وحاول مرة أخرى.",
+            deviceNotApproved = "هذا الجوال غير معتمد. اطلب من الإدارة اعتماد الجهاز الجديد.",
+            noGeofence = "لم تحدّد المدرسة موقعها بعد. أبلغ الإدارة.",
+            checkInFirst = "سجّل حضورك أولًا.",
+            locationPermissionNeeded = "نحتاج إذن الموقع لتسجيل حضورك.",
+            checkInFailed = "لم نتمكن من التسجيل. حاول مرة أخرى.",
+            offlineCheckIn = "تحتاج اتصالًا بالإنترنت لتسجيل الحضور.",
+            noRecordThisMonth = "لا أيام مسجّلة هذا الشهر.",
+            recordFailed = "لم نتمكن من تحميل سجلك.",
+            previousMonth = "الشهر السابق",
+            nextMonth = "الشهر التالي",
+            statusNames = mapOf(
+                "ON_TIME" to "في الوقت", "LATE" to "متأخر", "ABSENT" to "غائب", "DAY_OFF" to "يوم عطلة",
+                "HOLIDAY" to "عطلة رسمية", "UPCOMING" to "—",
+            ),
+            modeNames = mapOf(
+                "onsite" to "في المدرسة", "remote" to "عن بُعد", "device" to "جهاز", "correction" to "تصحيح",
+            ),
             roleNames = mapOf(
                 "ADMIN" to "مدير النظام", "TEACHER" to "معلّم", "MANAGERIAL" to "مدير قسم",
                 "COORDINATOR" to "منسّق مادة", "WORKER" to "موظف",
