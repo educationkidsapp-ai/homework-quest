@@ -140,7 +140,11 @@ class AndroidPushNotifier(
             .setSmallIcon(context.resources.getIdentifier("ic_launcher_monochrome", "drawable", context.packageName).takeIf { it != 0 } ?: context.applicationInfo.icon)
             .setContentTitle(notice.title ?: strings.genericTitle)
             .setAutoCancel(true)
-            .setCategory(if (notice.channel == PushChannel.MESSAGES) NotificationCompat.CATEGORY_MESSAGE else NotificationCompat.CATEGORY_EVENT)
+            .setCategory(if (notice.channel == PushChannel.MESSAGES || notice.channel == PushChannel.MESSAGES_QUIET) NotificationCompat.CATEGORY_MESSAGE else NotificationCompat.CATEGORY_EVENT)
+            // Feature 19: the channel is what silences it from Android 8 on (the app's floor), and these two say the
+            // same thing to the compat builder — low in the shade, no sound and no vibration.
+            .setPriority(if (notice.channel.quiet) NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_DEFAULT)
+            .setSilent(notice.channel.quiet)
             .setContentIntent(open?.let { PendingIntent.getActivity(context, notice.tag.hashCode(), it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE) })
         notice.body?.let { builder.setContentText(it).setStyle(NotificationCompat.BigTextStyle().bigText(it)) }
         manager.notify(notice.tag, NOTIFICATION_ID, builder.build())
@@ -155,8 +159,15 @@ class AndroidPushNotifier(
                 PushChannel.HOMEWORK -> s.channelHomework
                 PushChannel.COMPLAINTS -> s.channelComplaints
                 PushChannel.SCHOOL_NEWS -> s.channelSchoolNews
+                // Feature 19: named so she can find it in the system settings and make it loud again if she wants.
+                PushChannel.MESSAGES_QUIET -> s.channelMessagesQuiet
             }
-            manager.createNotificationChannel(NotificationChannel(channel.id, name, NotificationManager.IMPORTANCE_DEFAULT))
+            val importance = if (channel.quiet) NotificationManager.IMPORTANCE_LOW else NotificationManager.IMPORTANCE_DEFAULT
+            manager.createNotificationChannel(
+                NotificationChannel(channel.id, name, importance).apply {
+                    if (channel.quiet) { setSound(null, null); enableVibration(false) }
+                },
+            )
         }
     }
 

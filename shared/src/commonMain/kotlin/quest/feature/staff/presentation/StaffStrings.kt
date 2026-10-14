@@ -96,9 +96,30 @@ data class StaffStrings(
     val attDigestLate: String,
     val attDigestNotArrived: String,
     val attNameSeparator: String,
+    // ---- feature 19: chat office hours
+    val afterHoursSection: String,
+    val afterHoursLabel: String,
+    val afterHoursHint: String,
+    val afterHoursSaveFailed: String,
+    val afterHoursSummaryOne: String,
+    val afterHoursSummaryTwo: String,
+    val afterHoursSummaryFew: String,
+    val afterHoursSummaryMany: String,
     val roleNames: Map<String, String>,
 ) {
     fun roleName(wire: String): String = roleNames[wire.uppercase()] ?: wire
+
+    /**
+     * Feature 19: the morning summary in the reader's language, from the count on the row's link. Arabic counts in
+     * four forms — one, two, a few (3–10) and many (11 and up) — and a sentence built with `if (n == 1)` alone reads
+     * wrong in three of them.
+     */
+    fun afterHoursSummary(count: Int): String = when {
+        count <= 1 -> afterHoursSummaryOne
+        count == 2 -> afterHoursSummaryTwo
+        count <= 10 -> afterHoursSummaryFew
+        else -> afterHoursSummaryMany
+    }.replace("{n}", count.toString())
 
     /** A `CheckInDay.status` / `mode` wire word in her language; an unknown word is shown as it came. */
     fun statusName(wire: String): String = statusNames[wire.uppercase()] ?: wire
@@ -218,6 +239,14 @@ data class StaffStrings(
             attDigestLate = "Late: {names}",
             attDigestNotArrived = "Not arrived: {names}",
             attNameSeparator = ", ",
+            afterHoursSection = "Alerts after hours",
+            afterHoursLabel = "Receive alerts after hours",
+            afterHoursHint = "Off: parent messages after hours arrive silently, with a summary in the morning.",
+            afterHoursSaveFailed = "We could not save that. Try again.",
+            afterHoursSummaryOne = "You got 1 message after hours",
+            afterHoursSummaryTwo = "You got {n} messages after hours",
+            afterHoursSummaryFew = "You got {n} messages after hours",
+            afterHoursSummaryMany = "You got {n} messages after hours",
             roleNames = mapOf(
                 "ADMIN" to "Administrator", "TEACHER" to "Teacher", "MANAGERIAL" to "Department manager",
                 "COORDINATOR" to "Subject coordinator", "WORKER" to "Staff member",
@@ -316,6 +345,14 @@ data class StaffStrings(
             attDigestLate = "متأخرون: {names}",
             attDigestNotArrived = "لم يصل: {names}",
             attNameSeparator = "، ",
+            afterHoursSection = "الإشعارات خارج الدوام",
+            afterHoursLabel = "استقبال الإشعارات خارج الدوام",
+            afterHoursHint = "عند الإيقاف: تصلك رسائل أولياء الأمور خارج الدوام بصمت، مع ملخص في الصباح.",
+            afterHoursSaveFailed = "لم نتمكن من الحفظ. حاول مرة أخرى.",
+            afterHoursSummaryOne = "وصلتك رسالة واحدة خارج الدوام",
+            afterHoursSummaryTwo = "وصلتك رسالتان خارج الدوام",
+            afterHoursSummaryFew = "وصلتك {n} رسائل خارج الدوام",
+            afterHoursSummaryMany = "وصلتك {n} رسالة خارج الدوام",
             roleNames = mapOf(
                 "ADMIN" to "مدير النظام", "TEACHER" to "معلّم", "MANAGERIAL" to "مدير قسم",
                 "COORDINATOR" to "منسّق مادة", "WORKER" to "موظف",

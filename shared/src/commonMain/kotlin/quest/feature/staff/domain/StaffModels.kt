@@ -41,6 +41,11 @@ data class StaffProfile(
     val schoolId: String,
     val schoolName: String?,
     val flags: Map<String, Boolean>,
+    /**
+     * Feature 19: she keeps normal alerts for parent messages that arrive outside her office hours. Off by default —
+     * the point of the feature is a quiet evening — and only ever shown while her school has `chatOfficeHours` on.
+     */
+    val afterHoursAlerts: Boolean = false,
 ) {
     val hasChat: Boolean get() = role?.hasChat ?: true
 
@@ -54,6 +59,7 @@ data class StaffProfile(
             schoolId = me.schoolId,
             schoolName = me.schoolName?.takeIf { it.isNotBlank() },
             flags = me.flags,
+            afterHoursAlerts = me.afterHoursAlerts,
         )
     }
 }

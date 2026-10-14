@@ -1,6 +1,7 @@
 package quest.feature.parent.presentation
 
 import androidx.compose.runtime.staticCompositionLocalOf
+import quest.feature.chat.domain.OfficeHoursWords
 import quest.feature.complaints.presentation.ComplaintStrings
 import quest.feature.journey.presentation.LessonStrings
 import quest.feature.school.domain.SchoolBranding
@@ -215,6 +216,11 @@ data class Strings(
     val lesson: LessonStrings = LessonStrings.en,
     /** M8: the Complaints page's own table. */
     val complaints: ComplaintStrings = ComplaintStrings.en,
+    /**
+     * Feature 19: the conversation's office-hours banner, with the full weekday names and the AM/PM words it needs.
+     * It is a domain table ([OfficeHoursWords]) so the banner itself stays pure and testable without a screen.
+     */
+    val officeHours: OfficeHoursWords = OfficeHoursWords.en,
 ) {
     fun accuracy(words: String) = accuracyWords[words] ?: words
 
@@ -411,6 +417,7 @@ data class Strings(
             checkAgain = "تحقّق مرة أخرى",
             lesson = LessonStrings.ar,
             complaints = ComplaintStrings.ar,
+            officeHours = OfficeHoursWords.ar,
         )
 
         fun forLanguage(code: String) = if (code == "ar") ar else en

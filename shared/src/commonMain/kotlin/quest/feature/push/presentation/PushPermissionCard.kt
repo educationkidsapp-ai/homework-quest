@@ -32,6 +32,8 @@ data class PushStrings(
     val channelHomework: String = "Homework",
     val channelComplaints: String = "Complaints",
     val channelSchoolNews: String = "School news",
+    /** Feature 19: the low channel a parent's message lands on outside a staff member's office hours. */
+    val channelMessagesQuiet: String = "Messages after hours",
     /** Shown only when a push arrives with no title at all. */
     val genericTitle: String = "News from the school",
     val cardTitle: String = "Turn on notifications",
@@ -47,6 +49,7 @@ data class PushStrings(
             channelHomework = "الواجبات",
             channelComplaints = "الشكاوى",
             channelSchoolNews = "أخبار المدرسة",
+            channelMessagesQuiet = "رسائل خارج الدوام",
             genericTitle = "جديد من المدرسة",
             cardTitle = "تفعيل الإشعارات",
             cardBody = "تصلك أخبار المدرسة عندما يراسلك المعلّم أو تُعلن نتيجة أو يُنشر واجب — حتى والتطبيق مغلق.",

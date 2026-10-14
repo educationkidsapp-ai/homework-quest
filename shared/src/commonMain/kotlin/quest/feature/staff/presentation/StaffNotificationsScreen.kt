@@ -132,6 +132,8 @@ fun StaffNotificationsRoute(
                 // Feature 16: a reminder opens her Attendance tab; an alert or the digest is read where it stands
                 // until feature 17's board gives it somewhere to go.
                 if (row.kind == quest.api.dto.NotificationKind.ATTENDANCE_REMINDER) onHome()
+                // Feature 19: the morning summary names no one thread — every message it counts is on the Messages tab.
+                if (row.kind == quest.api.dto.NotificationKind.CHAT_AFTER_HOURS_SUMMARY) onMessages()
             },
             onMarkAllRead = { vm.dispatch(StaffNotificationsContract.Intent.MarkAllRead) },
         )
@@ -175,7 +177,9 @@ fun StaffNotificationsScreen(
 
 @Composable
 private fun StaffNotificationRow(row: NotificationView, onClick: () -> Unit) {
-    val worded = attendanceText(quest.api.dto.PushMessage.kindName(row.kind), row.link, LocalStaffStrings.current)
+    val kind = quest.api.dto.PushMessage.kindName(row.kind)
+    val strings = LocalStaffStrings.current
+    val worded = attendanceText(kind, row.link, strings) ?: afterHoursText(kind, row.link, strings)
     val title = worded?.first ?: row.title
     val body = worded?.second ?: row.body
     ParentCard(Modifier.fillMaxWidth().padding(bottom = Dimens.s8), onClick = onClick) {

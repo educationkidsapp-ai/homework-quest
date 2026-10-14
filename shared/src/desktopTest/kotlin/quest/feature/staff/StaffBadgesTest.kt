@@ -13,6 +13,7 @@ import quest.api.dto.RegisterDeviceRequest
 import quest.api.dto.SendChatMessageRequest
 import quest.api.dto.UnreadCount
 import quest.api.staff.StaffMe
+import quest.api.staff.StaffPreferences
 import quest.feature.chat.domain.StagedUpload
 import quest.feature.staff.domain.StaffGateway
 import quest.feature.staff.domain.StaffBadges
@@ -35,6 +36,7 @@ class StaffBadgesTest {
     private class FakeGateway(var unread: Int) : StaffGateway {
         var threadCalls = 0
         override suspend fun staffMe(): StaffMe = error("not used")
+        override suspend fun staffPreferences(request: StaffPreferences): StaffMe = error("not used")
         override suspend fun staffThreads(): List<ChatThread> {
             threadCalls++
             return listOf(ChatThread(id = "t-1", childId = "", childName = "", teacherId = "u-2", teacherName = "Ms. Hala", unread = unread))

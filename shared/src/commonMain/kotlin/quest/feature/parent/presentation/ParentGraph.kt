@@ -18,6 +18,7 @@ import quest.feature.complaints.presentation.ComplaintsRoute
 import quest.feature.complaints.presentation.NewComplaintRoute
 import quest.feature.broadcasts.presentation.BroadcastsRoute
 import quest.feature.broadcasts.presentation.WeeklyPlanRoute
+import quest.api.dto.OfficeHoursStatus
 import quest.feature.push.domain.PushLinks
 import quest.feature.push.domain.ParentGate
 import quest.feature.lock.domain.AppLock
@@ -137,6 +138,13 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
                 withAdmin = route.admin,
                 peerOnline = route.peerOnline?.toBooleanStrictOrNull(),
                 peerRole = ChatPeerRole.entries.firstOrNull { it.name == route.peerRole },
+                // Feature 19: a status travels only when it is closed and names a next start, which is the one case
+                // the banner says anything at all.
+                officeHours = if (route.officeNextStart != null && route.officeToday != null) {
+                    OfficeHoursStatus(open = false, nextStart = route.officeNextStart, today = route.officeToday, schoolPhone = route.officePhone)
+                } else {
+                    null
+                },
             ),
             onBack = { nav.popBackStack() },
             onOpenComplaints = { nav.navigate(Routes.Complaints) { popUpTo(Routes.ParentHome) { inclusive = false } } },
@@ -158,4 +166,7 @@ internal fun ChatThread.asConversation() = Routes.ChatConversation(
     admin = withAdmin == true,
     peerOnline = peerOnline?.toString(),
     peerRole = peerRole?.name,
+    officeNextStart = officeHours?.takeIf { !it.open }?.nextStart,
+    officeToday = officeHours?.takeIf { !it.open && it.nextStart != null }?.today,
+    officePhone = officeHours?.takeIf { !it.open }?.schoolPhone,
 )

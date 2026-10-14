@@ -27,6 +27,11 @@ sealed interface Destination {
      * home); an alert or the digest opens her notifications, until feature 17 gives them a board and a day to open.
      */
     data class StaffAttendance(val reminder: Boolean) : Destination
+    /**
+     * Feature 19: `chat.after_hours_summary` — the morning summary of the parent messages that arrived while she was
+     * off. It names no one thread, so it opens her Messages tab, where they are all waiting.
+     */
+    data object StaffMessages : Destination
     /** M8: `complaint.message` and `complaint.status` — that complaint's own page, about [childId]. */
     data class Complaint(val childId: String, val complaintId: String) : Destination
     /** A weekly plan: the Weekly plan page, on that plan. */
@@ -76,6 +81,7 @@ class NotificationRouter(
         // a child and a staff member's never does, so the two cannot be taken for one another.
         staffConversation(tap)?.let { return it }
         staffAttendance(tap)?.let { return it }
+        if (tap.kind == CHAT_AFTER_HOURS_SUMMARY && staffSignedIn()) return Destination.StaffMessages
         val childId = tap.childId ?: childOf(tap.link)
         val child = childId?.let { select(it) }
         if (childId != null && child == null) return Destination.Notifications(tap.notificationId, gone = true)
@@ -199,3 +205,16 @@ class ParentGate(private val elapsed: () -> Long, private val graceMillis: Long 
 const val ATTENDANCE_REMINDER = "attendance.reminder"
 
 fun isAttendance(kind: String?): Boolean = kind != null && kind.startsWith("attendance.")
+
+/**
+ * Feature 19: the morning summary of the messages that arrived outside her office hours
+ * (`NotificationKind.CHAT_AFTER_HOURS_SUMMARY`). Its link is her Messages with the count on it (`?count=3`), so it
+ * names no thread and cannot be mistaken for one.
+ */
+const val CHAT_AFTER_HOURS_SUMMARY = "chat.after_hours_summary"
+
+/** The `?count=` of an after-hours summary's link, when it carries a positive one. */
+fun afterHoursCount(link: String?): Int? =
+    link?.let { COUNT.find(it)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { n -> n > 0 } }
+
+private val COUNT = Regex("[?&]count=(\\d+)")
