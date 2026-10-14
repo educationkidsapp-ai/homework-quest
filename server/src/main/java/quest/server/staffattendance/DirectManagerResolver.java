@@ -61,14 +61,26 @@ public class DirectManagerResolver {
         return self == null ? null : director(schoolId, self);
     }
 
-    private String director(String schoolId, UserEntity employee) {
+    /**
+     * Feature 17: her academies, in name order — a teacher's curriculum, a coordinator's scoped curricula, a manager's
+     * department rows (the academies she directs). Empty for a worker. The board's Academy column and filter.
+     */
+    public TreeSet<String> academies(String schoolId, UserEntity employee) {
         var academies = new TreeSet<String>();
         if ("TEACHER".equals(employee.getRole()))
             teachers.findById(employee.getId()).map(t -> t.getCurriculum()).filter(c -> c != null && !c.isBlank())
                     .ifPresent(c -> academies.add(c.trim().toLowerCase(Locale.ROOT)));
-        else if ("COORDINATOR".equals(employee.getRole()))
+        else if ("COORDINATOR".equals(employee.getRole()) || "MANAGERIAL".equals(employee.getRole()))
             for (var row : scopes.findBySchoolIdAndUserIdOrderBySubjectAscCurriculumAsc(schoolId, employee.getId()))
-                if (row.getCurriculum() != null && !row.getCurriculum().isBlank()) academies.add(row.getCurriculum().trim().toLowerCase(Locale.ROOT));
+                if (row.getCurriculum() != null && !row.getCurriculum().isBlank()
+                        && ("COORDINATOR".equals(employee.getRole()) || row.getSubject() == null))
+                    academies.add(row.getCurriculum().trim().toLowerCase(Locale.ROOT));
+        return academies;
+    }
+
+    private String director(String schoolId, UserEntity employee) {
+        if ("MANAGERIAL".equals(employee.getRole())) return null;                        // a manager is herself a director
+        var academies = academies(schoolId, employee);
         if (academies.isEmpty()) return null;
 
         var managers = new ArrayList<UserEntity>();

@@ -2388,7 +2388,8 @@
       "history": "الأيام المسجلة",
       "noMarks": "لم يُسجَّل أي يوم لهذا الشخص.",
       "nothingToSave": "لم يتغير شيء بعد.",
-      "pending": "{{count}} للحفظ"
+      "pending": "{{count}} للحفظ",
+      "historyTab": "السجل اليدوي"
     },
     "teachers": {
       "subtitle": "معلمو قسمك، وهل حدث اليوم في فصولهم.",
@@ -2676,6 +2677,120 @@
       "tooManyPixels": "لم يُرسل: إحدى الصور كبيرة جدًا (أكثر من 8192 بكسل أو 40 ميغابكسل). أرفق صورة أصغر.",
       "tooBig": "لم يُرسل: أحد الملفات كبير جدًا. الحد 5 ميغابايت للصور و10 ميغابايت لملفات PDF.",
       "notUploaded": "لم يُرسل: تعذر رفع أحد الملفات. احذفه وأرفقه من جديد."
+    }
+  },
+  "staffBoard": {
+    "subtitle": "حضور الموظفين اليوم بنظرة واحدة، والشهر جاهز للرواتب.",
+    "viewLabel": "عرض حضور الموظفين",
+    "todayTab": "اليوم",
+    "reportTab": "التقرير الشهري",
+    "loading": "جارٍ تحميل حضور الموظفين",
+    "leadsNobody": "لا يتبع لك أحد بعد",
+    "leadsNobodyDetail": "عندما يعيّنك المسؤول مديرًا مباشرًا لأحد الموظفين، يظهر حضوره هنا.",
+    "cardsLabel": "أعداد اليوم — اختر واحدًا لتصفية الجدول",
+    "card": {
+      "present": "حاضر",
+      "late": "متأخر",
+      "notArrived": "لم يصل",
+      "remote": "عن بعد",
+      "noCheckOut": "لم يسجل انصراف"
+    },
+    "filter": {
+      "search": "ابحث بالاسم",
+      "status": "الحالة",
+      "academy": "الأكاديمية",
+      "category": "الفئة",
+      "anyStatus": "كل الحالات",
+      "anyAcademy": "كل الأكاديميات",
+      "anyCategory": "كل الفئات"
+    },
+    "live": "{{day}} · يتحدّث كل 30 ثانية",
+    "tableLabel": "حضور الموظفين اليوم",
+    "noRows": "لا أحد يطابق هذه التصفية.",
+    "column": {
+      "name": "الاسم",
+      "category": "الفئة",
+      "academy": "الأكاديمية",
+      "checkIn": "الحضور",
+      "checkOut": "الانصراف",
+      "status": "الحالة",
+      "mode": "الطريقة"
+    },
+    "status": {
+      "PRESENT": "حاضر",
+      "LATE": "متأخر",
+      "NOT_ARRIVED": "لم يصل",
+      "REMOTE": "عن بعد",
+      "ABSENT": "غائب",
+      "UPCOMING": "لم يبدأ الدوام",
+      "OFF": "يوم راحة",
+      "HOLIDAY": "إجازة رسمية"
+    },
+    "lateBy": "{{minutes}} د",
+    "mode": {
+      "onsite": "في المدرسة",
+      "remote": "عن بعد",
+      "device": "جهاز البصمة",
+      "correction": "تصحيح",
+      "manual": "تسجيل يدوي"
+    },
+    "report": {
+      "month": "الشهر",
+      "csv": "تصدير CSV",
+      "xlsx": "تصدير Excel",
+      "tableLabel": "تقرير حضور الموظفين الشهري",
+      "workingDays": "أيام العمل",
+      "presentOnsite": "حضور في المدرسة",
+      "presentRemote": "حضور عن بعد",
+      "lateCount": "مرات التأخر",
+      "lateMinutes": "دقائق التأخر",
+      "absentDays": "أيام الغياب",
+      "earlyLeaveMinutes": "دقائق الانصراف المبكر",
+      "missingCheckOuts": "انصراف غير مسجل",
+      "corrections": "التصحيحات"
+    },
+    "day": {
+      "title": "يوم الموظف",
+      "attempts": "المحاولات يوم {{day}}",
+      "noAttempts": "لا محاولات تسجيل في ذلك اليوم.",
+      "alerts": "الإشعارات المرسلة",
+      "noAlerts": "لا إشعارات في ذلك اليوم.",
+      "month": "شهر {{month}}"
+    },
+    "action": {
+      "CHECK_IN": "تسجيل حضور",
+      "CHECK_OUT": "تسجيل انصراف"
+    },
+    "result": {
+      "RECORDED": "سُجّل",
+      "ALREADY": "مسجّل مسبقًا",
+      "REFUSED": "مرفوض"
+    },
+    "reason": {
+      "DEVICE_NOT_APPROVED": "الهاتف غير معتمد",
+      "MOCK_LOCATION": "موقع مزيّف",
+      "WEAK_ACCURACY": "دقة الموقع غير كافية",
+      "OUTSIDE": "خارج المدرسة",
+      "NO_GEOFENCE": "موقع المدرسة غير محدد",
+      "NOT_CHECKED_IN": "انصراف قبل الحضور"
+    },
+    "alert": {
+      "START_REMINDER": "تذكير بتسجيل الحضور",
+      "LATE": "تنبيه تأخر",
+      "NOT_ARRIVED": "تنبيه عدم الوصول",
+      "END_REMINDER": "تذكير بتسجيل الانصراف",
+      "EARLY_LEAVE": "تنبيه انصراف مبكر",
+      "MISSING_CHECKOUT": "تنبيه انصراف غير مسجل",
+      "ABSENT": "غائب"
+    },
+    "calendar": {
+      "ON_TIME": "في الموعد",
+      "LATE": "متأخر",
+      "ABSENT": "غائب",
+      "DAY_OFF": "يوم راحة",
+      "HOLIDAY": "إجازة رسمية",
+      "UPCOMING": "—",
+      "LEAVE": "إجازة"
     }
   }
 }

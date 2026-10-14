@@ -54,6 +54,8 @@ public class SecurityConfig {
                 // dashboard is 403 rather than a half-drawn shell; what each role may do inside is the
                 // `@PreAuthorize` on the route and the scope the service it delegates to already applies.
                 .requestMatchers("/staff/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "WORKER")
+                // Feature 17: the leaders' attendance board — anyone who may be a direct manager; never a worker or a parent.
+                .requestMatchers("/staff-attendance/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR")
                 // §6 screens 19–20: "my own school", with no school id in the path. Dashboard roles only; which of
                 // them may read what is the `@PreAuthorize` on each route, as everywhere else.
                 .requestMatchers("/school/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")

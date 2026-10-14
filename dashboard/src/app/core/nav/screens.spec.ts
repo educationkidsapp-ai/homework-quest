@@ -89,6 +89,8 @@ describe('the screen table', () => {
       'children',
       // Feature 14: the school's attendance rules and direct managers, behind `staffAttendance`.
       'attendance-settings',
+      // Feature 17: the whole school's board and monthly report, behind the same switch.
+      'staff-attendance',
       // D13: `schools` keeps its label and its `multiSchool` flag — the rail hides it at runtime,
       // and the table is what it is hidden from.
       'schools',
@@ -175,6 +177,8 @@ describe('the screen table', () => {
       // T2 (the owner's list, 2026-10-01): who she reports to, with the phone numbers on it.
       'coordinators',
       'manager',
+      // Feature 17: the board of the people she is direct manager of.
+      'staff-attendance',
     ]);
     expect(navScreens('TEACHER').map(({ link }) => link)).toEqual([
       '/teacher/week',
@@ -184,6 +188,7 @@ describe('the screen table', () => {
       '/teacher/complaints',
       '/teacher/coordinators',
       '/teacher/manager',
+      '/teacher/staff-attendance',
     ]);
     // Both are the chooser for a conversation, so both carry what the chat routes carry.
     for (const id of ['coordinators', 'manager']) {
@@ -228,7 +233,7 @@ describe('the screen table', () => {
    * are properties of the table: a row that lost `readOnly` would hand her a publish button, and
    * the page would never know.
    */
-  it('gives a coordinator her eleven rail items and read-only detail routes', () => {
+  it('gives a coordinator her twelve rail items and read-only detail routes', () => {
     expect(navScreens('COORDINATOR').map(({ screen }) => screen.id)).toEqual([
       'home',
       'teachers',
@@ -243,6 +248,8 @@ describe('the screen table', () => {
       // T2 item (b): her own Manager row, on `GET /coordinator/managers`.
       'manager',
       'announcements',
+      // Feature 17: the board of the people she is direct manager of.
+      'staff-attendance',
     ]);
     expect(navScreens('COORDINATOR').map(({ link }) => link)).toEqual([
       '/coordinator',
@@ -256,6 +263,7 @@ describe('the screen table', () => {
       '/coordinator/complaints',
       '/coordinator/manager',
       '/coordinator/announcements',
+      '/coordinator/staff-attendance',
     ]);
     // R7: all three carry the flag their server routes carry, so a school without chat has none
     // of them — in the rail or at the URL.
@@ -301,10 +309,18 @@ describe('the screen table', () => {
     // status, a broadcast — are her own keys too, so not one row of hers may carry a permission
     // from somebody else's namespace. `broadcast.read` is the one exception, and it is not one:
     // the *feed* is `GET /me/broadcasts`, which every dashboard role reads with the same key, and
-    // her composer is gated on `coordinator.broadcast` inside the screen.
+    // her composer is gated on `coordinator.broadcast` inside the screen. Feature 17's
+    // `attendance.board` is the other: one read key for everyone who may be a direct manager,
+    // which the server narrows to the people she leads.
     const keys = AREAS.COORDINATOR.screens.map((screen) => screen.permission ?? '');
     expect(
-      keys.every((key) => key === '' || key.startsWith('coordinator.') || key === 'broadcast.read'),
+      keys.every(
+        (key) =>
+          key === '' ||
+          key.startsWith('coordinator.') ||
+          key === 'broadcast.read' ||
+          key === 'attendance.board',
+      ),
     ).toBe(true);
   });
 
