@@ -1,7 +1,20 @@
 # Feature 19 — Chat office hours
 
-**Status:** Not started · **Area:** mobile app (staff and parent), dashboard, server · **Depends on:** 13, 14 ·
-**Feature switch:** `chat_office_hours`
+**Status:** Done · **Area:** mobile app (staff and parent), dashboard, server · **Depends on:** 13, 14 ·
+**Feature switch:** `chatOfficeHours` (the repo's flag keys are camelCase)
+
+**Leftovers:**
+- Not yet deployed to QA, and the Android build is not yet on testers' phones. Both follow the merge into `develop`.
+- Arabic and English, right to left and dark mode are covered by tests and use palette tokens only. They have not
+  been checked by eye on a device or in a browser.
+- iPhone: the quiet push is sent (APNs priority 5, no sound) but cannot be verified until the school has an Apple
+  Developer account.
+- The school's phone is a new field on the Admin Home school card. It is shown only when the feature is on.
+- The office-hours banner is filled in on the parent's thread list (`GET /children/{id}/chat/threads`). It is not
+  yet filled in on the coordinator and manager choosers.
+- `StaffAttendanceProfileService.categoryOf` is the one place that resolves a staff member's category. The private
+  copies in `CheckInService` and `StaffAttendanceJob` were left in place to avoid colliding with feature 17. Switch
+  them over once both features are merged: `CheckInService`'s copy does not skip a profile row with a null category.
 
 ## Goal
 

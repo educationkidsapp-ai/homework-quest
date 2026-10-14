@@ -33,6 +33,7 @@ import { activeLang } from '../core/i18n/active-lang';
 import { ClassContextService } from '../core/nav/class-context.service';
 import {
   NotificationsService,
+  afterHoursBody,
   attendanceBody,
   bodyKeyOf,
   titleKeyOf,
@@ -243,8 +244,12 @@ export class ShellComponent {
 
   private notificationBody(item: NotificationView): string {
     const key = bodyKeyOf(item.kind);
-    const attendance = attendanceBody(item, (k, params) => this.transloco.translate<string>(k, params));
+    const translate = (k: string, params?: Record<string, string>) =>
+      this.transloco.translate<string>(k, params);
+    const attendance = attendanceBody(item, translate);
     if (attendance !== null) return attendance;
+    const afterHours = afterHoursBody(item, translate);
+    if (afterHours !== null) return afterHours;
     if (item.kind === NotificationViewKindEnum.LESSON_FAILED) {
       return item.body ?? this.translate(key, '');
     }

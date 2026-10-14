@@ -50,6 +50,9 @@ export const FLAGS = {
   chat: 'chat',
   // Feature 14: staff attendance — the Admin's Attendance settings page and direct managers.
   staffAttendance: 'staffAttendance',
+  // Feature 19: chat office hours — a parent's message after hours arrives quietly, and the
+  // school's phone is what the parent is offered instead, so the Admin's phone field rides on it.
+  chatOfficeHours: 'chatOfficeHours',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];
