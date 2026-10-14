@@ -468,7 +468,15 @@
       "category": "Category",
       "fallback": "Academy director, then Admin",
       "byRole": "From the role",
-      "hint": "Who receives this employee's attendance alerts."
+      "hint": "Who receives this employee's attendance alerts.",
+      "device": {
+        "title": "Approved device",
+        "firstSeen": "First seen {{date}}",
+        "none": "No phone approved yet. The next check-in approves it.",
+        "reset": "Reset device",
+        "confirmTitle": "Reset the approved device?",
+        "confirmMessage": "The employee's next successful check-in will approve the phone they use then. The current phone can no longer check in until then."
+      }
     }
   },
   "auth": {
