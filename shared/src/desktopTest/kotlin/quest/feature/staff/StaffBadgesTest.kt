@@ -13,6 +13,9 @@ import quest.api.dto.RegisterDeviceRequest
 import quest.api.dto.SendChatMessageRequest
 import quest.api.dto.UnreadCount
 import quest.api.staff.StaffMe
+import quest.api.staff.AttendanceRequestList
+import quest.api.staff.AttendanceRequestView
+import quest.api.staff.NewAttendanceRequest
 import quest.feature.chat.domain.StagedUpload
 import quest.feature.staff.domain.StaffGateway
 import quest.feature.staff.domain.StaffBadges
@@ -43,6 +46,12 @@ class StaffBadgesTest {
         override suspend fun staffSend(threadId: String, request: SendChatMessageRequest): ChatMessage = error("not used")
         override suspend fun staffRead(threadId: String): ChatReadReceipt = error("not used")
         override suspend fun uploadAttachment(file: StagedUpload, onProgress: (Float) -> Unit): AttachmentRef = error("not used")
+        override suspend fun uploadRequestAttachment(file: StagedUpload, onProgress: (Float) -> Unit): AttachmentRef = error("not used")
+        override suspend fun createAttendanceRequest(request: NewAttendanceRequest): AttendanceRequestView = error("not used")
+        override suspend fun myAttendanceRequests(): AttendanceRequestList = AttendanceRequestList(emptyList())
+        override suspend fun attendanceRequestsToDecide(status: String?): AttendanceRequestList = AttendanceRequestList(emptyList())
+        override suspend fun approveAttendanceRequest(id: String): AttendanceRequestView = error("not used")
+        override suspend fun rejectAttendanceRequest(id: String): AttendanceRequestView = error("not used")
         override suspend fun notifications(limit: Int): List<NotificationView> = emptyList()
         override suspend fun unreadNotificationCount(): UnreadCount = UnreadCount(0)
         override suspend fun markNotificationRead(id: String): NotificationView = error("not used")

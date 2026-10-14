@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -28,9 +29,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.koin.core.component.KoinComponent
+import org.koin.core.component.get
 import org.koin.core.component.inject
 import quest.api.dto.DevicePlatform
 import quest.feature.push.domain.PushChannel
+import quest.feature.push.domain.ATTENDANCE_REQUEST
+import quest.feature.push.domain.decidableRequestId
 import quest.feature.push.domain.PushLinks
 import quest.feature.push.domain.PushNotice
 import quest.feature.push.domain.NotificationTap
@@ -38,6 +42,9 @@ import quest.feature.push.domain.PushPayload
 import quest.feature.push.domain.PushRegistration
 import quest.feature.push.domain.PushTokens
 import quest.feature.push.presentation.PushStrings
+import quest.feature.staff.data.StaffAuth
+import quest.feature.staff.domain.StaffGateway
+import quest.feature.staff.presentation.StaffStrings
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -143,7 +150,62 @@ class AndroidPushNotifier(
             .setCategory(if (notice.channel == PushChannel.MESSAGES) NotificationCompat.CATEGORY_MESSAGE else NotificationCompat.CATEGORY_EVENT)
             .setContentIntent(open?.let { PendingIntent.getActivity(context, notice.tag.hashCode(), it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE) })
         notice.body?.let { builder.setContentText(it).setStyle(NotificationCompat.BigTextStyle().bigText(it)) }
+        // Feature 18: a request the reader decides carries Approve and Reject, so a manager settles it from the shade.
+        decidableRequestId(notice.tap.kind, notice.tap.link)?.let { requestId ->
+            val staff = StaffStrings.forLanguage(language())
+            builder.addAction(0, staff.approve, decision(requestId, approve = true, notice = notice))
+            builder.addAction(0, staff.reject, decision(requestId, approve = false, notice = notice))
+        }
         manager.notify(notice.tag, NOTIFICATION_ID, builder.build())
+    }
+
+    /**
+     * Feature 18: the same notification, replaced by what the decision did — the tag and the id are the ones the
+     * request's own notice used, so the row the manager tapped turns into its outcome rather than stacking under it.
+     */
+    fun postDecision(tag: String, title: String?, outcome: DecisionOutcome) {
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+        val strings = PushStrings.forLanguage(language())
+        val staff = StaffStrings.forLanguage(language())
+        createChannels(strings)
+        val text = when (outcome) {
+            DecisionOutcome.APPROVED -> staff.approved
+            DecisionOutcome.REJECTED -> staff.rejected
+            DecisionOutcome.FAILED -> staff.openAppToDecide
+        }
+        val builder = NotificationCompat.Builder(context, PushChannel.SCHOOL_NEWS.id)
+            .setSmallIcon(context.resources.getIdentifier("ic_launcher_monochrome", "drawable", context.packageName).takeIf { it != 0 } ?: context.applicationInfo.icon)
+            .setContentTitle(title ?: staff.attTitle)
+            .setContentText(text)
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_EVENT)
+        // Tapping the outcome opens the app, so a failed decision has somewhere to go: her requests inbox.
+        val activity = context.packageManager.getLaunchIntentForPackage(context.packageName)?.component
+        activity?.let {
+            val open = PushIntents.put(
+                Intent(ACTION_OPEN).setComponent(it),
+                NotificationTap(ATTENDANCE_REQUEST, link = null, outside = true),
+            ).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP) }
+            builder.setContentIntent(
+                PendingIntent.getActivity(context, "$tag:decided".hashCode(), open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE),
+            )
+        }
+        manager.notify(tag, NOTIFICATION_ID, builder.build())
+    }
+
+    /** One action's broadcast, immutable and with a request code of its own so Approve never replaces Reject. */
+    private fun decision(requestId: String, approve: Boolean, notice: PushNotice): PendingIntent {
+        val intent = Intent(context, AttendanceDecisionReceiver::class.java)
+            .putExtra(AttendanceDecisionReceiver.EXTRA_REQUEST, requestId)
+            .putExtra(AttendanceDecisionReceiver.EXTRA_APPROVE, approve)
+            .putExtra(AttendanceDecisionReceiver.EXTRA_TAG, notice.tag)
+            .putExtra(AttendanceDecisionReceiver.EXTRA_TITLE, notice.title)
+        return PendingIntent.getBroadcast(
+            context,
+            "${notice.tag}:${if (approve) "approve" else "reject"}".hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
     }
 
     /** Re-created on every post: an existing channel keeps its settings and only takes the new name (a language change). */
@@ -163,6 +225,51 @@ class AndroidPushNotifier(
     private companion object {
         const val NOTIFICATION_ID = 4201
         const val ACTION_OPEN = "quest.push.OPEN"
+    }
+}
+
+/** Feature 18: what a decision taken from the shade turned into. */
+enum class DecisionOutcome { APPROVED, REJECTED, FAILED }
+
+/**
+ * Feature 18: Approve and Reject on an `attendance.request` push. The manager decides without opening the app — the
+ * decision goes up on her own staff bearer and the notification is replaced by its outcome, or by "open the app"
+ * when the request was already decided, she is not the decider, or the network was not there.
+ *
+ * `goAsync()` keeps the receiver alive for the one request; an Admin's token names no school, so `GET /staff/me` is
+ * asked first to let `RemoteStaffApi` learn the `X-School-Id` it has to send.
+ */
+class AttendanceDecisionReceiver : BroadcastReceiver(), KoinComponent {
+    override fun onReceive(context: Context, intent: Intent) {
+        val requestId = intent.getStringExtra(EXTRA_REQUEST)?.takeIf { it.isNotBlank() } ?: return
+        val approve = intent.getBooleanExtra(EXTRA_APPROVE, false)
+        val tag = intent.getStringExtra(EXTRA_TAG) ?: "attendance:request:$requestId"
+        val title = intent.getStringExtra(EXTRA_TITLE)
+        val result = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            val notifier = get<AndroidPushNotifier>()
+            val outcome = runCatching {
+                val auth = get<StaffAuth>()
+                if (!auth.signedIn) auth.restore()
+                if (!auth.signedIn) error("no staff session")
+                val api = get<StaffGateway>()
+                // An Admin's session knows no school until `/staff/me` answers; the decision routes need the header.
+                if (auth.schoolId.value == null) api.staffMe()
+                if (approve) api.approveAttendanceRequest(requestId) else api.rejectAttendanceRequest(requestId)
+            }.fold(
+                onSuccess = { if (approve) DecisionOutcome.APPROVED else DecisionOutcome.REJECTED },
+                onFailure = { DecisionOutcome.FAILED },
+            )
+            notifier.postDecision(tag, title, outcome)
+            result.finish()
+        }
+    }
+
+    companion object {
+        const val EXTRA_REQUEST = "quest.attendance.request"
+        const val EXTRA_APPROVE = "quest.attendance.approve"
+        const val EXTRA_TAG = "quest.attendance.tag"
+        const val EXTRA_TITLE = "quest.attendance.title"
     }
 }
 

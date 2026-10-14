@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
 import quest.feature.parent.presentation.Chip
+import quest.feature.parent.presentation.LocalStrings
 import quest.feature.parent.presentation.ParentButton
 import quest.feature.parent.presentation.ParentCard
 import quest.feature.school.domain.Flags
@@ -36,6 +37,9 @@ fun CheckInCard(onMyRecord: () -> Unit) {
     FeatureGate(Flags.STAFF_ATTENDANCE) {
         val vm: CheckInViewModel = koinViewModel()
         val state by vm.state.collectAsStateWithLifecycle()
+        // Feature 18: the remote-day request lives on this card, one tap from her home, with its own view model.
+        val requestsVm: AttendanceRequestsViewModel = koinViewModel()
+        val requests by requestsVm.state.collectAsStateWithLifecycle()
         LaunchedEffect(vm) { vm.dispatch(CheckInContract.Intent.Load) }
         CheckInCardContent(
             state = state,
@@ -44,6 +48,8 @@ fun CheckInCard(onMyRecord: () -> Unit) {
             onRationaleAccepted = { vm.dispatch(CheckInContract.Intent.RationaleAccepted) },
             onRationaleDismissed = { vm.dispatch(CheckInContract.Intent.RationaleDismissed) },
             onMyRecord = onMyRecord,
+            requests = requests,
+            onRequests = requestsVm::dispatch,
         )
     }
 }
@@ -57,6 +63,9 @@ fun CheckInCardContent(
     onRationaleAccepted: () -> Unit,
     onRationaleDismissed: () -> Unit,
     onMyRecord: () -> Unit,
+    /** Feature 18: the remote-day request's own state, and null-safe defaults so a screenshot draws the card alone. */
+    requests: AttendanceRequestsContract.State = AttendanceRequestsContract.State(loading = false),
+    onRequests: (AttendanceRequestsContract.Intent) -> Unit = {},
 ) {
     ParentCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -101,9 +110,22 @@ fun CheckInCardContent(
                 TextButton(onClick = onMyRecord) {
                     Text(strings.myRecord, color = quest.ui.design.DashboardTokens.accentInk)
                 }
+                TextButton(onClick = { onRequests(AttendanceRequestsContract.Intent.OpenRemoteDay) }) {
+                    Text(strings.requestRemoteDay, color = quest.ui.design.DashboardTokens.accentInk)
+                }
+            }
+            if (requests.form == null) {
+                requests.message?.let { message ->
+                    Text(
+                        strings.requestMessage(message),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = quest.ui.design.DashboardTokens.inkSoft,
+                    )
+                }
             }
         }
     }
+    AttendanceRequestDialog(requests, strings, LocalStrings.current, onRequests)
     if (state.rationale) {
         AlertDialog(
             onDismissRequest = onRationaleDismissed,

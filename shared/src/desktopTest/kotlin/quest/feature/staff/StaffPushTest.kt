@@ -48,6 +48,7 @@ import quest.feature.push.domain.PushPreferences
 import quest.feature.push.domain.PushRegistrar
 import quest.feature.push.domain.PushRegistration
 import quest.feature.push.domain.PushTokens
+import quest.feature.push.domain.decidableRequestId
 import quest.feature.push.presentation.PushNavigator
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -228,6 +229,53 @@ class StaffPushTest {
         assertTrue(notice != null)
         assertEquals("attendance.alert", notice.tap.kind)
         assertEquals("/notifications?attendance=late&minutes=18", notice.tap.link)
+    }
+
+
+    // ---------------------------------------------------------------- feature 18: requests and decisions
+
+    @Test fun `a decision on her own request opens her record, where the corrected day is`() = runTest {
+        val navigator = PushNavigator(router(staffThreads = emptyList()), ParentGate(elapsed = { 0L }), signedIn = { true })
+        val link = "/notifications?attendance=correction_decided&request=r-1&decision=approved&date=2026-10-13"
+        assertEquals(
+            PushNavigator.Step.Staff(Routes.StaffMyRecord),
+            navigator.follow(NotificationTap("attendance.decision", link = link, outside = true)),
+        )
+    }
+
+    @Test fun `a request to decide and a remote day open her notifications`() = runTest {
+        val navigator = PushNavigator(router(staffThreads = emptyList()), ParentGate(elapsed = { 0L }), signedIn = { true })
+        assertEquals(
+            PushNavigator.Step.Staff(Routes.StaffNotifications),
+            navigator.follow(NotificationTap("attendance.request", link = "/notifications?attendance=remote_day_request&request=r-1", outside = true)),
+        )
+        assertEquals(
+            PushNavigator.Step.Staff(Routes.StaffNotifications),
+            navigator.follow(NotificationTap("attendance.remote_day", link = "/notifications?attendance=remote_day&date=2026-10-20", outside = true)),
+        )
+    }
+
+    /** The request's id survives the FCM data map, which is the whole of what the Approve button needs. */
+    @Test fun `a request push keeps its link and its request id`() {
+        val data = PushMessage(
+            kind = NotificationKind.ATTENDANCE_REQUEST, title = "الحضور", body = "أ. خالد يطلب العمل عن بعد",
+            notificationId = "n-18", collapseKey = "attendance:request:r-1",
+            link = "/notifications?attendance=remote_day_request&request=r-1&staff=USER%3Au-1&name=%D8%A3.+%D8%AE%D8%A7%D9%84%D8%AF&date=2026-10-20",
+        ).toData()
+        val notice = PushPayload.parse(data)
+        assertTrue(notice != null)
+        assertEquals("attendance.request", notice.tap.kind)
+        assertEquals("attendance:request:r-1", notice.tag)
+        assertEquals("r-1", decidableRequestId(notice.tap.kind, notice.tap.link))
+    }
+
+    /** Only a request a reader may settle gets the two buttons; a decision and a reminder get none. */
+    @Test fun `which notice offers Approve and Reject is decided by the kind and the link`() {
+        assertEquals("r-7", decidableRequestId("attendance.request", "/notifications?attendance=correction_request&request=r-7"))
+        assertNull(decidableRequestId("attendance.request", "/notifications?attendance=correction_request"))
+        assertNull(decidableRequestId("attendance.decision", "/notifications?attendance=correction_decided&request=r-7"))
+        assertNull(decidableRequestId("attendance.reminder", "/notifications?attendance=start_reminder"))
+        assertNull(decidableRequestId(null, null))
     }
 
     // ---------------------------------------------------------------- the parent side's doubles, unchanged

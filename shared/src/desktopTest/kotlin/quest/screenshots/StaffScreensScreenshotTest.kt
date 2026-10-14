@@ -33,6 +33,11 @@ import quest.feature.staff.presentation.LocalStaffStrings
 import quest.api.staff.CheckInDay
 import quest.api.staff.CheckInMonth
 import quest.api.staff.CheckInToday
+import quest.api.staff.AttendanceRequestStatus
+import quest.api.staff.AttendanceRequestType
+import quest.api.staff.AttendanceRequestView
+import quest.api.staff.CorrectionKind
+import quest.feature.staff.presentation.AttendanceRequestsContract
 import quest.feature.staff.presentation.CheckInCardContent
 import quest.feature.staff.presentation.CheckInContract
 import quest.feature.staff.presentation.CheckInMessage
@@ -168,6 +173,50 @@ class StaffScreensScreenshotTest {
         }
         shot("staff-my-record-dark", StaffStrings.en, dark = true, title = { it.myRecord }) { staff, _ ->
             StaffMyRecordScreen(month, staff, onPreviousMonth = {}, onNextMonth = {})
+        }
+    }
+
+    /**
+     * Feature 18: a record whose days carry the remote and correction modes, with "My requests" under it — one
+     * waiting, one approved — so both languages and the dark theme are seen with the new words in them.
+     */
+    @Test fun staffAttendanceRequests() {
+        val month = MyRecordContract.State(
+            loading = false,
+            month = "2026-10",
+            days = listOf(
+                CheckInDay(date = "2026-10-12", checkIn = "06:50", checkOut = "14:02", status = "ON_TIME", lateMinutes = 0, mode = "remote"),
+                CheckInDay(date = "2026-10-13", checkIn = "06:55", checkOut = "14:00", status = "ON_TIME", lateMinutes = 0, mode = "correction"),
+            ),
+        )
+        val requests = AttendanceRequestsContract.State(
+            loading = false,
+            requests = listOf(
+                AttendanceRequestView(
+                    id = "r-1", type = AttendanceRequestType.REMOTE_DAY, status = AttendanceRequestStatus.PENDING,
+                    staff = "USER:u-1", staffName = "Ms Noor", date = "2026-10-20", reason = "A rain day", createdAt = 0L,
+                ),
+                AttendanceRequestView(
+                    id = "r-2", type = AttendanceRequestType.CORRECTION, status = AttendanceRequestStatus.APPROVED,
+                    staff = "USER:u-1", staffName = "Ms Noor", date = "2026-10-13", reason = "The app would not open",
+                    correctionKind = CorrectionKind.FORGOT_CHECK_IN, checkIn = "06:55", createdAt = 0L,
+                    decidedBy = "Mr Adel", decidedAt = 1L,
+                ),
+            ),
+        )
+        listOf("staff-requests-en" to StaffStrings.en, "staff-requests-ar" to StaffStrings.ar).forEach { (name, s) ->
+            shot(name, s, dark = false, title = { it.myRequests }) { staff, strings ->
+                StaffMyRecordScreen(
+                    month, staff, onPreviousMonth = {}, onNextMonth = {},
+                    requests = requests, parentStrings = strings, today = "2026-10-14",
+                )
+            }
+        }
+        shot("staff-requests-dark", StaffStrings.en, dark = true, title = { it.myRequests }) { staff, strings ->
+            StaffMyRecordScreen(
+                month, staff, onPreviousMonth = {}, onNextMonth = {},
+                requests = requests, parentStrings = strings, today = "2026-10-14",
+            )
         }
     }
 

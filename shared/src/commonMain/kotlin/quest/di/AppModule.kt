@@ -139,6 +139,7 @@ import quest.feature.staff.domain.StaffThreadKey
 import quest.feature.staff.domain.StaffThreads
 import quest.feature.staff.data.SettingsCheckInPrefs
 import quest.feature.staff.domain.CheckInPrefs
+import quest.feature.staff.presentation.AttendanceRequestsViewModel
 import quest.feature.staff.presentation.CheckInViewModel
 import quest.feature.staff.presentation.MyRecordViewModel
 import quest.feature.staff.presentation.StaffAccountViewModel
@@ -418,6 +419,8 @@ fun staffModule(config: ApiConfig): Module = module {
     // Feature 15: the check-in card and her own month of records.
     viewModel { CheckInViewModel(get(), get(), get(), get()) }
     viewModel { MyRecordViewModel(get()) }
+    // Feature 18: her remote-day and correction requests, with M7's staging under the one file a correction carries.
+    viewModel { AttendanceRequestsViewModel(get(), get()) }
     // Her end of a conversation: the parent's view model, with the `/staff/chat` source under it.
     viewModel(named(STAFF_CONVERSATION)) { (key: StaffThreadKey) ->
         ChatConversationViewModel(StaffConversationSource(key, get(), get(named(STAFF_SOCKET))), key.staffConversationState(), get())

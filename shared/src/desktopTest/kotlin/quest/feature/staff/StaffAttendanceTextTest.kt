@@ -36,4 +36,37 @@ class StaffAttendanceTextTest {
                 assertTrue(attendanceText("attendance.alert", "/notifications?attendance=$type&name=X&minutes=5", s)!!.second.contains("X"))
         assertNull(attendanceText("chat.message", "/teacher/chat?thread=t", StaffStrings.ar))
     }
+
+    // ---- feature 18: requests, decisions and remote days
+
+    @Test fun `a request names the employee and the day in both languages`() {
+        val remote = "/notifications?attendance=remote_day_request&request=r-1&staff=USER%3Au-1&name=%D8%A3.+%D8%AE%D8%A7%D9%84%D8%AF&date=2026-10-20"
+        assertEquals("الحضور" to "أ. خالد يطلب العمل عن بعد يوم 2026-10-20", attendanceText("attendance.request", remote, StaffStrings.ar))
+        assertEquals("Attendance" to "أ. خالد asks to work remotely on 2026-10-20", attendanceText("attendance.request", remote, StaffStrings.en))
+        val correction = "/notifications?attendance=correction_request&request=r-2&name=Noor&date=2026-10-13"
+        assertEquals("Noor asks to correct 2026-10-13", attendanceText("attendance.request", correction, StaffStrings.en)?.second)
+        assertEquals("Noor يطلب تصحيح يوم 2026-10-13", attendanceText("attendance.request", correction, StaffStrings.ar)?.second)
+    }
+
+    @Test fun `a decision reads as approved or rejected, for either kind of request`() {
+        fun decided(type: String, decision: String, s: StaffStrings) =
+            attendanceText("attendance.decision", "/notifications?attendance=$type&request=r-1&decision=$decision&date=2026-10-13", s)?.second
+        assertEquals("تمت الموافقة على طلبك ليوم 2026-10-13", decided("remote_day_decided", "approved", StaffStrings.ar))
+        assertEquals("تم رفض طلبك ليوم 2026-10-13", decided("remote_day_decided", "rejected", StaffStrings.ar))
+        assertEquals("Your request for 2026-10-13 was approved", decided("correction_decided", "approved", StaffStrings.en))
+        assertEquals("Your request for 2026-10-13 was rejected", decided("correction_decided", "rejected", StaffStrings.en))
+    }
+
+    @Test fun `a remote working day is announced with its date`() {
+        val link = "/notifications?attendance=remote_day&date=2026-10-20"
+        assertEquals("الحضور" to "يوم عمل عن بعد: 2026-10-20", attendanceText("attendance.remote_day", link, StaffStrings.ar))
+        assertEquals("Remote working day: 2026-10-20", attendanceText("attendance.remote_day", link, StaffStrings.en)?.second)
+    }
+
+    @Test fun `the new modes read in both languages on her record`() {
+        assertEquals("عن بُعد", StaffStrings.ar.modeName("remote"))
+        assertEquals("تصحيح", StaffStrings.ar.modeName("correction"))
+        assertEquals("Remote", StaffStrings.en.modeName("remote"))
+        assertEquals("Correction", StaffStrings.en.modeName("correction"))
+    }
 }
