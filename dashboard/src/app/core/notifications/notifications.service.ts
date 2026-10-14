@@ -21,6 +21,45 @@ export function bodyKeyOf(kind: NotificationKind): string {
 }
 
 /**
+ * Feature 16: an `attendance.*` row's body, in her language, worded from its link
+ * (`/notifications?attendance=<type>&name=…&minutes=…`, the contract's `AttendanceLink`). The server's
+ * `body` is the English fallback, so a row with no readable link keeps it. Null for any other kind.
+ */
+export function attendanceBody(
+  item: Pick<NotificationView, 'kind' | 'link' | 'body'>,
+  translate: (key: string, params?: Record<string, string>) => string,
+): string | null {
+  if (!item.kind.startsWith('attendance.')) return null;
+  const query = item.link?.split('?')[1];
+  if (!query) return item.body ?? null;
+  const p = new URLSearchParams(query);
+  const type = p.get('attendance');
+  if (!type) return item.body ?? null;
+  if (type !== 'digest') {
+    return translate(`notifications.attendance.${type}`, {
+      name: p.get('name') ?? '',
+      minutes: p.get('minutes') ?? '',
+    });
+  }
+  const separator = translate('notifications.attendance.separator');
+  const names = (key: string, template: string): string | null => {
+    const value = p.get(key);
+    return value ? translate(template, { names: value.split('|').join(separator) }) : null;
+  };
+  return [
+    translate('notifications.attendance.digest', {
+      late: p.get('late') ?? '0',
+      notArrived: p.get('notArrived') ?? '0',
+      remote: p.get('remote') ?? '0',
+    }),
+    names('lateNames', 'notifications.attendance.digestLate'),
+    names('notArrivedNames', 'notifications.attendance.digestNotArrived'),
+  ]
+    .filter((line): line is string => !!line)
+    .join(' · ');
+}
+
+/**
  * The bell, over E2's rows and E2's socket frame.
  *
  * Until E3 this was five hard-coded objects in `localStorage` that re-seeded themselves when

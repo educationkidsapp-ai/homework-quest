@@ -1604,7 +1604,34 @@
           "title": "تغيّرت حالة شكوى",
           "body": "حُلّت شكوى أو أُعيد فتحها."
         }
+      },
+      "attendance": {
+        "reminder": {
+          "title": "الحضور",
+          "body": "تذكير بتسجيل حضورك."
+        },
+        "alert": {
+          "title": "الحضور",
+          "body": "حضور أحد الموظفين يحتاج انتباهك."
+        },
+        "digest": {
+          "title": "حضور اليوم",
+          "body": "ملخص حضور اليوم."
+        }
       }
+    },
+    "attendance": {
+      "start_reminder": "لم تسجل حضورك بعد",
+      "end_reminder": "لا تنس تسجيل الانصراف",
+      "missing_checkout_reminder": "لم يُسجَّل انصرافك اليوم",
+      "late": "{{name}} تأخر {{minutes}} دقيقة",
+      "not_arrived": "{{name}} لم يصل بعد",
+      "early_leave": "{{name}} انصرف قبل الموعد بـ {{minutes}} دقيقة",
+      "missing_checkout": "{{name}} لم يسجّل انصرافه اليوم",
+      "digest": "اليوم: {{late}} متأخرون، {{notArrived}} لم يصل، {{remote}} عن بعد",
+      "digestLate": "متأخرون: {{names}}",
+      "digestNotArrived": "لم يصل: {{names}}",
+      "separator": "، "
     }
   },
   "chat": {

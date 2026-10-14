@@ -1,0 +1,49 @@
+import { describe, expect, it } from 'vitest';
+import { NotificationViewKindEnum } from '../../api';
+import ar from '../../../assets/i18n/ar.json';
+import en from '../../../assets/i18n/en.json';
+import { attendanceBody } from './notifications.service';
+
+/** A Transloco stand-in over the real files: `notifications.attendance.late` with `{{name}}` filled. */
+function translator(file: unknown) {
+  return (key: string, params: Record<string, string> = {}): string => {
+    const found = key.split('.').reduce<unknown>((node, part) => (node as Record<string, unknown>)?.[part], file);
+    const text = typeof found === 'string' ? found : key;
+    return text.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, name: string) => params[name] ?? '');
+  };
+}
+
+const LATE = '/notifications?attendance=late&staff=USER%3Au-1&name=%D8%A3.+%D8%AE%D8%A7%D9%84%D8%AF&date=2026-10-18&minutes=18';
+
+describe('feature 16 — an attendance row in her language', () => {
+  it('words an alert from its link, in Arabic and English', () => {
+    const item = { kind: NotificationViewKindEnum.ATTENDANCE_ALERT, link: LATE, body: 'x is 18 minutes late' };
+    expect(attendanceBody(item, translator(ar))).toBe('أ. خالد تأخر 18 دقيقة');
+    expect(attendanceBody(item, translator(en))).toBe('أ. خالد is 18 minutes late');
+  });
+
+  it('words the reminders the way the spec does', () => {
+    const reminder = (type: string) =>
+      attendanceBody(
+        { kind: NotificationViewKindEnum.ATTENDANCE_REMINDER, link: `/notifications?attendance=${type}`, body: '' },
+        translator(ar),
+      );
+    expect(reminder('start_reminder')).toBe('لم تسجل حضورك بعد');
+    expect(reminder('end_reminder')).toBe('لا تنس تسجيل الانصراف');
+    expect(reminder('missing_checkout_reminder')).toBe('لم يُسجَّل انصرافك اليوم');
+  });
+
+  it('counts and names the digest', () => {
+    const item = {
+      kind: NotificationViewKindEnum.ATTENDANCE_DIGEST,
+      link: '/notifications?attendance=digest&late=3&notArrived=1&remote=2&lateNames=A%7CB%7CC&notArrivedNames=D',
+      body: '',
+    };
+    expect(attendanceBody(item, translator(ar))).toBe('اليوم: 3 متأخرون، 1 لم يصل، 2 عن بعد · متأخرون: A، B، C · لم يصل: D');
+  });
+
+  it('leaves every other kind, and a row with no link, to the usual wording', () => {
+    expect(attendanceBody({ kind: NotificationViewKindEnum.CHAT_MESSAGE, link: '/teacher/chat?thread=t', body: 'hi' }, translator(en))).toBeNull();
+    expect(attendanceBody({ kind: NotificationViewKindEnum.ATTENDANCE_ALERT, body: 'fallback' }, translator(en))).toBe('fallback');
+  });
+});

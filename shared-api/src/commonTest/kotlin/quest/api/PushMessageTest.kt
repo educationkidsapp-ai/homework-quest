@@ -1,5 +1,6 @@
 package quest.api
 
+import quest.api.dto.AttendanceLink
 import quest.api.dto.NotificationKind
 import quest.api.dto.PushMessage
 import kotlin.test.Test
@@ -31,6 +32,20 @@ class PushMessageTest {
         assertEquals("complaint.status", PushMessage.kindName(NotificationKind.COMPLAINT_STATUS))
         assertEquals("complaint.new", PushMessage.kindName(NotificationKind.COMPLAINT_NEW))
         assertEquals("complaint.message", PushMessage.kindName(NotificationKind.COMPLAINT_MESSAGE))
+        assertEquals("attendance.reminder", PushMessage.kindName(NotificationKind.ATTENDANCE_REMINDER))
+        assertEquals("attendance.alert", PushMessage.kindName(NotificationKind.ATTENDANCE_ALERT))
+        assertEquals("attendance.digest", PushMessage.kindName(NotificationKind.ATTENDANCE_DIGEST))
+    }
+
+    @Test fun anAttendanceLinkReadsBackItsParameters() {
+        val link = "/notifications?attendance=late&staff=USER:u-1&name=%D8%A3.%20%D8%AE%D8%A7%D9%84%D8%AF&date=2026-10-18&minutes=18"
+        val params = AttendanceLink.params(link)
+        assertEquals("late", params[AttendanceLink.TYPE])
+        assertEquals("أ. خالد", params[AttendanceLink.NAME])
+        assertEquals("18", params[AttendanceLink.MINUTES])
+        assertEquals("USER:u-1", params[AttendanceLink.STAFF])
+        assertEquals(emptyMap(), AttendanceLink.params("/notifications"))
+        assertEquals(emptyMap(), AttendanceLink.params(null))
     }
 
     @Test fun aComplaintPushNamesTheComplaint() {

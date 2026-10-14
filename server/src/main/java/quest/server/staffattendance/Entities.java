@@ -207,4 +207,55 @@ public final class Entities {
         public String getResetBy() { return resetBy; } public void setResetBy(String v) { resetBy = v; }
         public Instant getResetAt() { return resetAt; } public void setResetAt(Instant v) { resetAt = v; }
     }
+
+    /**
+     * Feature 16: the statuses one employee's working day has reached so far (`V39`). Several can hold at once;
+     * {@code lateMinutes} and {@code earlyLeaveMinutes} are null when she was not late or did not leave early.
+     */
+    @Entity(name = "StaffAttendanceDayEntity") @Table(name = "staff_attendance_days")
+    @Filter(name = "school", condition = "school_id = :schoolId")
+    public static class StaffAttendanceDayEntity {
+        @Id private String id;
+        @Column(name = "school_id", nullable = false) private String schoolId;
+        @Column(name = "staff_kind", nullable = false) private String staffKind;
+        @Column(name = "staff_id", nullable = false) private String staffId;
+        @Column(name = "work_day", nullable = false) private LocalDate day;   // `day` is a keyword in H2
+        @Column(name = "late_minutes") private Integer lateMinutes;
+        @Column(name = "not_arrived", nullable = false) private boolean notArrived;
+        @Column(nullable = false) private boolean absent;
+        @Column(name = "early_leave_minutes") private Integer earlyLeaveMinutes;
+        @Column(name = "missing_checkout", nullable = false) private boolean missingCheckout;
+        @Column(name = "updated_at", nullable = false) private Instant updatedAt;
+        public String getId() { return id; } public void setId(String v) { id = v; }
+        public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
+        public String getStaffKind() { return staffKind; } public void setStaffKind(String v) { staffKind = v; }
+        public String getStaffId() { return staffId; } public void setStaffId(String v) { staffId = v; }
+        public LocalDate getDay() { return day; } public void setDay(LocalDate v) { day = v; }
+        public Integer getLateMinutes() { return lateMinutes; } public void setLateMinutes(Integer v) { lateMinutes = v; }
+        public boolean isNotArrived() { return notArrived; } public void setNotArrived(boolean v) { notArrived = v; }
+        public boolean isAbsent() { return absent; } public void setAbsent(boolean v) { absent = v; }
+        public Integer getEarlyLeaveMinutes() { return earlyLeaveMinutes; } public void setEarlyLeaveMinutes(Integer v) { earlyLeaveMinutes = v; }
+        public boolean isMissingCheckout() { return missingCheckout; } public void setMissingCheckout(boolean v) { missingCheckout = v; }
+        public Instant getUpdatedAt() { return updatedAt; } public void setUpdatedAt(Instant v) { updatedAt = v; }
+    }
+
+    /** Feature 16: one notification that has been sent, so it is never sent again (`V39`). */
+    @Entity(name = "StaffAttendanceAlertEntity") @Table(name = "staff_attendance_alerts")
+    @Filter(name = "school", condition = "school_id = :schoolId")
+    public static class StaffAttendanceAlertEntity {
+        @Id private String id;
+        @Column(name = "school_id", nullable = false) private String schoolId;
+        @Column(name = "staff_kind", nullable = false) private String staffKind;
+        @Column(name = "staff_id", nullable = false) private String staffId;
+        @Column(name = "work_day", nullable = false) private LocalDate day;
+        @Column(nullable = false) private String type;
+        @Column(name = "sent_at", nullable = false) private Instant sentAt;
+        public String getId() { return id; } public void setId(String v) { id = v; }
+        public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
+        public String getStaffKind() { return staffKind; } public void setStaffKind(String v) { staffKind = v; }
+        public String getStaffId() { return staffId; } public void setStaffId(String v) { staffId = v; }
+        public LocalDate getDay() { return day; } public void setDay(LocalDate v) { day = v; }
+        public String getType() { return type; } public void setType(String v) { type = v; }
+        public Instant getSentAt() { return sentAt; } public void setSentAt(Instant v) { sentAt = v; }
+    }
 }

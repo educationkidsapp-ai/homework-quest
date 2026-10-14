@@ -13,6 +13,19 @@ function target(item: NotificationView, role: Role | null): string {
 }
 
 describe('MG2a — where a notification sends its reader', () => {
+  /** Feature 16: alerts, reminders and the digest open the inbox until feature 17's board exists. */
+  it('sends every attendance kind to the inbox, whoever reads it', () => {
+    for (const kind of [
+      NotificationViewKindEnum.ATTENDANCE_REMINDER,
+      NotificationViewKindEnum.ATTENDANCE_ALERT,
+      NotificationViewKindEnum.ATTENDANCE_DIGEST,
+    ]) {
+      const item = row(kind, { link: '/notifications?attendance=late&staff=USER%3Au-1&date=2026-10-18&minutes=18' });
+      for (const role of ['ADMIN', 'MANAGERIAL', 'COORDINATOR', 'TEACHER'] as Role[])
+        expect(target(item, role)).toBe('/notifications');
+    }
+  });
+
   it('sends the three lesson kinds to that reader own lesson page, and never a manager', () => {
     for (const kind of [
       NotificationViewKindEnum.LESSON_NEEDS_SKILLS,

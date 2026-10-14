@@ -50,6 +50,17 @@ public class DirectManagerResolver {
         return new Resolved(Source.ADMIN, null);
     }
 
+    /**
+     * Feature 16: the director of the employee's academy whoever her direct manager is — the reader of her academy's
+     * digest, and of its alerts when the director's policy is immediate. Null for a worker or a manager, who belong
+     * to no academy, and when the academy has no director.
+     */
+    public String academyDirector(String schoolId, String kind, String staffId) {
+        if (!StaffAttendanceDto.KIND_USER.equals(kind)) return null;
+        var self = directory.user(schoolId, staffId).orElse(null);
+        return self == null ? null : director(schoolId, self);
+    }
+
     private String director(String schoolId, UserEntity employee) {
         var academies = new TreeSet<String>();
         if ("TEACHER".equals(employee.getRole()))

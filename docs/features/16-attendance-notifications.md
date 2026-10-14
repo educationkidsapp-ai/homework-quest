@@ -1,7 +1,17 @@
 # Feature 16 — Attendance statuses, reminders and notifications
 
-**Status:** Not started · **Area:** server, mobile app (staff), dashboard · **Depends on:** 15 ·
+**Status:** Done · **Area:** server, mobile app (staff), dashboard · **Depends on:** 15 ·
 **Feature switch:** `staff_attendance`
+
+**Leftovers:**
+- Tapping an alert or the digest opens the notifications list, not the employee's day or the live board: both screens
+  are feature 17. Every link already names the type, the employee and the date for it.
+- "عن بعد" (remote) in the digest is always 0 until feature 18's remote days.
+- The job runs on an in-process timer. On Cloud Run (`cpu_idle = true`, no minimum instance on QA) it only ticks while
+  an instance is up; a Cloud Scheduler call every five minutes would make reminders punctual. That is infra and IAM
+  work for the owner.
+- Deploying to QA and the Android build for testers happen after the merge. Arabic and English, right to left and dark
+  mode were checked in unit tests of the wording only; a check on a real phone is still to do.
 
 ## Goal
 

@@ -1,7 +1,6 @@
 package quest.server.staffattendance;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -205,9 +204,9 @@ public class CheckInService {
      * arrived, which is the number a manager and a payroll run both expect. A day off or a holiday is never late.
      */
     private static Integer lateness(ScheduleResolver.Expected expected, int graceMinutes, Instant at, ZoneId zone) {
-        if (expected.kind() != ScheduleResolver.Kind.WORK || expected.start() == null) return 0;
-        long after = Duration.between(expected.start(), at.atZone(zone).toLocalTime()).toMinutes();
-        return after > graceMinutes ? (int) after : 0;
+        // One definition of late for the whole feature: feature 16's job applies the same rule (`AttendanceRules`).
+        Integer late = AttendanceRules.lateMinutes(expected, graceMinutes, at, zone);
+        return late == null ? 0 : late;
     }
 
     // ---------------------------------------------------------------- the attempt log

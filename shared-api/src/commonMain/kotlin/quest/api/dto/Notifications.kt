@@ -102,6 +102,84 @@ enum class NotificationKind {
      * [NotificationView.lessonId] is the complaint's id. A `chat.message` is never written for a complaint.
      */
     @SerialName("complaint.message") COMPLAINT_MESSAGE,
+    /**
+     * Feature 16, to the employee herself: no check-in at start time, no check-out at end time, or still none at end
+     * + the missing-check-out threshold. Tapping opens her Attendance tab. [NotificationView.link] carries the
+     * reminder ([AttendanceLink]); the clients build the sentence in her language from it.
+     */
+    @SerialName("attendance.reminder") ATTENDANCE_REMINDER,
+    /**
+     * Feature 16, to a leader: an employee is late, has not arrived, left early or did not check out — the direct
+     * manager at once, the academy director and the Admin when their policy is `IMMEDIATE`. [NotificationView.link]
+     * names the type, the employee and the date ([AttendanceLink]), so feature 17 can open her day.
+     */
+    @SerialName("attendance.alert") ATTENDANCE_ALERT,
+    /**
+     * Feature 16: the morning summary for the academy director (her academy) and the Admin (the whole school), at the
+     * digest time from feature 14's settings. [NotificationView.link] carries the counts; the body lists the names.
+     */
+    @SerialName("attendance.digest") ATTENDANCE_DIGEST,
+}
+
+/**
+ * Feature 16: the query of an attendance notification's link, `/notifications?attendance=<type>&…`. The bell opens the
+ * inbox until feature 17's board exists, and both clients read these parameters to word the row in the reader's
+ * language: [TYPE] is one of the constants below, [NAME] the employee's name, [MINUTES] the minutes late or early,
+ * [STAFF] `<kind>:<id>` and [DATE] `yyyy-MM-dd` in the school's zone. A digest carries [LATE], [NOT_ARRIVED] and
+ * [REMOTE] counts instead, with the names in [LATE_NAMES] and [NOT_ARRIVED_NAMES], separated by [NAME_SEPARATOR].
+ */
+object AttendanceLink {
+    const val TYPE = "attendance"
+    const val STAFF = "staff"
+    const val NAME = "name"
+    const val DATE = "date"
+    const val MINUTES = "minutes"
+    const val LATE = "late"
+    const val NOT_ARRIVED = "notArrived"
+    const val REMOTE = "remote"
+    const val LATE_NAMES = "lateNames"
+    const val NOT_ARRIVED_NAMES = "notArrivedNames"
+    const val NAME_SEPARATOR = "|"
+
+    /** Reminders, to the employee. */
+    const val START_REMINDER = "start_reminder"
+    const val END_REMINDER = "end_reminder"
+    const val MISSING_CHECKOUT_REMINDER = "missing_checkout_reminder"
+
+    /** Alerts, to a leader. */
+    const val ALERT_LATE = "late"
+    const val ALERT_NOT_ARRIVED = "not_arrived"
+    const val ALERT_EARLY_LEAVE = "early_leave"
+    const val ALERT_MISSING_CHECKOUT = "missing_checkout"
+
+    const val DIGEST = "digest"
+
+    /** The query parameters of [link], decoded; empty when it has none. */
+    fun params(link: String?): Map<String, String> {
+        val query = link?.substringAfter('?', "") ?: return emptyMap()
+        if (query.isEmpty()) return emptyMap()
+        return query.split('&').mapNotNull { pair ->
+            val key = pair.substringBefore('=')
+            if (key.isEmpty()) null else key to decode(pair.substringAfter('=', ""))
+        }.toMap()
+    }
+
+    private fun decode(value: String): String {
+        val bytes = mutableListOf<Byte>()
+        var i = 0
+        while (i < value.length) {
+            val c = value[i]
+            when {
+                c == '+' -> { bytes += ' '.code.toByte(); i++ }
+                c == '%' && i + 2 < value.length -> {
+                    val hex = value.substring(i + 1, i + 3).toIntOrNull(16)
+                    if (hex == null) { bytes += c.code.toByte(); i++ } else { bytes += hex.toByte(); i += 3 }
+                }
+                else -> { bytes += c.toString().encodeToByteArray().toList(); i++ }
+            }
+        }
+        return bytes.toByteArray().decodeToString()
+    }
 }
 
 /**

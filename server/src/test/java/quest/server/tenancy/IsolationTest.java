@@ -77,6 +77,8 @@ class IsolationTest extends ApiTestSupport {
     @Autowired ChildService childService;
     @Autowired quest.server.workers.WorkerRepository workers;
     @Autowired quest.server.push.StaffDeviceRepository staffDevices;
+    @Autowired quest.server.staffattendance.StaffAttendanceDayRepository attendanceDays;
+    @Autowired quest.server.staffattendance.StaffAttendanceAlertRepository attendanceAlerts;
 
     @BeforeEach void seedTwoSchools() {
         school(A, "Alpha Academy", "SCHLAA"); school(B, "Beta School", "SCHLBB");
@@ -147,6 +149,33 @@ class IsolationTest extends ApiTestSupport {
             String account = workers.findById("iso-worker-b").map(quest.server.workers.Entities.WorkerEntity::getUserId).orElse(null);
             workers.deleteById("iso-worker-b");
             if (account != null) users.findById(account).ifPresent(users::delete);
+        }
+    }
+
+    /**
+     * Feature 16's two tenant tables. A status day and a sent-alert key of B are invisible to a principal of A: every
+     * read goes through the `school` filter. The job itself names the school on every query and is proven not to write
+     * across schools in `StaffAttendanceJobTest.one_schools_run_writes_and_tells_nothing_in_another`.
+     */
+    @Test void feature_16s_status_days_and_alert_keys_stay_in_their_school() {
+        var now = java.time.Instant.now();
+        var day = new quest.server.staffattendance.Entities.StaffAttendanceDayEntity();
+        day.setId("iso-day-b"); day.setSchoolId(B); day.setStaffKind("USER"); day.setStaffId("teacher-b");
+        day.setDay(DATE_B); day.setLateMinutes(12); day.setUpdatedAt(now);
+        var alert = new quest.server.staffattendance.Entities.StaffAttendanceAlertEntity();
+        alert.setId("iso-alert-b"); alert.setSchoolId(B); alert.setStaffKind("USER"); alert.setStaffId("teacher-b");
+        alert.setDay(DATE_B); alert.setType("LATE"); alert.setSentAt(now);
+        attendanceDays.save(day); attendanceAlerts.save(alert);
+        try {
+            tenant.set("MANAGERIAL", A, null);
+            assertThat(attendanceDays.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(attendanceAlerts.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(attendanceDays.findBySchoolIdAndDay(A, DATE_B)).isEmpty();
+            tenant.set("MANAGERIAL", B, null);
+            assertThat(attendanceDays.findAll()).anyMatch(r -> "iso-day-b".equals(r.getId()));
+        } finally {
+            tenant.clear();
+            attendanceDays.deleteById("iso-day-b"); attendanceAlerts.deleteById("iso-alert-b");
         }
     }
 

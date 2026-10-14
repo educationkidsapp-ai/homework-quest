@@ -4531,7 +4531,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message" ],
+            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message", "attendance.reminder", "attendance.alert", "attendance.digest" ],
             "type" : "string"
           },
           "lessonId" : {

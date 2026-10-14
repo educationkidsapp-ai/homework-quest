@@ -1604,7 +1604,34 @@
           "title": "Complaint status changed",
           "body": "A complaint was resolved or reopened."
         }
+      },
+      "attendance": {
+        "reminder": {
+          "title": "Attendance",
+          "body": "A reminder about your check-in."
+        },
+        "alert": {
+          "title": "Attendance",
+          "body": "An employee's attendance needs your attention."
+        },
+        "digest": {
+          "title": "Today's attendance",
+          "body": "Today's attendance summary."
+        }
       }
+    },
+    "attendance": {
+      "start_reminder": "You have not checked in yet.",
+      "end_reminder": "Don't forget to check out.",
+      "missing_checkout_reminder": "Your check-out was not recorded today.",
+      "late": "{{name}} is {{minutes}} minutes late",
+      "not_arrived": "{{name}} has not arrived yet",
+      "early_leave": "{{name}} left {{minutes}} minutes early",
+      "missing_checkout": "{{name}} did not check out today",
+      "digest": "Today: {{late}} late, {{notArrived}} not arrived, {{remote}} remote",
+      "digestLate": "Late: {{names}}",
+      "digestNotArrived": "Not arrived: {{names}}",
+      "separator": ", "
     }
   },
   "chat": {
