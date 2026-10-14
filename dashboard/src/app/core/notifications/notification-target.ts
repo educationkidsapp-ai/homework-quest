@@ -132,6 +132,24 @@ export function notificationTarget(item: NotificationView, role: Role | null): N
       return area === null
         ? INBOX
         : { path: `${area}/complaints`, queryParams: entityId === '' ? null : { open: entityId } };
+    // Feature 18: a request waiting for a decision. The server's link is `/notifications?…` for
+    // everyone, because the screen that decides it is in four different areas — so the viewer's
+    // own Attendance requests is the answer, with the id the link carries so the row can be
+    // picked out of the list.
+    case NotificationViewKindEnum.ATTENDANCE_REQUEST: {
+      if (area === null) return INBOX;
+      const request = paramOf(link, 'request');
+      return {
+        path: `${area}/attendance-requests`,
+        queryParams: request === null ? null : { request },
+      };
+    }
+    // The other two are the employee's own news — her decision and the school's remote day. She
+    // has no screen of her own for either on the dashboard (both live in the staff app), so the
+    // notifications page, which can always show the row itself, is where they stay.
+    case NotificationViewKindEnum.ATTENDANCE_DECISION:
+    case NotificationViewKindEnum.ATTENDANCE_REMOTE_DAY:
+      return INBOX;
     default:
       return INBOX;
   }
@@ -150,6 +168,16 @@ export function notificationUrl(target: NotificationTarget): string {
  * keeps `https://evil.example/management/messages?thread=x` from sending anybody anywhere but her
  * own threads list.
  */
+/**
+ * One query parameter of a link, or `null` when it is missing or empty. The path is thrown away
+ * for {@link threadOf}'s reason: only the value travels, never the destination.
+ */
+function paramOf(link: string, name: string): string | null {
+  const query = link.split('?', 2)[1] ?? '';
+  const value = new URLSearchParams(query).get(name)?.trim() ?? '';
+  return value === '' ? null : value;
+}
+
 function threadOf(link: string): string | null {
   const query = link.split('?', 2)[1] ?? '';
   const thread = new URLSearchParams(query).get('thread')?.trim() ?? '';

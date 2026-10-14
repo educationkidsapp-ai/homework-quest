@@ -1,0 +1,159 @@
+<hq-page
+  [title]="'attendanceRequests.title' | transloco"
+  [subtitle]="'attendanceRequests.subtitle' | transloco"
+>
+  <div class="requests" data-hq-attendance-requests>
+    <div class="requests__bar">
+      <hq-tabs
+        variant="chips"
+        [tabs]="tabs()"
+        [(selected)]="which"
+        [label]="'attendanceRequests.tab.label' | transloco"
+      />
+      @if (canCorrect()) {
+        <hq-button variant="primary" (pressed)="openAdd()">
+          {{ 'attendanceRequests.add.open' | transloco }}
+        </hq-button>
+      }
+    </div>
+
+    <hq-card>
+      @if (requests.isLoading()) {
+        <hq-skeleton [loading]="true" [lines]="5" [label]="'attendanceRequests.loading' | transloco" />
+      } @else if (requests.error()) {
+        <hq-empty-state
+          [message]="'band.unreachable' | transloco"
+          [actionLabel]="'ui.retry' | transloco"
+          (action)="requests.reload()"
+        />
+      } @else {
+        <hq-table
+          [rows]="rows()"
+          [columns]="columns()"
+          [cellTemplate]="cell"
+          [overflowTemplate]="which() === 'pending' ? decide : null"
+          [trackBy]="trackRequest"
+          [isSelected]="isHighlighted"
+          [label]="'attendanceRequests.title' | transloco"
+        >
+          <hq-empty-state
+            table-empty
+            [message]="
+              (which() === 'pending' ? 'attendanceRequests.empty.pending' : 'attendanceRequests.empty.decided')
+                | transloco
+            "
+          />
+        </hq-table>
+      }
+    </hq-card>
+  </div>
+
+  <ng-template #cell let-row let-column="column">
+    @switch (column.key) {
+      @case ('staffName') {
+        {{ row.staffName }}
+        <span class="hq-muted requests__asked">{{ askedLabel(row) }}</span>
+      }
+      @case ('type') {
+        {{ typeLabel(row) }}
+      }
+      @case ('date') {
+        {{ row.date }}
+      }
+      @case ('times') {
+        {{ timesLabel(row.checkIn, row.checkOut) }}
+        @if (originalLabel(row); as was) {
+          <span class="hq-muted requests__asked">{{ was }}</span>
+        }
+      }
+      @case ('reason') {
+        {{ row.reason }}
+        @if (row.attachment) {
+          <hq-button
+            variant="quiet"
+            [loading]="opening() === row.id"
+            [disabled]="opening() !== null"
+            (pressed)="openAttachment(row)"
+          >
+            {{ 'attendanceRequests.attachment' | transloco }}
+          </hq-button>
+        }
+      }
+      @case ('status') {
+        {{ statusLabel(row) }}
+        @if (decidedLabel(row); as by) {
+          <span class="hq-muted requests__asked">{{ by }}</span>
+        }
+      }
+    }
+  </ng-template>
+
+  <ng-template #decide let-row>
+    <div class="requests__decide">
+      <hq-button
+        variant="primary"
+        [loading]="deciding() === row.id"
+        [disabled]="deciding() !== null"
+        (pressed)="approve(row)"
+      >
+        {{ 'attendanceRequests.approve' | transloco }}
+      </hq-button>
+      <hq-button variant="quiet" [disabled]="deciding() !== null" (pressed)="reject(row)">
+        {{ 'attendanceRequests.reject' | transloco }}
+      </hq-button>
+    </div>
+  </ng-template>
+
+  <hq-dialog
+    [(open)]="addOpen"
+    [title]="'attendanceRequests.add.title' | transloco"
+    [confirmLabel]="'attendanceRequests.add.save' | transloco"
+    [loading]="addSaving()"
+    (confirmed)="saveCorrection()"
+  >
+    <hq-select
+      [label]="'attendanceRequests.add.staff' | transloco"
+      [required]="true"
+      [options]="staffOptions()"
+      [value]="addStaff()"
+      (valueChange)="addStaff.set($event)"
+    />
+    <hq-input
+      type="date"
+      [label]="'attendanceRequests.add.date' | transloco"
+      [required]="true"
+      [max]="today"
+      [value]="addDate()"
+      (valueChange)="addDate.set($event)"
+    />
+    <hq-select
+      [label]="'attendanceRequests.add.kind' | transloco"
+      [options]="kindOptions()"
+      [value]="addKind()"
+      (valueChange)="addKind.set($event)"
+    />
+    <div class="requests__times">
+      <hq-input
+        type="time"
+        [label]="'attendanceRequests.add.checkIn' | transloco"
+        [value]="addCheckIn()"
+        (valueChange)="addCheckIn.set($event)"
+      />
+      <hq-input
+        type="time"
+        [label]="'attendanceRequests.add.checkOut' | transloco"
+        [value]="addCheckOut()"
+        (valueChange)="addCheckOut.set($event)"
+      />
+    </div>
+    <hq-input
+      [label]="'attendanceRequests.add.reason' | transloco"
+      [required]="true"
+      [maxLength]="200"
+      [placeholder]="'attendanceRequests.add.reasonPlaceholder' | transloco"
+      [error]="reasonError()"
+      [value]="addReason()"
+      (valueChange)="addReason.set($event)"
+    />
+  </hq-dialog>
+</hq-page>

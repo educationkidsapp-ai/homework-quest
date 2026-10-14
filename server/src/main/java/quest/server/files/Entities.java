@@ -49,8 +49,9 @@ public final class Entities {
         public Integer getWidth() { return width; } public void setWidth(Integer v) { width = v; }
         public Integer getHeight() { return height; } public void setHeight(Integer v) { height = v; }
         public boolean isChat() { return CHAT.equals(purpose); }
+        public boolean isAttendance() { return ATTENDANCE.equals(purpose); }
     }
 
-    /** V33 `attachments.purpose`. */
-    public static final String BROADCAST = "broadcast", CHAT = "chat";
+    /** V33 `attachments.purpose`; feature 18 adds `attendance`, a correction's photo or PDF. */
+    public static final String BROADCAST = "broadcast", CHAT = "chat", ATTENDANCE = "attendance";
 }

@@ -153,6 +153,16 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.staffAttendance,
         permission: 'attendance.settings.read',
       },
+      // Feature 18: the remote days and corrections her people ask for. One screen in four areas
+      // — the server answers each caller with the requests *she* decides — and `attendance.correction.write`
+      // (the Admin's direct correction) is the only part of it she alone has.
+      {
+        id: 'attendance-requests',
+        path: 'attendance-requests',
+        labelKey: 'nav.attendanceRequests',
+        flag: FLAGS.staffAttendance,
+        permission: 'attendance.requests.decide',
+      },
       // Feature 17: the leaders' board and monthly report. The Admin's view is the whole school.
       {
         id: 'staff-attendance',
@@ -237,6 +247,17 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       // while she is inside it, and that item is built from `ClassContextService`, not here.
       { id: 'classes', path: 'classes', labelKey: 'nav.myClasses', permission: 'teacher.week' },
       { id: 'class', path: 'classes/:classId', permission: 'teacher.week' },
+      // Feature 18: a teacher is a direct manager too — of the assistants and workers under her —
+      // so she gets the same screen and the same key. A teacher who manages nobody is shown an
+      // empty list rather than hidden the row: the server, not the rail, knows whose reports are
+      // whose, and `attendance.requests.decide` is held by every one of the four staff roles.
+      {
+        id: 'attendance-requests',
+        path: 'attendance-requests',
+        labelKey: 'nav.attendanceRequests',
+        flag: FLAGS.staffAttendance,
+        permission: 'attendance.requests.decide',
+      },
       // Her lessons lost their rail label with N2.3: §4's rail is This week · My classes, and
       // the list is one tap away as "All lessons of this class". The route stays — a bookmark
       // and `/teacher/lessons?classId=…` from the class page both have to resolve.
@@ -380,6 +401,16 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         labelKey: 'nav.staffAttendance',
         permission: 'management.staff.attendance',
       },
+      // Feature 18: her direct reports' requests. Not `readOnly` — deciding them is the one thing
+      // in the whole `/management` namespace she does by tapping a button, and the row carries
+      // the write key the server's approve and reject carry.
+      {
+        id: 'attendance-requests',
+        path: 'attendance-requests',
+        labelKey: 'nav.attendanceRequests',
+        flag: FLAGS.staffAttendance,
+        permission: 'attendance.requests.decide',
+      },
       // Feature 14: the rules her people are held to — hers to read, the Admin's to change.
       {
         id: 'attendance-settings',
@@ -467,6 +498,16 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         labelKey: 'nav.attendance',
         permission: 'coordinator.attendance.read',
         readOnly: true,
+      },
+      // Feature 18: her teachers' remote days and corrections. The one row of hers that is not
+      // read-only and the one that carries a key from outside `coordinator.*` — the decision is
+      // the same server route for all four roles, so it is the same permission for all four.
+      {
+        id: 'attendance-requests',
+        path: 'attendance-requests',
+        labelKey: 'nav.attendanceRequests',
+        flag: FLAGS.staffAttendance,
+        permission: 'attendance.requests.decide',
       },
       {
         id: 'gradebook',

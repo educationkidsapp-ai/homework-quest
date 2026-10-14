@@ -23,11 +23,13 @@ import quest.server.content.LessonRepository;
 public class MediaAccess {
     private final LessonRepository lessons; private final ChildRepository children; private final ChildService childService;
     private final quest.server.broadcasts.BroadcastService broadcasts; private final quest.server.chat.ChatAttachments chatFiles;
+    private final quest.server.staffattendance.AttendanceRequestService attendanceFiles;
 
     public MediaAccess(LessonRepository lessons, ChildRepository children, ChildService childService,
-                       quest.server.broadcasts.BroadcastService broadcasts, quest.server.chat.ChatAttachments chatFiles) {
+                       quest.server.broadcasts.BroadcastService broadcasts, quest.server.chat.ChatAttachments chatFiles,
+                       @org.springframework.context.annotation.Lazy quest.server.staffattendance.AttendanceRequestService attendanceFiles) {
         this.lessons = lessons; this.children = children; this.childService = childService; this.broadcasts = broadcasts;
-        this.chatFiles = chatFiles;
+        this.chatFiles = chatFiles; this.attendanceFiles = attendanceFiles;
     }
 
     /**
@@ -88,6 +90,11 @@ public class MediaAccess {
         if (row.isChat()) {
             if (parent != null && user == null && parent.parentId().equals(row.getUploadedBy())) return;
             if (!chatFiles.readable(row, parent, user)) throw hidden();
+            return;
+        }
+        // Feature 18: a correction's photo or PDF — whoever may decide the request it is attached to, and nobody else.
+        if (row.isAttendance()) {
+            if (user == null || !attendanceFiles.readable(row, user)) throw hidden();
             return;
         }
         var kids = user != null ? List.<ChildEntity>of()

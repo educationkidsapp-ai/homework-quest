@@ -19,6 +19,9 @@ import quest.api.dto.UnreadCount
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import quest.api.staff.AttendanceRequestList
+import quest.api.staff.AttendanceRequestStatus
+import quest.api.staff.AttendanceRequestView
 import quest.api.staff.CheckInDay
 import quest.api.staff.CheckInMode
 import quest.api.staff.CheckInMonth
@@ -28,6 +31,7 @@ import quest.api.staff.CheckInRequest
 import quest.api.staff.CheckInResult
 import quest.api.staff.CheckInRules
 import quest.api.staff.CheckInToday
+import quest.api.staff.NewAttendanceRequest
 import quest.api.staff.StaffMe
 import quest.core.platform.Ids
 import quest.core.platform.Today
@@ -96,6 +100,9 @@ class FakeStaffApi(private val delayMillis: Long = 250) : StaffGateway {
         onProgress(1f)
         return AttachmentRef(id = Ids.random(), type = file.contentType, name = file.name, sizeBytes = file.size)
     }
+
+    override suspend fun uploadRequestAttachment(file: StagedUpload, onProgress: (Float) -> Unit): AttachmentRef =
+        uploadAttachment(file, onProgress)
 
     override suspend fun notifications(limit: Int): List<NotificationView> {
         net()
@@ -178,6 +185,44 @@ class FakeStaffApi(private val delayMillis: Long = 250) : StaffGateway {
             }
         }
         return CheckInMonth(asked, days)
+    }
+
+    // ---------------------------------------------------------------- feature 18: remote days and corrections
+
+    /** Her requests, newest first, kept in memory: the fake decider is the manager of the fake staff thread. */
+    private val requests = mutableListOf<AttendanceRequestView>()
+
+    override suspend fun createAttendanceRequest(request: NewAttendanceRequest): AttendanceRequestView {
+        net()
+        val view = AttendanceRequestView(
+            id = Ids.random(), type = request.type, status = AttendanceRequestStatus.PENDING,
+            staff = "USER:$ME", staffName = "Ms Noor", date = request.date, reason = request.reason,
+            correctionKind = request.correctionKind, checkIn = request.checkIn, checkOut = request.checkOut,
+            attachment = request.attachmentId?.let { AttachmentRef(id = it, type = "image/jpeg", name = "proof.jpg", sizeBytes = 0) },
+            createdAt = Today.epochMillis(),
+        )
+        requests.add(0, view)
+        return view
+    }
+
+    override suspend fun myAttendanceRequests(): AttendanceRequestList { net(); return AttendanceRequestList(requests.toList()) }
+
+    override suspend fun attendanceRequestsToDecide(status: String?): AttendanceRequestList {
+        net()
+        return AttendanceRequestList(requests.filter { status == null || it.status == status })
+    }
+
+    override suspend fun approveAttendanceRequest(id: String): AttendanceRequestView = decide(id, AttendanceRequestStatus.APPROVED)
+    override suspend fun rejectAttendanceRequest(id: String): AttendanceRequestView = decide(id, AttendanceRequestStatus.REJECTED)
+
+    private suspend fun decide(id: String, status: String): AttendanceRequestView {
+        net()
+        val index = requests.indexOfFirst { it.id == id }
+        if (index < 0) throw ApiException(ApiError(ApiError.NOT_FOUND, "request"))
+        if (requests[index].status != AttendanceRequestStatus.PENDING) throw ApiException(ApiError("conflict", "already decided"))
+        val decided = requests[index].copy(status = status, decidedBy = "Mr Adel", decidedAt = Today.epochMillis())
+        requests[index] = decided
+        return decided
     }
 
     private fun clock(): String {

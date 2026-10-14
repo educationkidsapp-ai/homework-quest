@@ -69,7 +69,8 @@ public class AttachmentService {
         try { bytes = file.getBytes(); } catch (java.io.IOException e) { throw ApiException.badRequest("That file could not be read."); }
         // B5b: a chat photo is stored without its EXIF, XMP and IPTC — the GPS of the parent's home above all — whatever
         // the client did; the orientation alone survives, so it stays upright (`ImageMetadata`).
-        if (Entities.CHAT.equals(purpose)) bytes = ImageMetadata.strip(bytes, mime);
+        // Feature 18: a correction's photo is stripped too — attendance never keeps a coordinate (feature 15).
+        if (Entities.CHAT.equals(purpose) || Entities.ATTENDANCE.equals(purpose)) bytes = ImageMetadata.strip(bytes, mime);
         var size = ImageInfo.size(bytes, mime);
         // B5 review: what `?w=` would have to decode is bounded here, once — a 300 KB PNG can still be 10 000 px square.
         if (size != null && ImageInfo.tooLarge(size))

@@ -23,10 +23,11 @@ sealed interface Destination {
      */
     data class StaffConversation(val thread: ChatThread) : Destination
     /**
-     * Feature 16: an `attendance.*` row or push, for a staff member. A [reminder] opens her Attendance tab (the staff
+     * Feature 16: an `attendance.*` row or push, for a staff member. A reminder opens her Attendance tab (the staff
      * home); an alert or the digest opens her notifications, until feature 17 gives them a board and a day to open.
+     * Feature 18: the decision on one of her own requests opens her record, which is where the corrected day is.
      */
-    data class StaffAttendance(val reminder: Boolean) : Destination
+    data class StaffAttendance(val target: StaffAttendanceTarget) : Destination
     /** M8: `complaint.message` and `complaint.status` — that complaint's own page, about [childId]. */
     data class Complaint(val childId: String, val complaintId: String) : Destination
     /** A weekly plan: the Weekly plan page, on that plan. */
@@ -97,7 +98,7 @@ class NotificationRouter(
      */
     /** Feature 16: an attendance reminder, alert or digest, when a staff member is signed in to read it. */
     private fun staffAttendance(tap: NotificationTap): Destination? =
-        if (isAttendance(tap.kind) && staffSignedIn()) Destination.StaffAttendance(reminder = tap.kind == ATTENDANCE_REMINDER) else null
+        if (isAttendance(tap.kind) && staffSignedIn()) Destination.StaffAttendance(attendanceTarget(tap.kind)) else null
 
     /** Her thread, when the tap names one she is on. Null means "not a staff tap", not "gone". */
     private suspend fun staffConversation(tap: NotificationTap): Destination? {
@@ -195,7 +196,22 @@ class ParentGate(private val elapsed: () -> Long, private val graceMillis: Long 
     fun back() { if (!isOpen) closed(); awaySince = null }
 }
 
-/** Feature 16's three kinds share the `attendance.` prefix; only the reminder opens the Attendance tab. */
+/** Feature 16's kinds share the `attendance.` prefix; only the reminder opens the Attendance tab. */
 const val ATTENDANCE_REMINDER = "attendance.reminder"
+
+/** Feature 18: the decision on her own request lands on her record. */
+const val ATTENDANCE_DECISION = "attendance.decision"
+
+/** Feature 18: the one kind whose push offers Approve and Reject (Android). */
+const val ATTENDANCE_REQUEST = "attendance.request"
+
+/** Where an `attendance.*` tap takes a staff member. */
+enum class StaffAttendanceTarget { HOME, NOTIFICATIONS, MY_RECORD }
+
+fun attendanceTarget(kind: String?): StaffAttendanceTarget = when (kind) {
+    ATTENDANCE_REMINDER -> StaffAttendanceTarget.HOME
+    ATTENDANCE_DECISION -> StaffAttendanceTarget.MY_RECORD
+    else -> StaffAttendanceTarget.NOTIFICATIONS
+}
 
 fun isAttendance(kind: String?): Boolean = kind != null && kind.startsWith("attendance.")

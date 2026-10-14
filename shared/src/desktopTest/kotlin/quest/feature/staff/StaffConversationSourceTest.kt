@@ -14,6 +14,9 @@ import quest.api.dto.RegisterDeviceRequest
 import quest.api.dto.SendChatMessageRequest
 import quest.api.dto.UnreadCount
 import quest.api.staff.StaffMe
+import quest.api.staff.AttendanceRequestList
+import quest.api.staff.AttendanceRequestView
+import quest.api.staff.NewAttendanceRequest
 import quest.core.db.Db
 import quest.core.db.SettingsStore
 import quest.core.platform.DriverFactory
@@ -67,6 +70,12 @@ class StaffConversationSourceTest {
             onProgress(1f)
             return AttachmentRef(id = "a-1", name = file.name, type = file.contentType, sizeBytes = file.size)
         }
+        override suspend fun uploadRequestAttachment(file: StagedUpload, onProgress: (Float) -> Unit): AttachmentRef = error("not used")
+        override suspend fun createAttendanceRequest(request: NewAttendanceRequest): AttendanceRequestView = error("not used")
+        override suspend fun myAttendanceRequests(): AttendanceRequestList = AttendanceRequestList(emptyList())
+        override suspend fun attendanceRequestsToDecide(status: String?): AttendanceRequestList = AttendanceRequestList(emptyList())
+        override suspend fun approveAttendanceRequest(id: String): AttendanceRequestView = error("not used")
+        override suspend fun rejectAttendanceRequest(id: String): AttendanceRequestView = error("not used")
         override suspend fun notifications(limit: Int): List<NotificationView> = emptyList()
         override suspend fun unreadNotificationCount(): UnreadCount = UnreadCount(0)
         override suspend fun markNotificationRead(id: String): NotificationView = error("not used")

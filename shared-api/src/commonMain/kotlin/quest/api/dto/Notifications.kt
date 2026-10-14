@@ -119,6 +119,15 @@ enum class NotificationKind {
      * digest time from feature 14's settings. [NotificationView.link] carries the counts; the body lists the names.
      */
     @SerialName("attendance.digest") ATTENDANCE_DIGEST,
+    /**
+     * Feature 18, to whoever decides: an employee asked for a remote day or a correction. [NotificationView.link]
+     * carries [AttendanceLink.REQUEST] (the request's id), so the Android push can offer Approve and Reject.
+     */
+    @SerialName("attendance.request") ATTENDANCE_REQUEST,
+    /** Feature 18, to the employee: her request was approved or rejected ([AttendanceLink.DECISION]). */
+    @SerialName("attendance.decision") ATTENDANCE_DECISION,
+    /** Feature 18, to everyone in scope: a school-wide or academy remote day, sent the evening before or at once. */
+    @SerialName("attendance.remote_day") ATTENDANCE_REMOTE_DAY,
 }
 
 /**
@@ -153,6 +162,17 @@ object AttendanceLink {
     const val ALERT_MISSING_CHECKOUT = "missing_checkout"
 
     const val DIGEST = "digest"
+
+    /** Feature 18: the request's id, its kind ([REQUEST_REMOTE_DAY] or [REQUEST_CORRECTION]) and the decision. */
+    const val REQUEST = "request"
+    const val DECISION = "decision"
+    const val REQUEST_REMOTE_DAY = "remote_day_request"
+    const val REQUEST_CORRECTION = "correction_request"
+    const val DECIDED_REMOTE_DAY = "remote_day_decided"
+    const val DECIDED_CORRECTION = "correction_decided"
+    const val REMOTE_DAY = "remote_day"
+    const val APPROVED = "approved"
+    const val REJECTED = "rejected"
 
     /** The query parameters of [link], decoded; empty when it has none. */
     fun params(link: String?): Map<String, String> {

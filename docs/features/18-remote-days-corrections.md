@@ -1,7 +1,20 @@
 # Feature 18 — Remote days and corrections
 
-**Status:** Not started · **Area:** mobile app (staff), dashboard, server · **Depends on:** 15 (and 16 for statuses) ·
+**Status:** Done · **Area:** mobile app (staff), dashboard, server · **Depends on:** 15 (and 16 for statuses) ·
 **Feature switch:** `staff_attendance`
+
+**Leftovers:**
+- **The Admin's direct correction is not on the employee's day yet.** She adds it from the dashboard's "Attendance
+  requests" screen, picking the employee and the day there. A button on feature 17's employee-day view could call the
+  same route (`POST /admin/staff/{kind}/{id}/attendance-corrections`).
+- **Android Approve and Reject buttons are verified by build and unit test only.** They have not been tried on a phone
+  with a real push yet.
+- **iPhone has no action buttons.** Tapping the push opens the app. The buttons need the Apple Developer account.
+- **No in-app list of requests to decide.** Managers decide from the push buttons or from the dashboard.
+- **Dates in the app are typed.** The request and correction forms take the date as `yyyy-MM-dd` (validated, with a
+  sensible default). There is no date picker yet.
+- **Not deployed yet.** The QA deploy follows the merge into `develop`. Sending the Android build to testers needs the
+  owner's go-ahead.
 
 ## Goal
 

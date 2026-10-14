@@ -20,6 +20,9 @@ export function bodyKeyOf(kind: NotificationKind): string {
   return `notifications.kind.${kind}.body`;
 }
 
+/** Feature 18: the two `attendance.decision` types whose wording turns on `?decision=`. */
+const DECIDED: readonly string[] = ['remote_day_decided', 'correction_decided'];
+
 /**
  * Feature 16: an `attendance.*` row's body, in her language, worded from its link
  * (`/notifications?attendance=<type>&name=…&minutes=…`, the contract's `AttendanceLink`). The server's
@@ -36,9 +39,14 @@ export function attendanceBody(
   const type = p.get('attendance');
   if (!type) return item.body ?? null;
   if (type !== 'digest') {
-    return translate(`notifications.attendance.${type}`, {
+    // Feature 18: a decision reads the same from either side of it — only `decision` says which
+    // way it went — so the two kinds are one key with a leaf per outcome rather than four keys.
+    const decision = p.get('decision') ?? '';
+    const key = DECIDED.includes(type) && decision !== '' ? `${type}.${decision}` : type;
+    return translate(`notifications.attendance.${key}`, {
       name: p.get('name') ?? '',
       minutes: p.get('minutes') ?? '',
+      date: p.get('date') ?? '',
     });
   }
   const separator = translate('notifications.attendance.separator');

@@ -3,6 +3,7 @@ package quest.server.staffattendance;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Locale;
+import java.util.Set;
 import java.util.TreeSet;
 import org.springframework.stereotype.Service;
 import quest.server.auth.Entities.UserEntity;
@@ -59,6 +60,16 @@ public class DirectManagerResolver {
         if (!StaffAttendanceDto.KIND_USER.equals(kind)) return null;
         var self = directory.user(schoolId, staffId).orElse(null);
         return self == null ? null : director(schoolId, self);
+    }
+
+    /**
+     * Feature 18: the academies of an employee named by kind and id — the remote days that reach her. Empty for a
+     * worker, so only a school-wide remote day reaches her.
+     */
+    public Set<String> academies(String schoolId, String kind, String staffId) {
+        if (!StaffAttendanceDto.KIND_USER.equals(kind)) return Set.of();
+        var self = directory.user(schoolId, staffId).orElse(null);
+        return self == null ? Set.of() : academies(schoolId, self);
     }
 
     /**

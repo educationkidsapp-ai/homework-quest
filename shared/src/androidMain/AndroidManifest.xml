@@ -27,6 +27,11 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+        <!--
+          Feature 18: Approve and Reject on an attendance request's push. Never exported — only this app's own
+          notification actions reach it, and the decision goes up on the signed-in staff member's own bearer.
+        -->
+        <receiver android:name="quest.core.platform.AttendanceDecisionReceiver" android:exported="false" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.quest.fileprovider"

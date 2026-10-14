@@ -2,6 +2,7 @@ package quest.feature.push.domain
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import quest.api.dto.AttendanceLink
 import quest.api.dto.NotificationView
 import quest.api.dto.PushMessage
 
@@ -132,6 +133,14 @@ fun linkShape(link: String?): LinkShape = link?.trim()?.let { path -> SHAPES.fir
  * the old intent again; following it would ask for the gate and reopen an old page with nobody having tapped.
  */
 fun isNewLaunch(restored: Boolean, fromHistory: Boolean): Boolean = !restored && !fromHistory
+
+/**
+ * Feature 18: the request a notice lets the decider settle from the shade — the id on an `attendance.request` link —
+ * or null when there is nothing to decide on it. Pure, so which notice gets Approve and Reject is a tested answer
+ * rather than something buried in the Android notifier.
+ */
+fun decidableRequestId(kind: String?, link: String?): String? =
+    if (kind != ATTENDANCE_REQUEST) null else AttendanceLink.params(link)[AttendanceLink.REQUEST]?.takeIf { it.isNotBlank() }
 
 /** The child an app path names (`/children/{id}/…`). */
 fun childOf(link: String?): String? = link?.let { CHILD.find(it.trim())?.groupValues?.get(1) }

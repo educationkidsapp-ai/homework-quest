@@ -15,12 +15,13 @@ public interface AttachmentRepository extends JpaRepository<Entities.AttachmentE
     Optional<Entities.AttachmentEntity> findOneById(@Param("id") String id);
 
     /**
-     * B5: one page of what {@code UploadRetention} sweeps — older than {@code cutoff}, carried by no broadcast, and not
-     * sent with a chat message that still exists. Oldest first.
+     * B5: one page of what {@code UploadRetention} sweeps — older than {@code cutoff}, carried by no broadcast, not
+     * sent with a chat message that still exists, and named by no attendance request (feature 18). Oldest first.
      */
     @Query("select a from AttachmentEntity a where a.createdAt < :cutoff"
             + " and not exists (select b.id from BroadcastEntity b where b.attachmentId = a.id)"
             + " and (a.messageId is null or not exists (select m.id from ChatMessageEntity m where m.id = a.messageId))"
+            + " and not exists (select r.id from StaffAttendanceRequestEntity r where r.attachmentId = a.id)"
             + " order by a.createdAt, a.id")
     java.util.List<Entities.AttachmentEntity> orphans(@Param("cutoff") java.time.Instant cutoff, org.springframework.data.domain.Pageable page);
 

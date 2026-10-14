@@ -12,7 +12,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +22,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import quest.api.dto.AttendanceLink;
 import quest.api.dto.NotificationKind;
+import quest.api.staff.CheckInMode;
 import quest.server.auth.UserRepository;
 import quest.server.flags.FeatureFlags;
 import quest.server.flags.FlagKeys;
@@ -30,10 +30,8 @@ import quest.server.notifications.NotificationService;
 import quest.server.platform.SchoolCalendar;
 import quest.server.staffattendance.AttendanceRules.Event;
 import quest.server.staffattendance.Entities.StaffAttendanceAlertEntity;
-import quest.server.staffattendance.Entities.StaffAttendanceDayEntity;
 import quest.server.staffattendance.Entities.StaffCheckInEntity;
 import quest.server.tenancy.SchoolRepository;
-import quest.server.workers.WorkerRepository;
 
 /**
  * Feature 16: every five minutes, for each school with `staffAttendance` on, turns the day's check-ins into statuses
@@ -64,24 +62,27 @@ public class StaffAttendanceJob {
     static final String DIGEST_KIND = "DIGEST";
 
     private final SchoolRepository schools; private final FeatureFlags flags; private final SchoolCalendar calendar;
-    private final AttendanceStaff staff; private final StaffAttendanceProfileRepository profiles;
+    private final AttendanceStaff staff;
     private final ScheduleResolver schedules; private final AttendanceSettingsService settings;
-    private final StaffCheckInRepository checkIns; private final StaffAttendanceDayRepository days;
+    private final StaffCheckInRepository checkIns;
     private final StaffAttendanceAlertRepository alerts; private final DirectManagerResolver managers;
-    private final UserRepository users; private final WorkerRepository workers;
-    private final NotificationService notifications; private final Clock clock; private final boolean enabled;
+    private final UserRepository users;
+    private final NotificationService notifications; private final AttendanceDays attendanceDays;
+    private final RemoteDayService remoteDays; private final Clock clock; private final boolean enabled;
 
     public StaffAttendanceJob(SchoolRepository schools, FeatureFlags flags, SchoolCalendar calendar, AttendanceStaff staff,
-                              StaffAttendanceProfileRepository profiles, ScheduleResolver schedules,
+                              ScheduleResolver schedules,
                               AttendanceSettingsService settings, StaffCheckInRepository checkIns,
-                              StaffAttendanceDayRepository days, StaffAttendanceAlertRepository alerts,
-                              DirectManagerResolver managers, UserRepository users, WorkerRepository workers,
-                              NotificationService notifications, Clock clock,
+                              StaffAttendanceAlertRepository alerts,
+                              DirectManagerResolver managers, UserRepository users,
+                              NotificationService notifications, AttendanceDays attendanceDays,
+                              RemoteDayService remoteDays, Clock clock,
                               @Value("${quest.staff-attendance.job.enabled:true}") boolean enabled) {
-        this.schools = schools; this.flags = flags; this.calendar = calendar; this.staff = staff; this.profiles = profiles;
-        this.schedules = schedules; this.settings = settings; this.checkIns = checkIns; this.days = days;
-        this.alerts = alerts; this.managers = managers; this.users = users; this.workers = workers;
-        this.notifications = notifications; this.clock = clock; this.enabled = enabled;
+        this.schools = schools; this.flags = flags; this.calendar = calendar; this.staff = staff;
+        this.schedules = schedules; this.settings = settings; this.checkIns = checkIns;
+        this.alerts = alerts; this.managers = managers; this.users = users;
+        this.notifications = notifications; this.attendanceDays = attendanceDays; this.remoteDays = remoteDays;
+        this.clock = clock; this.enabled = enabled;
     }
 
     /** On Cloud Run an instance wakes up after a quiet spell; whatever fell due meanwhile is caught up at once. */
@@ -116,19 +117,21 @@ public class StaffAttendanceJob {
         int sent = 0;
         var digestRows = new ArrayList<DigestRow>();
         for (var employee : staff.all(schoolId)) {
-            var expected = schedules.expected(schoolId, category(schoolId, employee), today);
+            var expected = schedules.expected(schoolId, attendanceDays.category(schoolId, employee), today);
             if (expected.kind() != ScheduleResolver.Kind.WORK) continue;              // holidays and days off: nothing
             var row = byStaff.get(key(employee.kind(), employee.id()));
             var day = AttendanceRules.evaluate(expected, alertSettings.thresholds(), today, zone,
                     row == null ? null : row.getCheckInAt(), row == null ? null : row.getCheckOutAt(), now);
-            save(schoolId, employee, today, day, now);
+            attendanceDays.save(schoolId, employee, today, day, now);
             String director = managers.academyDirector(schoolId, employee.kind(), employee.id());
             digestRows.add(new DigestRow(employee, director, day.lateMinutes() != null,
-                    row == null && day.due().contains(Event.START_REMINDER)));
+                    row == null && day.due().contains(Event.START_REMINDER),
+                    row != null && CheckInMode.REMOTE.equals(row.getMode())));
             for (Event event : day.due()) sent += send(schoolId, employee, director, today, event, day, alertSettings, admins, now);
         }
         if (!digestRows.isEmpty() && !now.isBefore(today.atTime(alertSettings.digestTime()).atZone(zone).toInstant()))
             sent += digests(schoolId, today, digestRows, alertSettings, admins, now);
+        sent += remoteDays.eveningNotices(schoolId, today, now);                     // feature 18: "tomorrow is remote"
         return sent;
     }
 
@@ -211,7 +214,7 @@ public class StaffAttendanceJob {
 
     // ---------------------------------------------------------------- the digest
 
-    private record DigestRow(AttendanceStaff.Employee employee, String director, boolean late, boolean notArrived) {}
+    private record DigestRow(AttendanceStaff.Employee employee, String director, boolean late, boolean notArrived, boolean remote) {}
 
     private int digests(String schoolId, LocalDate today, List<DigestRow> rows, AttendanceSettingsService.Alerts policy,
                         List<String> admins, Instant now) {
@@ -230,7 +233,7 @@ public class StaffAttendanceJob {
         if (!claim(schoolId, DIGEST_KIND, userId, today, AttendanceLink.DIGEST, now)) return 0;
         var late = rows.stream().filter(DigestRow::late).map(r -> r.employee().fullName()).toList();
         var notArrived = rows.stream().filter(DigestRow::notArrived).map(r -> r.employee().fullName()).toList();
-        int remote = 0;                                                                  // remote days are feature 18
+        int remote = (int) rows.stream().filter(DigestRow::remote).count();            // feature 18's remote check-ins
         String bodyEn = "Today: " + late.size() + " late, " + notArrived.size() + " not arrived, " + remote + " remote"
                 + names(" — Late: ", late, ", ") + names(" · Not arrived: ", notArrived, ", ");
         String bodyAr = "اليوم: " + late.size() + " متأخرون، " + notArrived.size() + " لم يصل، " + remote + " عن بعد"
@@ -261,34 +264,10 @@ public class StaffAttendanceJob {
         return alerts.claim(row) == 1;
     }
 
-    /** Upserts the day's statuses, and only when one of them moved. */
-    private void save(String schoolId, AttendanceStaff.Employee employee, LocalDate today, AttendanceRules.Day day, Instant now) {
-        var row = days.findOneBySchoolIdAndStaffKindAndStaffIdAndDay(schoolId, employee.kind(), employee.id(), today).orElse(null);
-        if (row != null && Objects.equals(row.getLateMinutes(), day.lateMinutes()) && row.isNotArrived() == day.notArrived()
-                && row.isAbsent() == day.absent() && Objects.equals(row.getEarlyLeaveMinutes(), day.earlyLeaveMinutes())
-                && row.isMissingCheckout() == day.missingCheckout()) return;
-        if (row == null) {
-            row = new StaffAttendanceDayEntity();
-            row.setId(UUID.randomUUID().toString()); row.setSchoolId(schoolId);
-            row.setStaffKind(employee.kind()); row.setStaffId(employee.id()); row.setDay(today);
-        }
-        row.setLateMinutes(day.lateMinutes()); row.setNotArrived(day.notArrived()); row.setAbsent(day.absent());
-        row.setEarlyLeaveMinutes(day.earlyLeaveMinutes()); row.setMissingCheckout(day.missingCheckout());
-        row.setUpdatedAt(now);
-        days.save(row);
-    }
 
     /** The `users` id her bell and phone hang off: herself, or a worker's account. Null when she has none. */
-    private String account(AttendanceStaff.Employee employee) {
-        if (StaffAttendanceDto.KIND_USER.equals(employee.kind())) return employee.id();
-        return workers.findById(employee.id()).map(w -> w.getUserId()).orElse(null);
-    }
+    private String account(AttendanceStaff.Employee employee) { return staff.account(employee); }
 
-    private String category(String schoolId, AttendanceStaff.Employee employee) {
-        return profiles.findOneBySchoolIdAndStaffKindAndStaffId(schoolId, employee.kind(), employee.id())
-                .map(Entities.StaffAttendanceProfileEntity::getCategory).filter(Objects::nonNull)
-                .orElse(StaffAttendanceProfileService.defaultCategory(employee.role()));
-    }
 
     private boolean on(String schoolId) {
         try { return flags.isOn(schoolId, FlagKeys.STAFF_ATTENDANCE); }
