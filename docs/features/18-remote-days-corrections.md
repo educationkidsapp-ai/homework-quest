@@ -4,13 +4,9 @@
 **Feature switch:** `staff_attendance`
 
 **Leftovers:**
-- **The board and the monthly report are feature 17, which is not merged yet.**
-  - A remote check-in is stored with mode `remote`, and "My record" shows "عن بعد". The live board's "عن بعد" label
-    lands with feature 17.
-  - The per-employee correction count is ready for the report (`StaffAttendanceRequestRepository.countAppliedCorrections`).
-    The report column itself lands with feature 17.
-- **The Admin's direct correction lives on the dashboard's "Attendance requests" screen.** She picks the employee and
-  the day there. Feature 17's employee-day view can call the same route.
+- **The Admin's direct correction is not on the employee's day yet.** She adds it from the dashboard's "Attendance
+  requests" screen, picking the employee and the day there. A button on feature 17's employee-day view could call the
+  same route (`POST /admin/staff/{kind}/{id}/attendance-corrections`).
 - **Android Approve and Reject buttons are verified by build and unit test only.** They have not been tried on a phone
   with a real push yet.
 - **iPhone has no action buttons.** Tapping the push opens the app. The buttons need the Apple Developer account.

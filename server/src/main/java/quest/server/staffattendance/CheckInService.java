@@ -174,6 +174,15 @@ public class CheckInService {
         ZoneId zone = calendar.of(schoolId).zone();
         LocalDate today = LocalDate.ofInstant(Instant.now(clock), zone);
         YearMonth ym = month(month, today);
+        return new CheckInMonth(ym.format(YYYY_MM), calendar(schoolId, employee, ym, today, zone));
+    }
+
+    /**
+     * One employee's month, day by day — "My record" for herself and, since feature 17, the board's employee view for
+     * her leaders, so both draw the same calendar from the same rule.
+     */
+    java.util.List<CheckInDay> calendar(String schoolId, AttendanceStaff.Employee employee, YearMonth ym,
+                                        LocalDate today, ZoneId zone) {
         int grace = settings.rules(schoolId).graceMinutes();
         String category = category(schoolId, employee);
 
@@ -191,7 +200,7 @@ public class CheckInService {
                     time(row == null ? null : row.getCheckOutAt(), zone),
                     status(expected, row, late, date, today), late, row == null ? null : row.getMode()));
         }
-        return new CheckInMonth(ym.format(YYYY_MM), days);
+        return days;
     }
 
     private static String status(ScheduleResolver.Expected expected, StaffCheckInEntity row, Integer late,

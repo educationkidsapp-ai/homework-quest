@@ -2487,7 +2487,8 @@
       "history": "Marked days",
       "noMarks": "No day of this person's has been marked.",
       "nothingToSave": "Nothing changed yet.",
-      "pending": "{{count}} to save"
+      "pending": "{{count}} to save",
+      "historyTab": "Marked by hand"
     },
     "teachers": {
       "subtitle": "The teachers of your department, and whether today has happened in their classes.",
@@ -2775,6 +2776,120 @@
       "tooManyPixels": "Not sent: a picture is too large (over 8192 pixels or 40 megapixels). Attach a smaller one.",
       "tooBig": "Not sent: a file is too large. Pictures may be up to 5 MB and PDFs up to 10 MB.",
       "notUploaded": "Not sent: a file could not be uploaded. Remove it and attach it again."
+    }
+  },
+  "staffBoard": {
+    "subtitle": "Today's staff attendance at a glance, and the month ready for payroll.",
+    "viewLabel": "Staff attendance view",
+    "todayTab": "Today",
+    "reportTab": "Monthly report",
+    "loading": "Loading staff attendance",
+    "leadsNobody": "Nobody reports to you yet",
+    "leadsNobodyDetail": "When the Admin names you someone's direct manager, their attendance appears here.",
+    "cardsLabel": "Today's counts — choose one to filter the table",
+    "card": {
+      "present": "Present",
+      "late": "Late",
+      "notArrived": "Not arrived",
+      "remote": "Remote",
+      "noCheckOut": "No check-out"
+    },
+    "filter": {
+      "search": "Search by name",
+      "status": "Status",
+      "academy": "Academy",
+      "category": "Category",
+      "anyStatus": "Any status",
+      "anyAcademy": "Any academy",
+      "anyCategory": "Any category"
+    },
+    "live": "{{day}} · updates every 30 seconds",
+    "tableLabel": "Today's staff attendance",
+    "noRows": "No one matches these filters.",
+    "column": {
+      "name": "Name",
+      "category": "Category",
+      "academy": "Academy",
+      "checkIn": "Check-in",
+      "checkOut": "Check-out",
+      "status": "Status",
+      "mode": "Mode"
+    },
+    "status": {
+      "PRESENT": "Present",
+      "LATE": "Late",
+      "NOT_ARRIVED": "Not arrived",
+      "REMOTE": "Remote",
+      "ABSENT": "Absent",
+      "UPCOMING": "Not started yet",
+      "OFF": "Day off",
+      "HOLIDAY": "Holiday"
+    },
+    "lateBy": "{{minutes}} min",
+    "mode": {
+      "onsite": "At school",
+      "remote": "Remote",
+      "device": "Fingerprint device",
+      "correction": "Correction",
+      "manual": "Marked by hand"
+    },
+    "report": {
+      "month": "Month",
+      "csv": "Export CSV",
+      "xlsx": "Export Excel",
+      "tableLabel": "Monthly staff attendance report",
+      "workingDays": "Working days",
+      "presentOnsite": "Present at school",
+      "presentRemote": "Present remote",
+      "lateCount": "Times late",
+      "lateMinutes": "Late minutes",
+      "absentDays": "Absent days",
+      "earlyLeaveMinutes": "Early leave minutes",
+      "missingCheckOuts": "Missing check-outs",
+      "corrections": "Corrections"
+    },
+    "day": {
+      "title": "Employee's day",
+      "attempts": "Attempts on {{day}}",
+      "noAttempts": "No check-in attempts that day.",
+      "alerts": "Notifications sent",
+      "noAlerts": "No notifications that day.",
+      "month": "Month {{month}}"
+    },
+    "action": {
+      "CHECK_IN": "Check-in",
+      "CHECK_OUT": "Check-out"
+    },
+    "result": {
+      "RECORDED": "Recorded",
+      "ALREADY": "Already recorded",
+      "REFUSED": "Refused"
+    },
+    "reason": {
+      "DEVICE_NOT_APPROVED": "Phone not approved",
+      "MOCK_LOCATION": "Fake location",
+      "WEAK_ACCURACY": "Location not accurate enough",
+      "OUTSIDE": "Outside the school",
+      "NO_GEOFENCE": "School location not set",
+      "NOT_CHECKED_IN": "Check-out before check-in"
+    },
+    "alert": {
+      "START_REMINDER": "Reminder to check in",
+      "LATE": "Late alert",
+      "NOT_ARRIVED": "Not-arrived alert",
+      "END_REMINDER": "Reminder to check out",
+      "EARLY_LEAVE": "Early-leave alert",
+      "MISSING_CHECKOUT": "Missing check-out alert",
+      "ABSENT": "Absent"
+    },
+    "calendar": {
+      "ON_TIME": "On time",
+      "LATE": "Late",
+      "ABSENT": "Absent",
+      "DAY_OFF": "Day off",
+      "HOLIDAY": "Holiday",
+      "UPCOMING": "—",
+      "LEAVE": "Leave"
     }
   }
 }

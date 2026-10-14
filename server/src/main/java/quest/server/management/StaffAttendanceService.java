@@ -50,10 +50,12 @@ public class StaffAttendanceService {
 
     private final ManagerScope scope; private final StaffAttendanceRepository rows;
     private final StaffAttendanceRows writer; private final SchoolCalendar calendar; private final TenantContext tenant;
+    private final quest.server.flags.FeatureFlags flags;
 
     public StaffAttendanceService(ManagerScope scope, StaffAttendanceRepository rows, StaffAttendanceRows writer,
-                                  SchoolCalendar calendar, TenantContext tenant) {
+                                  SchoolCalendar calendar, TenantContext tenant, quest.server.flags.FeatureFlags flags) {
         this.scope = scope; this.rows = rows; this.writer = writer; this.calendar = calendar; this.tenant = tenant;
+        this.flags = flags;
     }
 
     /** A member of the department, and which of the two roles put her on the register. */
@@ -83,6 +85,11 @@ public class StaffAttendanceService {
      */
     public ManagementDto.StaffAttendanceDay mark(Principals.User caller, String day,
                                                  List<ManagementDto.MarkStaffAttendance> items) {
+        // Feature 17: with staff attendance on, the day comes from check-ins and a change is a correction (feature 18).
+        // The marks already taken stay readable in the history; no new one is written by hand.
+        if (flags.isOn(tenant.writeSchoolId(), quest.server.flags.FlagKeys.STAFF_ATTENDANCE))
+            throw ApiException.conflict("manual_marking_off",
+                    "Staff attendance comes from check-ins at this school; a change is a correction, not a manual mark.");
         var people = department(caller);
         LocalDate today = today();
         LocalDate date = date(day, "day", today);

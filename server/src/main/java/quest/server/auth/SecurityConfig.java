@@ -56,6 +56,8 @@ public class SecurityConfig {
                 .requestMatchers("/staff/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "WORKER")
                 // Feature 18: the approval inbox of whoever can be a direct manager, from the dashboard or the push.
                 .requestMatchers("/attendance/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR")
+                // Feature 17: the leaders' attendance board — anyone who may be a direct manager; never a worker or a parent.
+                .requestMatchers("/staff-attendance/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR")
                 // §6 screens 19–20: "my own school", with no school id in the path. Dashboard roles only; which of
                 // them may read what is the `@PreAuthorize` on each route, as everywhere else.
                 .requestMatchers("/school/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")

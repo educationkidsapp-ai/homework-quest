@@ -2311,8 +2311,8 @@ Spec: [docs/features/18-remote-days-corrections.md](features/18-remote-days-corr
 
 - **Remote days.** `GET`/`POST /admin/attendance/remote-days`, `DELETE …/{id}` (`attendance.settings.read`/`write`),
   `RemoteDayService`. A day is for the whole school (`academy` null) or one academy, a curriculum such as `british`
-  (`DirectManagerResolver.academies`: a teacher's curriculum, a coordinator's scopes; workers and managers belong to
-  none). On a remote day for her scope, or on a day her own remote-day request was approved, `CheckInService` skips
+  (`DirectManagerResolver.academies`: a teacher's curriculum, a coordinator's scopes, a manager's department; workers
+  belong to none). On a remote day for her scope, or on a day her own remote-day request was approved, `CheckInService` skips
   the accuracy, pin and distance checks and writes `mode = remote`. The device and mock checks still apply. Everyone
   in scope gets `attendance.remote_day`: at once when the day is today or tomorrow, otherwise from the attendance job
   at 18:00 the evening before. It is claimed once per employee and day (`staff_attendance_alerts`, type
@@ -2330,8 +2330,8 @@ Spec: [docs/features/18-remote-days-corrections.md](features/18-remote-days-corr
   The day's statuses are recomputed at once (`AttendanceDays.recompute`, shared with the job). The Admin can correct a
   day directly with `POST /admin/staff/{kind}/{id}/attendance-corrections` (`attendance.correction.write`). The reason
   is mandatory, and the correction is stored as a request already approved by her.
-  `StaffAttendanceRequestRepository.countAppliedCorrections` is the per-employee count for feature 17's monthly
-  report.
+  Feature 17's board shows a remote check-in as "عن بعد", and its monthly report counts the days with
+  `mode = correction`.
 
 ## The app and the contract
 

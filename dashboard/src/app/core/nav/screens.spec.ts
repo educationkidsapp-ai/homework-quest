@@ -91,6 +91,8 @@ describe('the screen table', () => {
       'attendance-settings',
       // Feature 18: the remote days and corrections waiting for a decision, behind the same flag.
       'attendance-requests',
+      // Feature 17: the whole school's board and monthly report, behind the same switch.
+      'staff-attendance',
       // D13: `schools` keeps its label and its `multiSchool` flag — the rail hides it at runtime,
       // and the table is what it is hidden from.
       'schools',
@@ -179,6 +181,8 @@ describe('the screen table', () => {
       // T2 (the owner's list, 2026-10-01): who she reports to, with the phone numbers on it.
       'coordinators',
       'manager',
+      // Feature 17: the board of the people she is direct manager of.
+      'staff-attendance',
     ]);
     expect(navScreens('TEACHER').map(({ link }) => link)).toEqual([
       '/teacher/week',
@@ -189,6 +193,7 @@ describe('the screen table', () => {
       '/teacher/complaints',
       '/teacher/coordinators',
       '/teacher/manager',
+      '/teacher/staff-attendance',
     ]);
     // Both are the chooser for a conversation, so both carry what the chat routes carry.
     for (const id of ['coordinators', 'manager']) {
@@ -250,6 +255,8 @@ describe('the screen table', () => {
       // T2 item (b): her own Manager row, on `GET /coordinator/managers`.
       'manager',
       'announcements',
+      // Feature 17: the board of the people she is direct manager of.
+      'staff-attendance',
     ]);
     expect(navScreens('COORDINATOR').map(({ link }) => link)).toEqual([
       '/coordinator',
@@ -264,6 +271,7 @@ describe('the screen table', () => {
       '/coordinator/complaints',
       '/coordinator/manager',
       '/coordinator/announcements',
+      '/coordinator/staff-attendance',
     ]);
     // R7: all three carry the flag their server routes carry, so a school without chat has none
     // of them — in the rail or at the URL.
@@ -309,10 +317,9 @@ describe('the screen table', () => {
     // status, a broadcast — are her own keys too, so not one row of hers may carry a permission
     // from somebody else's namespace. `broadcast.read` is the one exception, and it is not one:
     // the *feed* is `GET /me/broadcasts`, which every dashboard role reads with the same key, and
-    // her composer is gated on `coordinator.broadcast` inside the screen.
-    // Feature 18 is the second exception, and for the same reason: `POST /attendance/requests/{id}/approve`
-    // is one route for all four staff roles — the server scopes it to the caller's own direct
-    // reports — so there is no `coordinator.` key for it to carry.
+    // her composer is gated on `coordinator.broadcast` inside the screen. Feature 17's
+    // `attendance.board` and feature 18's `attendance.requests.decide` are the others: one key each
+    // for everyone who may be a direct manager, which the server narrows to the people she leads.
     const keys = AREAS.COORDINATOR.screens.map((screen) => screen.permission ?? '');
     expect(
       keys.every(
@@ -320,7 +327,8 @@ describe('the screen table', () => {
           key === '' ||
           key.startsWith('coordinator.') ||
           key === 'broadcast.read' ||
-          key === 'attendance.requests.decide',
+          key === 'attendance.requests.decide' ||
+          key === 'attendance.board',
       ),
     ).toBe(true);
     const requests = AREAS.COORDINATOR.screens.find((screen) => screen.id === 'attendance-requests');
