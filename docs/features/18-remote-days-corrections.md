@@ -1,7 +1,24 @@
 # Feature 18 — Remote days and corrections
 
-**Status:** Not started · **Area:** mobile app (staff), dashboard, server · **Depends on:** 15 (and 16 for statuses) ·
+**Status:** Done · **Area:** mobile app (staff), dashboard, server · **Depends on:** 15 (and 16 for statuses) ·
 **Feature switch:** `staff_attendance`
+
+**Leftovers:**
+- **The board and the monthly report are feature 17, which is not merged yet.**
+  - A remote check-in is stored with mode `remote`, and "My record" shows "عن بعد". The live board's "عن بعد" label
+    lands with feature 17.
+  - The per-employee correction count is ready for the report (`StaffAttendanceRequestRepository.countAppliedCorrections`).
+    The report column itself lands with feature 17.
+- **The Admin's direct correction lives on the dashboard's "Attendance requests" screen.** She picks the employee and
+  the day there. Feature 17's employee-day view can call the same route.
+- **Android Approve and Reject buttons are verified by build and unit test only.** They have not been tried on a phone
+  with a real push yet.
+- **iPhone has no action buttons.** Tapping the push opens the app. The buttons need the Apple Developer account.
+- **No in-app list of requests to decide.** Managers decide from the push buttons or from the dashboard.
+- **Dates in the app are typed.** The request and correction forms take the date as `yyyy-MM-dd` (validated, with a
+  sensible default). There is no date picker yet.
+- **Not deployed yet.** The QA deploy follows the merge into `develop`. Sending the Android build to testers needs the
+  owner's go-ahead.
 
 ## Goal
 

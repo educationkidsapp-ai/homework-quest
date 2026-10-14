@@ -2304,6 +2304,35 @@ A reminder opens the app's Attendance tab; alerts and the digest open the notifi
 timer only ticks while an instance is up and serving. Until a Cloud Scheduler job calls the server every five minutes,
 reminders can be late on a quiet morning; the startup pass catches up whatever fell due while nothing ran.
 
+## Remote days and corrections (feature 18)
+
+Spec: [docs/features/18-remote-days-corrections.md](features/18-remote-days-corrections.md). Behind `staffAttendance`
+(and `staffMobileApp` for the `/staff` routes). Tables in V40.
+
+- **Remote days.** `GET`/`POST /admin/attendance/remote-days`, `DELETE …/{id}` (`attendance.settings.read`/`write`),
+  `RemoteDayService`. A day is for the whole school (`academy` null) or one academy, a curriculum such as `british`
+  (`DirectManagerResolver.academies`: a teacher's curriculum, a coordinator's scopes; workers and managers belong to
+  none). On a remote day for her scope, or on a day her own remote-day request was approved, `CheckInService` skips
+  the accuracy, pin and distance checks and writes `mode = remote`. The device and mock checks still apply. Everyone
+  in scope gets `attendance.remote_day`: at once when the day is today or tomorrow, otherwise from the attendance job
+  at 18:00 the evening before. It is claimed once per employee and day (`staff_attendance_alerts`, type
+  `REMOTE_DAY`). The morning digest's `remote` count is the day's `mode = remote` check-ins.
+- **Requests.** The employee: `POST`/`GET /staff/attendance/requests`, and `POST /staff/attendance/attachments` for a
+  correction's photo or PDF (`attendance.self`; purpose `attendance`, EXIF stripped, kept by the orphan sweep). The
+  decider: `GET /attendance/requests?status=`, `POST /attendance/requests/{id}/approve` and `/reject`
+  (`attendance.requests.decide`), `AttendanceRequestService`. **Only the resolved direct manager or an Admin
+  decides**; when the resolution falls back to the Admins, only an Admin. Nobody decides her own. Everybody else
+  gets 403, a second decision gets 409. The decider gets `attendance.request` (link carries `request=<id>`, which the
+  Android push turns into Approve and Reject buttons), and the employee gets `attendance.decision` either way.
+- **Corrections.** On approval, the claimed `HH:mm` times (school zone) go onto `staff_check_ins` with
+  `mode = correction`, `corrected_by`, `corrected_at` and `correction_request_id`. The first correction copies the
+  times it replaced to `original_check_in_at`/`original_check_out_at`, and `staff_check_in_attempts` is never touched.
+  The day's statuses are recomputed at once (`AttendanceDays.recompute`, shared with the job). The Admin can correct a
+  day directly with `POST /admin/staff/{kind}/{id}/attendance-corrections` (`attendance.correction.write`). The reason
+  is mandatory, and the correction is stored as a request already approved by her.
+  `StaffAttendanceRequestRepository.countAppliedCorrections` is the per-employee count for feature 17's monthly
+  report.
+
 ## The app and the contract
 
 **The app's JSON is strict, so app and server ship together.** `SchemaValidator.json` — the one `Json` the app's
