@@ -23,6 +23,7 @@ import quest.core.mvi.MviEffect
 import quest.core.mvi.MviIntent
 import quest.core.mvi.MviState
 import quest.core.mvi.MviViewModel
+import kotlinx.coroutines.CancellationException
 import quest.core.platform.BiometricKind
 import quest.core.text.isolate
 import quest.core.text.ltr
@@ -53,6 +54,13 @@ object StaffAccountContract {
         val biometricKind: BiometricKind? = null,
         val lockToSetUp: BiometricKind? = null,
         val biometricOn: Boolean = false,
+        /** Feature 19: her own after-hours alerts choice, switched over at once and put back if the save fails. */
+        val afterHoursAlerts: Boolean = false,
+        /**
+         * The last after-hours save was refused. The *screen* words it, in her language; a view model never builds a
+         * sentence (`StaffStrings.checkInMessage`'s rule).
+         */
+        val afterHoursSaveFailed: Boolean = false,
     ) : MviState
 
     sealed interface Intent : MviIntent {
@@ -61,6 +69,8 @@ object StaffAccountContract {
         data class SetAppearance(val appearance: Appearance) : Intent
         data class Biometric(val on: Boolean, val reason: String) : Intent
         data object RefreshLock : Intent
+        /** Feature 19: `PUT /staff/me/preferences`. */
+        data class AfterHoursAlerts(val on: Boolean) : Intent
         data object SignOut : Intent
     }
 
@@ -87,6 +97,7 @@ class StaffAccountViewModel(
                     copy(
                         profile = session.profile.value, language = parent.language.value, appearance = parent.appearance.value,
                         biometricKind = lock.available(), lockToSetUp = lock.toSetUp(), biometricOn = biometricOn,
+                        afterHoursAlerts = session.profile.value?.afterHoursAlerts == true,
                     )
                 }
             }
@@ -97,6 +108,19 @@ class StaffAccountViewModel(
             is StaffAccountContract.Intent.Biometric -> {
                 val on = lock.setEnabled(intent.on, intent.reason)
                 reduce { copy(biometricOn = on) }
+            }
+            is StaffAccountContract.Intent.AfterHoursAlerts -> {
+                // Switched over before the request, because a switch that waits for a round trip feels broken — and
+                // back again, with one line to say so, when the server refuses.
+                reduce { copy(afterHoursAlerts = intent.on, afterHoursSaveFailed = false) }
+                try {
+                    session.setAfterHoursAlerts(intent.on)
+                    reduce { copy(afterHoursAlerts = session.profile.value?.afterHoursAlerts == true) }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Throwable) {
+                    reduce { copy(afterHoursAlerts = !intent.on, afterHoursSaveFailed = true) }
+                }
             }
             is StaffAccountContract.Intent.Language -> { parent.setLanguage(intent.code); reduce { copy(language = intent.code) } }
             is StaffAccountContract.Intent.SetAppearance -> { parent.setAppearance(intent.appearance); reduce { copy(appearance = intent.appearance) } }
@@ -181,6 +205,31 @@ fun StaffAccountScreen(
                     Appearance.DARK to strings.appearanceDark,
                 ).forEach { (value, label) ->
                     DashboardFilterChip(label, selected = state.appearance == value, onClick = { dispatch(StaffAccountContract.Intent.SetAppearance(value)) })
+                }
+            }
+
+            // Feature 19: only a school that bought office hours has an after-hours question to answer. Her **own**
+            // school's flags, from `GET /staff/me`, which is what the profile carries.
+            if (profile?.flags?.get(Flags.CHAT_OFFICE_HOURS) == true) {
+                SectionTitle(strings.afterHoursSection)
+                ParentCard {
+                    Text(strings.afterHoursLabel, style = MaterialTheme.typography.titleMedium, color = DashboardTokens.ink)
+                    Text(strings.afterHoursHint, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
+                    Spacer(Modifier.height(Dimens.s8))
+                    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s8)) {
+                        DashboardFilterChip(
+                            chatStrings.biometricOn, selected = state.afterHoursAlerts,
+                            onClick = { dispatch(StaffAccountContract.Intent.AfterHoursAlerts(true)) },
+                        )
+                        DashboardFilterChip(
+                            chatStrings.biometricOff, selected = !state.afterHoursAlerts,
+                            onClick = { dispatch(StaffAccountContract.Intent.AfterHoursAlerts(false)) },
+                        )
+                    }
+                    if (state.afterHoursSaveFailed) {
+                        Spacer(Modifier.height(Dimens.s4))
+                        Text(strings.afterHoursSaveFailed, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.error)
+                    }
                 }
             }
 

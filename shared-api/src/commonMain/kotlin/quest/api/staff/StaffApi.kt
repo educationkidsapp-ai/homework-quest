@@ -47,10 +47,16 @@ data class StaffMe(
     val schoolId: String,
     val schoolName: String? = null,
     val flags: Map<String, Boolean> = emptyMap(),
+    /** Feature 19: she keeps normal alerts for parent messages outside office hours. Off by default. */
+    val afterHoursAlerts: Boolean = false,
 )
 
+/** Feature 19: `PUT /staff/me/preferences`. */
+@Serializable
+data class StaffPreferences(val afterHoursAlerts: Boolean)
+
 /**
- * The five routes the staff app calls, all under `staff.app` and the `staffMobileApp` flag. Nothing here takes a
+ * The routes the staff app calls, all under `staff.app` and the `staffMobileApp` flag. Nothing here takes a
  * school: it is the caller's own, from her token.
  *
  * Nothing in this module implements the interface — it is the shape the server serves and the app calls, as
@@ -73,4 +79,7 @@ interface StaffApi {
     suspend fun staffSend(threadId: String, request: SendChatMessageRequest): ChatMessage
 
     suspend fun staffRead(threadId: String): ChatReadReceipt
+
+    /** Feature 19: `PUT /staff/me/preferences` — her own after-hours alerts choice; returns the updated [StaffMe]. */
+    suspend fun staffPreferences(request: StaffPreferences): StaffMe
 }

@@ -27,6 +27,7 @@ import quest.api.staff.CheckInRequest
 import quest.api.staff.CheckInResult
 import quest.api.staff.CheckInToday
 import quest.api.staff.StaffMe
+import quest.api.staff.StaffPreferences
 import quest.api.staff.AttendanceRequestList
 import quest.api.staff.AttendanceRequestView
 import quest.api.staff.NewAttendanceRequest
@@ -96,6 +97,8 @@ class CheckInViewModelTest {
         }
 
         override suspend fun staffMe(): StaffMe = error("not used")
+
+        override suspend fun staffPreferences(request: StaffPreferences): StaffMe = error("not used")
         override suspend fun staffThreads(): List<ChatThread> = emptyList()
         override suspend fun staffMessages(threadId: String, before: String?, since: String?, limit: Int?): List<ChatMessage> = emptyList()
         override suspend fun staffSend(threadId: String, request: SendChatMessageRequest): ChatMessage = error("not used")

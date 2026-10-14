@@ -14,6 +14,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -23,6 +24,7 @@ import quest.api.dto.ChatReadReceipt;
 import quest.api.dto.ChatThread;
 import quest.api.dto.SendChatMessageRequest;
 import quest.api.staff.StaffMe;
+import quest.api.staff.StaffPreferences;
 import quest.server.auth.Principals;
 import quest.server.config.ApiException;
 import quest.server.config.Json;
@@ -57,6 +59,15 @@ public class StaffController {
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = StaffMe.class)))
     public String staffMe(@AuthenticationPrincipal Principals.User caller) {
         return json.encodeShared(staff.me(require(caller)), StaffMe.Companion.serializer());
+    }
+
+    /** Feature 19: her own after-hours alerts choice. Behind the same flag and permission as `GET /staff/me`. */
+    @PutMapping(value = "/staff/me/preferences", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('staff.app')")
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = StaffPreferences.class)))
+    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = StaffMe.class)))
+    public String staffPreferences(@AuthenticationPrincipal Principals.User caller, @RequestBody String body) {
+        return json.encodeShared(staff.preferences(require(caller), preferences(body).getAfterHoursAlerts()), StaffMe.Companion.serializer());
     }
 
     @GetMapping(value = "/staff/chat/threads", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -97,6 +108,11 @@ public class StaffController {
     private static Principals.User require(Principals.User caller) {
         if (caller == null) throw ApiException.unauthorized("Sign in first.");
         return caller;
+    }
+
+    private StaffPreferences preferences(String body) {
+        try { return json.decodeShared(body, StaffPreferences.Companion.serializer()); }
+        catch (RuntimeException e) { throw ApiException.badRequest("Send {\"afterHoursAlerts\": true} or false."); }
     }
 
     private SendChatMessageRequest decode(String body) {

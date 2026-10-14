@@ -7,6 +7,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BASE_PATH } from '../../api';
 import { renderHq } from '../../../testing/render';
+import { FlagService } from '../../core/flags/flag.service';
 import { SchoolScopeStore } from '../../core/auth/school-scope.store';
 import { PermissionService } from '../../core/permissions/permission.service';
 import { ThemeService } from '../../core/theme/theme.service';
@@ -21,6 +22,9 @@ describe('hq-school-card', () => {
   const logo = signal<string>('');
   const reload = vi.fn();
   let keys: string[];
+  /** Feature 19: the phone field rides on `chatOfficeHours`. */
+  let officeHours: boolean;
+  let phone: string | undefined;
 
   async function renderCard(schoolId: string | null = 'school-a') {
     const rendered = await renderHq(SchoolCardComponent, {
@@ -37,11 +41,12 @@ describe('hq-school-card', () => {
           useValue: { logoUrl: logo, theme: () => ({ logoUrl: logo() }), reload },
         },
         { provide: PermissionService, useValue: { can: (key: string) => keys.includes(key) } },
+        { provide: FlagService, useValue: { isOn: () => officeHours } },
       ],
     });
     const backend = TestBed.inject(HttpTestingController);
     if (schoolId !== null) {
-      backend.expectOne(`/admin/schools/${schoolId}`).flush({ id: schoolId, name: 'Al Noor School' });
+      backend.expectOne(`/admin/schools/${schoolId}`).flush({ id: schoolId, name: 'Al Noor School', phone });
       await rendered.fixture.whenStable();
       rendered.fixture.detectChanges();
     }
@@ -55,6 +60,8 @@ describe('hq-school-card', () => {
     logo.set('');
     reload.mockClear();
     keys = ['school.write'];
+    officeHours = false;
+    phone = undefined;
   });
 
   it('names the school and says it has no logo yet', async () => {
@@ -152,6 +159,80 @@ describe('hq-school-card', () => {
     expect(screen.getByRole('img', { name: 'Logo of Al Noor School' })).toBeInTheDocument();
     expect(document.querySelector('.school__file')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Remove logo' })).toBeNull();
+  });
+
+  /**
+   * Feature 19: the number a parent is offered while her child's teacher is outside office hours.
+   * It is school information, so it sits on this card — but only while the feature that reads it
+   * is on, and only for a session that may write the school.
+   */
+  describe('the school telephone number', () => {
+    const phoneField = () => screen.getByLabelText<HTMLInputElement>(/School phone/);
+
+    it('is not asked for while chat office hours are off', async () => {
+      await renderCard();
+
+      expect(document.querySelector('[data-hq-school-phone]')).toBeNull();
+    });
+
+    it('shows the saved number, left to right, and saves a new one with a PATCH', async () => {
+      officeHours = true;
+      phone = '+971500000000';
+      const { rendered, backend } = await renderCard();
+
+      expect(phoneField()).toHaveValue('+971500000000');
+      expect(phoneField()).toHaveAttribute('dir', 'ltr');
+      // Unchanged: nothing to save.
+      expect(screen.getByRole('button', { name: 'Save phone' })).toBeDisabled();
+
+      await userEvent.clear(phoneField());
+      // Separators a person types are dropped on the way to the server, as everywhere else.
+      await userEvent.type(phoneField(), '050 123 4567');
+      rendered.fixture.detectChanges();
+      await userEvent.click(screen.getByRole('button', { name: 'Save phone' }));
+
+      const request = backend.expectOne('/admin/schools/school-a');
+      expect(request.request.method).toBe('PATCH');
+      expect(request.request.body).toEqual({ phone: '0501234567' });
+
+      request.flush({ id: 'school-a', name: 'Al Noor School', phone: '0501234567' });
+      rendered.fixture.detectChanges();
+      expect(screen.getByRole('status')).toHaveTextContent('Saved.');
+      expect(phoneField()).toHaveValue('0501234567');
+    });
+
+    it('clears the number with an empty string, which is what the server reads as "none"', async () => {
+      officeHours = true;
+      phone = '0501234567';
+      const { rendered, backend } = await renderCard();
+
+      await userEvent.clear(phoneField());
+      rendered.fixture.detectChanges();
+      await userEvent.click(screen.getByRole('button', { name: 'Save phone' }));
+
+      expect(backend.expectOne('/admin/schools/school-a').request.body).toEqual({ phone: '' });
+    });
+
+    it('refuses a number the server would refuse, here, and sends nothing', async () => {
+      officeHours = true;
+      const { rendered, backend } = await renderCard();
+
+      await userEvent.type(phoneField(), '12');
+      rendered.fixture.detectChanges();
+
+      expect(screen.getByRole('alert')).toHaveTextContent('Between 7 and 15 digits');
+      expect(screen.getByRole('button', { name: 'Save phone' })).toBeDisabled();
+      backend.expectNone('/admin/schools/school-a');
+    });
+
+    it('is not shown to a session that may not write the school', async () => {
+      officeHours = true;
+      keys = [];
+      phone = '0501234567';
+      await renderCard();
+
+      expect(document.querySelector('[data-hq-school-phone]')).toBeNull();
+    });
   });
 
   it('draws nothing while no one school is known', async () => {

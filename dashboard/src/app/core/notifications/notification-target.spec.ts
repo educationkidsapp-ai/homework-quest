@@ -20,10 +20,30 @@ describe('MG2a — where a notification sends its reader', () => {
       NotificationViewKindEnum.ATTENDANCE_ALERT,
       NotificationViewKindEnum.ATTENDANCE_DIGEST,
     ]) {
-      const item = row(kind, { link: '/notifications?attendance=late&staff=USER%3Au-1&date=2026-10-18&minutes=18' });
+      const item = row(kind, {
+        link: '/notifications?attendance=late&staff=USER%3Au-1&date=2026-10-18&minutes=18',
+      });
       for (const role of ['ADMIN', 'MANAGERIAL', 'COORDINATOR', 'TEACHER'] as Role[])
         expect(target(item, role)).toBe('/notifications');
     }
+  });
+
+  /**
+   * Feature 19: the morning summary. The server writes the recipient's own Messages path with
+   * `?count=N`; a link written for somebody else's area still lands on her own threads list.
+   */
+  it('opens the after-hours summary on the reader own Messages, count and all', () => {
+    const item = (link: string) => row(NotificationViewKindEnum.CHAT_AFTER_HOURS_SUMMARY, { link });
+    expect(target(item('/teacher/chat?count=3'), 'TEACHER')).toBe('/teacher/chat?count=3');
+    expect(target(item('/management/messages?count=2'), 'MANAGERIAL')).toBe('/management/messages?count=2');
+    // Written for the manager, read by the teacher the conversation is hers.
+    expect(target(item('/management/messages?count=5'), 'TEACHER')).toBe('/teacher/chat?count=5');
+    expect(target(item('/teacher/chat?count=5'), 'COORDINATOR')).toBe('/coordinator/messages?count=5');
+    // No count, and no link at all: the threads list is still the right screen.
+    expect(target(item('/management/messages'), 'ADMIN')).toBe('/admin/messages');
+    expect(target(row(NotificationViewKindEnum.CHAT_AFTER_HOURS_SUMMARY), 'ADMIN')).toBe('/admin/messages');
+    // Nobody known: the one screen that can always show the row itself.
+    expect(target(item('/teacher/chat?count=3'), null)).toBe('/notifications');
   });
 
   it('sends the three lesson kinds to that reader own lesson page, and never a manager', () => {

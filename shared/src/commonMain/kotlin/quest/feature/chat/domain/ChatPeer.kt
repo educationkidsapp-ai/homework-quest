@@ -3,6 +3,7 @@ package quest.feature.chat.domain
 import quest.api.dto.ChatPeerRole
 import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatThread
+import quest.api.dto.OfficeHoursStatus
 
 /**
  * R8: everything a conversation needs to draw itself before its first request — who is on the other side and which
@@ -29,6 +30,11 @@ data class ChatPeer(
     val peerOnline: Boolean? = null,
     /** M4 (D7): N1's `peerRole` — who the parent is talking to, which names who is typing (M7). */
     val peerRole: ChatPeerRole? = null,
+    /**
+     * Feature 19: whether the staff member is inside her office hours, and when the next working period starts
+     * ([officeHoursBanner]). Absent with `chatOfficeHours` off and on every staff-side row.
+     */
+    val officeHours: OfficeHoursStatus? = null,
 ) {
     companion object {
         fun of(thread: ChatThread): ChatPeer = ChatPeer(
@@ -41,6 +47,7 @@ data class ChatPeer(
             withAdmin = thread.withAdmin == true,
             peerOnline = thread.peerOnline,
             peerRole = thread.peerRole,
+            officeHours = thread.officeHours,
         )
     }
 }

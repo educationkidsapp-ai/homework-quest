@@ -22,6 +22,7 @@ import quest.api.dto.RegisterDeviceRequest
 import quest.api.dto.SendChatMessageRequest
 import quest.api.dto.UnreadCount
 import quest.api.staff.StaffMe
+import quest.api.staff.StaffPreferences
 import quest.api.staff.AttendanceRequestList
 import quest.api.staff.AttendanceRequestView
 import quest.api.staff.NewAttendanceRequest
@@ -75,6 +76,7 @@ class SessionRolesTest {
             meCalls++
             return me ?: throw ApiException(ApiError(ApiError.NOT_FOUND, "No such endpoint."))
         }
+        override suspend fun staffPreferences(request: StaffPreferences): StaffMe = error("not used")
         override suspend fun staffThreads(): List<ChatThread> = emptyList()
         override suspend fun staffMessages(threadId: String, before: String?, since: String?, limit: Int?): List<ChatMessage> = emptyList()
         override suspend fun staffSend(threadId: String, request: SendChatMessageRequest): ChatMessage = error("not used")

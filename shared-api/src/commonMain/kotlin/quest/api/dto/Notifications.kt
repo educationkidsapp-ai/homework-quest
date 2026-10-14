@@ -128,6 +128,12 @@ enum class NotificationKind {
     @SerialName("attendance.decision") ATTENDANCE_DECISION,
     /** Feature 18, to everyone in scope: a school-wide or academy remote day, sent the evening before or at once. */
     @SerialName("attendance.remote_day") ATTENDANCE_REMOTE_DAY,
+    /**
+     * Feature 19, to a member of staff when her working day starts: how many parent messages reached her outside
+     * office hours. [NotificationView.link] is her Messages; the count is the query parameter `count`, so both clients
+     * word the row in the reader's language.
+     */
+    @SerialName("chat.after_hours_summary") CHAT_AFTER_HOURS_SUMMARY,
 }
 
 /**

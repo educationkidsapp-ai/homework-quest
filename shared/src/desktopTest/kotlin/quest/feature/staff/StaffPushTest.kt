@@ -231,6 +231,42 @@ class StaffPushTest {
         assertEquals("/notifications?attendance=late&minutes=18", notice.tap.link)
     }
 
+    // ---------------------------------------------------------------- feature 19: chat office hours
+
+    @Test fun `a message outside her office hours is quiet, and the same message inside them is not`() {
+        fun channel(quiet: Boolean) = PushPayload.parse(
+            PushMessage(
+                kind = NotificationKind.CHAT_MESSAGE, title = "Message from Hassan Ali", body = "Good evening",
+                collapseKey = "chat:th-1", threadId = "th-1", quiet = quiet,
+            ).toData(),
+        )!!.channel
+        assertEquals(PushChannel.MESSAGES_QUIET, channel(quiet = true))
+        assertEquals(PushChannel.MESSAGES, channel(quiet = false), "nothing changes inside her hours")
+        assertTrue(PushChannel.MESSAGES_QUIET.quiet, "no sound and no vibration on that channel")
+        assertFalse(PushChannel.MESSAGES.quiet)
+    }
+
+    /** A complaint keeps its own channel whatever the hour (milestone 12), even when the server marks it quiet. */
+    @Test fun `a quiet complaint still rings on Complaints`() {
+        assertEquals(PushChannel.COMPLAINTS, PushPayload.channelOf("complaint.message", quiet = true))
+    }
+
+    @Test fun `the morning summary opens her Messages tab, after the app lock`() = runTest {
+        var locked = true
+        val navigator = PushNavigator(
+            router(staffThreads = emptyList()), ParentGate(elapsed = { 0L }), signedIn = { true },
+            awaitUnlocked = { locked = false },
+        )
+        val tap = NotificationTap("chat.after_hours_summary", link = "/staff/chat/threads?count=3", notificationId = "n-3", outside = true)
+        assertEquals(PushNavigator.Step.Staff(Routes.StaffMessages), navigator.follow(tap), "her Messages tab, not the parent gate")
+        assertTrue(!locked, "and only once the app lock was past")
+        assertIs<Destination.StaffMessages>(router(staffThreads = emptyList()).resolve(tap))
+    }
+
+    @Test fun `a summary without a staff session is not a staff tap`() = runTest {
+        val navigator = PushNavigator(router(staffThreads = null, staffSignedIn = false), ParentGate(elapsed = { 0L }), signedIn = { true })
+        assertEquals(PushNavigator.Step.Gate, navigator.follow(NotificationTap("chat.after_hours_summary", link = "/staff/chat/threads?count=2", outside = true)))
+    }
 
     // ---------------------------------------------------------------- feature 18: requests and decisions
 

@@ -102,6 +102,9 @@ public class SchoolService {
         if (request.name() != null && !request.name().isBlank()) school.setName(request.name().trim());
         if (request.curriculumOptions() != null) school.setCurriculumOptionsJson(json.write(validCurricula(request.curriculumOptions(), curricula(school))));
         if (request.gradeOptions() != null) school.setGradeOptionsJson(json.write(validGrades(request.gradeOptions(), grades(school))));
+        // Feature 19: the banner's number. An empty string is "she has taken it off the banner" and clears the column,
+        // which a null — "this request does not mention the phone" — must not do.
+        if (request.phone() != null) school.setPhone(quest.server.platform.Phones.normalise(request.phone(), "phone"));
         if (request.status() != null) {
             String status = request.status().trim().toLowerCase(Locale.ROOT);
             if (!List.of("active", "suspended").contains(status)) throw ApiException.badRequest("status is active or suspended");
@@ -169,7 +172,7 @@ public class SchoolService {
                 count("SELECT COUNT(*) FROM children WHERE school_id = :id AND deleted_at IS NULL", school.getId()),
                 count("SELECT COUNT(*) FROM users WHERE school_id = :id AND role = 'TEACHER' AND status <> 'disabled'", school.getId()),
                 count("SELECT COUNT(*) FROM lessons WHERE school_id = :id", school.getId()),
-                count("SELECT COUNT(*) FROM classes WHERE school_id = :id", school.getId()));
+                count("SELECT COUNT(*) FROM classes WHERE school_id = :id", school.getId()), school.getPhone());
     }
 
     /**

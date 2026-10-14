@@ -13,6 +13,18 @@ import quest.api.dto.PushMessage
  */
 enum class PushChannel(val id: String) {
     MESSAGES("messages"), EXAMS("exams"), HOMEWORK("homework"), COMPLAINTS("complaints"), SCHOOL_NEWS("school_news"),
+
+    /**
+     * Feature 19: a parent's message that reached a member of staff outside her office hours ([PushMessage.quiet]).
+     * Its own channel, of low importance and with neither sound nor vibration, because an evening must stay quiet
+     * without making her mute Messages altogether — and because a channel's settings can never be changed after it
+     * exists, so the quiet one cannot be the same channel as the loud one.
+     */
+    MESSAGES_QUIET("messages_quiet"),
+    ;
+
+    /** No sound, no vibration, and low importance in the shade. */
+    val quiet: Boolean get() = this == MESSAGES_QUIET
 }
 
 /**
@@ -92,16 +104,22 @@ object PushPayload {
         val tag = collapseKey ?: notificationId?.let { "notification:$it" } ?: broadcastId?.let { "broadcast:$it" } ?: "kind:$kind"
         val complaintId = known?.complaintId ?: data[PushMessage.COMPLAINT_ID]
         val threadId = (known?.threadId ?: data[PushMessage.THREAD_ID])?.takeIf { it.isNotBlank() }
+        // Feature 19: `quiet` is read key by key as well, so an unknown kind the server marks quiet is still quiet.
+        val quiet = known?.quiet ?: (data[PushMessage.QUIET] == "true")
         val tap = NotificationTap(kind, known?.link ?: data[PushMessage.LINK], notificationId, broadcastId, known?.childId ?: data[PushMessage.CHILD_ID], collapseKey, complaintId = complaintId, threadId = threadId)
-        return PushNotice(channelOf(kind), tag, title, body, tap)
+        return PushNotice(channelOf(kind, quiet), tag, title, body, tap)
     }
 
-    /** By the kind's wire name, so a kind added on the server after this build still lands on a sensible channel. */
-    fun channelOf(kind: String): PushChannel = when {
+    /**
+     * By the kind's wire name, so a kind added on the server after this build still lands on a sensible channel.
+     * Feature 19: [quiet] moves a message — and only a message — to [PushChannel.MESSAGES_QUIET]; a complaint keeps
+     * its own channel whatever the hour, as milestone 12 decided.
+     */
+    fun channelOf(kind: String, quiet: Boolean = false): PushChannel = when {
         kind.startsWith("complaint.") -> PushChannel.COMPLAINTS
         kind.startsWith("exam.") -> PushChannel.EXAMS
         kind.startsWith("homework.") || kind == "question.sent" -> PushChannel.HOMEWORK
-        kind.startsWith("chat.") || kind.endsWith(".message") -> PushChannel.MESSAGES
+        kind.startsWith("chat.") || kind.endsWith(".message") -> if (quiet) PushChannel.MESSAGES_QUIET else PushChannel.MESSAGES
         else -> PushChannel.SCHOOL_NEWS
     }
 }

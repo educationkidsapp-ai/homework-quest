@@ -28,6 +28,7 @@ import quest.api.dto.ChatStaffRole;
 import quest.api.dto.ChatThread;
 import quest.api.dto.ChatThreadStatus;
 import quest.api.dto.ChatTopic;
+import quest.api.dto.OfficeHoursStatus;
 import quest.server.auth.Entities.UserEntity;
 import quest.server.auth.Principals;
 import quest.server.auth.UserRepository;
@@ -91,18 +92,19 @@ public class ChatService {
     private final FeatureFlags flags; private final Clock clock; private final Json json;
     private final quest.server.auth.ParentRepository parents;
     private final ChatPresence presence; private final quest.server.notifications.NotificationService bells;
-    private final StaffDirectory directory; private final ChatAttachments attachments;
+    private final StaffDirectory directory; private final ChatAttachments attachments; private final OfficeHours officeHours;
 
     public ChatService(ChatThreadRepository threads, ChatMessageRepository messages, ChatThreads threadRows, ChatRateLimiter limiter, ChatBus bus,
                        ChildService childService, ChildRepository children, ClassRepository classes, UserRepository users, TeacherScope scope,
                        TenantContext tenant, CoordinatorScope coordinatorScope, ManagerScope managerScope,
                        ChatPeers peers, FeatureFlags flags, Clock clock, Json json, quest.server.auth.ParentRepository parents,
                        ChatPresence presence, quest.server.notifications.NotificationService bells, StaffDirectory directory,
-                       ChatAttachments attachments) {
+                       ChatAttachments attachments, OfficeHours officeHours) {
         this.threads = threads; this.messages = messages; this.threadRows = threadRows; this.limiter = limiter; this.bus = bus;
         this.childService = childService; this.children = children; this.classes = classes; this.users = users; this.scope = scope;
         this.tenant = tenant; this.coordinatorScope = coordinatorScope; this.managerScope = managerScope; this.peers = peers; this.flags = flags; this.clock = clock;
         this.json = json; this.parents = parents; this.presence = presence; this.bells = bells; this.directory = directory; this.attachments = attachments;
+        this.officeHours = officeHours;
     }
 
     /**
@@ -140,18 +142,22 @@ public class ChatService {
         var subjects = assignments.stream().collect(Collectors.groupingBy(TeachingAssignmentEntity::getTeacherId, LinkedHashMap::new,
                 Collectors.mapping(TeachingAssignmentEntity::getSubject, Collectors.joining(", "))));
         String parentName = parentNames(List.of(child)).get(child.getId());
+        // Feature 19: when is each of them at work? One read of the school's hours, holidays and phone for the list;
+        // the platform admin is left out — she holds no category and the school's own hours say nothing about her.
+        var banners = officeHours(child.getSchoolId(), teacherIds,
+                staffThreads.stream().filter(t -> !ADMIN.equals(t.getStaffRole())).map(ChatThreadEntity::getTeacherId).toList());
         var rows = new ArrayList<ChatThread>();
         for (String teacherId : teacherIds) {
             var t = byStaff.get(teacherId);
             rows.add(row(t, child.getId(), child.getName(), teacherId, name(staff.get(teacherId)), section,
                     subjects.get(teacherId), t == null ? 0 : t.getParentUnread(), t == null ? null : last.get(t.getId()), ROLE_TEACHER, parentName,
-                    key(USER, teacherId), ChatPeerRole.TEACHER));
+                    key(USER, teacherId), ChatPeerRole.TEACHER, banners.get(teacherId)));
         }
         for (var t : staffThreads)
             rows.add(row(t, child.getId(), child.getName(), t.getTeacherId(),
                     ADMIN.equals(t.getStaffRole()) ? ADMINISTRATION : name(staff.get(t.getTeacherId())), section,
                     coordinatorSubjects.get(t.getTeacherId()), t.getParentUnread(), last.get(t.getId()), t.getStaffRole(), parentName,
-                    key(USER, t.getTeacherId()), peerRole(t.getStaffRole())));
+                    key(USER, t.getTeacherId()), peerRole(t.getStaffRole()), banners.get(t.getTeacherId())));
         rows.sort(order());
         return rows;
     }
@@ -909,7 +915,8 @@ public class ChatService {
         messages.save(m);
         if (TEACHER.equals(role)) threads.bumpParentUnread(thread.getId(), m.getCreatedAt()); else threads.bumpTeacherUnread(thread.getId(), m.getCreatedAt());
         var dto = dto(m);
-        if (bell) bell(thread, parentId, role, senderId, ChatAttachments.preview(body, attached, false), ChatAttachments.preview(body, attached, true));
+        if (bell) bell(thread, parentId, role, senderId, m.getId(),
+                ChatAttachments.preview(body, attached, false), ChatAttachments.preview(body, attached, true));
         publish(ChatEvent.message(thread.getSchoolId(), thread.getId(), thread.getChildId(), thread.getTeacherId(), parentId, thread.getPeerUserId(),
                 key(role, senderId), clientId, dto.getId(), json.encodeShared(dto, ChatMessage.Companion.serializer())));
         return dto;
@@ -926,7 +933,7 @@ public class ChatService {
      * parent wrote, the second staff member on a staff thread, and — B3 (D5) — the child's parent when a staff member
      * wrote to her, on her own rows (`parent:<id>`), which her app reads over the same `/me/notifications`.
      */
-    private void bell(ChatThreadEntity thread, String parentId, String role, String senderId, String body, String bodyAr) {
+    private void bell(ChatThreadEntity thread, String parentId, String role, String senderId, String messageId, String body, String bodyAr) {
         if (TEACHER.equals(role) && thread.getPeerUserId() == null && parentId != null && thread.getChildId() != null) {
             bells.parentChatMessage(thread.getSchoolId(), parentId, thread.getChildId(), thread.getId(), thread.getTeacherId(),
                     users.findById(senderId).map(ChatService::name).orElse(null), body, bodyAr);
@@ -936,7 +943,8 @@ public class ChatService {
         if (recipient == null || recipient.equals(senderId)) return;
         String from = PARENT.equals(role) ? parents.findById(senderId).map(ChatService::name).orElse(null)
                 : users.findById(senderId).map(ChatService::name).orElse(null);
-        bells.chatMessage(thread.getSchoolId(), recipient, thread.getId(), from, body);
+        // Feature 19: whether a *parent* wrote is what decides a quiet push, so the direction travels with the message.
+        bells.chatMessage(thread.getSchoolId(), recipient, thread.getId(), from, body, PARENT.equals(role), messageId);
     }
 
     ChatReadReceipt read(ChatThreadEntity thread, String parentId, String role, String readerId) {
@@ -1092,18 +1100,44 @@ public class ChatService {
                            String className, String subject, int unread, ChatMessage last, String staffRole,
                            String parentName, String peerKey, ChatPeerRole peerRole) {
         return row(t, childId, childName, staffId, staffName, className, subject, unread, last, staffRole, parentName, peerKey,
-                t != null && ADMIN.equals(t.getStaffRole()), peerRole);
+                peerRole, null);
+    }
+
+    /** Feature 19: the same row with the staff member's office hours on it, which only a parent's list carries. */
+    private ChatThread row(ChatThreadEntity t, String childId, String childName, String staffId, String staffName,
+                           String className, String subject, int unread, ChatMessage last, String staffRole,
+                           String parentName, String peerKey, ChatPeerRole peerRole, OfficeHoursStatus officeHours) {
+        return row(t, childId, childName, staffId, staffName, className, subject, unread, last, staffRole, parentName, peerKey,
+                t != null && ADMIN.equals(t.getStaffRole()), peerRole, officeHours);
     }
 
     private ChatThread row(ChatThreadEntity t, String childId, String childName, String staffId, String staffName,
                            String className, String subject, int unread, ChatMessage last, String staffRole,
                            String parentName, String peerKey, boolean withAdmin, ChatPeerRole peerRole) {
+        return row(t, childId, childName, staffId, staffName, className, subject, unread, last, staffRole, parentName, peerKey,
+                withAdmin, peerRole, null);
+    }
+
+    private ChatThread row(ChatThreadEntity t, String childId, String childName, String staffId, String staffName,
+                           String className, String subject, int unread, ChatMessage last, String staffRole,
+                           String parentName, String peerKey, boolean withAdmin, ChatPeerRole peerRole,
+                           OfficeHoursStatus officeHours) {
         return new ChatThread(t == null ? null : t.getId(), childId, childName, staffId, staffName, className, subject, unread, last,
                 staffRole(t == null ? staffRole : t.getStaffRole()), topic(t == null ? QUESTION : t.getTopic()),
                 status(t == null ? OPEN : t.getStatus()),
                 t == null || t.getResolvedAt() == null ? null : t.getResolvedAt().toEpochMilli(),
                 parentName == null || parentName.isBlank() ? null : parentName, peerKey == null ? null : presence.online(peerKey),
-                withAdmin ? Boolean.TRUE : null, peerRole);
+                withAdmin ? Boolean.TRUE : null, peerRole, officeHours);
+    }
+
+    /**
+     * Feature 19: the banner for every staff member on a parent's list, or no banner at all when the school has
+     * `chatOfficeHours` off — an app that never sees the field behaves exactly as it did before the feature.
+     */
+    private Map<String, OfficeHoursStatus> officeHours(String schoolId, List<String> teacherIds, List<String> peerIds) {
+        if (!flags.isOn(schoolId, FlagKeys.CHAT_OFFICE_HOURS)) return Map.of();
+        var ids = new java.util.LinkedHashSet<String>(teacherIds); ids.addAll(peerIds);
+        return officeHours.banners(schoolId, ids, clock.instant());
     }
 
     /** N1 `peerRole` from an account's role; null for a role this list does not name, or an account that is gone. */

@@ -440,6 +440,7 @@
     { "method": "GET", "path": "/staff/chat/threads/{threadId}/messages", "permission": "staff.app" },
     { "method": "POST", "path": "/staff/chat/threads/{threadId}/messages", "permission": "staff.app" },
     { "method": "POST", "path": "/staff/chat/threads/{threadId}/read", "permission": "staff.app" },
+    { "method": "PUT", "path": "/staff/me/preferences", "permission": "staff.app" },
     { "method": "POST", "path": "/staff/attendance/check-in", "permission": "attendance.self" },
     { "method": "POST", "path": "/staff/attendance/check-out", "permission": "attendance.self" },
     { "method": "GET", "path": "/staff/attendance/today", "permission": "attendance.self" },

@@ -14,6 +14,7 @@ import quest.api.dto.RegisterDeviceRequest
 import quest.api.dto.SendChatMessageRequest
 import quest.api.dto.UnreadCount
 import quest.api.staff.StaffMe
+import quest.api.staff.StaffPreferences
 import quest.api.staff.AttendanceRequestList
 import quest.api.staff.AttendanceRequestView
 import quest.api.staff.NewAttendanceRequest
@@ -52,6 +53,8 @@ class StaffConversationSourceTest {
         var threads: List<ChatThread> = emptyList()
 
         override suspend fun staffMe(): StaffMe = StaffMe("u-noor", "Noor", "TEACHER", null, "s-1", null, emptyMap())
+
+        override suspend fun staffPreferences(request: StaffPreferences): StaffMe = error("not used")
         override suspend fun staffThreads(): List<ChatThread> = threads
         override suspend fun staffMessages(threadId: String, before: String?, since: String?, limit: Int?): List<ChatMessage> {
             if (since == null) return history

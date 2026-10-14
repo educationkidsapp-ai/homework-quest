@@ -3,6 +3,7 @@ package quest.feature.push.presentation
 import quest.core.navigation.Routes
 import quest.feature.parent.presentation.asConversation
 import quest.feature.push.domain.Destination
+import quest.feature.push.domain.CHAT_AFTER_HOURS_SUMMARY
 import quest.feature.push.domain.isAttendance
 import quest.feature.push.domain.NotificationRouter
 import quest.feature.push.domain.NotificationTap
@@ -41,11 +42,12 @@ class PushNavigator(
             if (destination is Destination.StaffConversation) { awaitUnlocked(); return step(destination) }
             return if (tap.outside || !gate.isOpen) Step.Gate else step(destination)
         }
-        // Feature 16: an attendance tap is a staff member's too, and names no thread. The same road: the app lock, then
-        // her Attendance tab or her notifications. Without a staff session it falls through to the parent gate.
-        if (isAttendance(tap.kind)) {
+        // Feature 16 and 19: an attendance tap and the after-hours summary are a staff member's too, and name no
+        // thread. The same road: the app lock, then her Attendance tab, her notifications or her Messages. Without a
+        // staff session it falls through to the parent gate.
+        if (isAttendance(tap.kind) || tap.kind == CHAT_AFTER_HOURS_SUMMARY) {
             val destination = router.resolve(tap)
-            if (destination is Destination.StaffAttendance) { awaitUnlocked(); return step(destination) }
+            if (destination is Destination.StaffAttendance || destination is Destination.StaffMessages) { awaitUnlocked(); return step(destination) }
             return if (tap.outside || !gate.isOpen) Step.Gate else step(destination)
         }
         if (tap.outside || !gate.isOpen) return Step.Gate
@@ -65,6 +67,7 @@ class PushNavigator(
                     StaffAttendanceTarget.MY_RECORD -> Routes.StaffMyRecord
                 },
             )
+            Destination.StaffMessages -> Step.Staff(Routes.StaffMessages)
             is Destination.Complaint -> Step.Parent(Routes.Complaint(destination.childId, destination.complaintId))
             is Destination.WeeklyPlan -> Step.Parent(Routes.WeeklyPlan(focus = destination.planId))
             is Destination.Broadcast -> Step.Parent(Routes.Broadcasts(focusBroadcast = destination.broadcastId))

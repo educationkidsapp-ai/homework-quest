@@ -150,6 +150,26 @@ data class ChatThread(
      * list) or the other account no longer exists; a client shows no role then rather than a guess.
      */
     val peerRole: ChatPeerRole? = null,
+    /**
+     * Feature 19, on a parent's row only, with `chatOfficeHours` on: whether the staff member is inside her office
+     * hours now, and if not when the next working period starts and how to reach the school meanwhile. Absent with
+     * the flag off, on staff rows and on the platform admin's row.
+     */
+    val officeHours: OfficeHoursStatus? = null,
+)
+
+/**
+ * Feature 19: the staff member's office hours as the parent's banner needs them. [nextStart] is a local date-time in
+ * the school's zone (`yyyy-MM-ddTHH:mm`), present only when [open] is false; [today] is the school's date now, so
+ * the app says "later today", "tomorrow" or the weekday without trusting the phone's clock. [schoolPhone] is the
+ * school's number for urgent matters, absent when the Admin has not set one.
+ */
+@Serializable
+data class OfficeHoursStatus(
+    val open: Boolean,
+    val nextStart: String? = null,
+    val today: String,
+    val schoolPhone: String? = null,
 )
 
 /**

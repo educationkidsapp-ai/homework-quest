@@ -131,6 +131,13 @@ quest:
       # `staff_attendance_alerts` before it is sent, so reruns and a second instance send nothing twice.
       enabled: ${QUEST_STAFF_ATTENDANCE_JOB_ENABLED:true}
       interval-seconds: ${QUEST_STAFF_ATTENDANCE_JOB_INTERVAL_SECONDS:300}
+  chat-office-hours:
+    job:
+      # Feature 19: one summary of the parent messages that arrived outside a member of staff's office hours, when her
+      # next working day starts. Every five minutes and once at startup; the rows are claimed in `chat_after_hours`
+      # before the summary is sent, so reruns and a second instance send nothing twice.
+      enabled: ${QUEST_CHAT_OFFICE_HOURS_JOB_ENABLED:true}
+      interval-seconds: ${QUEST_CHAT_OFFICE_HOURS_JOB_INTERVAL_SECONDS:300}
   push:
     # B4: Firebase Cloud Messaging to parents' phones. Off by default — H2, tests and a laptop record the sends instead
     # (`RecordingPushSender`); on in `qa` and `prod`, where the Firebase app runs on the runtime service account.
@@ -225,6 +232,9 @@ quest:
   # Feature 16: no staff attendance job on a timer under test either — it would notify about staff another context
   # seeded. `StaffAttendanceJobTest` calls `run()` outright.
   staff-attendance.job.enabled: false
+  # Feature 19: nor the office-hours summary, for the same reason — it would summarise messages another context sent.
+  # `ChatOfficeHoursApiTest` calls `run()` outright.
+  chat-office-hours.job.enabled: false
   # Pushes are recorded, not sent, and a scripted transient failure is retried at once rather than after a second.
   push.backoff-millis: 0
 

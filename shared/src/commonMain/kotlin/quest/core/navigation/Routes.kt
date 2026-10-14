@@ -60,6 +60,14 @@ object Routes {
         val peerOnline: String? = null,
         /** M4 (D7): `ChatThread.peerRole`'s wire name, null when absent — it names who is typing (M7). */
         val peerRole: String? = null,
+        /**
+         * Feature 19: `ChatThread.officeHours`, carried as the banner needs it — the next working period
+         * (`yyyy-MM-ddTHH:mm` in the school's zone), the school's date, and its number for urgent matters. Only a
+         * **closed** status travels: an open one draws nothing, so the row's `open = true` is simply left behind.
+         */
+        val officeNextStart: String? = null,
+        val officeToday: String? = null,
+        val officePhone: String? = null,
     )
 
     /** M8: the Complaints tab — her complaints about the current child, apart from Messages. */

@@ -13,6 +13,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
@@ -41,6 +42,7 @@ import quest.api.staff.CheckInResult
 import quest.api.staff.CheckInToday
 import quest.api.staff.NewAttendanceRequest
 import quest.api.staff.StaffMe
+import quest.api.staff.StaffPreferences
 import quest.core.json.AppJson
 import quest.feature.chat.data.source
 import quest.feature.chat.domain.StagedUpload
@@ -70,6 +72,10 @@ class RemoteStaffApi(
 
     override suspend fun staffMe(): StaffMe =
         call<StaffMe> { client.get("$baseUrl/staff/me") { staffed() } }.also { resolvedSchoolId = it.schoolId }
+
+    override suspend fun staffPreferences(request: StaffPreferences): StaffMe =
+        call<StaffMe> { client.put("$baseUrl/staff/me/preferences") { staffed(); contentType(ContentType.Application.Json); setBody(request) } }
+            .also { resolvedSchoolId = it.schoolId }
 
     override suspend fun staffThreads(): List<ChatThread> = call { client.get("$baseUrl/staff/chat/threads") { staffed() } }
 

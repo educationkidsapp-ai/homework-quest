@@ -51,6 +51,7 @@ export type InputType =
           [attr.maxlength]="maxLength()"
           [attr.min]="min()"
           [attr.max]="max()"
+          [attr.dir]="dir()"
           [attr.aria-invalid]="error() ? 'true' : null"
           [attr.aria-describedby]="describedBy()"
           (input)="onInput($event)"
@@ -198,6 +199,14 @@ export class InputComponent {
   readonly min = input<string | null>(null);
   /** The latest value a `date` (or `number`) field accepts, as the input's own `max`. */
   readonly max = input<string | null>(null);
+  /**
+   * The value's own direction, when it is not the page's.
+   *
+   * A telephone number is read left to right in every language, so on an Arabic screen the field
+   * holding one says `ltr` while its label and hint stay with the page. Null — the default — is
+   * the page's direction, inherited from `<html dir>`.
+   */
+  readonly dir = input<'ltr' | 'rtl' | null>(null);
   /** Reserve the leading 48 px for a glyph projected into `[input-icon]` (§3 Input). */
   readonly icon = input(false);
   /** The trailing key hint, e.g. `/` on the shell's search field. */

@@ -1105,6 +1105,9 @@
           "lastMessage" : {
             "$ref" : "#/components/schemas/ChatMessage"
           },
+          "officeHours" : {
+            "$ref" : "#/components/schemas/OfficeHoursStatus"
+          },
           "parentName" : {
             "type" : "string"
           },
@@ -4855,7 +4858,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message", "attendance.reminder", "attendance.alert", "attendance.digest", "attendance.request", "attendance.decision", "attendance.remote_day" ],
+            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message", "attendance.reminder", "attendance.alert", "attendance.digest", "attendance.request", "attendance.decision", "attendance.remote_day", "chat.after_hours_summary" ],
             "type" : "string"
           },
           "lessonId" : {
@@ -4898,6 +4901,24 @@
           }
         },
         "required" : [ "from", "highlight", "step", "to" ],
+        "type" : "object"
+      },
+      "OfficeHoursStatus" : {
+        "properties" : {
+          "nextStart" : {
+            "type" : "string"
+          },
+          "open" : {
+            "type" : "boolean"
+          },
+          "schoolPhone" : {
+            "type" : "string"
+          },
+          "today" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "open", "today" ],
         "type" : "object"
       },
       "OpenAnswer" : {
@@ -5855,6 +5876,9 @@
             "type" : "integer"
           },
           "name" : {
+            "type" : "string"
+          },
+          "phone" : {
             "type" : "string"
           },
           "status" : {
@@ -6852,6 +6876,9 @@
       },
       "StaffMe" : {
         "properties" : {
+          "afterHoursAlerts" : {
+            "type" : "boolean"
+          },
           "displayName" : {
             "type" : "string"
           },
@@ -6877,7 +6904,7 @@
             "type" : "string"
           }
         },
-        "required" : [ "displayName", "flags", "role", "schoolId", "userId" ],
+        "required" : [ "afterHoursAlerts", "displayName", "flags", "role", "schoolId", "userId" ],
         "type" : "object"
       },
       "StaffPerson" : {
@@ -6889,6 +6916,15 @@
             "type" : "string"
           }
         },
+        "type" : "object"
+      },
+      "StaffPreferences" : {
+        "properties" : {
+          "afterHoursAlerts" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "afterHoursAlerts" ],
         "type" : "object"
       },
       "StaffRef" : {
@@ -8228,6 +8264,9 @@
           "name" : {
             "maxLength" : 120,
             "minLength" : 0,
+            "type" : "string"
+          },
+          "phone" : {
             "type" : "string"
           },
           "status" : {
@@ -17074,6 +17113,34 @@
     "/staff/me" : {
       "get" : {
         "operationId" : "staffMe",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StaffMe"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff app" ]
+      }
+    },
+    "/staff/me/preferences" : {
+      "put" : {
+        "operationId" : "staffPreferences",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StaffPreferences"
+              }
+            }
+          },
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "content" : {

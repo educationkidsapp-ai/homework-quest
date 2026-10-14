@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import quest.api.ApiException
 import quest.api.DEFAULT_FLAGS
 import quest.api.dto.ApiError
+import quest.api.staff.StaffPreferences
 import quest.feature.school.domain.FlagStore
 import quest.feature.school.domain.Flags
 import quest.feature.staff.domain.StaffGateway
@@ -52,6 +53,16 @@ class StaffSession(private val api: StaffGateway) : FlagStore, StaffSessionView 
             if (refused) { clear(); _disabled.value = true }
             false
         }
+    }
+
+    /**
+     * Feature 19: her own after-hours choice. The server answers the whole of `GET /staff/me`, so the profile is
+     * rebuilt from the answer rather than patched — a flag her Admin changed in the meantime arrives with it.
+     */
+    override suspend fun setAfterHoursAlerts(on: Boolean) {
+        val me = StaffProfile.of(api.staffPreferences(StaffPreferences(on)))
+        _profile.value = me
+        _flags.value = DEFAULT_FLAGS + me.flags + mapOf(Flags.STAFF_MOBILE_APP to true)
     }
 
     fun clear() {

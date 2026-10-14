@@ -1,6 +1,6 @@
 import { DOCUMENT, Injectable, computed, effect, inject, signal } from '@angular/core';
 import { catchError, of, tap } from 'rxjs';
-import { NotificationsApi, type NotificationView } from '../../api';
+import { NotificationsApi, type NotificationView, NotificationViewKindEnum } from '../../api';
 import { AuthService } from '../auth/auth.service';
 
 /** How many the bell's dropdown shows; the page asks for a page's worth. */
@@ -65,6 +65,37 @@ export function attendanceBody(
   ]
     .filter((line): line is string => !!line)
     .join(' · ');
+}
+
+/**
+ * Which Arabic plural a count takes, as the four keys `notifications.afterHours.*` are named.
+ *
+ * Arabic counts in four: one, two, a few (3–10) and many (11 and up). English uses two of the
+ * four and says the same sentence for the other three, which is cheaper here than a plural
+ * library for one message — and leaves the Arabic right rather than "وصلتك 2 رسائل".
+ */
+function countForm(count: number): 'one' | 'two' | 'few' | 'many' {
+  if (count === 1) return 'one';
+  if (count === 2) return 'two';
+  return count >= 3 && count <= 10 ? 'few' : 'many';
+}
+
+/**
+ * Feature 19: a `chat.after_hours_summary` row's body — "وصلتك 3 رسائل خارج الدوام" — worded in
+ * her language from the `?count=N` the server wrote into the link (the staff member's own Messages
+ * path). As with {@link attendanceBody}, the server's `body` is the English fallback for a row
+ * whose link cannot be read. Null for any other kind.
+ */
+export function afterHoursBody(
+  item: Pick<NotificationView, 'kind' | 'link' | 'body'>,
+  translate: (key: string, params?: Record<string, string>) => string,
+): string | null {
+  if (item.kind !== NotificationViewKindEnum.CHAT_AFTER_HOURS_SUMMARY) return null;
+  const query = item.link?.split('?')[1];
+  const raw = query ? new URLSearchParams(query).get('count') : null;
+  const count = Number(raw);
+  if (raw === null || !Number.isInteger(count) || count < 1) return item.body ?? null;
+  return translate(`notifications.afterHours.${countForm(count)}`, { count: String(count) });
 }
 
 /**

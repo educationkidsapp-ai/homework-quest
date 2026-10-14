@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.LocalDate;
 import org.hibernate.annotations.Filter;
 
 /**
@@ -124,5 +125,33 @@ public final class Entities {
         public String getActorRole() { return actorRole; } public void setActorRole(String v) { actorRole = v; }
         public String getActorId() { return actorId; } public void setActorId(String v) { actorId = v; }
         public Instant getChangedAt() { return changedAt; } public void setChangedAt(Instant v) { changedAt = v; }
+    }
+
+    /**
+     * V41 (feature 19): one row per parent message that reached a member of staff outside her office hours.
+     * {@code dueDay} is her next working day in the school's zone, and {@code summarizedAt} is set by
+     * {@link OfficeHoursSummaryJob} when it claims the row for a summary — one statement for all of a recipient's due
+     * rows, so a rerun or a second instance sends nothing twice. {@code messageId} is unique, so one message is
+     * counted once however many times it is delivered.
+     */
+    @Entity(name = "ChatAfterHoursEntity") @Table(name = "chat_after_hours")
+    @Filter(name = "school", condition = "school_id = :schoolId")
+    public static class ChatAfterHoursEntity {
+        @Id private String id;
+        @Column(name = "school_id", nullable = false) private String schoolId;
+        @Column(name = "user_id", nullable = false) private String userId;
+        @Column(name = "thread_id", nullable = false) private String threadId;
+        @Column(name = "message_id", nullable = false) private String messageId;
+        @Column(name = "received_at", nullable = false) private Instant receivedAt;
+        @Column(name = "due_day", nullable = false) private LocalDate dueDay;
+        @Column(name = "summarized_at") private Instant summarizedAt;
+        public String getId() { return id; } public void setId(String v) { id = v; }
+        public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
+        public String getUserId() { return userId; } public void setUserId(String v) { userId = v; }
+        public String getThreadId() { return threadId; } public void setThreadId(String v) { threadId = v; }
+        public String getMessageId() { return messageId; } public void setMessageId(String v) { messageId = v; }
+        public Instant getReceivedAt() { return receivedAt; } public void setReceivedAt(Instant v) { receivedAt = v; }
+        public LocalDate getDueDay() { return dueDay; } public void setDueDay(LocalDate v) { dueDay = v; }
+        public Instant getSummarizedAt() { return summarizedAt; } public void setSummarizedAt(Instant v) { summarizedAt = v; }
     }
 }

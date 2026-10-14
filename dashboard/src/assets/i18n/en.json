@@ -335,7 +335,11 @@
       "removeTitle": "Remove the logo?",
       "removeMessage": "{{name}} goes back to the default logo everywhere it is shown. You can upload another at any time.",
       "notImage": "Choose a PNG, JPEG or WebP image.",
-      "tooLarge": "That image is larger than 1 MB. Choose a smaller one."
+      "tooLarge": "That image is larger than 1 MB. Choose a smaller one.",
+      "phone": "School phone",
+      "phoneHint": "Parents see it for urgent matters when staff are outside office hours.",
+      "savePhone": "Save phone",
+      "phoneSaved": "Saved."
     },
     "attendanceSettings": {
       "title": "Attendance",
@@ -1665,6 +1669,10 @@
         "message": {
           "title": "New message",
           "body": "Someone wrote to you. Open the conversation to read it."
+        },
+        "after_hours_summary": {
+          "title": "Messages after hours",
+          "body": "Messages arrived while you were outside office hours."
         }
       },
       "complaint": {
@@ -1731,6 +1739,12 @@
       },
       "remote_day": "{{date}} is a remote working day",
       "separator": ", "
+    },
+    "afterHours": {
+      "one": "You got 1 message after hours",
+      "two": "You got 2 messages after hours",
+      "few": "You got {{count}} messages after hours",
+      "many": "You got {{count}} messages after hours"
     }
   },
   "chat": {

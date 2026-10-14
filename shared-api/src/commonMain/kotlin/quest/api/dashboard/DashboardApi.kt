@@ -67,6 +67,8 @@ data class School(
     val teachers: Int = 0,
     val lessons: Int = 0,
     val classes: Int = 0,
+    /** Feature 19: the school's phone, which a parent's office-hours banner offers for urgent matters. */
+    val phone: String? = null,
 )
 
 /** A school in a list: no theme, no flags. */
@@ -225,6 +227,8 @@ data class UpdateSchoolRequest(
     val curriculumOptions: List<Curriculum>? = null,
     val gradeOptions: List<Int>? = null,
     val status: SchoolStatus? = null,
+    /** Feature 19: the school's phone; an empty string clears it. */
+    val phone: String? = null,
 )
 
 /** The teacher half of an invite: filled in when `role` is TEACHER, so the account is complete the moment it is accepted. */

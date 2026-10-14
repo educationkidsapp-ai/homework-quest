@@ -40,10 +40,16 @@ object Flags {
      */
     const val STAFF_ATTENDANCE = "staffAttendance"
 
+    /**
+     * Feature 19: chat office hours. With it off nothing changes — the parent sees no banner in a conversation and a
+     * staff member no after-hours choice in Account; the server leaves `ChatThread.officeHours` off the wire.
+     */
+    const val CHAT_OFFICE_HOURS = "chatOfficeHours"
+
     /** Every key this app gates on. */
     val used = listOf(
         RETELL_RECORDING, OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, CERTIFICATES, LEVEL_THREE, CHAT, ANNOUNCEMENTS,
-        EXAMS, STAFF_MOBILE_APP, STAFF_ATTENDANCE,
+        EXAMS, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS,
     )
 
     /** True when the platform defines [key] at all — the contract's `DEFAULT_FLAGS` is the list of what exists. */

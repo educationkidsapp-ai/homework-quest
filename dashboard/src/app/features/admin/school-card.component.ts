@@ -1,17 +1,30 @@
-import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  linkedSignal,
+  output,
+  signal,
+} from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { catchError, map, of } from 'rxjs';
-import { SchoolsApi } from '../../api';
+import { catchError, of } from 'rxjs';
+import { type School, SchoolsApi } from '../../api';
 import { SchoolScopeStore } from '../../core/auth/school-scope.store';
+import { FLAGS } from '../../core/flags/flag.service';
+import { FeatureDirective } from '../../core/flags/feature.directive';
+import { MAX_PHONE_LENGTH, normalisePhone, phoneErrorKey } from '../../core/forms/phone';
 import { CanDirective } from '../../core/permissions/can.directive';
 import { ThemeService } from '../../core/theme/theme.service';
-import { BandComponent, ButtonComponent } from '../../ui';
+import { BandComponent, ButtonComponent, InputComponent } from '../../ui';
 
 /** S1: "image ≤ 1 MB" — refused here, with the reason, before a megabyte is sent to be refused. */
 export const MAX_LOGO_BYTES = 1024 * 1024;
 /** What `PUT /admin/schools/{id}/logo` takes — it sniffs the bytes, so the name is not enough. */
 const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+/** Before the read lands, or after one that failed: a name that falls back and a blank number. */
+const NO_SCHOOL: School = {};
 
 /**
  * **The school's logo** — a small card on the Admin's Home (the owner's list of 2026-10-01, ADMIN
@@ -33,17 +46,27 @@ const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
  * anybody sees it.
  *
  * Removing is the one destructive thing here, so it asks first — in a red band, in place.
+ *
+ * **The school's telephone number** lives here too (feature 19). It is school information rather
+ * than a chat setting, but the only thing that reads it is the "call the school" line a parent is
+ * shown while her child's teacher is outside office hours — so the field rides on
+ * `chatOfficeHours` and does not ask a school without the feature for a number nothing would use.
  */
 @Component({
   selector: 'hq-school-card',
-  imports: [BandComponent, ButtonComponent, CanDirective, TranslocoPipe],
+  imports: [BandComponent, ButtonComponent, CanDirective, FeatureDirective, InputComponent, TranslocoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (schoolId(); as id) {
       <section class="school" [attr.aria-label]="'admin.school.title' | transloco" data-hq-school-card>
         <div class="school__logo" [class.school__logo--empty]="!shownLogo()">
           @if (shownLogo(); as logo) {
-            <img class="school__image" [src]="logo" [alt]="'admin.school.logoAlt' | transloco: { name: name() }" (error)="failedLogo.set(logo)" />
+            <img
+              class="school__image"
+              [src]="logo"
+              [alt]="'admin.school.logoAlt' | transloco: { name: name() }"
+              (error)="failedLogo.set(logo)"
+            />
           } @else {
             <span class="school__placeholder">{{ 'admin.school.noLogo' | transloco }}</span>
           }
@@ -77,6 +100,33 @@ const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
           @if (problem(); as message) {
             <p class="school__problem" role="alert">{{ message }}</p>
           }
+        </div>
+
+        <div class="school__phone" *hqFeature="chatOfficeHoursFlag">
+          <div class="school__phone-form" *hqCan="'school.write'" data-hq-school-phone>
+            <hq-input
+              class="school__phone-field"
+              type="tel"
+              dir="ltr"
+              autocomplete="off"
+              [label]="'admin.school.phone' | transloco"
+              [hint]="'admin.school.phoneHint' | transloco"
+              [maxLength]="maxPhone"
+              [error]="phoneError()"
+              [disabled]="savingPhone()"
+              [value]="phone()"
+              (valueChange)="setPhone($event)"
+            />
+            <hq-button
+              [disabled]="!phoneDirty() || phoneError() !== null || savingPhone()"
+              (pressed)="savePhone(id)"
+            >
+              {{ 'admin.school.savePhone' | transloco }}
+            </hq-button>
+            @if (phoneSaved()) {
+              <p class="school__saved" role="status">{{ 'admin.school.phoneSaved' | transloco }}</p>
+            }
+          </div>
         </div>
 
         @if (confirmingRemove()) {
@@ -216,6 +266,31 @@ const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
       grid-column: 1 / -1;
     }
 
+    .school__phone {
+      grid-column: 1 / -1;
+    }
+
+    // The field and its one action on a line, the Save button on the field's own baseline rather
+    // than on its label's.
+    .school__phone-form {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: var(--hq-space-8);
+      padding-block-start: var(--hq-space-16);
+      border-block-start: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+    }
+
+    .school__phone-field {
+      flex: 1 1 60%;
+      min-inline-size: 0;
+    }
+
+    .school__saved {
+      font-size: var(--hq-text-theme-sm);
+      color: var(--hq-color-ink-soft);
+    }
+
     @media (width <= 40rem) {
       .school {
         grid-template-columns: minmax(0, 1fr);
@@ -236,16 +311,13 @@ export class SchoolCardComponent {
 
   private readonly school = rxResource({
     params: () => this.schoolId() ?? undefined,
-    stream: ({ params: id }) =>
-      this.schools.school(id).pipe(
-        map((school) => school.name ?? ''),
-        // The name is a caption: a card without one still uploads a logo.
-        catchError(() => of('')),
-      ),
-    defaultValue: '',
+    // The name is a caption and the number a field with a blank state: a card without either
+    // still uploads a logo.
+    stream: ({ params: id }) => this.schools.school(id).pipe(catchError(() => of(NO_SCHOOL))),
+    defaultValue: NO_SCHOOL,
   });
 
-  protected readonly name = computed(() => this.school.value() || this.scope.scope()?.name || '');
+  protected readonly name = computed(() => this.school.value().name || this.scope.scope()?.name || '');
 
   /** What the shell shows too — the school's own, or the platform's when it has none. */
   protected readonly logoUrl = computed(() => this.theme.logoUrl());
@@ -264,6 +336,56 @@ export class SchoolCardComponent {
   protected readonly busy = signal(false);
   protected readonly problem = signal<string | null>(null);
   protected readonly confirmingRemove = signal(false);
+
+  // ---- feature 19: the school's telephone number ----------------------------------------
+
+  protected readonly chatOfficeHoursFlag = FLAGS.chatOfficeHours;
+  protected readonly maxPhone = MAX_PHONE_LENGTH;
+
+  /** What the school has now — the saved number, which is also what "unchanged" is measured against. */
+  private readonly savedPhone = computed(() => this.school.value().phone ?? '');
+  /**
+   * What is in the field. Reseeded whenever the saved number changes — the first read, and every
+   * write's own response — so a number saved here, or changed in another tab, replaces what is
+   * typed only when the server's answer differs from it.
+   */
+  protected readonly phone = linkedSignal(() => this.savedPhone());
+  protected readonly savingPhone = signal(false);
+  protected readonly phoneSaved = signal(false);
+
+  /** The same rule the server applies (`core/forms/phone`), so a refusal is rare and explained here. */
+  protected readonly phoneError = computed(() => {
+    const key = phoneErrorKey(this.phone());
+    return key === null ? null : this.transloco.translate<string>(key);
+  });
+
+  /** Nothing to save when the field normalises to what is already stored. */
+  protected readonly phoneDirty = computed(() => (normalisePhone(this.phone()) ?? '') !== this.savedPhone());
+
+  protected setPhone(value: string): void {
+    this.phone.set(value);
+    this.phoneSaved.set(false);
+  }
+
+  /**
+   * `PATCH /admin/schools/{id}` with the number alone — the normalised form, or `''` to clear it,
+   * which is what the server reads as "the school has no number". The response is the school, so
+   * the saved value (and with it the field) comes back from the write rather than from a second
+   * read; a refusal is the error interceptor's red band, and the field keeps what was typed.
+   */
+  protected savePhone(schoolId: string): void {
+    if (this.phoneError() !== null || this.savingPhone()) return;
+    this.savingPhone.set(true);
+    this.phoneSaved.set(false);
+    this.schools.updateSchool(schoolId, { phone: normalisePhone(this.phone()) ?? '' }).subscribe({
+      next: (school) => {
+        this.savingPhone.set(false);
+        this.phoneSaved.set(true);
+        this.school.set(school);
+      },
+      error: () => this.savingPhone.set(false),
+    });
+  }
 
   protected onFile(event: Event, schoolId: string): void {
     const input = event.target as HTMLInputElement;

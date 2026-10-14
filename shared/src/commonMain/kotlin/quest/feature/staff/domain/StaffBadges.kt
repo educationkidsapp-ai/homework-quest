@@ -29,6 +29,12 @@ interface StaffSessionView {
 
     /** Her school's flags, which the staff subtree provides to `LocalFlags`. */
     val flagStore: FlagStore
+
+    /**
+     * Feature 19: `PUT /staff/me/preferences` — her after-hours alerts choice. Throws when the server refuses, and
+     * [profile] is left exactly as it was, so the screen that asked can put its switch back.
+     */
+    suspend fun setAfterHoursAlerts(on: Boolean)
 }
 
 /**

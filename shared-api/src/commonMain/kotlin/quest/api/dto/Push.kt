@@ -75,6 +75,12 @@ data class PushMessage(
      * staff member instead ([childId], [link]), as it always has, and leaves this absent.
      */
     val threadId: String? = null,
+    /**
+     * Feature 19: a parent's message that reached a member of staff outside her office hours. Android shows it on
+     * the low-importance channel (no sound, no vibration) and FCM delivers it at normal priority; iOS gets it without
+     * a sound. `false` is left off the wire.
+     */
+    val quiet: Boolean = false,
 ) {
     /** The FCM data map; absent values are left out rather than sent as empty strings. */
     fun toData(): Map<String, String> = buildMap {
@@ -83,12 +89,13 @@ data class PushMessage(
         link?.let { put(LINK, it) }; broadcastId?.let { put(BROADCAST_ID, it) }
         opensAt?.let { put(OPENS_AT, it.toString()) }; closesAt?.let { put(CLOSES_AT, it.toString()) }
         complaintId?.let { put(COMPLAINT_ID, it) }; threadId?.let { put(THREAD_ID, it) }
+        if (quiet) put(QUIET, "true")
     }
 
     companion object {
         const val KIND = "kind"; const val TITLE = "title"; const val BODY = "body"; const val NOTIFICATION_ID = "notificationId"
         const val CHILD_ID = "childId"; const val LINK = "link"; const val BROADCAST_ID = "broadcastId"; const val COLLAPSE_KEY = "collapseKey"
-        const val OPENS_AT = "opensAt"; const val CLOSES_AT = "closesAt"; const val COMPLAINT_ID = "complaintId"; const val THREAD_ID = "threadId"
+        const val OPENS_AT = "opensAt"; const val CLOSES_AT = "closesAt"; const val COMPLAINT_ID = "complaintId"; const val THREAD_ID = "threadId"; const val QUIET = "quiet"
 
         /** The wire name of a kind (`chat.message`), as `/me/notifications` writes it. */
         fun kindName(kind: NotificationKind): String = NotificationKind.serializer().descriptor.getElementName(kind.ordinal)
@@ -98,7 +105,7 @@ data class PushMessage(
             val kind = NotificationKind.entries.firstOrNull { kindName(it) == data[KIND] } ?: return null
             return PushMessage(kind, data[TITLE] ?: return null, data[BODY], data[NOTIFICATION_ID], data[CHILD_ID], data[LINK],
                 data[BROADCAST_ID], data[COLLAPSE_KEY] ?: return null, data[OPENS_AT]?.toLongOrNull(), data[CLOSES_AT]?.toLongOrNull(),
-                data[COMPLAINT_ID], data[THREAD_ID])
+                data[COMPLAINT_ID], data[THREAD_ID], data[QUIET] == "true")
         }
     }
 }

@@ -55,6 +55,8 @@ public final class Entities {
         /** MH1: the mobile number the Coordinators and Teachers screens show (owner's items 3 and 4), E.164-ish. */
         @Column(length = 20) private String phone;
         @Column(nullable = false) private String language = "en";
+        /** V41 (feature 19): she keeps normal alerts for parent messages outside her office hours. Off by default. */
+        @Column(name = "after_hours_alerts", nullable = false) private boolean afterHoursAlerts;
         @Column(name = "last_login_at") private Instant lastLoginAt;
         @Column(name = "created_at", nullable = false) private Instant createdAt;
         @Column(name = "updated_at", nullable = false) private Instant updatedAt;
@@ -69,6 +71,7 @@ public final class Entities {
         public String getPhotoUrl() { return photoUrl; } public void setPhotoUrl(String v) { photoUrl = v; }
         public String getPhone() { return phone; } public void setPhone(String v) { phone = v; }
         public String getLanguage() { return language; } public void setLanguage(String v) { language = v; }
+        public boolean isAfterHoursAlerts() { return afterHoursAlerts; } public void setAfterHoursAlerts(boolean v) { afterHoursAlerts = v; }
         public Instant getLastLoginAt() { return lastLoginAt; } public void setLastLoginAt(Instant v) { lastLoginAt = v; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
         public Instant getUpdatedAt() { return updatedAt; } public void setUpdatedAt(Instant v) { updatedAt = v; }

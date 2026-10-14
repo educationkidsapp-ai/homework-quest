@@ -66,15 +66,17 @@ public class NotificationService {
     private final ParentPush push; private final quest.server.exams.ExamSettingsRepository exams;
     private final quest.server.platform.SchoolCalendar calendar;
     private final quest.server.push.StaffPush staffPush; private final quest.server.flags.FeatureFlags flags;
+    private final quest.server.chat.OfficeHours officeHours; private final quest.server.chat.ChatAfterHoursRepository afterHoursRows;
 
     public NotificationService(NotificationRepository rows, UserRepository users, ChatBus bus, Json json, Clock clock,
                               NotificationRows upserts, quest.server.children.ChildRepository children,
                               org.springframework.transaction.PlatformTransactionManager transactions, ParentPush push,
                               quest.server.exams.ExamSettingsRepository exams, quest.server.platform.SchoolCalendar calendar,
-                              quest.server.push.StaffPush staffPush, quest.server.flags.FeatureFlags flags) {
+                              quest.server.push.StaffPush staffPush, quest.server.flags.FeatureFlags flags,
+                              quest.server.chat.OfficeHours officeHours, quest.server.chat.ChatAfterHoursRepository afterHoursRows) {
         this.rows = rows; this.users = users; this.bus = bus; this.json = json; this.clock = clock; this.upserts = upserts;
         this.children = children; this.push = push; this.exams = exams; this.calendar = calendar;
-        this.staffPush = staffPush; this.flags = flags;
+        this.staffPush = staffPush; this.flags = flags; this.officeHours = officeHours; this.afterHoursRows = afterHoursRows;
         this.own = new org.springframework.transaction.support.TransactionTemplate(transactions);
         this.own.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -129,7 +131,8 @@ public class NotificationService {
             case LESSON_FAILED -> "Generation stopped";
             case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS,
                  COMPLAINT_NEW, COMPLAINT_MESSAGE, ATTENDANCE_REMINDER, ATTENDANCE_ALERT, ATTENDANCE_DIGEST,
-                 ATTENDANCE_REQUEST, ATTENDANCE_DECISION, ATTENDANCE_REMOTE_DAY
+                 ATTENDANCE_REQUEST, ATTENDANCE_DECISION, ATTENDANCE_REMOTE_DAY,
+                 CHAT_AFTER_HOURS_SUMMARY
                  -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         String name = lesson.getTitle() == null || lesson.getTitle().isBlank() ? "Your lesson" : lesson.getTitle().trim();
@@ -139,7 +142,8 @@ public class NotificationService {
             case LESSON_FAILED -> lesson.getErrorMessage() == null || lesson.getErrorMessage().isBlank() ? name + " stopped before it finished." : lesson.getErrorMessage();
             case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS,
                  COMPLAINT_NEW, COMPLAINT_MESSAGE, ATTENDANCE_REMINDER, ATTENDANCE_ALERT, ATTENDANCE_DIGEST,
-                 ATTENDANCE_REQUEST, ATTENDANCE_DECISION, ATTENDANCE_REMOTE_DAY
+                 ATTENDANCE_REQUEST, ATTENDANCE_DECISION, ATTENDANCE_REMOTE_DAY,
+                 CHAT_AFTER_HOURS_SUMMARY
                  -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         try {
@@ -168,19 +172,66 @@ public class NotificationService {
      * on the socket exactly as before.
      */
     public void chatMessage(String schoolId, String userId, String threadId, String from, String body) {
+        chatMessage(schoolId, userId, threadId, from, body, false, null);
+    }
+
+    /**
+     * Feature 19: {@code fromParent} says a <strong>parent</strong> wrote this message to a member of staff, which is
+     * the only direction office hours apply to — a colleague's message and anything she writes herself are unchanged,
+     * and so is every message with `chatOfficeHours` off, inside her hours, or to someone who asked to keep her
+     * alerts. Outside her hours the bell row and the socket frame are exactly as before and only the push is quiet;
+     * the message itself is counted in `chat_after_hours` whether or not it is pushed, because the morning summary is
+     * about what arrived and not about what her phone happened to show.
+     */
+    public void chatMessage(String schoolId, String userId, String threadId, String from, String body,
+                            boolean fromParent, String messageId) {
         if (userId == null || threadId == null) return;
         boolean named = from != null && !from.isBlank();
         String title = clip("Message from " + (named ? from : "your school"), TITLE_MAX);
+        boolean quiet = fromParent && afterHours(schoolId, userId, threadId, messageId);
         try {
             var upsert = upserts.upsertUnread(schoolId, userId, key(NotificationKind.CHAT_MESSAGE), threadId,
                     title, clip(body, CHAT_BODY_MAX), messagesLink(roleOf(userId), threadId), null);
             var row = upsert.row();
             publishAfterCommit(schoolId, userId, view(row));
-            if (upsert.fresh() && staffAppOn(schoolId)) staffPush.toUser(userId, staffChatPush(row, threadId, row.getTitle()),
-                    staffChatPush(row, threadId, clip(named ? "رسالة من " + from : "رسالة من المدرسة", TITLE_MAX)));
+            if (upsert.fresh() && staffAppOn(schoolId)) staffPush.toUser(userId, staffChatPush(row, threadId, row.getTitle(), quiet),
+                    staffChatPush(row, threadId, clip(named ? "رسالة من " + from : "رسالة من المدرسة", TITLE_MAX), quiet));
         } catch (RuntimeException e) {
             log.warn("notifications: could not write chat.message for thread {}: {}", threadId, e.toString());
         }
+    }
+
+    /**
+     * Feature 19: whether this message reached her outside her office hours and so arrives quietly. The row it writes
+     * is what {@link quest.server.chat.OfficeHoursSummaryJob} counts; it goes in inside the message's own transaction,
+     * so a message that rolls back is in no summary. Never throws: office hours that could not be read are no reason
+     * to lose the message, and the push is then the ordinary loud one.
+     */
+    private boolean afterHours(String schoolId, String userId, String threadId, String messageId) {
+        try {
+            if (messageId == null || !flags.isOn(schoolId, quest.server.flags.FlagKeys.CHAT_OFFICE_HOURS)) return false;
+            var status = officeHours.status(schoolId, userId, clock.instant());
+            if (status.open()) return false;
+            if (users.findById(userId).map(u -> u.isAfterHoursAlerts()).orElse(false)) return false;
+            var row = new quest.server.chat.Entities.ChatAfterHoursEntity();
+            row.setId(UUID.randomUUID().toString()); row.setSchoolId(schoolId); row.setUserId(userId);
+            row.setThreadId(threadId); row.setMessageId(messageId); row.setReceivedAt(clock.instant());
+            row.setDueDay(status.nextStartLocal() == null ? status.today() : status.nextStartLocal().toLocalDate());
+            afterHoursRows.save(row);
+            return true;
+        } catch (RuntimeException e) {
+            log.warn("notifications: could not weigh office hours for thread {}: {}", threadId, e.toString());
+            return false;
+        }
+    }
+
+    /**
+     * Feature 19: the summary {@link quest.server.chat.OfficeHoursSummaryJob} sends when her working day starts. The
+     * job claims the rows first and words the count in both languages; the link is her own Messages area, and the
+     * count rides on it as `count`, so both clients word the bell row in the reader's language.
+     */
+    public String afterHoursSummaryLink(String userId, int count) {
+        return messagesLink(roleOf(userId), null) + "?count=" + count;
     }
 
     /**
@@ -189,9 +240,9 @@ public class NotificationService {
      * other end, so a colleague writing five lines to a teacher who has not opened the thread is one push and the next
      * comes after she reads it. Only the title is translated: what was written is in the sender's own words.
      */
-    private static PushMessage staffChatPush(NotificationEntity row, String threadId, String title) {
+    private static PushMessage staffChatPush(NotificationEntity row, String threadId, String title, boolean quiet) {
         return new PushMessage(NotificationKind.CHAT_MESSAGE, title, row.getBody(), row.getId(), null, row.getLink(),
-                null, "chat:" + threadId, null, null, null, threadId);
+                null, "chat:" + threadId, null, null, null, threadId, quiet);
     }
 
     /**
@@ -206,12 +257,18 @@ public class NotificationService {
      */
     public void attendance(String schoolId, String userId, NotificationKind kind, String titleEn, String bodyEn,
                            String titleAr, String bodyAr, String link, String collapseKey) {
+        staffNotice(schoolId, userId, kind, titleEn, bodyEn, titleAr, bodyAr, link, collapseKey);
+    }
+
+    /** The same thing for any job that tells one member of staff something: feature 16's three kinds, and feature 19's summary. */
+    public void staffNotice(String schoolId, String userId, NotificationKind kind, String titleEn, String bodyEn,
+                            String titleAr, String bodyAr, String link, String collapseKey) {
         if (userId == null) return;
         try {
             var view = notify(schoolId, userId, kind, titleEn, bodyEn, link, null);
             if (staffAppOn(schoolId)) staffPush.toUser(userId,
-                    new PushMessage(kind, clip(titleEn, TITLE_MAX), clip(bodyEn, BODY_MAX), view.getId(), null, link, null, collapseKey, null, null, null, null),
-                    new PushMessage(kind, clip(titleAr, TITLE_MAX), clip(bodyAr, BODY_MAX), view.getId(), null, link, null, collapseKey, null, null, null, null));
+                    new PushMessage(kind, clip(titleEn, TITLE_MAX), clip(bodyEn, BODY_MAX), view.getId(), null, link, null, collapseKey, null, null, null, null, false),
+                    new PushMessage(kind, clip(titleAr, TITLE_MAX), clip(bodyAr, BODY_MAX), view.getId(), null, link, null, collapseKey, null, null, null, null, false));
         } catch (RuntimeException e) {
             log.warn("notifications: could not write {} for {}: {}", key(kind), userId, e.toString());
         }
@@ -473,10 +530,10 @@ public class NotificationService {
         String broadcastId = note.isBroadcast() ? note.entityId() : null;
         String complaintId = note.kind() == NotificationKind.COMPLAINT_MESSAGE || note.kind() == NotificationKind.COMPLAINT_STATUS ? note.entityId() : null;
         var english = new PushMessage(note.kind(), row.getTitle(), row.getBody(), row.getId(), row.getChildId(), row.getLink(), broadcastId,
-                note.collapseKey(), note.opensAt(), note.closesAt(), complaintId, null);
+                note.collapseKey(), note.opensAt(), note.closesAt(), complaintId, null, false);
         var arabic = note.titleAr() == null ? null : new PushMessage(note.kind(), clip(note.titleAr(), TITLE_MAX),
                 note.bodyAr() == null ? row.getBody() : clip(note.bodyAr(), BODY_MAX), row.getId(), row.getChildId(), row.getLink(), broadcastId,
-                note.collapseKey(), note.opensAt(), note.closesAt(), complaintId, null);
+                note.collapseKey(), note.opensAt(), note.closesAt(), complaintId, null, false);
         return new ParentPush.Delivery(parentId, english, arabic);
     }
 

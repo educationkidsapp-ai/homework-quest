@@ -20,7 +20,7 @@ public final class SchoolDto {
     /** The Overview tab of the School page (§6 screen 5); the four counts are what it puts above the tabs. */
     public record School(String id, String name, String code, List<String> curriculumOptions, List<Integer> gradeOptions,
                          String theme, String featureFlags, String status, long createdAt,
-                         int children, int teachers, int lessons, int classes) {}
+                         int children, int teachers, int lessons, int classes, String phone) {}
 
     /** A card on the Schools screen: the counts are what the Admin scans for. */
     public record SchoolSummary(String id, String name, String code, String status, int teachers, int children, int lessons) {}
@@ -29,8 +29,9 @@ public final class SchoolDto {
                                       @Pattern(regexp = CODE_PATTERN, message = "must be 6 characters of A-Z and 0-9") String code,
                                       List<String> curriculumOptions, List<Integer> gradeOptions) {}
 
-    /** Only the fields that are present are written. */
-    public record UpdateSchoolRequest(@Size(max = 120) String name, List<String> curriculumOptions, List<Integer> gradeOptions, String status) {}
+    /** Only the fields that are present are written. Feature 19: an empty `phone` clears the school's number. */
+    public record UpdateSchoolRequest(@Size(max = 120) String name, List<String> curriculumOptions, List<Integer> gradeOptions,
+                                      String status, String phone) {}
 
     /**
      * What a parent sees after typing a school code, before confirming (§2, app "Join school"). `theme` is the

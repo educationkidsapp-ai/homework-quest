@@ -45,6 +45,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -62,6 +64,7 @@ import org.koin.core.parameter.parametersOf
 import quest.api.dto.ChatFrame
 import quest.api.dto.ChatMessage
 import quest.api.dto.ChatStaffRole
+import quest.api.dto.OfficeHoursStatus
 import quest.core.mvi.MviEffect
 import quest.core.mvi.MviIntent
 import quest.core.mvi.MviState
@@ -70,6 +73,8 @@ import quest.core.platform.Ids
 import quest.core.platform.Today
 import quest.feature.chat.domain.ChatConnectionState
 import quest.feature.chat.domain.ChatPeer
+import quest.feature.chat.domain.OfficeHoursBanner
+import quest.feature.chat.domain.officeHoursBanner
 import quest.feature.chat.domain.Resolver
 import quest.feature.chat.domain.resolverOf
 import quest.feature.chat.domain.ConversationSource
@@ -157,6 +162,11 @@ object ChatConversationContract {
         val headerSubtitle: String? = null,
         val emptyMessage: String? = null,
         val typingText: String? = null,
+        /**
+         * Feature 19: the staff member's office hours as the row described them. The parent's banner is drawn from
+         * this and nothing else; it is always null on the staff end of the conversation.
+         */
+        val officeHours: OfficeHoursStatus? = null,
     ) : MviState {
         /** Words, files or both — and only once every file is up, so nothing is sent without what she attached. */
         val canSend: Boolean
@@ -185,6 +195,7 @@ fun ChatPeer.conversationState(): ChatConversationContract.State = ChatConversat
     threadId = threadId,
     peerOnline = peerOnline,
     resolver = resolverOf(peerRole, staffRole, withAdmin),
+    officeHours = officeHours,
 )
 
 /**
@@ -494,6 +505,38 @@ fun ChatConversationRoute(
 }
 
 /**
+ * Feature 19's banner: when she will reply, and the school's number under it. The number is tappable where the
+ * platform can dial — a parent with an urgent matter should not have to copy digits out by hand — and plain text
+ * where it cannot.
+ */
+@Composable
+private fun OfficeHoursNotice(banner: OfficeHoursBanner, phone: String?) {
+    val dialer = LocalUriHandler.current
+    Column(
+        Modifier.fillMaxWidth()
+            .background(DashboardTokens.warningBg)
+            .border(1.dp, DashboardTokens.warningBorder)
+            .padding(horizontal = Dimens.s16, vertical = Dimens.s8)
+            .testTag("office-hours-banner"),
+    ) {
+        Text(banner.outside, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.ink)
+        banner.urgent?.let { urgent ->
+            Spacer(Modifier.height(Dimens.s4))
+            // Only the digits reach the dialer: the line itself carries the Unicode isolate marks around them.
+            val digits = phone?.filter { it.isDigit() || it == '+' }.orEmpty()
+            val line = @Composable { modifier: Modifier ->
+                Text(urgent, modifier, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.ink)
+            }
+            if (digits.isNotEmpty()) {
+                line(Modifier.clickable(role = Role.Button) { runCatching { dialer.openUri("tel:$digits") } })
+            } else {
+                line(Modifier)
+            }
+        }
+    }
+}
+
+/**
  * The header's presence line and whether its dot is lit; null when nothing is known about the other person. M7: the
  * typing line says who by role — "Manager is typing…" — because the frame itself only ever says `teacher` for staff.
  */
@@ -590,6 +633,14 @@ fun ChatConversationScreen(
                         )
                     }
                 }
+            }
+        }
+
+        // Feature 19: she is off now, and the parent is told when she will reply rather than left waiting. The school's
+        // own date decides "today", "tomorrow" or the weekday — never this phone's clock.
+        if (featureEnabled(Flags.CHAT_OFFICE_HOURS)) {
+            officeHoursBanner(state.headerName ?: state.teacherName, state.officeHours, strings.officeHours)?.let { banner ->
+                OfficeHoursNotice(banner, state.officeHours?.schoolPhone)
             }
         }
 

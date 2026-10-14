@@ -123,6 +123,15 @@ export function notificationTarget(item: NotificationView, role: Role | null): N
       return role === null
         ? INBOX
         : { path: MESSAGES[role], queryParams: entityId === '' ? null : { thread: entityId } };
+    // Feature 19: the morning summary of what arrived after hours. The server writes the
+    // recipient's own Messages path with `?count=N`, so the branch above usually answers it; this
+    // is what happens when the link was written for an area that is not hers — the summary is
+    // about her own conversations, so it opens her own threads list, count and all.
+    case NotificationViewKindEnum.CHAT_AFTER_HOURS_SUMMARY: {
+      if (role === null) return INBOX;
+      const count = paramOf(link, 'count');
+      return { path: MESSAGES[role], queryParams: count === null ? null : { count } };
+    }
     // D5: B6 writes `/{area}/complaints?open={id}` for the recipient's role as it was then. A link
     // that is not hers any more lands on her own Complaints, on the same complaint — never on
     // Messages, which no longer carries one.

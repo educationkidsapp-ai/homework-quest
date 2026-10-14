@@ -64,18 +64,31 @@ class FcmPushSender implements PushSender {
         };
     }
 
+    /**
+     * Feature 19: a <strong>quiet</strong> push is the same message, delivered gently. Android keeps it data-only
+     * (`quiet=true` is in {@link PushMessage#toData}, and the app draws it on its low-importance channel) at normal
+     * FCM priority, so the phone does not wake for it; iOS gets `apns-priority` 5 and no sound. Everything else —
+     * the data, the collapse key, the TTL — is what a loud push carries.
+     */
     static Message message(String token, DevicePlatform platform, PushMessage push) {
         var b = Message.builder().setToken(token).putAllData(push.toData());
+        boolean quiet = push.getQuiet();
         return switch (platform) {
-            case ANDROID -> b.setAndroidConfig(AndroidConfig.builder().setPriority(AndroidConfig.Priority.HIGH)
+            case ANDROID -> b.setAndroidConfig(AndroidConfig.builder()
+                    .setPriority(quiet ? AndroidConfig.Priority.NORMAL : AndroidConfig.Priority.HIGH)
                     .setCollapseKey(push.getCollapseKey()).setTtl(TTL.toMillis()).build()).build();
             case IOS -> b.setApnsConfig(ApnsConfig.builder()
                     .putHeader("apns-collapse-id", apnsCollapseId(push.getCollapseKey()))
-                    .putHeader("apns-priority", "10")
-                    .setAps(Aps.builder().setAlert(ApsAlert.builder().setTitle(push.getTitle()).setBody(push.getBody()).build())
-                            .setSound("default").setMutableContent(true).setThreadId(push.getCollapseKey()).build())
+                    .putHeader("apns-priority", quiet ? "5" : "10")
+                    .setAps(aps(push, quiet).build())
                     .build()).build();
         };
+    }
+
+    private static Aps.Builder aps(PushMessage push, boolean quiet) {
+        var aps = Aps.builder().setAlert(ApsAlert.builder().setTitle(push.getTitle()).setBody(push.getBody()).build())
+                .setMutableContent(true).setThreadId(push.getCollapseKey());
+        return quiet ? aps : aps.setSound("default");
     }
 
     /** APNs takes at most 64 bytes here; a longer key is replaced by a stable digest of itself. */

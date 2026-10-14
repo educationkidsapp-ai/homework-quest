@@ -49,6 +49,17 @@ public class StaffAttendanceProfileService {
         };
     }
 
+    /**
+     * One employee's category: the one an Admin set on her profile, or her role's default. The school is named by the
+     * caller rather than read from {@link TenantContext}, because feature 16's job and feature 19's run on the
+     * scheduler's thread, which has no tenant.
+     */
+    public String categoryOf(String schoolId, String staffKind, String staffId, String role) {
+        return profiles.findOneBySchoolIdAndStaffKindAndStaffId(schoolId, staffKind, staffId)
+                .map(StaffAttendanceProfileEntity::getCategory).filter(java.util.Objects::nonNull)
+                .orElseGet(() -> defaultCategory(role));
+    }
+
     public List<StaffAttendanceProfile> list() {
         String schoolId = tenant.writeSchoolId();
         var employees = staff.all(schoolId);

@@ -33,6 +33,7 @@ import quest.api.staff.CheckInRules
 import quest.api.staff.CheckInToday
 import quest.api.staff.NewAttendanceRequest
 import quest.api.staff.StaffMe
+import quest.api.staff.StaffPreferences
 import quest.core.platform.Ids
 import quest.core.platform.Today
 import quest.feature.chat.domain.StagedUpload
@@ -57,14 +58,25 @@ class FakeStaffApi(private val delayMillis: Long = 250) : StaffGateway {
     private val devices = mutableMapOf<String, RegisterDeviceRequest>()
     private val readRows = mutableSetOf<String>()
 
+    /** Feature 19: her own choice, kept in memory so the Account switch behaves without a server. */
+    private var afterHoursAlerts: Boolean = false
+
     override suspend fun staffMe(): StaffMe {
         net()
         return StaffMe(
             userId = ME, displayName = "Ms Noor", role = role, phone = "+966500000000",
             schoolId = "school-fake", schoolName = "Learning International School",
-            // Feature 15 is on in the fake school, so a build with no server still draws the check-in card.
-            flags = DEFAULT_FLAGS + mapOf("chat" to true, "staffMobileApp" to flagsOn, "staffAttendance" to flagsOn),
+            // Features 15 and 19 are on in the fake school, so a build with no server still draws the check-in card
+            // and the after-hours switch.
+            flags = DEFAULT_FLAGS + mapOf("chat" to true, "staffMobileApp" to flagsOn, "staffAttendance" to flagsOn, "chatOfficeHours" to flagsOn),
+            afterHoursAlerts = afterHoursAlerts,
         )
+    }
+
+    override suspend fun staffPreferences(request: StaffPreferences): StaffMe {
+        net()
+        afterHoursAlerts = request.afterHoursAlerts
+        return staffMe()
     }
 
     override suspend fun staffThreads(): List<ChatThread> {
