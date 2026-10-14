@@ -119,6 +119,12 @@ enum class NotificationKind {
      * digest time from feature 14's settings. [NotificationView.link] carries the counts; the body lists the names.
      */
     @SerialName("attendance.digest") ATTENDANCE_DIGEST,
+    /**
+     * Feature 19, to a member of staff when her working day starts: how many parent messages reached her outside
+     * office hours. [NotificationView.link] is her Messages; the count is the query parameter `count`, so both clients
+     * word the row in the reader's language.
+     */
+    @SerialName("chat.after_hours_summary") CHAT_AFTER_HOURS_SUMMARY,
 }
 
 /**

@@ -35,6 +35,15 @@ class PushMessageTest {
         assertEquals("attendance.reminder", PushMessage.kindName(NotificationKind.ATTENDANCE_REMINDER))
         assertEquals("attendance.alert", PushMessage.kindName(NotificationKind.ATTENDANCE_ALERT))
         assertEquals("attendance.digest", PushMessage.kindName(NotificationKind.ATTENDANCE_DIGEST))
+        assertEquals("chat.after_hours_summary", PushMessage.kindName(NotificationKind.CHAT_AFTER_HOURS_SUMMARY))
+    }
+
+    @Test fun aQuietPushSaysSoAndALoudOneLeavesTheKeyOut() {
+        val loud = PushMessage(NotificationKind.CHAT_MESSAGE, "Message from a parent", collapseKey = "chat:th1", threadId = "th1")
+        assertFalse(PushMessage.QUIET in loud.toData())
+        val quiet = loud.copy(quiet = true)
+        assertEquals("true", quiet.toData()[PushMessage.QUIET])
+        assertEquals(quiet, PushMessage.fromData(quiet.toData()))
     }
 
     @Test fun anAttendanceLinkReadsBackItsParameters() {
