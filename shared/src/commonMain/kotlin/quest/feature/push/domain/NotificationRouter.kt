@@ -22,6 +22,11 @@ sealed interface Destination {
      * Messages tab is one inbox keyed by thread id.
      */
     data class StaffConversation(val thread: ChatThread) : Destination
+    /**
+     * Feature 16: an `attendance.*` row or push, for a staff member. A [reminder] opens her Attendance tab (the staff
+     * home); an alert or the digest opens her notifications, until feature 17 gives them a board and a day to open.
+     */
+    data class StaffAttendance(val reminder: Boolean) : Destination
     /** M8: `complaint.message` and `complaint.status` — that complaint's own page, about [childId]. */
     data class Complaint(val childId: String, val complaintId: String) : Destination
     /** A weekly plan: the Weekly plan page, on that plan. */
@@ -62,12 +67,15 @@ class NotificationRouter(
      * thread is hers when one of them matches; anything else falls through to the parent side exactly as before.
      */
     private val staffThreads: suspend () -> List<ChatThread>? = { null },
+    /** Feature 16: true while a staff session is signed in — an `attendance.*` tap is only ever hers. */
+    private val staffSignedIn: () -> Boolean = { false },
 ) {
     suspend fun resolve(tap: NotificationTap): Destination {
         tap.notificationId?.let { id -> runCancellable { notifications.markRead(id) } }
         // Feature 13: the staff side is asked first and only when the tap names a thread — a parent's chat push names
         // a child and a staff member's never does, so the two cannot be taken for one another.
         staffConversation(tap)?.let { return it }
+        staffAttendance(tap)?.let { return it }
         val childId = tap.childId ?: childOf(tap.link)
         val child = childId?.let { select(it) }
         if (childId != null && child == null) return Destination.Notifications(tap.notificationId, gone = true)
@@ -87,6 +95,10 @@ class NotificationRouter(
      * A kind this build does not know is followed by the shape of its link — every shape B4's contract writes — and,
      * where the link names nothing this app can open by itself, by its row on the Notifications tab.
      */
+    /** Feature 16: an attendance reminder, alert or digest, when a staff member is signed in to read it. */
+    private fun staffAttendance(tap: NotificationTap): Destination? =
+        if (isAttendance(tap.kind) && staffSignedIn()) Destination.StaffAttendance(reminder = tap.kind == ATTENDANCE_REMINDER) else null
+
     /** Her thread, when the tap names one she is on. Null means "not a staff tap", not "gone". */
     private suspend fun staffConversation(tap: NotificationTap): Destination? {
         val threadId = tap.threadId ?: return null
@@ -182,3 +194,8 @@ class ParentGate(private val elapsed: () -> Long, private val graceMillis: Long 
     /** Back in front: within the grace the gate is still open, after it closed. */
     fun back() { if (!isOpen) closed(); awaySince = null }
 }
+
+/** Feature 16's three kinds share the `attendance.` prefix; only the reminder opens the Attendance tab. */
+const val ATTENDANCE_REMINDER = "attendance.reminder"
+
+fun isAttendance(kind: String?): Boolean = kind != null && kind.startsWith("attendance.")

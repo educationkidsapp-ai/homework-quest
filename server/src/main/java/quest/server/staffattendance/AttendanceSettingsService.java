@@ -116,6 +116,21 @@ public class AttendanceSettingsService {
                 .orElseGet(() -> new Rules(null, null, RADIUS_DEFAULT, GRACE_DEFAULT));
     }
 
+    /**
+     * Feature 16: the three thresholds and who hears about what. {@code directorNotify} and {@code adminNotify} are
+     * `IMMEDIATE`, `DIGEST` or `OFF`; {@code digestTime} is in the school's zone.
+     */
+    public record Alerts(AttendanceRules.Thresholds thresholds, String directorNotify, String adminNotify, LocalTime digestTime) {}
+
+    /** One school's alert settings: the saved row, or the spec's defaults (digest at 07:30 for both). */
+    public Alerts alerts(String schoolId) {
+        return settings.findOneBySchoolId(schoolId)
+                .map(r -> new Alerts(new AttendanceRules.Thresholds(r.getGraceMinutes(), r.getNotArrivedMinutes(), r.getMissingCheckOutMinutes()),
+                        r.getDirectorNotify(), r.getAdminNotify(), r.getDigestTime()))
+                .orElseGet(() -> new Alerts(new AttendanceRules.Thresholds(GRACE_DEFAULT, NOT_ARRIVED_DEFAULT, MISSING_CHECK_OUT_DEFAULT),
+                        "DIGEST", "DIGEST", DIGEST_DEFAULT));
+    }
+
     /** One category's hours for one school: the saved row, or Sunday–Thursday 07:00–14:00. */
     public ScheduleResolver.Hours hours(String schoolId, String category) {
         return schedules.findOneBySchoolIdAndCategory(schoolId, category).map(AttendanceSettingsService::hours)

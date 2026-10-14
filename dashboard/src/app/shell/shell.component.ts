@@ -31,7 +31,12 @@ import { BandService } from '../core/band/band.service';
 import { FlagService } from '../core/flags/flag.service';
 import { activeLang } from '../core/i18n/active-lang';
 import { ClassContextService } from '../core/nav/class-context.service';
-import { NotificationsService, bodyKeyOf, titleKeyOf } from '../core/notifications/notifications.service';
+import {
+  NotificationsService,
+  attendanceBody,
+  bodyKeyOf,
+  titleKeyOf,
+} from '../core/notifications/notifications.service';
 import { NAV_CONFIG, inRail } from '../core/nav/nav-config';
 import { navScreens } from '../core/nav/screens';
 import { PermissionService } from '../core/permissions/permission.service';
@@ -238,6 +243,8 @@ export class ShellComponent {
 
   private notificationBody(item: NotificationView): string {
     const key = bodyKeyOf(item.kind);
+    const attendance = attendanceBody(item, (k, params) => this.transloco.translate<string>(k, params));
+    if (attendance !== null) return attendance;
     if (item.kind === NotificationViewKindEnum.LESSON_FAILED) {
       return item.body ?? this.translate(key, '');
     }

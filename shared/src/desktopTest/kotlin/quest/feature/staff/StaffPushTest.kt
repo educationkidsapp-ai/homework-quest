@@ -195,11 +195,46 @@ class StaffPushTest {
         assertIs<Destination.Notifications>(destination)
     }
 
+    // ---------------------------------------------------------------- feature 16: attendance
+
+    @Test fun `an attendance reminder opens her Attendance tab, after the app lock`() = runTest {
+        var locked = true
+        val navigator = PushNavigator(router(staffThreads = emptyList()), ParentGate(elapsed = { 0L }), signedIn = { true },
+            awaitUnlocked = { locked = false })
+        val step = navigator.follow(NotificationTap("attendance.reminder", link = "/notifications?attendance=start_reminder", outside = true))
+        assertEquals(PushNavigator.Step.Staff(Routes.StaffHome), step, "her Attendance tab, not the parent gate")
+        assertTrue(!locked, "and only once the app lock was past")
+    }
+
+    @Test fun `an attendance alert or the digest opens her notifications until feature 17`() = runTest {
+        val navigator = PushNavigator(router(staffThreads = emptyList()), ParentGate(elapsed = { 0L }), signedIn = { true })
+        assertEquals(PushNavigator.Step.Staff(Routes.StaffNotifications),
+            navigator.follow(NotificationTap("attendance.alert", link = "/notifications?attendance=late&minutes=18")))
+        assertEquals(PushNavigator.Step.Staff(Routes.StaffNotifications),
+            navigator.follow(NotificationTap("attendance.digest", link = "/notifications?attendance=digest")))
+    }
+
+    @Test fun `an attendance tap without a staff session is not a staff tap`() = runTest {
+        val navigator = PushNavigator(router(staffThreads = null, staffSignedIn = false), ParentGate(elapsed = { 0L }), signedIn = { true })
+        assertEquals(PushNavigator.Step.Gate, navigator.follow(NotificationTap("attendance.reminder", outside = true)))
+    }
+
+    @Test fun `an attendance push is parsed with its kind and link`() {
+        val data = PushMessage(
+            kind = NotificationKind.ATTENDANCE_ALERT, title = "الحضور", body = "أ. خالد تأخر 18 دقيقة", notificationId = "n-7",
+            link = "/notifications?attendance=late&minutes=18", collapseKey = "attendance:late:u-1:2026-10-18",
+        ).toData()
+        val notice = PushPayload.parse(data)
+        assertTrue(notice != null)
+        assertEquals("attendance.alert", notice.tap.kind)
+        assertEquals("/notifications?attendance=late&minutes=18", notice.tap.link)
+    }
+
     // ---------------------------------------------------------------- the parent side's doubles, unchanged
 
-    private fun router(staffThreads: List<ChatThread>?) = NotificationRouter(
+    private fun router(staffThreads: List<ChatThread>?, staffSignedIn: Boolean = staffThreads != null) = NotificationRouter(
         children = NoChildren, chat = NoChat, notifications = NoNotifications, broadcasts = NoBroadcasts,
-        complaints = NoComplaints, lessonsOnMap = { null }, staffThreads = { staffThreads },
+        complaints = NoComplaints, lessonsOnMap = { null }, staffThreads = { staffThreads }, staffSignedIn = { staffSignedIn },
     )
 
     private object NoChildren : ChildrenRepository {

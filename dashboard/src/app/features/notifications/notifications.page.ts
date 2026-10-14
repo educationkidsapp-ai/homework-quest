@@ -7,7 +7,12 @@ import { type NotificationView, NotificationViewKindEnum } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import { notificationTarget, notificationUrl } from '../../core/notifications/notification-target';
-import { NotificationsService, bodyKeyOf, titleKeyOf } from '../../core/notifications/notifications.service';
+import {
+  NotificationsService,
+  attendanceBody,
+  bodyKeyOf,
+  titleKeyOf,
+} from '../../core/notifications/notifications.service';
 import { CanDirective } from '../../core/permissions/can.directive';
 import { PermissionService } from '../../core/permissions/permission.service';
 import { EmptyStateComponent, PageComponent, TabsComponent, type Tab } from '../../ui';
@@ -304,6 +309,8 @@ export class NotificationsPage {
   protected bodyOf(item: NotificationView): string {
     this.lang();
     const key = bodyKeyOf(item.kind);
+    const attendance = attendanceBody(item, (k, params) => this.transloco.translate<string>(k, params));
+    if (attendance !== null) return attendance;
     if (item.kind === NotificationViewKindEnum.LESSON_FAILED)
       return item.body ?? this.transloco.translate<string>(key);
     const translated = this.transloco.translate<string>(key);

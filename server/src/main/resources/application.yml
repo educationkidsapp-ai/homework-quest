@@ -124,6 +124,13 @@ quest:
     # B3: the key of a sealed exam paper's opaque ids (`PaperSeals`). Its own secret, so rotating ADMIN_JWT_SECRET can
     # never change the ids of a paper already downloaded. Terraform generates it; required in `prod`.
     paper-secret: ${EXAM_PAPER_SECRET:}
+  staff-attendance:
+    job:
+      # Feature 16: check-ins become statuses, reminders and alerts, every five minutes for the schools with
+      # `staffAttendance` on, and once at startup to catch up after a quiet spell. Each notification is claimed in
+      # `staff_attendance_alerts` before it is sent, so reruns and a second instance send nothing twice.
+      enabled: ${QUEST_STAFF_ATTENDANCE_JOB_ENABLED:true}
+      interval-seconds: ${QUEST_STAFF_ATTENDANCE_JOB_INTERVAL_SECONDS:300}
   push:
     # B4: Firebase Cloud Messaging to parents' phones. Off by default — H2, tests and a laptop record the sends instead
     # (`RecordingPushSender`); on in `qa` and `prod`, where the Firebase app runs on the runtime service account.
@@ -215,6 +222,9 @@ quest:
   # SessionFactory the whole suite shares, and it would release exams another context seeded in the same H2
   # database. `ExamApiTest` calls `sweep()` outright, which is what that test is for.
   exams.release-sweep.enabled: false
+  # Feature 16: no staff attendance job on a timer under test either — it would notify about staff another context
+  # seeded. `StaffAttendanceJobTest` calls `run()` outright.
+  staff-attendance.job.enabled: false
   # Pushes are recorded, not sent, and a scripted transient failure is retried at once rather than after a second.
   push.backoff-millis: 0
 

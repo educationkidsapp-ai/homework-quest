@@ -2260,6 +2260,50 @@ Spec: [docs/features/15-geofence-check-in.md](features/15-geofence-check-in.md).
 - **App.** `CheckInCard` on the staff home, `StaffMyRecordScreen`, `CheckInViewModel`; location through
   `core/platform/LocationReader` (while-in-use only), confirmation through `BiometricAuthenticator`.
 
+## Attendance statuses and notifications (feature 16)
+
+**The job** (`staffattendance/StaffAttendanceJob`) runs every five minutes (`quest.staff-attendance.job.interval-seconds`,
+default 300) and once at startup, for every school with `staffAttendance` on. Switch it off with
+`QUEST_STAFF_ATTENDANCE_JOB_ENABLED=false`; it is off under test, where `StaffAttendanceJobTest` calls `run(schoolId)`
+with a pinned clock. It reads the school's own day (`SchoolCalendar`), feature 14's hours, holidays, Ramadan range,
+thresholds and policies, and feature 15's `staff_check_ins`.
+
+**Statuses** (`AttendanceRules`, pure): on time at or before start + grace; late after it, by the minutes after the
+start; not arrived at start + the not-arrived threshold; absent at the end of the day with no check-in; early leave on
+a check-out before the end; missing check-out at end + its threshold. A day can carry several. They are written to
+`staff_attendance_days` (V39), one row per employee per working day; holidays and days off have none. Feature 17's
+board reads these rows.
+
+**Once only.** Every notification is claimed in `staff_attendance_alerts` under (school, staff, day, type) with ON
+CONFLICT DO NOTHING before it is sent; only the run whose insert wrote the row sends it. Reruns and two instances
+running at once send nothing twice. The digest is keyed `DIGEST` + the recipient.
+
+**Who hears what.**
+
+| Event | Employee | Direct manager | Academy director | Admin |
+|---|---|---|---|---|
+| Start, no check-in | "لم تسجل حضورك بعد" | — | — | — |
+| End, no check-out | "لا تنس تسجيل الانصراف" | — | — | — |
+| Late / not arrived / early leave | — | at once | if `IMMEDIATE` | if `IMMEDIATE` |
+| End + threshold, no check-out | "لم يُسجَّل انصرافك اليوم" | at once | if `IMMEDIATE` | if `IMMEDIATE` |
+| Digest at `digest_time` | — | — | her academy, if `DIGEST` | the whole school, if `DIGEST` |
+
+The direct manager is `DirectManagerResolver.resolve` — the profile's manager, else the academy director, else every
+active Admin. The academy director is `DirectManagerResolver.academyDirector`. A person in two of those roles is told
+once. A worker's own reminders reach her through `workers.user_id`; without an app account she has none. The policies
+are read on every run.
+
+**Wire.** Three kinds — `attendance.reminder`, `attendance.alert`, `attendance.digest` — written by
+`NotificationService.attendance`: the bell row, plus English and Arabic push when `staffMobileApp` is on. The link is
+`/notifications?attendance=<type>&staff=<kind:id>&name=…&date=…&minutes=…` (the digest carries counts and
+`lateNames`/`notArrivedNames`), `quest.api.dto.AttendanceLink`. The dashboard (`attendanceBody`) and the app
+(`attendanceText`) word the row from it in the reader's language; the stored title and body are the English fallback.
+A reminder opens the app's Attendance tab; alerts and the digest open the notifications list until feature 17.
+
+**Cloud Run caveat.** The service runs with `cpu_idle = true`, and QA with no minimum instance, so the in-process
+timer only ticks while an instance is up and serving. Until a Cloud Scheduler job calls the server every five minutes,
+reminders can be late on a quiet morning; the startup pass catches up whatever fell due while nothing ran.
+
 ## The app and the contract
 
 **The app's JSON is strict, so app and server ship together.** `SchemaValidator.json` — the one `Json` the app's

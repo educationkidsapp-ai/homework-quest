@@ -19,4 +19,7 @@ public interface StaffCheckInRepository extends JpaRepository<Entities.StaffChec
 
     List<Entities.StaffCheckInEntity> findBySchoolIdAndStaffKindAndStaffIdAndDayBetweenOrderByDayAsc(
             String schoolId, String staffKind, String staffId, LocalDate from, LocalDate to);
+
+    /** Feature 16: every check-in of one school's day, for the attendance job. */
+    List<Entities.StaffCheckInEntity> findBySchoolIdAndDay(String schoolId, LocalDate day);
 }

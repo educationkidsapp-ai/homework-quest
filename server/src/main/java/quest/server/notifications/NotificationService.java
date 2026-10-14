@@ -128,7 +128,8 @@ public class NotificationService {
             case LESSON_READY -> "Questions ready";
             case LESSON_FAILED -> "Generation stopped";
             case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS,
-                 COMPLAINT_NEW, COMPLAINT_MESSAGE -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
+                 COMPLAINT_NEW, COMPLAINT_MESSAGE, ATTENDANCE_REMINDER, ATTENDANCE_ALERT, ATTENDANCE_DIGEST
+                 -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         String name = lesson.getTitle() == null || lesson.getTitle().isBlank() ? "Your lesson" : lesson.getTitle().trim();
         String body = switch (kind) {
@@ -136,7 +137,8 @@ public class NotificationService {
             case LESSON_READY -> name + " is ready to review.";
             case LESSON_FAILED -> lesson.getErrorMessage() == null || lesson.getErrorMessage().isBlank() ? name + " stopped before it finished." : lesson.getErrorMessage();
             case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS,
-                 COMPLAINT_NEW, COMPLAINT_MESSAGE -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
+                 COMPLAINT_NEW, COMPLAINT_MESSAGE, ATTENDANCE_REMINDER, ATTENDANCE_ALERT, ATTENDANCE_DIGEST
+                 -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         try {
             notify(lesson.getSchoolId(), recipient, kind, title, body, link(roleOf(recipient), lesson.getId()), lesson.getId());
@@ -188,6 +190,29 @@ public class NotificationService {
     private static PushMessage staffChatPush(NotificationEntity row, String threadId, String title) {
         return new PushMessage(NotificationKind.CHAT_MESSAGE, title, row.getBody(), row.getId(), null, row.getLink(),
                 null, "chat:" + threadId, null, null, null, threadId);
+    }
+
+    /**
+     * Feature 16: one attendance reminder, alert or digest for one staff member — the bell row, and her phone when the
+     * school has the staff app on. The job decides <em>whether</em> to send (it claims the dedupe key first), so this
+     * writes unconditionally. The stored title and body are the English fallback; the push goes in both languages and
+     * the clients word the bell row from {@code link} ({@link quest.api.dto.AttendanceLink}).
+     *
+     * <p>The bell row belongs to {@code schoolId} even for a platform Admin, whose `users` row has no school, so the
+     * school's own bell reads stay inside it. Never throws: a bell that could not be written is logged, and the job
+     * carries on with the next employee.
+     */
+    public void attendance(String schoolId, String userId, NotificationKind kind, String titleEn, String bodyEn,
+                           String titleAr, String bodyAr, String link, String collapseKey) {
+        if (userId == null) return;
+        try {
+            var view = notify(schoolId, userId, kind, titleEn, bodyEn, link, null);
+            if (staffAppOn(schoolId)) staffPush.toUser(userId,
+                    new PushMessage(kind, clip(titleEn, TITLE_MAX), clip(bodyEn, BODY_MAX), view.getId(), null, link, null, collapseKey, null, null, null, null),
+                    new PushMessage(kind, clip(titleAr, TITLE_MAX), clip(bodyAr, BODY_MAX), view.getId(), null, link, null, collapseKey, null, null, null, null));
+        } catch (RuntimeException e) {
+            log.warn("notifications: could not write {} for {}: {}", key(kind), userId, e.toString());
+        }
     }
 
     /** No `staffMobileApp`, no staff push: nobody has the app yet, and a push to nowhere is a wasted FCM call. */

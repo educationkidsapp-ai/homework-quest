@@ -353,7 +353,7 @@ val pushModule = module {
         val maps = get<MapRepository>()
         NotificationRouter(get(), get(), get(), get(), get(), staffThreads = {
             if (!get<StaffAuth>().signedIn) null else runCancellable { get<StaffThreads>().list() }.getOrNull()
-        }, lessonsOnMap = { child ->
+        }, staffSignedIn = { get<StaffAuth>().signedIn }, lessonsOnMap = { child ->
             val today = Today.date()
             runCancellable { maps.map(child, today.minus(30, DateTimeUnit.DAY), today.plus(7, DateTimeUnit.DAY), today).islands.mapNotNull { it.lessonId }.toSet() }.getOrNull()
         })
