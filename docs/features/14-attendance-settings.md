@@ -1,6 +1,18 @@
 # Feature 14 — Attendance settings and direct manager
 
-**Status:** Not started · **Area:** dashboard (Admin), server · **Depends on:** — · **Feature switch:** `staff_attendance`
+**Status:** Done · **Area:** dashboard (Admin), server · **Depends on:** — · **Feature switch:** `staff_attendance`
+
+**Leftovers**
+- Not yet on QA or testers' phones: this needs the PR merged (feature 13 and its V36 are already on develop;
+  this feature is V37). Then the Admin turns `staffAttendance` on for the pilot school.
+- "Set direct manager" for several at once lives on the staff list of the Attendance page, not on each of the
+  four staff lists; the single-employee fields are on every staff edit form.
+- The school pin is the lighter option the spec allows: latitude and longitude, "Use my current location" and a
+  drawn circle, with a link that opens the pin in OpenStreetMap. No interactive map.
+- A teacher's academy is `teachers.curriculum`; a teacher without one falls back to the Admin rather than to a
+  director derived from her sections.
+- After feature 13 merges: re-check that a worker with app access appears once (as a worker) in the staff list.
+- The switch key in code is `staffAttendance` (camelCase, like every other key), not `staff_attendance`.
 
 ## Goal
 
@@ -66,14 +78,14 @@ direct manager who receives their attendance alerts and approves their requests.
 
 ## Acceptance criteria
 
-- [ ] The Admin sets the school pin and radius and sees the circle.
-- [ ] The Admin sets hours per category and a Ramadan range; inside the range the Ramadan hours apply.
-- [ ] The Admin adds holidays.
-- [ ] The Admin sets the grace period and both thresholds.
-- [ ] The Admin sets a direct manager for one employee and for several at once.
-- [ ] An employee with no direct manager resolves to the academy director, then the Admin.
-- [ ] A Manager can view but not edit the settings.
-- [ ] Arabic, English, right to left and dark mode work.
+- [x] The Admin sets the school pin and radius and sees the circle.
+- [x] The Admin sets hours per category and a Ramadan range; inside the range the Ramadan hours apply.
+- [x] The Admin adds holidays.
+- [x] The Admin sets the grace period and both thresholds.
+- [x] The Admin sets a direct manager for one employee and for several at once.
+- [x] An employee with no direct manager resolves to the academy director, then the Admin.
+- [x] A Manager can view but not edit the settings.
+- [x] Arabic, English, right to left and dark mode work.
 
 ## Tests
 

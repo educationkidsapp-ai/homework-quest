@@ -3,12 +3,15 @@
    carries no flag: a school's caretakers, drivers and nurses are not an optional feature of it,
    and `FlagKeys` has no key that could turn them off. */
 import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { Observable } from 'rxjs';
 import { type Worker, type WorkerAccess, WorkersApi, apiErrorOf } from '../../api';
 import { BandService } from '../../core/band/band.service';
+import { FLAGS } from '../../core/flags/flag.service';
+import { FeatureDirective } from '../../core/flags/feature.directive';
+import { StaffAttendanceFieldsComponent, thenAttendance } from './staff-attendance-fields.component';
 import { MAX_PHONE_LENGTH, phoneErrorKey } from '../../core/forms/phone';
 import { activeLang } from '../../core/i18n/active-lang';
 import { CanDirective } from '../../core/permissions/can.directive';
@@ -70,6 +73,8 @@ interface WorkerRow {
 @Component({
   selector: 'hq-workers-page',
   imports: [
+    StaffAttendanceFieldsComponent,
+    FeatureDirective,
     PageComponent,
     CardComponent,
     InputComponent,
@@ -325,6 +330,9 @@ interface WorkerRow {
             (checkedChange)="active.set($event)"
           />
         }
+        @if (editingId(); as id) {
+          <hq-staff-attendance-fields *hqFeature="staffAttendanceFlag" kind="WORKER" [staffId]="id" />
+        }
       </hq-dialog>
 
       <div page-actions>
@@ -424,6 +432,13 @@ export class WorkersPage {
   protected readonly saving = signal(false);
   private readonly editing = signal<Worker | null>(null);
 
+  /** Feature 14: the direct manager and category, on the edit form while `staffAttendance` is on. */
+  protected readonly staffAttendanceFlag = FLAGS.staffAttendance;
+  protected readonly editingId = computed(() =>
+    this.formMode() === 'edit' ? (this.editing()?.id ?? null) : null,
+  );
+  private readonly attendanceFields = viewChild(StaffAttendanceFieldsComponent);
+
   protected readonly fullName = signal('');
   protected readonly job = signal('');
   protected readonly phone = signal('');
@@ -503,9 +518,13 @@ export class WorkersPage {
       this.band.fail(message);
     };
     if (this.formMode() === 'edit' && editing) {
-      this.api
-        .updateWorker(editing.id ?? '', { ...body, active: this.active() })
-        .subscribe({ next: done, error: fail });
+      thenAttendance(
+        this.api.updateWorker(editing.id ?? '', { ...body, active: this.active() }),
+        this.attendanceFields(),
+      ).subscribe({
+        next: done,
+        error: fail,
+      });
       return;
     }
     this.api.createWorker(body).subscribe({ next: done, error: fail });

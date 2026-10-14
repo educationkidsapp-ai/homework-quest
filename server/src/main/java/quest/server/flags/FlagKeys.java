@@ -44,10 +44,13 @@ public final class FlagKeys {
      */
     public static final String STAFF_MOBILE_APP = "staffMobileApp";
 
+    /** Feature 14: staff attendance — settings and direct managers now, check-in (15) and alerts (16) next. V37. */
+    public static final String STAFF_ATTENDANCE = "staffAttendance";
+
     public static final List<String> ALL = List.of(
             LESSONS_PDF, LESSONS_SLIDES, LESSONS_IMAGES, LESSONS_MANUAL, LEVELS_THREE, RETELL_RECORDING,
             OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, COMPLAINTS, ANNOUNCEMENTS, TEACHER_QUESTIONS,
             STICKERS_TREASURE_CHEST, PROGRESS_WEEKLY_EMAIL, CERTIFICATES,
             MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST,
-            CHAT, STAFF_MOBILE_APP);
+            CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE);
 }

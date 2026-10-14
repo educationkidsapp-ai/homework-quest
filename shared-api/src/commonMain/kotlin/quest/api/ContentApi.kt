@@ -275,6 +275,8 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "chat" to false,
     // Feature 13: staff sign in to the mobile app (V36).
     "staffMobileApp" to false,
+    // Feature 14: staff attendance — settings, direct managers, and later check-in (15) and alerts (16).
+    "staffAttendance" to false,
 )
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */

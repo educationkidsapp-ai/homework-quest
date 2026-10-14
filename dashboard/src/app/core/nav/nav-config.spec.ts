@@ -29,6 +29,8 @@ describe('the nav switch', () => {
       'managers',
       'workers',
       'children',
+      // Feature 14: the school's attendance rules and direct managers.
+      'attendance-settings',
       'messages',
       'complaints',
     ]);

@@ -439,6 +439,14 @@ interface DashboardApi {
     suspend fun enableWorkerAppAccess(workerId: String): WorkerAccess
     suspend fun resetWorkerPassword(workerId: String): WorkerAccess
 
+    /** Feature 14: `GET`/`PUT /admin/attendance-settings` (`attendance.settings.read` / `.write`, `staffAttendance`). */
+    suspend fun attendanceSettings(): AttendanceSettings
+    suspend fun updateAttendanceSettings(request: UpdateAttendanceSettingsRequest): AttendanceSettings
+
+    /** Feature 14: every employee's category and direct manager, and the write for one or several of them. */
+    suspend fun staffAttendanceProfiles(): List<StaffAttendanceProfile>
+    suspend fun updateStaffAttendanceProfiles(request: UpdateStaffAttendanceProfilesRequest): List<StaffAttendanceProfile>
+
     /** Puts an app-registered child on a section's roster, and takes her off it again; both answer the child. */
     suspend fun attachChildToClass(classId: String, request: AttachChildRequest): RosterChild
     suspend fun detachChildFromClass(classId: String, childId: String): RosterChild

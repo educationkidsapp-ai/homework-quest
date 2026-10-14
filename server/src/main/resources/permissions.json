@@ -132,7 +132,9 @@
     "worker.write": ["ADMIN"],
     "worker.access": ["ADMIN"],
     "staff.app": ["ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "WORKER"],
-    "device.register": ["PARENT", "ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "WORKER"]
+    "device.register": ["PARENT", "ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "WORKER"],
+    "attendance.settings.read": ["ADMIN", "MANAGERIAL"],
+    "attendance.settings.write": ["ADMIN"]
   },
   "endpoints": [
     { "method": "GET", "path": "/health", "permission": "health.read" },
@@ -264,6 +266,10 @@
     { "method": "DELETE", "path": "/admin/workers/{id}", "permission": "worker.write" },
     { "method": "POST", "path": "/admin/workers/{id}/app-access", "permission": "worker.access" },
     { "method": "POST", "path": "/admin/workers/{id}/reset-password", "permission": "worker.access" },
+    { "method": "GET", "path": "/admin/attendance-settings", "permission": "attendance.settings.read" },
+    { "method": "PUT", "path": "/admin/attendance-settings", "permission": "attendance.settings.write" },
+    { "method": "GET", "path": "/admin/staff/attendance-profiles", "permission": "attendance.settings.read" },
+    { "method": "PUT", "path": "/admin/staff/attendance-profiles", "permission": "attendance.settings.write" },
 
     { "method": "GET", "path": "/admin/teachers", "permission": "teacher.read" },
     { "method": "POST", "path": "/admin/teachers", "permission": "teacher.manage" },

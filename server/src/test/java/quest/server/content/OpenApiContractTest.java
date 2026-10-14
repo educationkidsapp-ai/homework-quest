@@ -243,6 +243,9 @@ class OpenApiContractTest extends ApiTestSupport {
             "/admin/schools/{id}/logo", "/management/complaints", "/management/complaints/{id}", "/management/complaints/{id}/messages",
             "/management/complaints/{id}/read", "/management/complaints/{id}/status");
 
+    /** Feature 14: the Admin's Attendance settings page and every employee's category and direct manager. */
+    static final List<String> STAFF_ATTENDANCE_API = List.of("/admin/attendance-settings", "/admin/staff/attendance-profiles");
+
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */
     static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings",
             "/schools/logo", "/classes/lookup", "/schools/{id}/logo");
@@ -267,6 +270,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(MANAGEMENT_API);
         assertThat(paths).containsAll(BROADCASTS_API);
         assertThat(paths).containsAll(PUBLIC_API);
+        assertThat(paths).containsAll(STAFF_ATTENDANCE_API);
         // MH1: the upload and the download of a broadcast attachment — the app and the dashboard both call them.
         assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}", "/media/attachments", "/media/attachments/{id}", "/media/chat-attachments",
                 "/children/{id}/chat/attachments");

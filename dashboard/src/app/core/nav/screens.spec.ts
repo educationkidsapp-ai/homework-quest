@@ -87,6 +87,8 @@ describe('the screen table', () => {
       'managers',
       'workers',
       'children',
+      // Feature 14: the school's attendance rules and direct managers, behind `staffAttendance`.
+      'attendance-settings',
       // D13: `schools` keeps its label and its `multiSchool` flag — the rail hides it at runtime,
       // and the table is what it is hidden from.
       'schools',
@@ -323,6 +325,8 @@ describe('the screen table', () => {
       // MH2 item 3: **Children**, not People — its other two tabs are rail rows of their own now.
       'children',
       'staff-attendance',
+      // Feature 14: the Admin's Attendance settings, read-only for her.
+      'attendance-settings',
       // MG2b: the weekly plan per grade and the archive of every one of them, beside Announcements
       // because she writes the week from it.
       'weekly-plans',

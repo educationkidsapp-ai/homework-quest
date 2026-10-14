@@ -1,13 +1,16 @@
 /* hq-flag: none (shell) — the Teachers screen is the one-school build itself, gated by
    `teacher.read`/`teacher.manage` rather than by a flag (see `classes.page.ts`). */
 import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from '@angular/core';
 import { rxResource, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationStart, Router } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { filter } from 'rxjs';
 import { ClassesApi, TeachersApi, apiErrorOf, type TeacherAccount } from '../../api';
 import { BandService } from '../../core/band/band.service';
+import { FLAGS } from '../../core/flags/flag.service';
+import { FeatureDirective } from '../../core/flags/feature.directive';
+import { StaffAttendanceFieldsComponent, thenAttendance } from './staff-attendance-fields.component';
 import { MAX_PHONE_LENGTH, phoneErrorKey } from '../../core/forms/phone';
 import { activeLang } from '../../core/i18n/active-lang';
 import { CanDirective } from '../../core/permissions/can.directive';
@@ -50,6 +53,8 @@ type FormMode = 'create' | 'edit';
 @Component({
   selector: 'hq-teachers-page',
   imports: [
+    StaffAttendanceFieldsComponent,
+    FeatureDirective,
     PageComponent,
     CardComponent,
     CountUpDirective,
@@ -180,6 +185,13 @@ export class TeachersPage {
   protected readonly formMode = signal<FormMode>('create');
   protected readonly formError = signal<string | null>(null);
   private readonly editing = signal<TeacherAccount | null>(null);
+
+  /** Feature 14: the direct manager and category, on the edit form while `staffAttendance` is on. */
+  protected readonly staffAttendanceFlag = FLAGS.staffAttendance;
+  protected readonly editingId = computed(() =>
+    this.formMode() === 'edit' ? (this.editing()?.userId ?? null) : null,
+  );
+  private readonly attendanceFields = viewChild(StaffAttendanceFieldsComponent);
   protected readonly saving = signal(false);
 
   protected readonly fullName = signal('');
@@ -309,7 +321,13 @@ export class TeachersPage {
     };
 
     if (this.formMode() === 'edit' && editing) {
-      this.teachersApi.updateTeacher(editing.userId ?? '', body).subscribe({ next: done, error: fail });
+      thenAttendance(
+        this.teachersApi.updateTeacher(editing.userId ?? '', body),
+        this.attendanceFields(),
+      ).subscribe({
+        next: done,
+        error: fail,
+      });
       return;
     }
     this.teachersApi.createTeacher({ ...body, email: this.email().trim() }).subscribe({

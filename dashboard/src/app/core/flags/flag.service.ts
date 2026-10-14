@@ -48,6 +48,8 @@ export const FLAGS = {
   exams: 'exams',
   // C1/C2: parent ↔ teacher chat in the app and the dashboard.
   chat: 'chat',
+  // Feature 14: staff attendance — the Admin's Attendance settings page and direct managers.
+  staffAttendance: 'staffAttendance',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];

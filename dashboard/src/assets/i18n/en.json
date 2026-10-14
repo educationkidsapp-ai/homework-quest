@@ -336,6 +336,139 @@
       "removeMessage": "{{name}} goes back to the default logo everywhere it is shown. You can upload another at any time.",
       "notImage": "Choose a PNG, JPEG or WebP image.",
       "tooLarge": "That image is larger than 1 MB. Choose a smaller one."
+    },
+    "attendanceSettings": {
+      "title": "Attendance",
+      "subtitle": "Where and when staff must be present, and who hears about each of them.",
+      "loading": "Loading attendance settings",
+      "readOnly": "You can view these settings. Only the Admin can change them.",
+      "saved": "Saved.",
+      "discard": "Discard changes",
+      "timeZone": "School time zone:",
+      "location": {
+        "title": "School location",
+        "latitude": "Latitude",
+        "longitude": "Longitude",
+        "radius": "Radius (metres)",
+        "radiusHint": "Between {{min}} and {{max}} metres. Default 150.",
+        "useMine": "Use my current location",
+        "locating": "Finding your location…",
+        "unavailable": "This browser cannot share its location. Type the latitude and longitude instead.",
+        "denied": "Your location could not be read. Allow location for this site, or type the latitude and longitude.",
+        "previewLabel": "The school circle, {{radius}} metres around the pin",
+        "previewCaption": "Staff can check in within {{radius}} m of the pin.",
+        "openMap": "Check the pin on a map",
+        "noPin": "No pin yet. Set the latitude and longitude, or use your current location."
+      },
+      "hours": {
+        "title": "Staff categories and work hours",
+        "hint": "Every employee belongs to one category. Ramadan hours replace the normal hours between the Ramadan dates below.",
+        "days": "Working days",
+        "start": "Start",
+        "end": "End"
+      },
+      "ramadan": {
+        "start": "Ramadan start",
+        "end": "Ramadan end",
+        "from": "Ramadan from",
+        "to": "Ramadan to",
+        "hint": "Leave both dates empty when there are no Ramadan hours. A category with empty Ramadan hours keeps its normal hours."
+      },
+      "holidays": {
+        "title": "Holidays",
+        "empty": "No holidays yet. No attendance is expected on a holiday.",
+        "name": "Name",
+        "namePlaceholder": "Mid-term break",
+        "from": "From",
+        "to": "To",
+        "add": "Add holiday",
+        "remove": "Remove"
+      },
+      "rules": {
+        "title": "Rules",
+        "grace": "Grace period (minutes)",
+        "graceHint": "Arriving within this time after the start is not late.",
+        "notArrived": "Not arrived after (minutes)",
+        "notArrivedHint": "Minutes after the start with no check-in.",
+        "missingCheckOut": "Missing check-out after (minutes)",
+        "missingCheckOutHint": "Minutes after the end with no check-out."
+      },
+      "notifications": {
+        "title": "Notifications",
+        "directManager": "The direct manager is always told immediately.",
+        "director": "Academy director",
+        "admin": "Admin",
+        "digestTime": "Morning digest time"
+      },
+      "notify": {
+        "IMMEDIATE": "Immediately",
+        "DIGEST": "Morning digest",
+        "OFF": "Off"
+      },
+      "category": {
+        "TEACHER": "Teacher",
+        "ADMINISTRATIVE": "Administrative",
+        "WORKER": "Worker"
+      },
+      "role": {
+        "TEACHER": "Teacher",
+        "COORDINATOR": "Coordinator",
+        "MANAGERIAL": "Manager",
+        "WORKER": "Worker"
+      },
+      "day": {
+        "SUNDAY": "Sun",
+        "MONDAY": "Mon",
+        "TUESDAY": "Tue",
+        "WEDNESDAY": "Wed",
+        "THURSDAY": "Thu",
+        "FRIDAY": "Fri",
+        "SATURDAY": "Sat"
+      },
+      "staff": {
+        "title": "Direct managers",
+        "hint": "The direct manager receives the employee's attendance alerts and approves their requests. With none set, the academy director is used, then the Admin.",
+        "loading": "Loading staff",
+        "empty": "No staff yet.",
+        "filter": "Find an employee",
+        "name": "Name",
+        "role": "Role",
+        "category": "Category",
+        "manager": "Direct manager",
+        "select": "Select",
+        "selectOne": "Select {{name}}",
+        "selectAll": "Select all",
+        "selected": "{{count}} selected",
+        "bulkManager": "Direct manager for the selected",
+        "pickManager": "Choose a manager",
+        "setManager": "Set direct manager",
+        "clearManager": "Clear direct manager",
+        "fallback": "Academy director, then Admin",
+        "byRole": "from the role",
+        "edit": "Edit",
+        "editTitle": "Attendance for {{name}}"
+      },
+      "error": {
+        "locationPair": "Enter both the latitude and the longitude, or neither.",
+        "locationRange": "Latitude is between -90 and 90, longitude between -180 and 180.",
+        "radius": "The radius is between {{min}} and {{max}} metres.",
+        "minutes": "Enter a whole number of minutes.",
+        "time": "Enter a time.",
+        "days": "Choose at least one working day.",
+        "startBeforeEnd": "The start must be before the end.",
+        "ramadanDates": "Enter both Ramadan dates, or neither.",
+        "ramadanOrder": "The first Ramadan date must be on or before the last.",
+        "holidayName": "Give the holiday a name (up to 80 characters).",
+        "holidayDates": "The first day must be on or before the last."
+      }
+    },
+    "attendanceFields": {
+      "title": "Attendance",
+      "directManager": "Direct manager",
+      "category": "Category",
+      "fallback": "Academy director, then Admin",
+      "byRole": "From the role",
+      "hint": "Who receives this employee's attendance alerts."
     }
   },
   "auth": {
@@ -1402,7 +1535,8 @@
     "managers": "Managers",
     "workers": "Workers",
     "childrenParents": "Children & parents",
-    "manager": "Manager"
+    "manager": "Manager",
+    "attendanceSettings": "Attendance settings"
   },
   "notifications": {
     "title": "Notifications",

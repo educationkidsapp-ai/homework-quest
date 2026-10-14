@@ -202,7 +202,10 @@ class IsolationTest extends ApiTestSupport {
                         Arguments.of("GET", "/teacher/profile"),
                         Arguments.of("GET", "/teacher/options"),
                         Arguments.of("GET", "/teacher/classes/" + CLASS_A + "/calendar?year=2027&month=4"),
-                        Arguments.of("GET", "/teacher/classes/" + CLASS_A + "/students")),
+                        Arguments.of("GET", "/teacher/classes/" + CLASS_A + "/students"),
+                        // Feature 14: the school's attendance rules and its staff's direct managers
+                        Arguments.of("GET", "/admin/attendance-settings"),
+                        Arguments.of("GET", "/admin/staff/attendance-profiles")),
                 routesOfAnotherSchool());
     }
 

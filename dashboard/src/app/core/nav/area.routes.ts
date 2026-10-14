@@ -105,6 +105,9 @@ function componentFor(screen: Screen, role: Role) {
     return import('../../features/admin/staff-accounts.page').then((m) => m.StaffAccountsPage);
   }
   if (screen.id === 'workers') return import('../../features/admin/workers.page').then((m) => m.WorkersPage);
+  // Feature 14: the Attendance settings page and its direct managers.
+  if (screen.id === 'attendance-settings')
+    return import('../../features/admin/attendance-settings.page').then((m) => m.AttendanceSettingsPage);
   // The Admin's Children & parents — admission, and the parent login it mints. The *manager's*
   // `children` row is her department's read-only directory and never reaches here
   // (`supervisorComponentFor` takes MANAGERIAL first).
@@ -181,6 +184,9 @@ function supervisorComponentFor(screen: Screen, role: Role) {
       );
     if (screen.id === 'staff-attendance')
       return import('../../features/management/staff-attendance.page').then((m) => m.StaffAttendancePage);
+    // Feature 14: the Admin's Attendance settings, read-only for her.
+    if (screen.id === 'attendance-settings')
+      return import('../../features/admin/attendance-settings.page').then((m) => m.AttendanceSettingsPage);
     // MG2b: the weekly plan per grade, with the archive (`GET /management/weekly-plans`).
     if (screen.id === 'weekly-plans')
       return import('../../features/management/weekly-plans.page').then((m) => m.WeeklyPlansPage);

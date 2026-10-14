@@ -30,7 +30,7 @@ let nextId = 0;
           <path d="M5 13l4 4L19 7" />
         </svg>
       </span>
-      <span class="check__text">
+      <span class="check__text" [class.hq-sr-only]="hideLabel()">
         <span class="check__label">{{ label() }}</span>
         @if (hint(); as hintText) {
           <span class="check__hint" [id]="id + '-hint'">{{ hintText }}</span>
@@ -118,6 +118,8 @@ export class CheckboxComponent {
   protected readonly id = `hq-checkbox-${nextId++}`;
 
   readonly label = input.required<string>();
+  /** Read by a screen reader only, as `hq-input`'s: a row's select box beside the row's own name. */
+  readonly hideLabel = input(false);
   readonly checked = model(false);
   readonly hint = input<string | null>(null);
   readonly name = input<string | null>(null);

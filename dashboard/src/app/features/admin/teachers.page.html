@@ -7,13 +7,16 @@
           <p class="em-stat-label">Total Faculty</p>
           <h3 class="em-stat-value"><span [hqCountUp]="totalTeachers()"></span></h3>
           <div class="em-stat-trend em-stat-trend--up">
-            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+            <svg viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z" />
+            </svg>
             <span>Registered Staff</span>
           </div>
         </div>
         <div class="em-stat-icon-tile em-gradient--blue">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
             <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
           </svg>
         </div>
@@ -24,7 +27,9 @@
           <p class="em-stat-label">Active Teachers</p>
           <h3 class="em-stat-value"><span [hqCountUp]="activeTeachers()"></span></h3>
           <div class="em-stat-trend em-stat-trend--up">
-            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+            <svg viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z" />
+            </svg>
             <span>With login access</span>
           </div>
         </div>
@@ -41,14 +46,16 @@
           <p class="em-stat-label">Class Assignments</p>
           <h3 class="em-stat-value"><span [hqCountUp]="totalAssignments()"></span></h3>
           <div class="em-stat-trend em-stat-trend--up">
-            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+            <svg viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z" />
+            </svg>
             <span>Teaching loads</span>
           </div>
         </div>
         <div class="em-stat-icon-tile em-gradient--purple">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
           </svg>
         </div>
       </div>
@@ -57,12 +64,20 @@
         <div class="em-stat-info">
           <p class="em-stat-label">Unassigned Faculty</p>
           <h3 class="em-stat-value"><span [hqCountUp]="unassignedTeachers()"></span></h3>
-          <div class="em-stat-trend" [class.em-stat-trend--down]="unassignedTeachers() > 0" [class.em-stat-trend--up]="unassignedTeachers() === 0">
+          <div
+            class="em-stat-trend"
+            [class.em-stat-trend--down]="unassignedTeachers() > 0"
+            [class.em-stat-trend--up]="unassignedTeachers() === 0"
+          >
             @if (unassignedTeachers() > 0) {
-              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 12.5l-4.5-4.5h3V3.5h3V8h3.5L8 12.5z"/></svg>
+              <svg viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 12.5l-4.5-4.5h3V3.5h3V8h3.5L8 12.5z" />
+              </svg>
               <span>Needs sections</span>
             } @else {
-              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z"/></svg>
+              <svg viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 3.5l4.5 4.5h-3v4.5h-3V8H3.5L8 3.5z" />
+              </svg>
               <span>All assigned</span>
             }
           </div>
@@ -128,12 +143,7 @@
       />
     } @else if (staff.error()) {
       <hq-card class="teachers__error-card">
-        <hq-band
-          variant="error"
-          [open]="true"
-          [title]="'band.failed' | transloco"
-          [dismissible]="false"
-        >
+        <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco" [dismissible]="false">
           {{ 'band.unreachable' | transloco }}
         </hq-band>
         <div class="teachers__error-action">
@@ -162,7 +172,6 @@
       </hq-card>
     }
   </div>
-
 
   <ng-template #cell let-row let-column="column">
     @switch (column.key) {
@@ -197,11 +206,7 @@
         }
       }
       @case ('active') {
-        <span
-          class="hq-badge"
-          [class.hq-badge--success]="row.active"
-          [class.hq-badge--error]="!row.active"
-        >
+        <span class="hq-badge" [class.hq-badge--success]="row.active" [class.hq-badge--error]="!row.active">
           {{ (row.active ? 'admin.teachers.active' : 'admin.teachers.inactive') | transloco }}
         </span>
       }
@@ -354,6 +359,9 @@
       [hint]="'ui.optional' | transloco"
       (valueChange)="setPhotoUrl($event)"
     />
+    @if (editingId(); as id) {
+      <hq-staff-attendance-fields *hqFeature="staffAttendanceFlag" kind="USER" [staffId]="id" />
+    }
   </hq-dialog>
 
   @if (assignFor(); as teacher) {
