@@ -26,7 +26,7 @@ public final class Entities {
         /** V7, N2.1: this school's own teaching days and timezone, or null to follow the platform's (§A). */
         @Column(name = "school_week_json") private String schoolWeekJson;
         @Column private String timezone;
-        /** V40 (feature 19): the number a parent's office-hours banner offers for urgent matters; null without one. */
+        /** V41 (feature 19): the number a parent's office-hours banner offers for urgent matters; null without one. */
         @Column private String phone;
         /** V27 (S1): the uploaded logo — its `FileStore` key, sniffed image type and version; all null without one. */
         @Column(name = "logo_path") private String logoPath;

@@ -17,6 +17,27 @@
         "required" : [ "password" ],
         "type" : "object"
       },
+      "AdminCorrection" : {
+        "properties" : {
+          "checkIn" : {
+            "type" : "string"
+          },
+          "checkOut" : {
+            "type" : "string"
+          },
+          "correctionKind" : {
+            "type" : "string"
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "correctionKind", "date", "reason" ],
+        "type" : "object"
+      },
       "AdminLesson" : {
         "properties" : {
           "analysis" : {
@@ -391,6 +412,7 @@
             "type" : "integer"
           }
         },
+        "required" : [ "id", "name", "sizeBytes", "type" ],
         "type" : "object"
       },
       "AttemptAck" : {
@@ -401,6 +423,53 @@
           }
         },
         "required" : [ "accepted" ],
+        "type" : "object"
+      },
+      "AttendanceBoard" : {
+        "properties" : {
+          "counts" : {
+            "$ref" : "#/components/schemas/BoardCounts"
+          },
+          "day" : {
+            "type" : "string"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/BoardRow"
+            },
+            "type" : "array"
+          },
+          "scope" : {
+            "type" : "string"
+          },
+          "timeZone" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "AttendanceCalendarDay" : {
+        "properties" : {
+          "checkIn" : {
+            "type" : "string"
+          },
+          "checkOut" : {
+            "type" : "string"
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "lateMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "mode" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "AttendanceHoliday" : {
@@ -415,6 +484,91 @@
             "type" : "string"
           }
         },
+        "type" : "object"
+      },
+      "AttendanceReport" : {
+        "properties" : {
+          "month" : {
+            "type" : "string"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ReportRow"
+            },
+            "type" : "array"
+          },
+          "scope" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "AttendanceRequestList" : {
+        "properties" : {
+          "requests" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AttendanceRequestView"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "requests" ],
+        "type" : "object"
+      },
+      "AttendanceRequestView" : {
+        "properties" : {
+          "attachment" : {
+            "$ref" : "#/components/schemas/AttachmentRef"
+          },
+          "checkIn" : {
+            "type" : "string"
+          },
+          "checkOut" : {
+            "type" : "string"
+          },
+          "correctionKind" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "decidedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "decidedBy" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "originalCheckIn" : {
+            "type" : "string"
+          },
+          "originalCheckOut" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "staff" : {
+            "type" : "string"
+          },
+          "staffName" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "createdAt", "date", "id", "reason", "staff", "staffName", "status", "type" ],
         "type" : "object"
       },
       "AttendanceSettings" : {
@@ -498,6 +652,108 @@
           }
         },
         "required" : [ "ar", "en" ],
+        "type" : "object"
+      },
+      "BoardAlert" : {
+        "properties" : {
+          "sentAt" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "BoardAttempt" : {
+        "properties" : {
+          "action" : {
+            "type" : "string"
+          },
+          "at" : {
+            "type" : "string"
+          },
+          "distanceMeters" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "result" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "BoardCounts" : {
+        "properties" : {
+          "late" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "noCheckOut" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "notArrived" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "present" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "remote" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "BoardRow" : {
+        "properties" : {
+          "academies" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "category" : {
+            "type" : "string"
+          },
+          "checkIn" : {
+            "type" : "string"
+          },
+          "checkOut" : {
+            "type" : "string"
+          },
+          "fullName" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "lateMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "mode" : {
+            "type" : "string"
+          },
+          "noCheckOut" : {
+            "type" : "boolean"
+          },
+          "role" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "BroadcastAttachment" : {
@@ -2745,6 +3001,47 @@
         },
         "type" : "object"
       },
+      "EmployeeDay" : {
+        "properties" : {
+          "alerts" : {
+            "items" : {
+              "$ref" : "#/components/schemas/BoardAlert"
+            },
+            "type" : "array"
+          },
+          "attempts" : {
+            "items" : {
+              "$ref" : "#/components/schemas/BoardAttempt"
+            },
+            "type" : "array"
+          },
+          "calendar" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AttendanceCalendarDay"
+            },
+            "type" : "array"
+          },
+          "category" : {
+            "type" : "string"
+          },
+          "day" : {
+            "type" : "string"
+          },
+          "fullName" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "month" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "ExamBand" : {
         "properties" : {
           "band" : {
@@ -4518,6 +4815,33 @@
         },
         "type" : "object"
       },
+      "NewAttendanceRequest" : {
+        "properties" : {
+          "attachmentId" : {
+            "type" : "string"
+          },
+          "checkIn" : {
+            "type" : "string"
+          },
+          "checkOut" : {
+            "type" : "string"
+          },
+          "correctionKind" : {
+            "type" : "string"
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "date", "reason", "type" ],
+        "type" : "object"
+      },
       "NotificationView" : {
         "properties" : {
           "body" : {
@@ -4534,7 +4858,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message", "attendance.reminder", "attendance.alert", "attendance.digest", "chat.after_hours_summary" ],
+            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message", "attendance.reminder", "attendance.alert", "attendance.digest", "attendance.request", "attendance.decision", "attendance.remote_day", "chat.after_hours_summary" ],
             "type" : "string"
           },
           "lessonId" : {
@@ -5270,6 +5594,95 @@
           }
         },
         "required" : [ "correct", "stopId", "title" ],
+        "type" : "object"
+      },
+      "RemoteDay" : {
+        "properties" : {
+          "academy" : {
+            "type" : "string"
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "date", "reason" ],
+        "type" : "object"
+      },
+      "RemoteDayList" : {
+        "properties" : {
+          "days" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RemoteDay"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "days" ],
+        "type" : "object"
+      },
+      "ReportRow" : {
+        "properties" : {
+          "absentDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "academies" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "category" : {
+            "type" : "string"
+          },
+          "corrections" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "earlyLeaveMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "fullName" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "lateCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "lateMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "missingCheckOuts" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "presentOnsite" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "presentRemote" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "workingDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
         "type" : "object"
       },
       "ResetPasswordRequest" : {
@@ -8521,6 +8934,69 @@
         "tags" : [ "Staff attendance settings" ]
       }
     },
+    "/admin/attendance/remote-days" : {
+      "get" : {
+        "operationId" : "remoteDays",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RemoteDayList"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance requests" ]
+      },
+      "post" : {
+        "operationId" : "createRemoteDay",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RemoteDay"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RemoteDay"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance requests" ]
+      }
+    },
+    "/admin/attendance/remote-days/{id}" : {
+      "delete" : {
+        "operationId" : "deleteRemoteDay",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "tags" : [ "Attendance requests" ]
+      }
+    },
     "/admin/auth/sign-in" : {
       "post" : {
         "operationId" : "signIn",
@@ -11250,6 +11726,49 @@
         "tags" : [ "Staff attendance settings" ]
       }
     },
+    "/admin/staff/{kind}/{id}/attendance-corrections" : {
+      "post" : {
+        "operationId" : "adminAttendanceCorrection",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "kind",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AdminCorrection"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttendanceRequestView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance requests" ]
+      }
+    },
     "/admin/staff/{kind}/{id}/attendance-device" : {
       "delete" : {
         "operationId" : "resetApprovedDevice",
@@ -11962,6 +12481,84 @@
           }
         },
         "tags" : [ "Workers" ]
+      }
+    },
+    "/attendance/requests" : {
+      "get" : {
+        "operationId" : "attendanceRequestsToDecide",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttendanceRequestList"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance requests" ]
+      }
+    },
+    "/attendance/requests/{id}/approve" : {
+      "post" : {
+        "operationId" : "approveAttendanceRequest",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttendanceRequestView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance requests" ]
+      }
+    },
+    "/attendance/requests/{id}/reject" : {
+      "post" : {
+        "operationId" : "rejectAttendanceRequest",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttendanceRequestView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance requests" ]
       }
     },
     "/auth/change-password" : {
@@ -16065,6 +16662,178 @@
         "tags" : [ "Themes" ]
       }
     },
+    "/staff-attendance/board" : {
+      "get" : {
+        "operationId" : "attendanceBoard",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttendanceBoard"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff attendance board" ]
+      }
+    },
+    "/staff-attendance/employees/{kind}/{id}" : {
+      "get" : {
+        "operationId" : "attendanceEmployeeDay",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "kind",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "day",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EmployeeDay"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff attendance board" ]
+      }
+    },
+    "/staff-attendance/report" : {
+      "get" : {
+        "operationId" : "attendanceReport",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "month",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttendanceReport"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff attendance board" ]
+      }
+    },
+    "/staff-attendance/report.csv" : {
+      "get" : {
+        "operationId" : "attendanceReportCsv",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "month",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "text/csv" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff attendance board" ]
+      }
+    },
+    "/staff-attendance/report.xlsx" : {
+      "get" : {
+        "operationId" : "attendanceReportXlsx",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "month",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff attendance board" ]
+      }
+    },
+    "/staff/attendance/attachments" : {
+      "post" : {
+        "operationId" : "staffAttendanceAttachment",
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "file" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "file" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttachmentRef"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance requests" ]
+      }
+    },
     "/staff/attendance/check-in" : {
       "post" : {
         "operationId" : "staffCheckIn",
@@ -16145,6 +16914,50 @@
           }
         },
         "tags" : [ "Staff check-in" ]
+      }
+    },
+    "/staff/attendance/requests" : {
+      "get" : {
+        "operationId" : "myAttendanceRequests",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttendanceRequestList"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance requests" ]
+      },
+      "post" : {
+        "operationId" : "createAttendanceRequest",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/NewAttendanceRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttendanceRequestView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Attendance requests" ]
       }
     },
     "/staff/attendance/today" : {
@@ -19221,6 +20034,9 @@
     "description" : "Dashboard sign-in, sessions and passwords",
     "name" : "Auth"
   }, {
+    "description" : "Today's staff attendance, one employee's day, and the monthly report",
+    "name" : "Staff attendance board"
+  }, {
     "description" : "Scores, teacher marks, release, the class gradebook and the child page",
     "name" : "Results and gradebook"
   }, {
@@ -19244,6 +20060,9 @@
   }, {
     "description" : "A coordinator's threads with parents and her manager, and her Complaints inbox",
     "name" : "Coordinator chat"
+  }, {
+    "description" : "Remote days and attendance corrections, and their approval",
+    "name" : "Attendance requests"
   }, {
     "description" : "Per-school white label (§3)",
     "name" : "Themes"

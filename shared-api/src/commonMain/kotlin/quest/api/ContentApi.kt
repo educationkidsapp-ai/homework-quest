@@ -277,7 +277,7 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "staffMobileApp" to false,
     // Feature 14: staff attendance — settings, direct managers, and later check-in (15) and alerts (16).
     "staffAttendance" to false,
-    // Feature 19: parent messages outside office hours arrive quietly, with a morning summary (V40).
+    // Feature 19: parent messages outside office hours arrive quietly, with a morning summary (V41).
     "chatOfficeHours" to false,
 )
 

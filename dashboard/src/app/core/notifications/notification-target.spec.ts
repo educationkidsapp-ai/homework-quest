@@ -210,6 +210,42 @@ describe('MG2a — where a notification sends its reader', () => {
     }
   });
 
+  /**
+   * Feature 18: the one attendance kind with a screen behind it. The server writes
+   * `/notifications?…` for every recipient, because the screen that answers the request is in
+   * four different areas — so the viewer's own Attendance requests is what the row has to open.
+   */
+  it('sends a request waiting for a decision to the reader own Attendance requests', () => {
+    const item = row(NotificationViewKindEnum.ATTENDANCE_REQUEST, {
+      link: '/notifications?attendance=remote_day_request&request=r-7&staff=USER%3Au-1&name=Tala&date=2026-10-18',
+    });
+    expect(target(item, 'ADMIN')).toBe('/admin/attendance-requests?request=r-7');
+    expect(target(item, 'TEACHER')).toBe('/teacher/attendance-requests?request=r-7');
+    expect(target(item, 'COORDINATOR')).toBe('/coordinator/attendance-requests?request=r-7');
+    expect(target(item, 'MANAGERIAL')).toBe('/management/attendance-requests?request=r-7');
+    // No id to pick a row out by: the list itself is the answer.
+    const bare = row(NotificationViewKindEnum.ATTENDANCE_REQUEST, {
+      link: '/notifications?attendance=correction_request&name=Tala',
+    });
+    expect(target(bare, 'TEACHER')).toBe('/teacher/attendance-requests');
+    // And before `/me` has landed there is no area to send her to.
+    expect(target(item, null)).toBe('/notifications');
+  });
+
+  /** Her own decision and the school's remote day are news, not work: they stay in the bell. */
+  it('keeps a decision and a remote day on the notifications page', () => {
+    for (const kind of [
+      NotificationViewKindEnum.ATTENDANCE_DECISION,
+      NotificationViewKindEnum.ATTENDANCE_REMOTE_DAY,
+    ]) {
+      const item = row(kind, {
+        link: '/notifications?attendance=remote_day_decided&request=r-7&decision=approved&date=2026-10-18',
+      });
+      for (const role of ['ADMIN', 'MANAGERIAL', 'COORDINATOR', 'TEACHER'] as Role[])
+        expect(target(item, role)).toBe('/notifications');
+    }
+  });
+
   it('falls back to the notifications page before /me has landed', () => {
     expect(target(row(NotificationViewKindEnum.BROADCAST_POSTED, { lessonId: 'b-1' }), null)).toBe(
       '/notifications',

@@ -42,6 +42,11 @@ class PermissionsTest extends ApiTestSupport {
         assertThat(permissions.forRole("COORDINATOR")).contains("coordinator.read", "coordinator.lesson.read")
                 .doesNotContain("coordinator.manage", "lesson.write", "lesson.publish", "results.write",
                         "attendance.write", "roster.write", "teacher.manage", "school.write", "user.impersonate");
+        // Feature 18: whoever can be a direct manager decides requests (which ones is the service's scope); only the
+        // Admin corrects a day directly, and a worker decides nothing.
+        assertThat(permissions.forRole("COORDINATOR")).contains("attendance.requests.decide").doesNotContain("attendance.correction.write");
+        assertThat(permissions.forRole("WORKER")).contains("attendance.self").doesNotContain("attendance.requests.decide", "attendance.correction.write");
+        assertThat(permissions.forRole(Permissions.PARENT)).doesNotContain("attendance.self", "attendance.requests.decide");
     }
 
     @Test void the_planned_phase_one_endpoints_are_already_declared() {

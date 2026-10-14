@@ -96,6 +96,37 @@ data class StaffStrings(
     val attDigestLate: String,
     val attDigestNotArrived: String,
     val attNameSeparator: String,
+    // ---- feature 18: remote days and corrections
+    val requestRemoteDay: String,
+    val requestCorrection: String,
+    val myRequests: String,
+    val noRequests: String,
+    val requestDate: String,
+    val requestReason: String,
+    val requestSend: String,
+    val requestAttach: String,
+    val requestDecidedBy: String,
+    val correctionKindNames: Map<String, String>,
+    val requestTypeNames: Map<String, String>,
+    val requestStatusNames: Map<String, String>,
+    val approve: String,
+    val reject: String,
+    val approved: String,
+    val rejected: String,
+    val openAppToDecide: String,
+    val requestSent: String,
+    val requestFailed: String,
+    val requestReasonNeeded: String,
+    val requestDateInvalid: String,
+    val requestDateNotPast: String,
+    val requestDateNotFuture: String,
+    val requestTimeNeeded: String,
+    val requestOffline: String,
+    val attRequestRemoteDay: String,
+    val attRequestCorrection: String,
+    val attDecisionApproved: String,
+    val attDecisionRejected: String,
+    val attRemoteDay: String,
     // ---- feature 19: chat office hours
     val afterHoursSection: String,
     val afterHoursLabel: String,
@@ -124,6 +155,23 @@ data class StaffStrings(
     /** A `CheckInDay.status` / `mode` wire word in her language; an unknown word is shown as it came. */
     fun statusName(wire: String): String = statusNames[wire.uppercase()] ?: wire
     fun modeName(wire: String): String = modeNames[wire.lowercase()] ?: wire
+
+    /** Feature 18's wire words in her language; an unknown one is shown as it came. */
+    fun correctionKindName(wire: String): String = correctionKindNames[wire.uppercase()] ?: wire
+    fun requestTypeName(wire: String): String = requestTypeNames[wire.uppercase()] ?: wire
+    fun requestStatusName(wire: String): String = requestStatusNames[wire.uppercase()] ?: wire
+
+    /** Feature 18's one line under the request form, worded here and held as data by the view model. */
+    fun requestMessage(message: RequestMessage): String = when (message) {
+        RequestMessage.Sent -> requestSent
+        RequestMessage.Failed -> requestFailed
+        RequestMessage.Offline -> requestOffline
+        RequestMessage.ReasonNeeded -> requestReasonNeeded
+        RequestMessage.DateInvalid -> requestDateInvalid
+        RequestMessage.DateNotPast -> requestDateNotPast
+        RequestMessage.DateNotFuture -> requestDateNotFuture
+        RequestMessage.TimeNeeded -> requestTimeNeeded
+    }
 
     /**
      * Feature 15's one line under the button. The view model holds the outcome and this holds the words, so the same
@@ -239,6 +287,39 @@ data class StaffStrings(
             attDigestLate = "Late: {names}",
             attDigestNotArrived = "Not arrived: {names}",
             attNameSeparator = ", ",
+            requestRemoteDay = "Request a remote day",
+            requestCorrection = "Request a correction",
+            myRequests = "My requests",
+            noRequests = "You have no requests.",
+            requestDate = "Date (YYYY-MM-DD)",
+            requestReason = "Reason",
+            requestSend = "Send the request",
+            requestAttach = "A photo or a PDF (optional)",
+            requestDecidedBy = "Decided by {name}",
+            correctionKindNames = mapOf(
+                "FORGOT_CHECK_IN" to "I forgot to check in", "FORGOT_CHECK_OUT" to "I forgot to check out",
+                "PHONE_PROBLEM" to "A problem with the phone",
+            ),
+            requestTypeNames = mapOf("REMOTE_DAY" to "Remote day", "CORRECTION" to "Correction"),
+            requestStatusNames = mapOf("PENDING" to "Waiting for a decision", "APPROVED" to "Approved", "REJECTED" to "Rejected"),
+            approve = "Approve",
+            reject = "Reject",
+            approved = "Approved",
+            rejected = "Rejected",
+            openAppToDecide = "Open the app to decide",
+            requestSent = "Your request was sent to your manager.",
+            requestFailed = "We could not send the request. Try again.",
+            requestReasonNeeded = "Write the reason.",
+            requestDateInvalid = "Write the date as YYYY-MM-DD.",
+            requestDateNotPast = "Choose today or a later day.",
+            requestDateNotFuture = "Choose today or an earlier day.",
+            requestTimeNeeded = "Write the time as HH:mm.",
+            requestOffline = "You need an internet connection to send the request.",
+            attRequestRemoteDay = "{name} asks to work remotely on {date}",
+            attRequestCorrection = "{name} asks to correct {date}",
+            attDecisionApproved = "Your request for {date} was approved",
+            attDecisionRejected = "Your request for {date} was rejected",
+            attRemoteDay = "Remote working day: {date}",
             afterHoursSection = "Alerts after hours",
             afterHoursLabel = "Receive alerts after hours",
             afterHoursHint = "Off: parent messages after hours arrive silently, with a summary in the morning.",
@@ -345,6 +426,43 @@ data class StaffStrings(
             attDigestLate = "متأخرون: {names}",
             attDigestNotArrived = "لم يصل: {names}",
             attNameSeparator = "، ",
+            requestRemoteDay = "طلب يوم عن بعد",
+            requestCorrection = "طلب تصحيح",
+            myRequests = "طلباتي",
+            noRequests = "لا طلبات لديك.",
+            requestDate = "التاريخ (سنة-شهر-يوم)",
+            requestReason = "السبب",
+            requestSend = "إرسال الطلب",
+            requestAttach = "صورة أو ملف PDF (اختياري)",
+            requestDecidedBy = "بتّ فيه {name}",
+            correctionKindNames = mapOf(
+                "FORGOT_CHECK_IN" to "نسيت تسجيل الحضور",
+                "FORGOT_CHECK_OUT" to "نسيت تسجيل الانصراف",
+                "PHONE_PROBLEM" to "مشكلة في الجوال",
+            ),
+            requestTypeNames = mapOf("REMOTE_DAY" to "يوم عن بعد", "CORRECTION" to "تصحيح"),
+            requestStatusNames = mapOf(
+                "PENDING" to "بانتظار القرار", "APPROVED" to "تمت الموافقة",
+                "REJECTED" to "مرفوض",
+            ),
+            approve = "موافقة",
+            reject = "رفض",
+            approved = "تمت الموافقة",
+            rejected = "تم الرفض",
+            openAppToDecide = "افتح التطبيق لاتخاذ القرار",
+            requestSent = "أُرسل طلبك إلى مديرك.",
+            requestFailed = "لم نتمكن من إرسال الطلب. حاول مرة أخرى.",
+            requestReasonNeeded = "اكتب السبب.",
+            requestDateInvalid = "اكتب التاريخ بالصيغة سنة-شهر-يوم.",
+            requestDateNotPast = "اختر اليوم أو يومًا بعده.",
+            requestDateNotFuture = "اختر اليوم أو يومًا قبله.",
+            requestTimeNeeded = "اكتب الوقت بالصيغة HH:mm.",
+            requestOffline = "تحتاج اتصالًا بالإنترنت لإرسال الطلب.",
+            attRequestRemoteDay = "{name} يطلب العمل عن بعد يوم {date}",
+            attRequestCorrection = "{name} يطلب تصحيح يوم {date}",
+            attDecisionApproved = "تمت الموافقة على طلبك ليوم {date}",
+            attDecisionRejected = "تم رفض طلبك ليوم {date}",
+            attRemoteDay = "يوم عمل عن بعد: {date}",
             afterHoursSection = "الإشعارات خارج الدوام",
             afterHoursLabel = "استقبال الإشعارات خارج الدوام",
             afterHoursHint = "عند الإيقاف: تصلك رسائل أولياء الأمور خارج الدوام بصمت، مع ملخص في الصباح.",

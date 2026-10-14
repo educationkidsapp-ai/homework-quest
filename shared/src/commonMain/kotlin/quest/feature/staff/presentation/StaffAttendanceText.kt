@@ -13,7 +13,10 @@ fun attendanceText(kind: String, link: String?, s: StaffStrings): Pair<String, S
     val p = AttendanceLink.params(link)
     val name = p[AttendanceLink.NAME].orEmpty()
     val minutes = p[AttendanceLink.MINUTES].orEmpty()
+    val date = p[AttendanceLink.DATE].orEmpty()
     fun alert(template: String) = template.replace("{name}", name).replace("{n}", minutes)
+    // Feature 18: a request, a decision and a remote day are each about one employee and one day.
+    fun about(template: String) = template.replace("{name}", name).replace("{date}", date)
     return when (p[AttendanceLink.TYPE]) {
         AttendanceLink.START_REMINDER -> s.attTitle to s.attStartReminder
         AttendanceLink.END_REMINDER -> s.attTitle to s.attEndReminder
@@ -22,6 +25,11 @@ fun attendanceText(kind: String, link: String?, s: StaffStrings): Pair<String, S
         AttendanceLink.ALERT_NOT_ARRIVED -> s.attTitle to alert(s.attNotArrived)
         AttendanceLink.ALERT_EARLY_LEAVE -> s.attTitle to alert(s.attEarlyLeave)
         AttendanceLink.ALERT_MISSING_CHECKOUT -> s.attTitle to alert(s.attMissingCheckout)
+        AttendanceLink.REQUEST_REMOTE_DAY -> s.attTitle to about(s.attRequestRemoteDay)
+        AttendanceLink.REQUEST_CORRECTION -> s.attTitle to about(s.attRequestCorrection)
+        AttendanceLink.DECIDED_REMOTE_DAY, AttendanceLink.DECIDED_CORRECTION ->
+            s.attTitle to about(if (p[AttendanceLink.DECISION] == AttendanceLink.REJECTED) s.attDecisionRejected else s.attDecisionApproved)
+        AttendanceLink.REMOTE_DAY -> s.attTitle to about(s.attRemoteDay)
         AttendanceLink.DIGEST -> {
             val counts = s.attDigest.replace("{late}", p[AttendanceLink.LATE] ?: "0")
                 .replace("{notArrived}", p[AttendanceLink.NOT_ARRIVED] ?: "0").replace("{remote}", p[AttendanceLink.REMOTE] ?: "0")

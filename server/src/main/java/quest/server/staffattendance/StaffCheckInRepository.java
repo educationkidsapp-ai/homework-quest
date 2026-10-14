@@ -22,4 +22,7 @@ public interface StaffCheckInRepository extends JpaRepository<Entities.StaffChec
 
     /** Feature 16: every check-in of one school's day, for the attendance job. */
     List<Entities.StaffCheckInEntity> findBySchoolIdAndDay(String schoolId, LocalDate day);
+
+    /** Feature 17: one school's records over a month, for the report. */
+    List<Entities.StaffCheckInEntity> findBySchoolIdAndDayBetween(String schoolId, LocalDate from, LocalDate to);
 }

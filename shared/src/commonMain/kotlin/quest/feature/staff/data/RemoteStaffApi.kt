@@ -34,10 +34,13 @@ import quest.api.dto.RegisterDeviceRequest
 import quest.api.dto.SendChatMessageRequest
 import quest.api.dto.UnregisterDeviceRequest
 import quest.api.dto.UnreadCount
+import quest.api.staff.AttendanceRequestList
+import quest.api.staff.AttendanceRequestView
 import quest.api.staff.CheckInMonth
 import quest.api.staff.CheckInRequest
 import quest.api.staff.CheckInResult
 import quest.api.staff.CheckInToday
+import quest.api.staff.NewAttendanceRequest
 import quest.api.staff.StaffMe
 import quest.api.staff.StaffPreferences
 import quest.core.json.AppJson
@@ -92,8 +95,15 @@ class RemoteStaffApi(
     override suspend fun staffRead(threadId: String): ChatReadReceipt =
         call { client.post("$baseUrl/staff/chat/threads/$threadId/read") { staffed() } }
 
-    override suspend fun uploadAttachment(file: StagedUpload, onProgress: (Float) -> Unit): AttachmentRef = call {
-        client.post("$baseUrl/media/chat-attachments") {
+    override suspend fun uploadAttachment(file: StagedUpload, onProgress: (Float) -> Unit): AttachmentRef =
+        upload("$baseUrl/media/chat-attachments", file, onProgress)
+
+    override suspend fun uploadRequestAttachment(file: StagedUpload, onProgress: (Float) -> Unit): AttachmentRef =
+        upload("$baseUrl/staff/attendance/attachments", file, onProgress)
+
+    /** One multipart `file` part, streamed from the staged copy with its length — the shape both upload routes take. */
+    private suspend fun upload(url: String, file: StagedUpload, onProgress: (Float) -> Unit): AttachmentRef = call {
+        client.post(url) {
             staffed()
             setBody(
                 MultiPartFormDataContent(
@@ -124,6 +134,23 @@ class RemoteStaffApi(
 
     override suspend fun checkInMonth(month: String?): CheckInMonth =
         call { client.get("$baseUrl/staff/attendance/month") { staffed(); month?.let { parameter("month", it) } } }
+
+    // ---------------------------------------------------------------- feature 18: remote days and corrections
+
+    override suspend fun createAttendanceRequest(request: NewAttendanceRequest): AttendanceRequestView =
+        call { client.post("$baseUrl/staff/attendance/requests") { staffed(); contentType(ContentType.Application.Json); setBody(request) } }
+
+    override suspend fun myAttendanceRequests(): AttendanceRequestList =
+        call { client.get("$baseUrl/staff/attendance/requests") { staffed() } }
+
+    override suspend fun attendanceRequestsToDecide(status: String?): AttendanceRequestList =
+        call { client.get("$baseUrl/attendance/requests") { staffed(); status?.let { parameter("status", it) } } }
+
+    override suspend fun approveAttendanceRequest(id: String): AttendanceRequestView =
+        call { client.post("$baseUrl/attendance/requests/$id/approve") { staffed() } }
+
+    override suspend fun rejectAttendanceRequest(id: String): AttendanceRequestView =
+        call { client.post("$baseUrl/attendance/requests/$id/reject") { staffed() } }
 
     override suspend fun notifications(limit: Int): List<NotificationView> =
         call { client.get("$baseUrl/me/notifications") { staffed(); parameter("limit", limit) } }

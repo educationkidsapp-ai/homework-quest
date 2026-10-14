@@ -89,6 +89,10 @@ describe('the screen table', () => {
       'children',
       // Feature 14: the school's attendance rules and direct managers, behind `staffAttendance`.
       'attendance-settings',
+      // Feature 18: the remote days and corrections waiting for a decision, behind the same flag.
+      'attendance-requests',
+      // Feature 17: the whole school's board and monthly report, behind the same switch.
+      'staff-attendance',
       // D13: `schools` keeps its label and its `multiSchool` flag — the rail hides it at runtime,
       // and the table is what it is hidden from.
       'schools',
@@ -168,6 +172,8 @@ describe('the screen table', () => {
     expect(navScreens('TEACHER').map(({ screen }) => screen.id)).toEqual([
       'week',
       'classes',
+      // Feature 18: her own direct reports' requests — a teacher is a direct manager too.
+      'attendance-requests',
       'announcements',
       'chat',
       // D5: Complaints beside Messages, never inside it.
@@ -175,15 +181,19 @@ describe('the screen table', () => {
       // T2 (the owner's list, 2026-10-01): who she reports to, with the phone numbers on it.
       'coordinators',
       'manager',
+      // Feature 17: the board of the people she is direct manager of.
+      'staff-attendance',
     ]);
     expect(navScreens('TEACHER').map(({ link }) => link)).toEqual([
       '/teacher/week',
       '/teacher/classes',
+      '/teacher/attendance-requests',
       '/teacher/announcements',
       '/teacher/chat',
       '/teacher/complaints',
       '/teacher/coordinators',
       '/teacher/manager',
+      '/teacher/staff-attendance',
     ]);
     // Both are the chooser for a conversation, so both carry what the chat routes carry.
     for (const id of ['coordinators', 'manager']) {
@@ -228,7 +238,7 @@ describe('the screen table', () => {
    * are properties of the table: a row that lost `readOnly` would hand her a publish button, and
    * the page would never know.
    */
-  it('gives a coordinator her eleven rail items and read-only detail routes', () => {
+  it('gives a coordinator her twelve rail items and read-only detail routes', () => {
     expect(navScreens('COORDINATOR').map(({ screen }) => screen.id)).toEqual([
       'home',
       'teachers',
@@ -236,6 +246,8 @@ describe('the screen table', () => {
       'lessons',
       // R6's three record screens.
       'attendance',
+      // Feature 18: her teachers' remote days and corrections, hers to decide.
+      'attendance-requests',
       'gradebook',
       'exams',
       'messages',
@@ -243,6 +255,8 @@ describe('the screen table', () => {
       // T2 item (b): her own Manager row, on `GET /coordinator/managers`.
       'manager',
       'announcements',
+      // Feature 17: the board of the people she is direct manager of.
+      'staff-attendance',
     ]);
     expect(navScreens('COORDINATOR').map(({ link }) => link)).toEqual([
       '/coordinator',
@@ -250,12 +264,14 @@ describe('the screen table', () => {
       '/coordinator/classes',
       '/coordinator/lessons',
       '/coordinator/attendance',
+      '/coordinator/attendance-requests',
       '/coordinator/gradebook',
       '/coordinator/exams',
       '/coordinator/messages',
       '/coordinator/complaints',
       '/coordinator/manager',
       '/coordinator/announcements',
+      '/coordinator/staff-attendance',
     ]);
     // R7: all three carry the flag their server routes carry, so a school without chat has none
     // of them — in the rail or at the URL.
@@ -301,11 +317,23 @@ describe('the screen table', () => {
     // status, a broadcast — are her own keys too, so not one row of hers may carry a permission
     // from somebody else's namespace. `broadcast.read` is the one exception, and it is not one:
     // the *feed* is `GET /me/broadcasts`, which every dashboard role reads with the same key, and
-    // her composer is gated on `coordinator.broadcast` inside the screen.
+    // her composer is gated on `coordinator.broadcast` inside the screen. Feature 17's
+    // `attendance.board` and feature 18's `attendance.requests.decide` are the others: one key each
+    // for everyone who may be a direct manager, which the server narrows to the people she leads.
     const keys = AREAS.COORDINATOR.screens.map((screen) => screen.permission ?? '');
     expect(
-      keys.every((key) => key === '' || key.startsWith('coordinator.') || key === 'broadcast.read'),
+      keys.every(
+        (key) =>
+          key === '' ||
+          key.startsWith('coordinator.') ||
+          key === 'broadcast.read' ||
+          key === 'attendance.requests.decide' ||
+          key === 'attendance.board',
+      ),
     ).toBe(true);
+    const requests = AREAS.COORDINATOR.screens.find((screen) => screen.id === 'attendance-requests');
+    expect(requests?.flag).toBe('staffAttendance');
+    expect(requests?.readOnly).toBeUndefined();
   });
 
   /**
@@ -325,6 +353,9 @@ describe('the screen table', () => {
       // MH2 item 3: **Children**, not People — its other two tabs are rail rows of their own now.
       'children',
       'staff-attendance',
+      // Feature 18: the requests her direct reports are waiting on — the one row of hers that is
+      // not read-only.
+      'attendance-requests',
       // Feature 14: the Admin's Attendance settings, read-only for her.
       'attendance-settings',
       // MG2b: the weekly plan per grade and the archive of every one of them, beside Announcements

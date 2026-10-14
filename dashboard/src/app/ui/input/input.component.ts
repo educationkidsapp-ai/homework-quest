@@ -50,6 +50,7 @@ export type InputType =
           [required]="required()"
           [attr.maxlength]="maxLength()"
           [attr.min]="min()"
+          [attr.max]="max()"
           [attr.dir]="dir()"
           [attr.aria-invalid]="error() ? 'true' : null"
           [attr.aria-describedby]="describedBy()"
@@ -196,6 +197,8 @@ export class InputComponent {
    * screen still validates, because a typed value walks straight past a greyed-out cell.
    */
   readonly min = input<string | null>(null);
+  /** The latest value a `date` (or `number`) field accepts, as the input's own `max`. */
+  readonly max = input<string | null>(null);
   /**
    * The value's own direction, when it is not the page's.
    *

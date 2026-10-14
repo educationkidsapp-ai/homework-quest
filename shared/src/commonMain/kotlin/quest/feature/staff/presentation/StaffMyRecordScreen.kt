@@ -23,7 +23,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
+import androidx.compose.foundation.layout.PaddingValues
 import quest.api.staff.CheckInDay
+import quest.core.platform.Today
+import quest.feature.parent.presentation.Strings
 import quest.feature.parent.presentation.Chip
 import quest.feature.parent.presentation.ParentCard
 import quest.feature.school.domain.Flags
@@ -41,14 +44,21 @@ import quest.ui.design.Dimens
 fun StaffMyRecordRoute(onBack: () -> Unit) {
     val vm: MyRecordViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
+    // Feature 18: the correction request and "my requests" belong to this screen, so its view model is held here.
+    val requestsVm: AttendanceRequestsViewModel = koinViewModel()
+    val requests by requestsVm.state.collectAsStateWithLifecycle()
     LaunchedEffect(vm) { vm.dispatch(MyRecordContract.Intent.Load) }
-    StaffShell(title = { it.myRecord }, currentTab = null, onTabSelected = {}, onBack = onBack) { s, _ ->
+    LaunchedEffect(requestsVm) { requestsVm.dispatch(AttendanceRequestsContract.Intent.Load) }
+    StaffShell(title = { it.myRecord }, currentTab = null, onTabSelected = {}, onBack = onBack) { s, parent ->
         GateFallback(Flags.STAFF_ATTENDANCE, onClosed = onBack)
         StaffMyRecordScreen(
             state = state,
             strings = s,
             onPreviousMonth = { vm.dispatch(MyRecordContract.Intent.PreviousMonth) },
             onNextMonth = { vm.dispatch(MyRecordContract.Intent.NextMonth) },
+            requests = requests,
+            parentStrings = parent,
+            onRequests = requestsVm::dispatch,
         )
     }
 }
@@ -59,6 +69,12 @@ fun StaffMyRecordScreen(
     strings: StaffStrings,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
+    /** Feature 18: her requests and the correction form, with defaults so a screenshot draws the month alone. */
+    requests: AttendanceRequestsContract.State = AttendanceRequestsContract.State(loading = false),
+    parentStrings: Strings = Strings.en,
+    onRequests: (AttendanceRequestsContract.Intent) -> Unit = {},
+    /** Today in the school's zone as the device knows it: a correction is asked for today or an earlier day. */
+    today: String = Today.date().toString(),
 ) {
     FeatureGate(Flags.STAFF_ATTENDANCE) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Dimens.s16, vertical = Dimens.s8)) {
@@ -71,31 +87,39 @@ fun StaffMyRecordScreen(
                 )
                 TextButton(onClick = onNextMonth) { Text(strings.nextMonth, color = DashboardTokens.accentInk) }
             }
-            if (state.loading) {
-                Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+            when {
+                state.loading -> Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
                     AnimatedDotsLoader(dotSize = 12.dp, spacing = 8.dp)
                 }
-                return@FeatureGate
-            }
-            if (state.days.isEmpty()) {
-                ParentCard(Modifier.padding(vertical = Dimens.s8)) {
+                state.days.isEmpty() -> ParentCard(Modifier.padding(vertical = Dimens.s8)) {
                     Text(
                         if (state.failed) strings.recordFailed else strings.noRecordThisMonth,
                         style = MaterialTheme.typography.bodyLarge,
                         color = DashboardTokens.inkSoft,
                     )
                 }
-                return@FeatureGate
+                // Feature 18: a day of today or earlier may be corrected, and the row itself is the way in.
+                else -> state.days.forEach { day ->
+                    DayRow(
+                        day, strings,
+                        onCorrection = if (day.date <= today) {
+                            { onRequests(AttendanceRequestsContract.Intent.OpenCorrection(day.date)) }
+                        } else null,
+                    )
+                }
             }
-            state.days.forEach { day -> DayRow(day, strings) }
+            if (!state.loading) {
+                MyRequestsSection(requests, strings, onDismissMessage = { onRequests(AttendanceRequestsContract.Intent.DismissMessage) })
+            }
             Spacer(Modifier.height(Dimens.s16))
         }
     }
+    AttendanceRequestDialog(requests, strings, parentStrings, onRequests)
 }
 
 @Composable
-private fun DayRow(day: CheckInDay, strings: StaffStrings) {
-    ParentCard(Modifier.fillMaxWidth().padding(bottom = Dimens.s8)) {
+private fun DayRow(day: CheckInDay, strings: StaffStrings, onCorrection: (() -> Unit)? = null) {
+    ParentCard(Modifier.fillMaxWidth().padding(bottom = Dimens.s8), onClick = onCorrection) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(
@@ -113,6 +137,11 @@ private fun DayRow(day: CheckInDay, strings: StaffStrings) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = DashboardTokens.inkSoft,
                 )
+                if (onCorrection != null) {
+                    TextButton(onClick = onCorrection, contentPadding = PaddingValues(0.dp)) {
+                        Text(strings.requestCorrection, color = DashboardTokens.accentInk)
+                    }
+                }
             }
             Chip(strings.statusName(day.status), DashboardTokens.secondarySoft)
         }

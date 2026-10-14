@@ -388,6 +388,20 @@
         "add": "Add holiday",
         "remove": "Remove"
       },
+      "remoteDays": {
+        "title": "Remote days",
+        "hint": "On a remote day the check-in skips the school's location and the record is marked remote.",
+        "empty": "No remote days yet.",
+        "loading": "Loading remote days...",
+        "date": "Day",
+        "scope": "Scope",
+        "wholeSchool": "Whole school",
+        "reason": "Reason",
+        "reasonPlaceholder": "Rain day",
+        "add": "Add remote day",
+        "remove": "Remove",
+        "removeOne": "Remove the remote day on {{date}}"
+      },
       "rules": {
         "title": "Rules",
         "grace": "Grace period (minutes)",
@@ -562,6 +576,67 @@
     "notMarked": "Not marked",
     "rangeCount": "{{children}} children over {{days}} days",
     "noDays": "No register was kept in this range."
+  },
+  "attendanceRequests": {
+    "title": "Attendance requests",
+    "subtitle": "The remote days and corrections your people ask for.",
+    "loading": "Loading requests...",
+    "tab": {
+      "label": "Which requests",
+      "pending": "Pending",
+      "decided": "Decided"
+    },
+    "column": {
+      "staff": "Employee",
+      "type": "Request",
+      "date": "Day",
+      "times": "Times",
+      "reason": "Reason",
+      "status": "Decision"
+    },
+    "type": {
+      "REMOTE_DAY": "Remote day",
+      "CORRECTION": "Correction"
+    },
+    "kind": {
+      "FORGOT_CHECK_IN": "Forgot to check in",
+      "FORGOT_CHECK_OUT": "Forgot to check out",
+      "PHONE_PROBLEM": "Phone problem"
+    },
+    "status": {
+      "PENDING": "Pending",
+      "APPROVED": "Approved",
+      "REJECTED": "Rejected"
+    },
+    "checkIn": "In {{time}}",
+    "checkOut": "Out {{time}}",
+    "original": "Was {{times}}",
+    "none": "No time claimed",
+    "asked": "Asked {{date}}",
+    "attachment": "Open attachment",
+    "attachmentFailed": "The attachment could not be opened.",
+    "approve": "Approve",
+    "reject": "Reject",
+    "decidedBy": "{{name}}, {{date}}",
+    "empty": {
+      "pending": "Nothing is waiting for you.",
+      "decided": "Nothing has been decided yet."
+    },
+    "alreadyDecided": "Somebody has already decided this request.",
+    "add": {
+      "open": "Add correction",
+      "title": "Add a correction",
+      "staff": "Employee",
+      "date": "Day",
+      "kind": "Kind",
+      "checkIn": "Check-in",
+      "checkOut": "Check-out",
+      "reason": "Reason",
+      "reasonPlaceholder": "Why the record is being changed",
+      "reasonRequired": "A reason is required.",
+      "save": "Save correction",
+      "saved": "The correction was saved."
+    }
   },
   "band": {
     "failed": "That did not work",
@@ -1548,7 +1623,8 @@
     "workers": "Workers",
     "childrenParents": "Children & parents",
     "manager": "Manager",
-    "attendanceSettings": "Attendance settings"
+    "attendanceSettings": "Attendance settings",
+    "attendanceRequests": "Attendance requests"
   },
   "notifications": {
     "title": "Notifications",
@@ -1625,6 +1701,18 @@
         "digest": {
           "title": "Today's attendance",
           "body": "Today's attendance summary."
+        },
+        "request": {
+          "title": "Attendance request",
+          "body": "An employee is waiting for your decision."
+        },
+        "decision": {
+          "title": "Your request",
+          "body": "Your request has been decided."
+        },
+        "remote_day": {
+          "title": "Remote day",
+          "body": "A remote working day was announced."
         }
       }
     },
@@ -1639,6 +1727,17 @@
       "digest": "Today: {{late}} late, {{notArrived}} not arrived, {{remote}} remote",
       "digestLate": "Late: {{names}}",
       "digestNotArrived": "Not arrived: {{names}}",
+      "remote_day_request": "{{name}} asks to work remotely on {{date}}",
+      "correction_request": "{{name}} asks to correct the record of {{date}}",
+      "remote_day_decided": {
+        "approved": "Your remote day on {{date}} was approved",
+        "rejected": "Your remote day on {{date}} was rejected"
+      },
+      "correction_decided": {
+        "approved": "Your correction for {{date}} was approved",
+        "rejected": "Your correction for {{date}} was rejected"
+      },
+      "remote_day": "{{date}} is a remote working day",
       "separator": ", "
     },
     "afterHours": {
@@ -2402,7 +2501,8 @@
       "history": "Marked days",
       "noMarks": "No day of this person's has been marked.",
       "nothingToSave": "Nothing changed yet.",
-      "pending": "{{count}} to save"
+      "pending": "{{count}} to save",
+      "historyTab": "Marked by hand"
     },
     "teachers": {
       "subtitle": "The teachers of your department, and whether today has happened in their classes.",
@@ -2690,6 +2790,120 @@
       "tooManyPixels": "Not sent: a picture is too large (over 8192 pixels or 40 megapixels). Attach a smaller one.",
       "tooBig": "Not sent: a file is too large. Pictures may be up to 5 MB and PDFs up to 10 MB.",
       "notUploaded": "Not sent: a file could not be uploaded. Remove it and attach it again."
+    }
+  },
+  "staffBoard": {
+    "subtitle": "Today's staff attendance at a glance, and the month ready for payroll.",
+    "viewLabel": "Staff attendance view",
+    "todayTab": "Today",
+    "reportTab": "Monthly report",
+    "loading": "Loading staff attendance",
+    "leadsNobody": "Nobody reports to you yet",
+    "leadsNobodyDetail": "When the Admin names you someone's direct manager, their attendance appears here.",
+    "cardsLabel": "Today's counts — choose one to filter the table",
+    "card": {
+      "present": "Present",
+      "late": "Late",
+      "notArrived": "Not arrived",
+      "remote": "Remote",
+      "noCheckOut": "No check-out"
+    },
+    "filter": {
+      "search": "Search by name",
+      "status": "Status",
+      "academy": "Academy",
+      "category": "Category",
+      "anyStatus": "Any status",
+      "anyAcademy": "Any academy",
+      "anyCategory": "Any category"
+    },
+    "live": "{{day}} · updates every 30 seconds",
+    "tableLabel": "Today's staff attendance",
+    "noRows": "No one matches these filters.",
+    "column": {
+      "name": "Name",
+      "category": "Category",
+      "academy": "Academy",
+      "checkIn": "Check-in",
+      "checkOut": "Check-out",
+      "status": "Status",
+      "mode": "Mode"
+    },
+    "status": {
+      "PRESENT": "Present",
+      "LATE": "Late",
+      "NOT_ARRIVED": "Not arrived",
+      "REMOTE": "Remote",
+      "ABSENT": "Absent",
+      "UPCOMING": "Not started yet",
+      "OFF": "Day off",
+      "HOLIDAY": "Holiday"
+    },
+    "lateBy": "{{minutes}} min",
+    "mode": {
+      "onsite": "At school",
+      "remote": "Remote",
+      "device": "Fingerprint device",
+      "correction": "Correction",
+      "manual": "Marked by hand"
+    },
+    "report": {
+      "month": "Month",
+      "csv": "Export CSV",
+      "xlsx": "Export Excel",
+      "tableLabel": "Monthly staff attendance report",
+      "workingDays": "Working days",
+      "presentOnsite": "Present at school",
+      "presentRemote": "Present remote",
+      "lateCount": "Times late",
+      "lateMinutes": "Late minutes",
+      "absentDays": "Absent days",
+      "earlyLeaveMinutes": "Early leave minutes",
+      "missingCheckOuts": "Missing check-outs",
+      "corrections": "Corrections"
+    },
+    "day": {
+      "title": "Employee's day",
+      "attempts": "Attempts on {{day}}",
+      "noAttempts": "No check-in attempts that day.",
+      "alerts": "Notifications sent",
+      "noAlerts": "No notifications that day.",
+      "month": "Month {{month}}"
+    },
+    "action": {
+      "CHECK_IN": "Check-in",
+      "CHECK_OUT": "Check-out"
+    },
+    "result": {
+      "RECORDED": "Recorded",
+      "ALREADY": "Already recorded",
+      "REFUSED": "Refused"
+    },
+    "reason": {
+      "DEVICE_NOT_APPROVED": "Phone not approved",
+      "MOCK_LOCATION": "Fake location",
+      "WEAK_ACCURACY": "Location not accurate enough",
+      "OUTSIDE": "Outside the school",
+      "NO_GEOFENCE": "School location not set",
+      "NOT_CHECKED_IN": "Check-out before check-in"
+    },
+    "alert": {
+      "START_REMINDER": "Reminder to check in",
+      "LATE": "Late alert",
+      "NOT_ARRIVED": "Not-arrived alert",
+      "END_REMINDER": "Reminder to check out",
+      "EARLY_LEAVE": "Early-leave alert",
+      "MISSING_CHECKOUT": "Missing check-out alert",
+      "ABSENT": "Absent"
+    },
+    "calendar": {
+      "ON_TIME": "On time",
+      "LATE": "Late",
+      "ABSENT": "Absent",
+      "DAY_OFF": "Day off",
+      "HOLIDAY": "Holiday",
+      "UPCOMING": "—",
+      "LEAVE": "Leave"
     }
   }
 }

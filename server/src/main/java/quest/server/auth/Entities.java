@@ -55,7 +55,7 @@ public final class Entities {
         /** MH1: the mobile number the Coordinators and Teachers screens show (owner's items 3 and 4), E.164-ish. */
         @Column(length = 20) private String phone;
         @Column(nullable = false) private String language = "en";
-        /** V40 (feature 19): she keeps normal alerts for parent messages outside her office hours. Off by default. */
+        /** V41 (feature 19): she keeps normal alerts for parent messages outside her office hours. Off by default. */
         @Column(name = "after_hours_alerts", nullable = false) private boolean afterHoursAlerts;
         @Column(name = "last_login_at") private Instant lastLoginAt;
         @Column(name = "created_at", nullable = false) private Instant createdAt;

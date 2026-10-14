@@ -128,7 +128,7 @@ public final class Entities {
     }
 
     /**
-     * V40 (feature 19): one row per parent message that reached a member of staff outside her office hours.
+     * V41 (feature 19): one row per parent message that reached a member of staff outside her office hours.
      * {@code dueDay} is her next working day in the school's zone, and {@code summarizedAt} is set by
      * {@link OfficeHoursSummaryJob} when it claims the row for a summary — one statement for all of a recipient's due
      * rows, so a rerun or a second instance sends nothing twice. {@code messageId} is unique, so one message is

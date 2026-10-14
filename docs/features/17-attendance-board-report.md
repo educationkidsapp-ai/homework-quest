@@ -1,7 +1,18 @@
 # Feature 17 — Live attendance board and monthly report
 
-**Status:** Not started · **Area:** dashboard (Admin, Manager, direct managers), server · **Depends on:** 16 ·
+**Status:** Done · **Area:** dashboard (Admin, Manager, direct managers), server · **Depends on:** 16 ·
 **Feature switch:** `staff_attendance`
+
+**Leftovers:**
+- The board refreshes every 30 seconds rather than over the chat socket: the spec allows it, and it keeps the board
+  off `/ws/chat`.
+- "Corrections" in the report counts records of mode `correction`, which is 0 until feature 18 writes them.
+- Every teacher and coordinator sees "Staff attendance" in the menu while the switch is on, because any of them may be
+  named a direct manager. One who leads nobody gets an empty board that says so. The menu has no "only if you lead
+  someone" rule yet.
+- Tapping a feature 16 alert or the digest still opens the notifications list, not the board or the employee's day.
+- Deploying to QA happens after the merge. Arabic and English strings, right-to-left layout and dark mode use the
+  existing tokens and components and were not checked in a browser on a seeded school.
 
 ## Goal
 

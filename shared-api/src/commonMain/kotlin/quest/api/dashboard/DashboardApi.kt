@@ -459,6 +459,15 @@ interface DashboardApi {
     suspend fun approvedDevice(kind: String, id: String): quest.api.staff.ApprovedDevice
     suspend fun resetApprovedDevice(kind: String, id: String): quest.api.staff.ApprovedDevice
 
+    /**
+     * Feature 17: the leaders' Staff attendance page (`attendance.board`, `staffAttendance`) — `GET
+     * /staff-attendance/board`, `/staff-attendance/employees/{kind}/{id}?day=` and `/staff-attendance/report?month=`,
+     * with `report.csv` and `report.xlsx` as files.
+     */
+    suspend fun attendanceBoard(): AttendanceBoard
+    suspend fun attendanceEmployeeDay(kind: String, id: String, day: String? = null): EmployeeDay
+    suspend fun attendanceReport(month: String? = null): AttendanceReport
+
     /** Puts an app-registered child on a section's roster, and takes her off it again; both answer the child. */
     suspend fun attachChildToClass(classId: String, request: AttachChildRequest): RosterChild
     suspend fun detachChildFromClass(classId: String, childId: String): RosterChild

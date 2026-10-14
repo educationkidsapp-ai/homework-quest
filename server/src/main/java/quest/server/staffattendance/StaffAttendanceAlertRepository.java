@@ -18,4 +18,8 @@ public interface StaffAttendanceAlertRepository extends JpaRepository<Entities.S
             + " values (:#{#a.id}, :#{#a.schoolId}, :#{#a.staffKind}, :#{#a.staffId}, :#{#a.day}, :#{#a.type}, :#{#a.sentAt})"
             + " on conflict do nothing")
     int claim(@Param("a") Entities.StaffAttendanceAlertEntity alert);
+
+    /** Feature 17: what was sent about one employee's day, oldest first. */
+    java.util.List<Entities.StaffAttendanceAlertEntity> findBySchoolIdAndStaffKindAndStaffIdAndDayOrderBySentAtAsc(
+            String schoolId, String staffKind, String staffId, java.time.LocalDate day);
 }

@@ -8,6 +8,7 @@ import quest.feature.push.domain.isAttendance
 import quest.feature.push.domain.NotificationRouter
 import quest.feature.push.domain.NotificationTap
 import quest.feature.push.domain.ParentGate
+import quest.feature.push.domain.StaffAttendanceTarget
 
 /**
  * One step of following a tapped push or notification row.
@@ -59,7 +60,13 @@ class PushNavigator(
         fun step(destination: Destination): Step = when (destination) {
             is Destination.Conversation -> Step.Parent(destination.thread.asConversation())
             is Destination.StaffConversation -> Step.Staff(Routes.StaffConversation(threadId = destination.thread.id.orEmpty()))
-            is Destination.StaffAttendance -> Step.Staff(if (destination.reminder) Routes.StaffHome else Routes.StaffNotifications)
+            is Destination.StaffAttendance -> Step.Staff(
+                when (destination.target) {
+                    StaffAttendanceTarget.HOME -> Routes.StaffHome
+                    StaffAttendanceTarget.NOTIFICATIONS -> Routes.StaffNotifications
+                    StaffAttendanceTarget.MY_RECORD -> Routes.StaffMyRecord
+                },
+            )
             Destination.StaffMessages -> Step.Staff(Routes.StaffMessages)
             is Destination.Complaint -> Step.Parent(Routes.Complaint(destination.childId, destination.complaintId))
             is Destination.WeeklyPlan -> Step.Parent(Routes.WeeklyPlan(focus = destination.planId))

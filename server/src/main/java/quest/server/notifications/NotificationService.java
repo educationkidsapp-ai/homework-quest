@@ -131,6 +131,7 @@ public class NotificationService {
             case LESSON_FAILED -> "Generation stopped";
             case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS,
                  COMPLAINT_NEW, COMPLAINT_MESSAGE, ATTENDANCE_REMINDER, ATTENDANCE_ALERT, ATTENDANCE_DIGEST,
+                 ATTENDANCE_REQUEST, ATTENDANCE_DECISION, ATTENDANCE_REMOTE_DAY,
                  CHAT_AFTER_HOURS_SUMMARY
                  -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
@@ -141,6 +142,7 @@ public class NotificationService {
             case LESSON_FAILED -> lesson.getErrorMessage() == null || lesson.getErrorMessage().isBlank() ? name + " stopped before it finished." : lesson.getErrorMessage();
             case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS,
                  COMPLAINT_NEW, COMPLAINT_MESSAGE, ATTENDANCE_REMINDER, ATTENDANCE_ALERT, ATTENDANCE_DIGEST,
+                 ATTENDANCE_REQUEST, ATTENDANCE_DECISION, ATTENDANCE_REMOTE_DAY,
                  CHAT_AFTER_HOURS_SUMMARY
                  -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };

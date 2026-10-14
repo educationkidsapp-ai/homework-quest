@@ -70,6 +70,12 @@ class AttendanceStaff {
         return users.findById(id).filter(u -> Objects.equals(schoolId, u.getSchoolId()) && STAFF_ROLES.contains(u.getRole()) && active(u));
     }
 
+    /** The `users` id her bell and phone hang off: herself, or a worker's account. Null when she has none. */
+    String account(Employee employee) {
+        if (StaffAttendanceDto.KIND_USER.equals(employee.kind())) return employee.id();
+        return workers.findById(employee.id()).map(w -> w.getUserId()).orElse(null);
+    }
+
     static String name(UserEntity u) {
         return u.getDisplayName() == null || u.getDisplayName().isBlank() ? u.getEmail() : u.getDisplayName();
     }
