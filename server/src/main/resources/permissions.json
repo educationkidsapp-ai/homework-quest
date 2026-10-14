@@ -136,7 +136,8 @@
     "attendance.settings.read": ["ADMIN", "MANAGERIAL"],
     "attendance.settings.write": ["ADMIN"],
     "attendance.self": ["ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "WORKER"],
-    "attendance.device.reset": ["ADMIN"]
+    "attendance.device.reset": ["ADMIN"],
+    "attendance.board": ["ADMIN", "MANAGERIAL", "COORDINATOR", "TEACHER"]
   },
   "endpoints": [
     { "method": "GET", "path": "/health", "permission": "health.read" },
@@ -274,6 +275,11 @@
     { "method": "PUT", "path": "/admin/staff/attendance-profiles", "permission": "attendance.settings.write" },
     { "method": "GET", "path": "/admin/staff/{kind}/{id}/attendance-device", "permission": "attendance.settings.read" },
     { "method": "DELETE", "path": "/admin/staff/{kind}/{id}/attendance-device", "permission": "attendance.device.reset" },
+    { "method": "GET", "path": "/staff-attendance/board", "permission": "attendance.board" },
+    { "method": "GET", "path": "/staff-attendance/employees/{kind}/{id}", "permission": "attendance.board" },
+    { "method": "GET", "path": "/staff-attendance/report", "permission": "attendance.board" },
+    { "method": "GET", "path": "/staff-attendance/report.csv", "permission": "attendance.board" },
+    { "method": "GET", "path": "/staff-attendance/report.xlsx", "permission": "attendance.board" },
 
     { "method": "GET", "path": "/admin/teachers", "permission": "teacher.read" },
     { "method": "POST", "path": "/admin/teachers", "permission": "teacher.manage" },

@@ -153,6 +153,14 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.staffAttendance,
         permission: 'attendance.settings.read',
       },
+      // Feature 17: the leaders' board and monthly report. The Admin's view is the whole school.
+      {
+        id: 'staff-attendance',
+        path: 'staff-attendance',
+        labelKey: 'nav.staffAttendance',
+        flag: FLAGS.staffAttendance,
+        permission: 'attendance.board',
+      },
       // D13: while `multiSchool` is off there is one school, it is the Admin's own, and these
       // three screens have nothing to show — the rail hides them and the router refuses them,
       // rather than offering a list of one and a switcher that switches to itself.
@@ -315,6 +323,16 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         labelKey: 'nav.manager',
         flag: FLAGS.chat,
         permission: 'teacher.chat',
+      },
+      // Feature 17: the leaders' board and monthly report. Every teacher and coordinator holds
+      // `attendance.board` because any of them may be named someone's direct manager; the server
+      // answers each only the people she leads, and an empty board says she leads nobody.
+      {
+        id: 'staff-attendance',
+        path: 'staff-attendance',
+        labelKey: 'nav.staffAttendance',
+        flag: FLAGS.staffAttendance,
+        permission: 'attendance.board',
       },
     ],
   },
@@ -529,6 +547,16 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         permission: 'broadcast.read',
       },
       { id: 'broadcasts', path: 'broadcasts', redirectTo: 'announcements' },
+      // Feature 17: the leaders' board and monthly report. Every teacher and coordinator holds
+      // `attendance.board` because any of them may be named someone's direct manager; the server
+      // answers each only the people she leads, and an empty board says she leads nobody.
+      {
+        id: 'staff-attendance',
+        path: 'staff-attendance',
+        labelKey: 'nav.staffAttendance',
+        flag: FLAGS.staffAttendance,
+        permission: 'attendance.board',
+      },
     ],
   },
 };

@@ -108,6 +108,9 @@ function componentFor(screen: Screen, role: Role) {
   // Feature 14: the Attendance settings page and its direct managers.
   if (screen.id === 'attendance-settings')
     return import('../../features/admin/attendance-settings.page').then((m) => m.AttendanceSettingsPage);
+  // Feature 17: the leaders' board and monthly report — the Admin's and a teacher who leads someone.
+  if (screen.id === 'staff-attendance')
+    return import('../../features/staff-attendance/attendance-board.page').then((m) => m.AttendanceBoardPage);
   // The Admin's Children & parents — admission, and the parent login it mints. The *manager's*
   // `children` row is her department's read-only directory and never reaches here
   // (`supervisorComponentFor` takes MANAGERIAL first).
@@ -194,6 +197,10 @@ function supervisorComponentFor(screen: Screen, role: Role) {
     if (screen.id === 'usage')
       return import('../../features/management/school-usage.page').then((m) => m.SchoolUsagePage);
   }
+  // Feature 17: a coordinator who leads someone. The manager's row of the same id is her own page
+  // above, which draws the same board while `staffAttendance` is on.
+  if (screen.id === 'staff-attendance')
+    return import('../../features/staff-attendance/attendance-board.page').then((m) => m.AttendanceBoardPage);
   if (screen.id === 'attendance')
     return import('../../features/coordinator/coordinator-attendance.page').then(
       (m) => m.CoordinatorAttendancePage,

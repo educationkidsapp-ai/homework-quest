@@ -2,11 +2,20 @@
    read and the write. No flag, deliberately, and for the server's own reason: taking the staff
    register is not an optional feature of a school and `FlagKeys` has no key for it, which is why
    `ManagementPeopleController` sits in `FeatureFlagCoverageTest.INFRASTRUCTURE`. */
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  linkedSignal,
+  signal,
+} from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { ManagementPeopleApi } from '../../api';
 import { StaffAreaService } from '../../core/auth/staff-area';
+import { FLAGS, FlagService } from '../../core/flags/flag.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import { PlatformService } from '../../core/platform/platform.service';
 import {
@@ -21,6 +30,7 @@ import {
   TabsComponent,
 } from '../../ui';
 import { CoordinatorReadFailedComponent } from '../coordinator/read-failed.component';
+import { AttendanceBoardComponent } from '../staff-attendance/attendance-board.component';
 import {
   type RosterRow,
   type StaffStatus,
@@ -30,6 +40,9 @@ import {
   notEditableReason,
   rosterOf,
 } from './staff-attendance.models';
+
+/** The register's Day and Month, and — while `staffAttendance` is on — feature 17's Today and Report. */
+type View = 'day' | 'month' | 'today' | 'report';
 
 /**
  * Staff attendance (RM3a, RM5 — the **one** thing a manager writes).
@@ -48,10 +61,16 @@ import {
  * **Nobody is present by default.** A person nobody has marked has no status at all, not
  * `present` — the same rule as a child with no register, and for the same reason: a screen that
  * invents a mark is a screen whose numbers are its own.
+ *
+ * **Feature 17.** With `staffAttendance` on, attendance comes from check-ins: the page opens on the
+ * live board (`AttendanceBoardComponent`), the Day register is gone (the server refuses its `PUT`
+ * too), and Month stays as the history of the marks taken by hand before the switch.
  */
+
 @Component({
   selector: 'hq-staff-attendance-page',
   imports: [
+    AttendanceBoardComponent,
     BandComponent,
     ButtonComponent,
     CardComponent,
@@ -68,7 +87,9 @@ import {
     <hq-page [title]="'nav.staffAttendance' | transloco" [subtitle]="'management.staff.subtitle' | transloco">
       <hq-tabs [tabs]="tabs()" [(selected)]="view" [label]="'management.staff.viewLabel' | transloco" />
 
-      @if (view() === 'day') {
+      @if (view() === 'today' || view() === 'report') {
+        <hq-attendance-board [view]="view() === 'report' ? 'report' : 'today'" />
+      } @else if (view() === 'day') {
         <hq-input
           class="st-day-input"
           type="date"
@@ -334,6 +355,7 @@ import {
 })
 export class StaffAttendancePage {
   private readonly api = inject(ManagementPeopleApi);
+  private readonly flags = inject(FlagService);
   private readonly staff = inject(StaffAreaService);
   private readonly platform = inject(PlatformService);
   private readonly transloco = inject(TranslocoService);
@@ -343,7 +365,17 @@ export class StaffAttendancePage {
   /** `staff_attendance.note` is a 500-character column; the field refuses rather than the server. */
   protected readonly noteMaxLength = NOTE_MAX_LENGTH;
 
-  protected readonly view = signal<'day' | 'month'>('day');
+  /**
+   * Feature 17: with `staffAttendance` on, the day comes from check-ins. The page opens on the
+   * live board, the monthly report sits beside it, and the Day register is gone — the Month view
+   * stays as the history of what was marked by hand before the switch.
+   */
+  protected readonly live = computed(() => this.flags.isOn(FLAGS.staffAttendance));
+
+  protected readonly view = linkedSignal<boolean, View>({
+    source: () => this.live(),
+    computation: (live) => (live ? 'today' : 'day'),
+  });
   protected readonly saving = signal(false);
   protected readonly historyOpen = signal(false);
   private readonly personId = signal('');
@@ -356,7 +388,8 @@ export class StaffAttendancePage {
   protected readonly month = signal(this.schoolToday().slice(0, 7));
 
   protected readonly roster = rxResource({
-    params: () => (this.staff.area() === 'management' && this.day() !== '' ? this.day() : undefined),
+    params: () =>
+      this.staff.area() === 'management' && !this.live() && this.day() !== '' ? this.day() : undefined,
     stream: ({ params: day }) => this.api.staffAttendance(day),
   });
 
@@ -393,8 +426,14 @@ export class StaffAttendancePage {
     effect(() => this.edited.set(this.original()));
   }
 
-  protected readonly tabs = computed<readonly Tab<'day' | 'month'>[]>(() => {
+  protected readonly tabs = computed<readonly Tab<View>[]>(() => {
     this.lang();
+    if (this.live())
+      return [
+        { id: 'today', label: this.t('staffBoard.todayTab') },
+        { id: 'report', label: this.t('staffBoard.reportTab') },
+        { id: 'month', label: this.t('management.staff.historyTab') },
+      ];
     return [
       { id: 'day', label: this.t('management.staff.dayTab') },
       { id: 'month', label: this.t('management.staff.monthTab') },

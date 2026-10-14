@@ -1,0 +1,225 @@
+@if (view() === 'today') {
+  @if (board.isLoading() && !board.hasValue()) {
+    <hq-skeleton [loading]="true" [lines]="6" [label]="'staffBoard.loading' | transloco" />
+  } @else if (board.error() && !board.hasValue()) {
+    <hq-card>
+      <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco" [dismissible]="false">
+        {{ 'band.unreachable' | transloco }}
+      </hq-band>
+      <hq-button variant="secondary" (pressed)="board.reload()">{{ 'ui.retry' | transloco }}</hq-button>
+    </hq-card>
+  } @else if (leadsNobody()) {
+    <hq-empty-state
+      data-hq-leads-nobody
+      [message]="'staffBoard.leadsNobody' | transloco"
+      [detail]="'staffBoard.leadsNobodyDetail' | transloco"
+    />
+  } @else {
+    <div class="board" data-hq-attendance-board>
+      <div class="board__cards" role="group" [attr.aria-label]="'staffBoard.cardsLabel' | transloco">
+        @for (card of cards; track card) {
+          <button
+            type="button"
+            class="board__card"
+            [class]="'board__card board__card--' + card"
+            [class.is-on]="filter().card === card"
+            [attr.aria-pressed]="filter().card === card"
+            [attr.data-hq-card]="card"
+            (click)="tapCard(card)"
+          >
+            <span class="board__count">{{ count(card) }}</span>
+            <span class="board__card-label">{{ 'staffBoard.card.' + card | transloco }}</span>
+          </button>
+        }
+      </div>
+
+      <div class="board__filters">
+        <hq-input
+          type="search"
+          [label]="'staffBoard.filter.search' | transloco"
+          [value]="filter().search"
+          (valueChange)="setFilter({ search: $event })"
+        />
+        <hq-select
+          [label]="'staffBoard.filter.status' | transloco"
+          [options]="statusOptions()"
+          [value]="filter().status"
+          (valueChange)="setFilter({ status: $event })"
+        />
+        <hq-select
+          [label]="'staffBoard.filter.academy' | transloco"
+          [options]="academyOptions()"
+          [value]="filter().academy"
+          (valueChange)="setFilter({ academy: $event })"
+        />
+        <hq-select
+          [label]="'staffBoard.filter.category' | transloco"
+          [options]="categoryOptions()"
+          [value]="filter().category"
+          (valueChange)="setFilter({ category: $event })"
+        />
+      </div>
+
+      <p class="hq-muted board__live" aria-live="polite">
+        {{ 'staffBoard.live' | transloco: { day: board.value()?.day ?? '' } }}
+      </p>
+
+      <hq-table
+        [rows]="shown()"
+        [columns]="boardColumns()"
+        [cellTemplate]="boardCell"
+        [trackBy]="trackRow"
+        [label]="'staffBoard.tableLabel' | transloco"
+      >
+        <hq-empty-state table-empty [message]="'staffBoard.noRows' | transloco" />
+      </hq-table>
+    </div>
+  }
+} @else {
+  <div class="board">
+    <div class="board__filters">
+      <hq-input
+        type="month"
+        [label]="'staffBoard.report.month' | transloco"
+        [value]="month()"
+        (valueChange)="month.set($event)"
+      />
+      <div class="board__exports">
+        <hq-button variant="secondary" [disabled]="exporting()" (pressed)="exportCsv()" data-hq-export-csv>
+          {{ 'staffBoard.report.csv' | transloco }}
+        </hq-button>
+        <hq-button variant="secondary" [disabled]="exporting()" (pressed)="exportXlsx()" data-hq-export-xlsx>
+          {{ 'staffBoard.report.xlsx' | transloco }}
+        </hq-button>
+      </div>
+    </div>
+
+    @if (report.isLoading()) {
+      <hq-skeleton [loading]="true" [lines]="6" [label]="'staffBoard.loading' | transloco" />
+    } @else if (report.error()) {
+      <hq-card>
+        <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco" [dismissible]="false">
+          {{ 'band.unreachable' | transloco }}
+        </hq-band>
+        <hq-button variant="secondary" (pressed)="report.reload()">{{ 'ui.retry' | transloco }}</hq-button>
+      </hq-card>
+    } @else {
+      <hq-table
+        [rows]="report.value()?.rows ?? []"
+        [columns]="reportColumns()"
+        [cellTemplate]="reportCell"
+        [trackBy]="trackRow"
+        [label]="'staffBoard.report.tableLabel' | transloco"
+      >
+        <hq-empty-state table-empty [message]="'staffBoard.noRows' | transloco" />
+      </hq-table>
+    }
+  </div>
+}
+
+<ng-template #boardCell let-row let-column="column">
+  @switch (column.key) {
+    @case ('fullName') {
+      <button type="button" class="hq-linkbutton" (click)="openDay(row)">{{ row.fullName }}</button>
+    }
+    @case ('category') {
+      {{ categoryLabel(row.category) }}
+    }
+    @case ('academies') {
+      {{ academiesLabel(row.academies) }}
+    }
+    @case ('checkIn') {
+      <span dir="ltr">{{ row.checkIn ?? '—' }}</span>
+    }
+    @case ('checkOut') {
+      <span dir="ltr">{{ row.checkOut ?? '—' }}</span>
+      @if (row.noCheckOut) {
+        <span class="board__flag">{{ 'staffBoard.card.noCheckOut' | transloco }}</span>
+      }
+    }
+    @case ('status') {
+      <span class="board__status" [attr.data-status]="row.status">{{ statusLabel(row.status) }}</span>
+      @if (row.lateMinutes) {
+        <span class="hq-muted">{{ 'staffBoard.lateBy' | transloco: { minutes: row.lateMinutes } }}</span>
+      }
+    }
+    @case ('mode') {
+      {{ modeLabel(row.mode) }}
+    }
+  }
+</ng-template>
+
+<ng-template #reportCell let-row let-column="column">
+  @switch (column.key) {
+    @case ('fullName') {
+      <button type="button" class="hq-linkbutton" (click)="openDay(row)">{{ row.fullName }}</button>
+    }
+    @case ('category') {
+      {{ categoryLabel(row.category) }}
+    }
+    @default {
+      {{ row[column.key] ?? 0 }}
+    }
+  }
+</ng-template>
+
+<hq-dialog [(open)]="dayOpen" [title]="employee.value()?.fullName ?? ('staffBoard.day.title' | transloco)">
+  @if (employee.isLoading()) {
+    <hq-skeleton [loading]="true" [lines]="5" [label]="'staffBoard.loading' | transloco" />
+  } @else if (employee.value(); as day) {
+    <div class="day" data-hq-employee-day>
+      <section>
+        <h3 class="day__heading">{{ 'staffBoard.day.attempts' | transloco: { day: day.day } }}</h3>
+        @if ((day.attempts ?? []).length === 0) {
+          <p class="hq-muted">{{ 'staffBoard.day.noAttempts' | transloco }}</p>
+        } @else {
+          <ul class="day__list">
+            @for (attempt of day.attempts; track $index) {
+              <li class="day__item">
+                <span dir="ltr">{{ attempt.at }}</span>
+                <span>{{ 'staffBoard.action.' + attempt.action | transloco }}</span>
+                <span class="board__status" [attr.data-result]="attempt.result">
+                  {{ 'staffBoard.result.' + attempt.result | transloco }}
+                </span>
+                @if (attempt.reason) {
+                  <span class="hq-muted">{{ reasonLabel(attempt.reason) }}</span>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
+      <section>
+        <h3 class="day__heading">{{ 'staffBoard.day.alerts' | transloco }}</h3>
+        @if ((day.alerts ?? []).length === 0) {
+          <p class="hq-muted">{{ 'staffBoard.day.noAlerts' | transloco }}</p>
+        } @else {
+          <ul class="day__list">
+            @for (alert of day.alerts; track $index) {
+              <li class="day__item">
+                <span dir="ltr">{{ alert.sentAt }}</span>
+                <span>{{ alertLabel(alert.type) }}</span>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
+      <section>
+        <h3 class="day__heading">{{ 'staffBoard.day.month' | transloco: { month: day.month } }}</h3>
+        <ol class="day__calendar">
+          @for (d of day.calendar ?? []; track d.date) {
+            <li class="day__date" [attr.data-status]="d.status" [attr.data-mode]="d.mode">
+              <span class="day__number">{{ (d.date ?? '').slice(8) }}</span>
+              <span class="day__state">{{ 'staffBoard.calendar.' + d.status | transloco }}</span>
+              @if (d.mode === 'manual') {
+                <span class="hq-muted">{{ 'staffBoard.mode.manual' | transloco }}</span>
+              }
+            </li>
+          }
+        </ol>
+      </section>
+    </div>
+  }
+</hq-dialog>
