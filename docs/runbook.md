@@ -2239,6 +2239,27 @@ shared with `ParentPush`. `NotificationService.chatMessage` pushes a staff recip
 bell row (the throttle a parent's chat push already uses) and only when the school has `staffMobileApp` on; the push
 is `kind=chat.message` with `threadId`, which is what the app opens the conversation by.
 
+## Staff check-in (feature 15)
+
+Spec: [docs/features/15-geofence-check-in.md](features/15-geofence-check-in.md). Behind `staffAttendance` and
+`staffMobileApp`, permission `attendance.self` (every staff role; never a parent).
+
+- **Routes.** `POST /staff/attendance/check-in` and `/check-out`, `GET /staff/attendance/today` and
+  `/month?month=YYYY-MM` (`StaffCheckInController`, `CheckInService`). The Admin's
+  `GET`/`DELETE /admin/staff/{kind}/{id}/attendance-device` shows and resets the approved phone
+  (`attendance.settings.read` / `attendance.device.reset`).
+- **Validation order.** Staff of this school, device binding, mock flag, accuracy ≤ 100 m, pin set, distance within
+  the radius (feature 14's settings). A refusal is a `200` with `result=REFUSED` and a `reason`, so the attempt row
+  in `staff_check_in_attempts` is kept. Suspicious fixes are the attempts with `reason = 'MOCK_LOCATION'`.
+- **Time.** The injected `Clock` decides; the date is in the school's zone (`SchoolCalendar`). The phone's time is
+  stored on the attempt for audit only.
+- **Privacy.** Coordinates exist only in the request body and are discarded after the distance is computed. No
+  column, log line or audit entry holds them; `StaffCheckInApiTest` scans the tables and the logs.
+- **Device.** The first successful check-in binds the app's install id (`staff_attendance_devices`). After the
+  Admin's reset (the employee's edit dialog, "Approved device"), the next successful check-in binds the new phone.
+- **App.** `CheckInCard` on the staff home, `StaffMyRecordScreen`, `CheckInViewModel`; location through
+  `core/platform/LocationReader` (while-in-use only), confirmation through `BiometricAuthenticator`.
+
 ## The app and the contract
 
 **The app's JSON is strict, so app and server ship together.** `SchemaValidator.json` — the one `Json` the app's
