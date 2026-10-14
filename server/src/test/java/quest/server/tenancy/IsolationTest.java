@@ -79,6 +79,8 @@ class IsolationTest extends ApiTestSupport {
     @Autowired quest.server.push.StaffDeviceRepository staffDevices;
     @Autowired quest.server.staffattendance.StaffAttendanceDayRepository attendanceDays;
     @Autowired quest.server.staffattendance.StaffAttendanceAlertRepository attendanceAlerts;
+    @Autowired quest.server.staffattendance.AttendanceRemoteDayRepository remoteDays;
+    @Autowired quest.server.staffattendance.StaffAttendanceRequestRepository attendanceRequests;
 
     @BeforeEach void seedTwoSchools() {
         school(A, "Alpha Academy", "SCHLAA"); school(B, "Beta School", "SCHLBB");
@@ -179,6 +181,31 @@ class IsolationTest extends ApiTestSupport {
         }
     }
 
+    @Test void feature_18s_remote_days_and_requests_stay_in_their_school() {
+        var now = java.time.Instant.now();
+        var remote = new quest.server.staffattendance.Entities.AttendanceRemoteDayEntity();
+        remote.setId("iso-remote-b"); remote.setSchoolId(B); remote.setDay(DATE_B); remote.setReason("Rain");
+        remote.setCreatedBy("admin"); remote.setCreatedAt(now);
+        var request = new quest.server.staffattendance.Entities.StaffAttendanceRequestEntity();
+        request.setId("iso-request-b"); request.setSchoolId(B); request.setStaffKind("USER"); request.setStaffId("teacher-b");
+        request.setType("CORRECTION"); request.setDay(DATE_B); request.setReason("Forgot"); request.setStatus("PENDING");
+        request.setCreatedBy("teacher-b"); request.setCreatedAt(now);
+        remoteDays.save(remote); attendanceRequests.save(request);
+        try {
+            tenant.set("MANAGERIAL", A, null);
+            assertThat(remoteDays.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(attendanceRequests.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(remoteDays.findBySchoolIdAndDay(A, DATE_B)).isEmpty();
+            assertThat(attendanceRequests.findOneBySchoolIdAndId(A, "iso-request-b")).isEmpty();
+            tenant.set("MANAGERIAL", B, null);
+            assertThat(attendanceRequests.findAll()).anyMatch(r -> "iso-request-b".equals(r.getId()));
+            assertThat(remoteDays.findAll()).anyMatch(r -> "iso-remote-b".equals(r.getId()));
+        } finally {
+            tenant.clear();
+            remoteDays.deleteById("iso-remote-b"); attendanceRequests.deleteById("iso-request-b");
+        }
+    }
+
     // ---------------------------------------------------------------- every route of /admin/lessons/{id}
 
     static Stream<Arguments> routesOfAnotherSchool() {
@@ -240,7 +267,12 @@ class IsolationTest extends ApiTestSupport {
                         // is refused before the handler rather than answered from the platform's defaults.
                         Arguments.of("GET", "/staff/attendance/today"),
                         Arguments.of("GET", "/staff/attendance/month"),
-                        Arguments.of("GET", "/admin/staff/USER/teacher-a/attendance-device")),
+                        Arguments.of("GET", "/admin/staff/USER/teacher-a/attendance-device"),
+                        // Feature 18: remote days, an employee's own requests and the decider's inbox.
+                        Arguments.of("GET", "/admin/attendance/remote-days"),
+                        Arguments.of("GET", "/staff/attendance/requests"),
+                        Arguments.of("GET", "/attendance/requests"),
+                        Arguments.of("POST", "/attendance/requests/no-such-request/approve")),
                 routesOfAnotherSchool());
     }
 

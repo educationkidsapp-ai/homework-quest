@@ -38,7 +38,9 @@ import quest.server.tenancy.TenantContext;
  * <p><strong>The order of the checks is the spec's</strong> (docs/features/15-geofence-check-in.md §"On the server"),
  * and it is the order of {@link #record}: she is an employee of this school and both switches are on, then the phone
  * is the one bound to her, then the fix is not mocked, then its accuracy is good enough, then the school has a pin at
- * all, and only then how far away she is. Each refusal is the first reason she can act on — telling someone she is
+ * all, and only then how far away she is. On a remote day (feature 18, {@link RemoteDayService#appliesTo}) the three
+ * location checks are skipped and the record's mode is `remote`; the device and the mock flag are still checked. Each
+ * refusal is the first reason she can act on — telling someone she is
  * 400 m away when her phone is not approved would send her to the gate for nothing.
  *
  * <p><strong>A refusal is a 200.</strong> Every call writes a row in `staff_check_in_attempts`, which is how a mocked
@@ -70,15 +72,15 @@ public class CheckInService {
     private final AttendanceDeviceService devices; private final AttendanceSettingsService settings;
     private final ScheduleResolver schedules; private final StaffAttendanceProfileRepository profiles;
     private final AttendanceStaff staff; private final TenantContext tenant; private final SchoolCalendar calendar;
-    private final FeatureFlags flags; private final Clock clock;
+    private final FeatureFlags flags; private final RemoteDayService remoteDays; private final Clock clock;
 
     public CheckInService(StaffCheckInRepository records, StaffCheckInAttemptRepository attempts,
                           AttendanceDeviceService devices, AttendanceSettingsService settings, ScheduleResolver schedules,
                           StaffAttendanceProfileRepository profiles, AttendanceStaff staff, TenantContext tenant,
-                          SchoolCalendar calendar, FeatureFlags flags, Clock clock) {
+                          SchoolCalendar calendar, FeatureFlags flags, RemoteDayService remoteDays, Clock clock) {
         this.records = records; this.attempts = attempts; this.devices = devices; this.settings = settings;
         this.schedules = schedules; this.profiles = profiles; this.staff = staff; this.tenant = tenant;
-        this.calendar = calendar; this.flags = flags; this.clock = clock;
+        this.calendar = calendar; this.flags = flags; this.remoteDays = remoteDays; this.clock = clock;
     }
 
     @Transactional
@@ -103,12 +105,22 @@ public class CheckInService {
         var bound = devices.active(schoolId, employee.kind(), employee.id()).orElse(null);
         if (bound != null && !bound.getInstallId().equals(installId)) return refuse(attempt, CheckInRefusal.DEVICE_NOT_APPROVED, null);
         if (request.getMocked()) return refuse(attempt, CheckInRefusal.MOCK_LOCATION, null);
-        if (!(request.getAccuracyMeters() <= CheckInRules.MAX_ACCURACY_METERS))     // `!(…<=…)` so a NaN is weak, not good
-            return refuse(attempt, CheckInRefusal.WEAK_ACCURACY, null);
         var rules = settings.rules(schoolId);
-        if (rules.latitude() == null || rules.longitude() == null) return refuse(attempt, CheckInRefusal.NO_GEOFENCE, null);
-        int distance = (int) Math.round(Geo.distanceMeters(request.getLatitude(), request.getLongitude(), rules.latitude(), rules.longitude()));
-        if (distance > rules.radiusMeters()) return refuse(attempt, CheckInRefusal.OUTSIDE, distance);
+        boolean pinned = rules.latitude() != null && rules.longitude() != null;
+        // Feature 18: on her remote day the geofence is not asked about at all — not the accuracy, not the pin, not
+        // the distance. The distance is still kept when the school has a pin, as the audit of where she was.
+        boolean remote = remoteDays.appliesTo(schoolId, employee, day);
+        int distance;
+        if (remote) {
+            distance = pinned && Double.isFinite(request.getAccuracyMeters())
+                    ? (int) Math.round(Geo.distanceMeters(request.getLatitude(), request.getLongitude(), rules.latitude(), rules.longitude())) : 0;
+        } else {
+            if (!(request.getAccuracyMeters() <= CheckInRules.MAX_ACCURACY_METERS))   // `!(…<=…)` so a NaN is weak, not good
+                return refuse(attempt, CheckInRefusal.WEAK_ACCURACY, null);
+            if (!pinned) return refuse(attempt, CheckInRefusal.NO_GEOFENCE, null);
+            distance = (int) Math.round(Geo.distanceMeters(request.getLatitude(), request.getLongitude(), rules.latitude(), rules.longitude()));
+            if (distance > rules.radiusMeters()) return refuse(attempt, CheckInRefusal.OUTSIDE, distance);
+        }
 
         var existing = records.findOneBySchoolIdAndStaffKindAndStaffIdAndDay(schoolId, employee.kind(), employee.id(), day).orElse(null);
         if (in) {
@@ -120,7 +132,7 @@ public class CheckInService {
             var row = new StaffCheckInEntity();
             row.setId(UUID.randomUUID().toString()); row.setSchoolId(schoolId);
             row.setStaffKind(employee.kind()); row.setStaffId(employee.id());
-            row.setDay(day); row.setCheckInAt(now); row.setCheckInDistanceM(distance); row.setMode(CheckInMode.ONSITE);
+            row.setDay(day); row.setCheckInAt(now); row.setCheckInDistanceM(distance); row.setMode(remote ? CheckInMode.REMOTE : CheckInMode.ONSITE);
             records.save(row);
             devices.bind(schoolId, employee.kind(), employee.id(), installId, now);  // the first success is what binds
             log(attempt, CheckInOutcome.RECORDED, null, distance);

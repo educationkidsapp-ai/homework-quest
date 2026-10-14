@@ -11,7 +11,7 @@ import org.hibernate.annotations.Filter;
 
 /**
  * Feature 14's four tenant tables (`V37__attendance_settings.sql`) and feature 15's three
- * (`V38__staff_check_in.sql`). Every one carries the school filter.
+ * (`V38__staff_check_in.sql`), feature 16's two (`V39`) and feature 18's two (`V40`). Every one carries the school filter.
  *
  * <p><strong>No latitude or longitude column anywhere below.</strong> Feature 15's privacy rule is that the server
  * computes the distance to the pin and then discards the fix, so the furthest a coordinate travels is the body of a
@@ -134,6 +134,12 @@ public final class Entities {
         @Column(name = "check_out_at") private Instant checkOutAt;
         @Column(name = "check_out_distance_m") private Integer checkOutDistanceM;
         @Column(nullable = false) private String mode;
+        // Feature 18: the audit of an approved correction, and the times it replaced (V40).
+        @Column(name = "corrected_by") private String correctedBy;
+        @Column(name = "corrected_at") private Instant correctedAt;
+        @Column(name = "correction_request_id") private String correctionRequestId;
+        @Column(name = "original_check_in_at") private Instant originalCheckInAt;
+        @Column(name = "original_check_out_at") private Instant originalCheckOutAt;
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
         public String getStaffKind() { return staffKind; } public void setStaffKind(String v) { staffKind = v; }
@@ -144,6 +150,11 @@ public final class Entities {
         public Instant getCheckOutAt() { return checkOutAt; } public void setCheckOutAt(Instant v) { checkOutAt = v; }
         public Integer getCheckOutDistanceM() { return checkOutDistanceM; } public void setCheckOutDistanceM(Integer v) { checkOutDistanceM = v; }
         public String getMode() { return mode; } public void setMode(String v) { mode = v; }
+        public String getCorrectedBy() { return correctedBy; } public void setCorrectedBy(String v) { correctedBy = v; }
+        public Instant getCorrectedAt() { return correctedAt; } public void setCorrectedAt(Instant v) { correctedAt = v; }
+        public String getCorrectionRequestId() { return correctionRequestId; } public void setCorrectionRequestId(String v) { correctionRequestId = v; }
+        public Instant getOriginalCheckInAt() { return originalCheckInAt; } public void setOriginalCheckInAt(Instant v) { originalCheckInAt = v; }
+        public Instant getOriginalCheckOutAt() { return originalCheckOutAt; } public void setOriginalCheckOutAt(Instant v) { originalCheckOutAt = v; }
     }
 
     /**
@@ -257,5 +268,66 @@ public final class Entities {
         public LocalDate getDay() { return day; } public void setDay(LocalDate v) { day = v; }
         public String getType() { return type; } public void setType(String v) { type = v; }
         public Instant getSentAt() { return sentAt; } public void setSentAt(Instant v) { sentAt = v; }
+    }
+
+    /** Feature 18: a day the Admin declared remote, for the whole school ({@code academy} null) or one academy (V40). */
+    @Entity(name = "AttendanceRemoteDayEntity") @Table(name = "attendance_remote_days")
+    @Filter(name = "school", condition = "school_id = :schoolId")
+    public static class AttendanceRemoteDayEntity {
+        @Id private String id;
+        @Column(name = "school_id", nullable = false) private String schoolId;
+        @Column(name = "work_day", nullable = false) private LocalDate day;
+        @Column private String academy;
+        @Column(nullable = false) private String reason;
+        @Column(name = "created_by", nullable = false) private String createdBy;
+        @Column(name = "created_at", nullable = false) private Instant createdAt;
+        public String getId() { return id; } public void setId(String v) { id = v; }
+        public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
+        public LocalDate getDay() { return day; } public void setDay(LocalDate v) { day = v; }
+        public String getAcademy() { return academy; } public void setAcademy(String v) { academy = v; }
+        public String getReason() { return reason; } public void setReason(String v) { reason = v; }
+        public String getCreatedBy() { return createdBy; } public void setCreatedBy(String v) { createdBy = v; }
+        public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
+    }
+
+    /**
+     * Feature 18: an employee's request for a remote day or a correction, and its decision (V40). The claimed times are
+     * wall-clock times in the school's zone on {@code day}; they become instants only when the correction is applied.
+     */
+    @Entity(name = "StaffAttendanceRequestEntity") @Table(name = "staff_attendance_requests")
+    @Filter(name = "school", condition = "school_id = :schoolId")
+    public static class StaffAttendanceRequestEntity {
+        @Id private String id;
+        @Column(name = "school_id", nullable = false) private String schoolId;
+        @Column(name = "staff_kind", nullable = false) private String staffKind;
+        @Column(name = "staff_id", nullable = false) private String staffId;
+        @Column(nullable = false) private String type;
+        @Column(name = "work_day", nullable = false) private LocalDate day;
+        @Column(name = "correction_kind") private String correctionKind;
+        @Column(name = "claimed_check_in") private LocalTime claimedCheckIn;
+        @Column(name = "claimed_check_out") private LocalTime claimedCheckOut;
+        @Column(nullable = false) private String reason;
+        @Column(name = "attachment_id") private String attachmentId;
+        @Column(nullable = false) private String status;
+        @Column(name = "created_by", nullable = false) private String createdBy;
+        @Column(name = "created_at", nullable = false) private Instant createdAt;
+        @Column(name = "decided_by") private String decidedBy;
+        @Column(name = "decided_at") private Instant decidedAt;
+        public String getId() { return id; } public void setId(String v) { id = v; }
+        public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
+        public String getStaffKind() { return staffKind; } public void setStaffKind(String v) { staffKind = v; }
+        public String getStaffId() { return staffId; } public void setStaffId(String v) { staffId = v; }
+        public String getType() { return type; } public void setType(String v) { type = v; }
+        public LocalDate getDay() { return day; } public void setDay(LocalDate v) { day = v; }
+        public String getCorrectionKind() { return correctionKind; } public void setCorrectionKind(String v) { correctionKind = v; }
+        public LocalTime getClaimedCheckIn() { return claimedCheckIn; } public void setClaimedCheckIn(LocalTime v) { claimedCheckIn = v; }
+        public LocalTime getClaimedCheckOut() { return claimedCheckOut; } public void setClaimedCheckOut(LocalTime v) { claimedCheckOut = v; }
+        public String getReason() { return reason; } public void setReason(String v) { reason = v; }
+        public String getAttachmentId() { return attachmentId; } public void setAttachmentId(String v) { attachmentId = v; }
+        public String getStatus() { return status; } public void setStatus(String v) { status = v; }
+        public String getCreatedBy() { return createdBy; } public void setCreatedBy(String v) { createdBy = v; }
+        public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
+        public String getDecidedBy() { return decidedBy; } public void setDecidedBy(String v) { decidedBy = v; }
+        public Instant getDecidedAt() { return decidedAt; } public void setDecidedAt(Instant v) { decidedAt = v; }
     }
 }
