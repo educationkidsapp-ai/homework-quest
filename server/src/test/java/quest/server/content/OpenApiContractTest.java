@@ -243,8 +243,15 @@ class OpenApiContractTest extends ApiTestSupport {
             "/admin/schools/{id}/logo", "/management/complaints", "/management/complaints/{id}", "/management/complaints/{id}/messages",
             "/management/complaints/{id}/read", "/management/complaints/{id}/status");
 
-    /** Feature 14: the Admin's Attendance settings page and every employee's category and direct manager. */
-    static final List<String> STAFF_ATTENDANCE_API = List.of("/admin/attendance-settings", "/admin/staff/attendance-profiles");
+    /**
+     * Feature 14: the Admin's Attendance settings page and every employee's category and direct manager. Feature 15
+     * (`quest.api.staff.StaffCheckInApi`, `quest.api.staff.ApprovedDevice`): the staff app's geofenced check-in and
+     * check-out, the employee's own Today and month, and the Admin's approved-device row on her staff page. Flagged
+     * at run time and still in the document, for the reason every flagged area is.
+     */
+    static final List<String> STAFF_ATTENDANCE_API = List.of("/admin/attendance-settings", "/admin/staff/attendance-profiles",
+            "/staff/attendance/check-in", "/staff/attendance/check-out", "/staff/attendance/today", "/staff/attendance/month",
+            "/admin/staff/{kind}/{id}/attendance-device");
 
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */
     static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings",

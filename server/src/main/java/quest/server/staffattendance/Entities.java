@@ -9,7 +9,14 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import org.hibernate.annotations.Filter;
 
-/** Feature 14's four tenant tables (`V37__attendance_settings.sql`). Every one carries the school filter. */
+/**
+ * Feature 14's four tenant tables (`V37__attendance_settings.sql`) and feature 15's three
+ * (`V38__staff_check_in.sql`). Every one carries the school filter.
+ *
+ * <p><strong>No latitude or longitude column anywhere below.</strong> Feature 15's privacy rule is that the server
+ * computes the distance to the pin and then discards the fix, so the furthest a coordinate travels is the body of a
+ * POST and a local variable in {@link CheckInService}; what is stored is a distance in metres.
+ */
 public final class Entities {
     private Entities() {}
 
@@ -107,5 +114,97 @@ public final class Entities {
         public String getCategory() { return category; } public void setCategory(String v) { category = v; }
         public String getDirectManagerId() { return directManagerId; } public void setDirectManagerId(String v) { directManagerId = v; }
         public Instant getUpdatedAt() { return updatedAt; } public void setUpdatedAt(Instant v) { updatedAt = v; }
+    }
+
+    /**
+     * Feature 15's attendance record: one row per (school, employee, school day). {@code day} is the date in the
+     * school's time zone, the two instants are the server's clock, and the two distances are how far the accepted fix
+     * was from the pin. A second check-out replaces the first, which is why there is one row and not two.
+     */
+    @Entity(name = "StaffCheckInEntity") @Table(name = "staff_check_ins")
+    @Filter(name = "school", condition = "school_id = :schoolId")
+    public static class StaffCheckInEntity {
+        @Id private String id;
+        @Column(name = "school_id", nullable = false) private String schoolId;
+        @Column(name = "staff_kind", nullable = false) private String staffKind;
+        @Column(name = "staff_id", nullable = false) private String staffId;
+        @Column(name = "work_day", nullable = false) private LocalDate day;   // `day` is a keyword in H2
+        @Column(name = "check_in_at", nullable = false) private Instant checkInAt;
+        @Column(name = "check_in_distance_m", nullable = false) private int checkInDistanceM;
+        @Column(name = "check_out_at") private Instant checkOutAt;
+        @Column(name = "check_out_distance_m") private Integer checkOutDistanceM;
+        @Column(nullable = false) private String mode;
+        public String getId() { return id; } public void setId(String v) { id = v; }
+        public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
+        public String getStaffKind() { return staffKind; } public void setStaffKind(String v) { staffKind = v; }
+        public String getStaffId() { return staffId; } public void setStaffId(String v) { staffId = v; }
+        public LocalDate getDay() { return day; } public void setDay(LocalDate v) { day = v; }
+        public Instant getCheckInAt() { return checkInAt; } public void setCheckInAt(Instant v) { checkInAt = v; }
+        public int getCheckInDistanceM() { return checkInDistanceM; } public void setCheckInDistanceM(int v) { checkInDistanceM = v; }
+        public Instant getCheckOutAt() { return checkOutAt; } public void setCheckOutAt(Instant v) { checkOutAt = v; }
+        public Integer getCheckOutDistanceM() { return checkOutDistanceM; } public void setCheckOutDistanceM(Integer v) { checkOutDistanceM = v; }
+        public String getMode() { return mode; } public void setMode(String v) { mode = v; }
+    }
+
+    /**
+     * Every call to check in or out, accepted or refused: this is where a mocked fix, an unapproved phone and a tap
+     * from the car park are found afterwards. {@code phoneAt} is what the phone claimed the time was, kept as text
+     * because it is audit material and not something the server computes with.
+     */
+    @Entity(name = "StaffCheckInAttemptEntity") @Table(name = "staff_check_in_attempts")
+    @Filter(name = "school", condition = "school_id = :schoolId")
+    public static class StaffCheckInAttemptEntity {
+        @Id private String id;
+        @Column(name = "school_id", nullable = false) private String schoolId;
+        @Column(name = "staff_kind", nullable = false) private String staffKind;
+        @Column(name = "staff_id", nullable = false) private String staffId;
+        @Column(name = "server_at", nullable = false) private Instant serverAt;
+        @Column(name = "phone_at") private String phoneAt;
+        @Column(nullable = false) private String action;
+        @Column(name = "distance_m") private Integer distanceM;
+        @Column(name = "accuracy_m") private Double accuracyM;
+        @Column(nullable = false) private boolean mocked;
+        @Column(name = "install_id") private String installId;
+        @Column(nullable = false) private String result;
+        private String reason;
+        public String getId() { return id; } public void setId(String v) { id = v; }
+        public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
+        public String getStaffKind() { return staffKind; } public void setStaffKind(String v) { staffKind = v; }
+        public String getStaffId() { return staffId; } public void setStaffId(String v) { staffId = v; }
+        public Instant getServerAt() { return serverAt; } public void setServerAt(Instant v) { serverAt = v; }
+        public String getPhoneAt() { return phoneAt; } public void setPhoneAt(String v) { phoneAt = v; }
+        public String getAction() { return action; } public void setAction(String v) { action = v; }
+        public Integer getDistanceM() { return distanceM; } public void setDistanceM(Integer v) { distanceM = v; }
+        public Double getAccuracyM() { return accuracyM; } public void setAccuracyM(Double v) { accuracyM = v; }
+        public boolean isMocked() { return mocked; } public void setMocked(boolean v) { mocked = v; }
+        public String getInstallId() { return installId; } public void setInstallId(String v) { installId = v; }
+        public String getResult() { return result; } public void setResult(String v) { result = v; }
+        public String getReason() { return reason; } public void setReason(String v) { reason = v; }
+    }
+
+    /**
+     * The phone bound to an employee. The first successful check-in writes the row; the Admin's reset stamps
+     * {@code resetBy} and {@code resetAt} and the next successful check-in writes a new one, so the history of which
+     * phones a person used is kept. <strong>The live binding is the row whose {@code resetAt} is null.</strong>
+     */
+    @Entity(name = "StaffAttendanceDeviceEntity") @Table(name = "staff_attendance_devices")
+    @Filter(name = "school", condition = "school_id = :schoolId")
+    public static class StaffAttendanceDeviceEntity {
+        @Id private String id;
+        @Column(name = "school_id", nullable = false) private String schoolId;
+        @Column(name = "staff_kind", nullable = false) private String staffKind;
+        @Column(name = "staff_id", nullable = false) private String staffId;
+        @Column(name = "install_id", nullable = false) private String installId;
+        @Column(name = "first_seen_at", nullable = false) private Instant firstSeenAt;
+        @Column(name = "reset_by") private String resetBy;
+        @Column(name = "reset_at") private Instant resetAt;
+        public String getId() { return id; } public void setId(String v) { id = v; }
+        public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
+        public String getStaffKind() { return staffKind; } public void setStaffKind(String v) { staffKind = v; }
+        public String getStaffId() { return staffId; } public void setStaffId(String v) { staffId = v; }
+        public String getInstallId() { return installId; } public void setInstallId(String v) { installId = v; }
+        public Instant getFirstSeenAt() { return firstSeenAt; } public void setFirstSeenAt(Instant v) { firstSeenAt = v; }
+        public String getResetBy() { return resetBy; } public void setResetBy(String v) { resetBy = v; }
+        public Instant getResetAt() { return resetAt; } public void setResetAt(Instant v) { resetAt = v; }
     }
 }

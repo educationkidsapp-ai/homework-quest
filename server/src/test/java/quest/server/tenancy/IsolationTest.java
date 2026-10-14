@@ -205,7 +205,13 @@ class IsolationTest extends ApiTestSupport {
                         Arguments.of("GET", "/teacher/classes/" + CLASS_A + "/students"),
                         // Feature 14: the school's attendance rules and its staff's direct managers
                         Arguments.of("GET", "/admin/attendance-settings"),
-                        Arguments.of("GET", "/admin/staff/attendance-profiles")),
+                        Arguments.of("GET", "/admin/staff/attendance-profiles"),
+                        // Feature 15: an employee's own record, and the phone approved for her. Every one of these
+                        // answers about the caller's school and nothing names a school, so a principal who has none
+                        // is refused before the handler rather than answered from the platform's defaults.
+                        Arguments.of("GET", "/staff/attendance/today"),
+                        Arguments.of("GET", "/staff/attendance/month"),
+                        Arguments.of("GET", "/admin/staff/USER/teacher-a/attendance-device")),
                 routesOfAnotherSchool());
     }
 

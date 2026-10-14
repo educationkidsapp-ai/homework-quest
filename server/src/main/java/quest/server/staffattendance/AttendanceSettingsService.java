@@ -103,6 +103,19 @@ public class AttendanceSettingsService {
 
     // ---------------------------------------------------------------- what features 15 and 16 read
 
+    /**
+     * What feature 15 checks a fix against. A null {@code latitude} or {@code longitude} is a school that has not
+     * placed its pin yet, which is the `NO_GEOFENCE` refusal and not a reason to accept everything.
+     */
+    public record Rules(Double latitude, Double longitude, int radiusMeters, int graceMinutes) {}
+
+    /** One school's geofence and grace period: the saved row, or the spec's defaults with no pin. */
+    public Rules rules(String schoolId) {
+        return settings.findOneBySchoolId(schoolId)
+                .map(r -> new Rules(r.getLatitude(), r.getLongitude(), r.getRadiusMeters(), r.getGraceMinutes()))
+                .orElseGet(() -> new Rules(null, null, RADIUS_DEFAULT, GRACE_DEFAULT));
+    }
+
     /** One category's hours for one school: the saved row, or Sunday–Thursday 07:00–14:00. */
     public ScheduleResolver.Hours hours(String schoolId, String category) {
         return schedules.findOneBySchoolIdAndCategory(schoolId, category).map(AttendanceSettingsService::hours)
