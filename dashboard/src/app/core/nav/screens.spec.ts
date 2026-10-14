@@ -89,6 +89,8 @@ describe('the screen table', () => {
       'children',
       // Feature 14: the school's attendance rules and direct managers, behind `staffAttendance`.
       'attendance-settings',
+      // Feature 18: the remote days and corrections waiting for a decision, behind the same flag.
+      'attendance-requests',
       // D13: `schools` keeps its label and its `multiSchool` flag — the rail hides it at runtime,
       // and the table is what it is hidden from.
       'schools',
@@ -168,6 +170,8 @@ describe('the screen table', () => {
     expect(navScreens('TEACHER').map(({ screen }) => screen.id)).toEqual([
       'week',
       'classes',
+      // Feature 18: her own direct reports' requests — a teacher is a direct manager too.
+      'attendance-requests',
       'announcements',
       'chat',
       // D5: Complaints beside Messages, never inside it.
@@ -179,6 +183,7 @@ describe('the screen table', () => {
     expect(navScreens('TEACHER').map(({ link }) => link)).toEqual([
       '/teacher/week',
       '/teacher/classes',
+      '/teacher/attendance-requests',
       '/teacher/announcements',
       '/teacher/chat',
       '/teacher/complaints',
@@ -228,7 +233,7 @@ describe('the screen table', () => {
    * are properties of the table: a row that lost `readOnly` would hand her a publish button, and
    * the page would never know.
    */
-  it('gives a coordinator her eleven rail items and read-only detail routes', () => {
+  it('gives a coordinator her twelve rail items and read-only detail routes', () => {
     expect(navScreens('COORDINATOR').map(({ screen }) => screen.id)).toEqual([
       'home',
       'teachers',
@@ -236,6 +241,8 @@ describe('the screen table', () => {
       'lessons',
       // R6's three record screens.
       'attendance',
+      // Feature 18: her teachers' remote days and corrections, hers to decide.
+      'attendance-requests',
       'gradebook',
       'exams',
       'messages',
@@ -250,6 +257,7 @@ describe('the screen table', () => {
       '/coordinator/classes',
       '/coordinator/lessons',
       '/coordinator/attendance',
+      '/coordinator/attendance-requests',
       '/coordinator/gradebook',
       '/coordinator/exams',
       '/coordinator/messages',
@@ -302,10 +310,22 @@ describe('the screen table', () => {
     // from somebody else's namespace. `broadcast.read` is the one exception, and it is not one:
     // the *feed* is `GET /me/broadcasts`, which every dashboard role reads with the same key, and
     // her composer is gated on `coordinator.broadcast` inside the screen.
+    // Feature 18 is the second exception, and for the same reason: `POST /attendance/requests/{id}/approve`
+    // is one route for all four staff roles — the server scopes it to the caller's own direct
+    // reports — so there is no `coordinator.` key for it to carry.
     const keys = AREAS.COORDINATOR.screens.map((screen) => screen.permission ?? '');
     expect(
-      keys.every((key) => key === '' || key.startsWith('coordinator.') || key === 'broadcast.read'),
+      keys.every(
+        (key) =>
+          key === '' ||
+          key.startsWith('coordinator.') ||
+          key === 'broadcast.read' ||
+          key === 'attendance.requests.decide',
+      ),
     ).toBe(true);
+    const requests = AREAS.COORDINATOR.screens.find((screen) => screen.id === 'attendance-requests');
+    expect(requests?.flag).toBe('staffAttendance');
+    expect(requests?.readOnly).toBeUndefined();
   });
 
   /**
@@ -325,6 +345,9 @@ describe('the screen table', () => {
       // MH2 item 3: **Children**, not People — its other two tabs are rail rows of their own now.
       'children',
       'staff-attendance',
+      // Feature 18: the requests her direct reports are waiting on — the one row of hers that is
+      // not read-only.
+      'attendance-requests',
       // Feature 14: the Admin's Attendance settings, read-only for her.
       'attendance-settings',
       // MG2b: the weekly plan per grade and the archive of every one of them, beside Announcements

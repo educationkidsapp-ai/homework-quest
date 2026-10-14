@@ -384,6 +384,20 @@
         "add": "إضافة إجازة",
         "remove": "حذف"
       },
+      "remoteDays": {
+        "title": "أيام عن بعد",
+        "hint": "في اليوم عن بعد يُسجَّل الحضور من أي مكان ويُوسم السجل بأنه عن بعد.",
+        "empty": "لا توجد أيام عن بعد بعد.",
+        "loading": "جارٍ تحميل الأيام عن بعد...",
+        "date": "اليوم",
+        "scope": "النطاق",
+        "wholeSchool": "كل المدرسة",
+        "reason": "السبب",
+        "reasonPlaceholder": "يوم مطر",
+        "add": "إضافة يوم عن بعد",
+        "remove": "حذف",
+        "removeOne": "حذف اليوم عن بعد في {{date}}"
+      },
       "rules": {
         "title": "القواعد",
         "grace": "فترة السماح (بالدقائق)",
@@ -558,6 +572,67 @@
     "notMarked": "لم يُسجَّل",
     "rangeCount": "{{children}} طالبًا خلال {{days}} يومًا",
     "noDays": "لم يُسجَّل حضور في هذه المدة."
+  },
+  "attendanceRequests": {
+    "title": "طلبات الحضور",
+    "subtitle": "أيام العمل عن بعد وطلبات التصحيح من موظفيك.",
+    "loading": "جارٍ تحميل الطلبات...",
+    "tab": {
+      "label": "أي الطلبات",
+      "pending": "قيد الانتظار",
+      "decided": "تم الحسم"
+    },
+    "column": {
+      "staff": "الموظف",
+      "type": "الطلب",
+      "date": "اليوم",
+      "times": "الأوقات",
+      "reason": "السبب",
+      "status": "القرار"
+    },
+    "type": {
+      "REMOTE_DAY": "يوم عن بعد",
+      "CORRECTION": "تصحيح"
+    },
+    "kind": {
+      "FORGOT_CHECK_IN": "نسي تسجيل الحضور",
+      "FORGOT_CHECK_OUT": "نسي تسجيل الانصراف",
+      "PHONE_PROBLEM": "مشكلة في الهاتف"
+    },
+    "status": {
+      "PENDING": "قيد الانتظار",
+      "APPROVED": "مقبول",
+      "REJECTED": "مرفوض"
+    },
+    "checkIn": "حضور {{time}}",
+    "checkOut": "انصراف {{time}}",
+    "original": "كان {{times}}",
+    "none": "لا وقت مطلوب",
+    "asked": "طُلب {{date}}",
+    "attachment": "فتح المرفق",
+    "attachmentFailed": "تعذّر فتح المرفق.",
+    "approve": "موافقة",
+    "reject": "رفض",
+    "decidedBy": "{{name}}، {{date}}",
+    "empty": {
+      "pending": "لا شيء ينتظرك.",
+      "decided": "لم يُحسم أي طلب بعد."
+    },
+    "alreadyDecided": "سبق أن حُسم هذا الطلب.",
+    "add": {
+      "open": "إضافة تصحيح",
+      "title": "إضافة تصحيح",
+      "staff": "الموظف",
+      "date": "اليوم",
+      "kind": "النوع",
+      "checkIn": "الحضور",
+      "checkOut": "الانصراف",
+      "reason": "السبب",
+      "reasonPlaceholder": "سبب تعديل السجل",
+      "reasonRequired": "السبب مطلوب.",
+      "save": "حفظ التصحيح",
+      "saved": "تم حفظ التصحيح."
+    }
   },
   "band": {
     "failed": "لم ينجح ذلك",
@@ -1544,7 +1619,8 @@
     "workers": "العاملون",
     "childrenParents": "الأبناء وأولياء الأمور",
     "manager": "المدير",
-    "attendanceSettings": "إعدادات الحضور"
+    "attendanceSettings": "إعدادات الحضور",
+    "attendanceRequests": "طلبات الحضور"
   },
   "notifications": {
     "title": "الإشعارات",
@@ -1617,6 +1693,18 @@
         "digest": {
           "title": "حضور اليوم",
           "body": "ملخص حضور اليوم."
+        },
+        "request": {
+          "title": "طلب حضور",
+          "body": "أحد الموظفين ينتظر قرارك."
+        },
+        "decision": {
+          "title": "طلبك",
+          "body": "تم حسم طلبك."
+        },
+        "remote_day": {
+          "title": "يوم عن بعد",
+          "body": "تم الإعلان عن يوم عمل عن بعد."
         }
       }
     },
@@ -1631,6 +1719,17 @@
       "digest": "اليوم: {{late}} متأخرون، {{notArrived}} لم يصل، {{remote}} عن بعد",
       "digestLate": "متأخرون: {{names}}",
       "digestNotArrived": "لم يصل: {{names}}",
+      "remote_day_request": "{{name}} يطلب العمل عن بعد يوم {{date}}",
+      "correction_request": "{{name}} يطلب تصحيح سجل يوم {{date}}",
+      "remote_day_decided": {
+        "approved": "تمت الموافقة على يومك عن بعد في {{date}}",
+        "rejected": "تم رفض يومك عن بعد في {{date}}"
+      },
+      "correction_decided": {
+        "approved": "تمت الموافقة على تصحيح يوم {{date}}",
+        "rejected": "تم رفض تصحيح يوم {{date}}"
+      },
+      "remote_day": "يوم {{date}} يوم عمل عن بعد",
       "separator": "، "
     }
   },

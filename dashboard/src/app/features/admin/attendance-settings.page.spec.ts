@@ -86,6 +86,10 @@ async function renderSignedIn(permissions = ADMIN_PERMISSIONS, user = ADMIN_USER
   backend.expectOne('/admin/attendance-settings').flush(SETTINGS);
   backend.expectOne('/admin/staff/attendance-profiles').flush(STAFF);
   await settle(rendered);
+  // Feature 18: the Remote days card is drawn once the settings have landed, and reads its own
+  // rows with its own GET (`remote-days-card.component.spec.ts` covers the card itself).
+  backend.expectOne('/admin/attendance/remote-days').flush({ days: [] });
+  await settle(rendered);
   return { rendered, backend };
 }
 

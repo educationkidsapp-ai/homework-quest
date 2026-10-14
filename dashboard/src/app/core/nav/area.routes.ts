@@ -108,6 +108,13 @@ function componentFor(screen: Screen, role: Role) {
   // Feature 14: the Attendance settings page and its direct managers.
   if (screen.id === 'attendance-settings')
     return import('../../features/admin/attendance-settings.page').then((m) => m.AttendanceSettingsPage);
+  // Feature 18: one Attendance requests screen for all four areas — `GET /attendance/requests`
+  // answers every caller with the requests *she* decides, so there is nothing to vary by role
+  // but the Admin's "Add correction", which the page gates on `attendance.correction.write`.
+  if (screen.id === 'attendance-requests')
+    return import('../../features/attendance-requests/attendance-requests.page').then(
+      (m) => m.AttendanceRequestsPage,
+    );
   // The Admin's Children & parents — admission, and the parent login it mints. The *manager's*
   // `children` row is her department's read-only directory and never reaches here
   // (`supervisorComponentFor` takes MANAGERIAL first).
@@ -154,6 +161,10 @@ const SHARED_WITH_TEACHER = new Set([
   'manager',
   // D5: so is Complaints — `ComplaintsService` reads the role's own `/{area}/complaints`.
   'complaints',
+  // Feature 18: and so is Attendance requests. `GET /attendance/requests` is **not** namespaced by
+  // role — the server scopes it to the caller's direct reports — so a copy of the screen under
+  // `supervisorComponentFor` would be the same component reading the same route twice.
+  'attendance-requests',
 ]);
 
 /**

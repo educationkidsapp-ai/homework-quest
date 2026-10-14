@@ -42,6 +42,50 @@ describe('feature 16 — an attendance row in her language', () => {
     expect(attendanceBody(item, translator(ar))).toBe('اليوم: 3 متأخرون، 1 لم يصل، 2 عن بعد · متأخرون: A، B، C · لم يصل: D');
   });
 
+  /** Feature 18: the three new kinds, worded from `attendance=`, `name=`, `date=` and `decision=`. */
+  it('words a remote-day and a correction request, in both languages', () => {
+    const request = (type: string) =>
+      ({
+        kind: NotificationViewKindEnum.ATTENDANCE_REQUEST,
+        link: `/notifications?attendance=${type}&request=r-7&staff=USER%3Au-1&name=Tala&date=2026-10-18`,
+        body: '',
+      }) as const;
+    expect(attendanceBody(request('remote_day_request'), translator(en))).toBe(
+      'Tala asks to work remotely on 2026-10-18',
+    );
+    expect(attendanceBody(request('remote_day_request'), translator(ar))).toBe(
+      'Tala يطلب العمل عن بعد يوم 2026-10-18',
+    );
+    expect(attendanceBody(request('correction_request'), translator(en))).toBe(
+      'Tala asks to correct the record of 2026-10-18',
+    );
+  });
+
+  it('words a decision from `decision=`, and a remote day from its date', () => {
+    const decided = (type: string, decision: string) =>
+      ({
+        kind: NotificationViewKindEnum.ATTENDANCE_DECISION,
+        link: `/notifications?attendance=${type}&request=r-7&decision=${decision}&date=2026-10-18`,
+        body: '',
+      }) as const;
+    expect(attendanceBody(decided('remote_day_decided', 'approved'), translator(en))).toBe(
+      'Your remote day on 2026-10-18 was approved',
+    );
+    expect(attendanceBody(decided('correction_decided', 'rejected'), translator(en))).toBe(
+      'Your correction for 2026-10-18 was rejected',
+    );
+    expect(attendanceBody(decided('remote_day_decided', 'rejected'), translator(ar))).toBe(
+      'تم رفض يومك عن بعد في 2026-10-18',
+    );
+    const announced = {
+      kind: NotificationViewKindEnum.ATTENDANCE_REMOTE_DAY,
+      link: '/notifications?attendance=remote_day&date=2026-10-18',
+      body: '',
+    } as const;
+    expect(attendanceBody(announced, translator(en))).toBe('2026-10-18 is a remote working day');
+    expect(attendanceBody(announced, translator(ar))).toBe('يوم 2026-10-18 يوم عمل عن بعد');
+  });
+
   it('leaves every other kind, and a row with no link, to the usual wording', () => {
     expect(attendanceBody({ kind: NotificationViewKindEnum.CHAT_MESSAGE, link: '/teacher/chat?thread=t', body: 'hi' }, translator(en))).toBeNull();
     expect(attendanceBody({ kind: NotificationViewKindEnum.ATTENDANCE_ALERT, body: 'fallback' }, translator(en))).toBe('fallback');

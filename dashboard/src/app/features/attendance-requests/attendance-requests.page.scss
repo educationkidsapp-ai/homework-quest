@@ -1,0 +1,31 @@
+.requests {
+  display: grid;
+  gap: var(--hq-space-16);
+  margin-block-start: var(--hq-space-16);
+}
+
+.requests__bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hq-space-12);
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* A second line inside a cell: when she asked, the times that were there before. */
+.requests__asked {
+  display: block;
+  font-size: var(--hq-text-note);
+}
+
+.requests__decide {
+  display: flex;
+  gap: var(--hq-space-8);
+  align-items: center;
+}
+
+.requests__times {
+  display: grid;
+  gap: var(--hq-space-12);
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+}

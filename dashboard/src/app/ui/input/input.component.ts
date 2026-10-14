@@ -50,6 +50,7 @@ export type InputType =
           [required]="required()"
           [attr.maxlength]="maxLength()"
           [attr.min]="min()"
+          [attr.max]="max()"
           [attr.aria-invalid]="error() ? 'true' : null"
           [attr.aria-describedby]="describedBy()"
           (input)="onInput($event)"
@@ -195,6 +196,8 @@ export class InputComponent {
    * screen still validates, because a typed value walks straight past a greyed-out cell.
    */
   readonly min = input<string | null>(null);
+  /** The latest value a `date` (or `number`) field accepts, as the input's own `max`. */
+  readonly max = input<string | null>(null);
   /** Reserve the leading 48 px for a glyph projected into `[input-icon]` (§3 Input). */
   readonly icon = input(false);
   /** The trailing key hint, e.g. `/` on the shell's search field. */
