@@ -20,6 +20,7 @@ import {
 import { renderHq } from '../../../testing/render';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
+import { FlagService } from '../../core/flags/flag.service';
 import { HomePage } from './home.page';
 
 const providers: (Provider | EnvironmentProviders)[] = [
@@ -41,8 +42,9 @@ async function renderHome(
   user: DashboardUserFixture,
   home: HomeResponse,
   permissions: { role: string; permissions: readonly string[]; readOnly: boolean } = ADMIN_PERMISSIONS,
+  extra: (Provider | EnvironmentProviders)[] = [],
 ) {
-  const rendered = await renderHq(HomePage, { providers });
+  const rendered = await renderHq(HomePage, { providers: [...providers, ...extra] });
   const backend = TestBed.inject(HttpTestingController);
 
   TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
@@ -214,6 +216,46 @@ describe('Home', () => {
     expect(screen.getByText('Mr Omar has published nothing for 7 days')).toBeInTheDocument();
     expect(screen.queryByText('Your classes')).not.toBeInTheDocument();
     expect(screen.queryByText('Weakest skills')).not.toBeInTheDocument();
+  });
+
+  /**
+   * Feature 21: with the switch on, her Home leads with what needs a decision today and the
+   * counts she used to land on become a strip at the bottom. Her needs-you rows stay where they
+   * were, between the two.
+   */
+  it('leads with what needs her today and drops the counts to a strip when todayHome is on', async () => {
+    const rendered = await renderHome(ADMIN_USER, ADMIN_HOME, ADMIN_PERMISSIONS, [
+      { provide: FlagService, useValue: { isOn: () => true, ready: () => true } },
+    ]);
+    const backend = TestBed.inject(HttpTestingController);
+    TestBed.tick();
+    backend.expectOne('/me/today').flush({
+      day: '2026-10-19',
+      timeZone: 'Asia/Riyadh',
+      waiting: { requests: [], devices: [] },
+      overdueComplaints: { total: 0, items: [] },
+      unread: { count: 3, senders: [{ threadId: 't-1', name: 'Mona Ahmed' }] },
+      counts: [],
+    });
+    await Promise.resolve();
+    TestBed.tick();
+    rendered.fixture.detectChanges();
+
+    expect(rendered.container.querySelector('[data-hq-today]')).not.toBeNull();
+    expect(screen.getByText('Unread messages')).toBeInTheDocument();
+    // The same counts, still there and still links, in the strip.
+    expect(rendered.container.querySelector('.em-stats-grid--strip')).not.toBeNull();
+    expect(screen.getByText('Schools')).toBeInTheDocument();
+    expect(screen.getByText('What needs you')).toBeInTheDocument();
+  });
+
+  /** The switch off is the screen as it was: no `/me/today`, no strip, counts first. */
+  it('asks nothing of /me/today and leaves the page unchanged while the switch is off', async () => {
+    const rendered = await renderHome(ADMIN_USER, ADMIN_HOME);
+
+    expect(rendered.container.querySelector('[data-hq-today]')).toBeNull();
+    expect(rendered.container.querySelector('.em-stats-grid--strip')).toBeNull();
+    TestBed.inject(HttpTestingController).expectNone('/me/today');
   });
 
   it('re-renders in Arabic without asking the server again', async () => {

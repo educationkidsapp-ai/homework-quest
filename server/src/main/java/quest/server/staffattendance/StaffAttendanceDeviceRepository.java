@@ -17,4 +17,10 @@ public interface StaffAttendanceDeviceRepository extends JpaRepository<Entities.
 
     List<Entities.StaffAttendanceDeviceEntity> findBySchoolIdAndStaffKindAndStaffIdOrderByFirstSeenAtAsc(
             String schoolId, String staffKind, String staffId);
+
+    /**
+     * Feature 21: the school's reset bindings, in one statement — what says that a refused check-in has already been
+     * dealt with, so the Admin's Home does not keep asking her to reset a phone she reset an hour ago.
+     */
+    List<Entities.StaffAttendanceDeviceEntity> findBySchoolIdAndResetAtIsNotNull(String schoolId);
 }

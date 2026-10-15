@@ -8,10 +8,13 @@ import {
   computed,
   inject,
   input,
+  linkedSignal,
   signal,
 } from '@angular/core';
-import { rxResource } from '@angular/core/rxjs-interop';
+import { rxResource, toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { map } from 'rxjs/operators';
 import { type BoardRow, type EmployeeDay, type ReportRow, StaffAttendanceBoardApi } from '../../api';
 import { saveFile } from '../../core/download/download';
 import { activeLang } from '../../core/i18n/active-lang';
@@ -37,6 +40,7 @@ import {
   REFRESH_MS,
   STATUSES,
   academiesOf,
+  cardFromStatus,
   countOf,
   filterRows,
   toggleCard,
@@ -100,7 +104,24 @@ export class AttendanceBoardComponent {
     stream: () => this.api.attendanceBoard(),
   });
 
-  protected readonly filter = signal<BoardFilter>(NO_FILTER);
+  /**
+   * Feature 21: `?status=late` from the "What needs me today?" Home, read into the card filter
+   * the board already has — so the number she tapped and the rows she lands on are the same
+   * thing, and there is nothing new to keep in step with the cards.
+   *
+   * A `linkedSignal` rather than a one-off read in the constructor: she may come back to this
+   * screen from a different number without the component being built again, and tapping a card
+   * here still writes the filter directly. An unknown or absent value is no filter at all.
+   */
+  private readonly statusParam = toSignal(
+    inject(ActivatedRoute).queryParamMap.pipe(map((params) => params.get('status') ?? '')),
+    { initialValue: '' },
+  );
+
+  protected readonly filter = linkedSignal<Card | null, BoardFilter>({
+    source: () => cardFromStatus(this.statusParam()),
+    computation: (card, previous) => ({ ...(previous?.value ?? NO_FILTER), card }),
+  });
   protected readonly rows = computed(() => this.board.value()?.rows ?? []);
   protected readonly shown = computed(() => filterRows(this.rows(), this.filter()));
   protected readonly counts = computed(() => this.board.value()?.counts);

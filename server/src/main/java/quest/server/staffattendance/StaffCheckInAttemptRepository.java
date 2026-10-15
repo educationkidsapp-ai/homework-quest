@@ -17,4 +17,12 @@ public interface StaffCheckInAttemptRepository extends JpaRepository<Entities.St
     /** Feature 17: one employee's attempts on one day (the day's bounds in the school's zone), for her leaders. */
     List<Entities.StaffCheckInAttemptEntity> findBySchoolIdAndStaffKindAndStaffIdAndServerAtBetweenOrderByServerAtAsc(
             String schoolId, String staffKind, String staffId, java.time.Instant from, java.time.Instant to);
+
+    /**
+     * Feature 21: every attempt of the school refused for one reason inside a window — the whole school's
+     * `DEVICE_NOT_APPROVED` refusals today, which is the only "waiting for the Admin" signal a blocked phone has.
+     * Newest first, so the first row of a person is her latest attempt.
+     */
+    List<Entities.StaffCheckInAttemptEntity> findBySchoolIdAndReasonAndServerAtBetweenOrderByServerAtDesc(
+            String schoolId, String reason, java.time.Instant from, java.time.Instant to);
 }

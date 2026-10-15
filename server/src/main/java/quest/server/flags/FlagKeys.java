@@ -53,10 +53,16 @@ public final class FlagKeys {
      */
     public static final String CHAT_OFFICE_HOURS = "chatOfficeHours";
 
+    /**
+     * Feature 21: the Admin's and the department manager's Home leads with what needs a decision today — attendance,
+     * the requests waiting for her, overdue complaints and unread messages (`GET /me/today`). Seeded off by V43.
+     */
+    public static final String TODAY_HOME = "todayHome";
+
     public static final List<String> ALL = List.of(
             LESSONS_PDF, LESSONS_SLIDES, LESSONS_IMAGES, LESSONS_MANUAL, LEVELS_THREE, RETELL_RECORDING,
             OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, COMPLAINTS, ANNOUNCEMENTS, TEACHER_QUESTIONS,
             STICKERS_TREASURE_CHEST, PROGRESS_WEEKLY_EMAIL, CERTIFICATES,
             MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST,
-            CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS);
+            CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, TODAY_HOME);
 }

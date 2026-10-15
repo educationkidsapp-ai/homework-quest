@@ -1,7 +1,21 @@
 # Feature 21 — "What needs me today?" home (stretch)
 
-**Status:** Not started · **Area:** dashboard (Admin, Manager) · **Depends on:** 16, 18 ·
-**Feature switch:** `today_home`
+**Status:** Done · **Area:** dashboard (Admin, Manager) · **Depends on:** 16, 18 ·
+**Feature switch:** `todayHome` (camelCase, like the other switches)
+
+**Leftovers:**
+- **Load time on QA is not measured yet.** "Under one second on QA with the pilot school's data" needs someone signed
+  in on QA. Locally, a statement-count test bounds `GET /me/today` as children, classes, complaints and threads grow.
+  It does not grow employees or pending requests: the feature 17 board and feature 18's `mayDecide` run one query per
+  person, by their own design.
+- **The counts strip reuses the whole Admin home call.** It keeps only the counts, so the old home's "needs you"
+  queries still run. If QA is slow, the first fix is a counts-only method in `HomeService`.
+- **"Device resets" are blocked check-ins.** The code has no reset *request*. The card lists staff whose check-in
+  was refused today because the phone is not the approved one. The Admin resets the device inline, and only she
+  sees this part, because only she may reset a device.
+- **Errors show in the red band, not a toast.** That is the dashboard's rule for failures.
+- **Not deployed yet.** The QA deploy follows the merge into `develop`, after feature 20 (migration V42 before V43).
+  The switch is off until the school turns it on.
 
 ## Goal
 

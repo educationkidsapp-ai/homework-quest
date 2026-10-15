@@ -2,7 +2,8 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { EnvironmentProviders, Provider } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { of } from 'rxjs';
 import { screen, within } from '@testing-library/angular';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type AttendanceBoard, type BoardRow, BASE_PATH } from '../../api';
@@ -15,6 +16,7 @@ import {
   NO_FILTER,
   REFRESH_MS,
   academiesOf,
+  cardFromStatus,
   cardMatches,
   countOf,
   filterRows,
@@ -114,6 +116,19 @@ describe('the board, without Angular', () => {
     expect(academiesOf(ROWS)).toEqual(['american', 'british']);
   });
 
+  /** Feature 21: the four statuses the "What needs me today?" Home links with, and nothing else. */
+  it('reads a ?status= into a card, and refuses anything that is not one', () => {
+    expect(cardFromStatus('late')).toBe('late');
+    expect(cardFromStatus('notArrived')).toBe('notArrived');
+    expect(cardFromStatus('remote')).toBe('remote');
+    expect(cardFromStatus('present')).toBe('present');
+    // A flag a present row also carries, counted by no card on that Home.
+    expect(cardFromStatus('noCheckOut')).toBeNull();
+    expect(cardFromStatus('LATE')).toBeNull();
+    expect(cardFromStatus('')).toBeNull();
+    expect(cardFromStatus(null)).toBeNull();
+  });
+
   it('puts the byte-order mark back on the CSV so Excel reads Arabic names', () => {
     expect(withBom('الاسم,الفئة\n').charCodeAt(0)).toBe(0xfeff);
     expect(withBom('\uFEFFx')).toBe('\uFEFFx');
@@ -163,6 +178,53 @@ describe('Staff attendance board', () => {
     await settle(rendered);
     expect(names()).toContain('Sami New');
     backend.expectNone('/staff-attendance/board');
+  });
+
+  /**
+   * Feature 21: she tapped "2 Late" on her Home, so this is the two rows that number counted —
+   * the card is pressed and the filter is clearable from here like any other.
+   */
+  it('lands filtered to the card named by ?status=, and clears when it is tapped again', async () => {
+    const rendered = await renderHq(AttendanceBoardPage, {
+      providers: [
+        ...providers,
+        {
+          provide: ActivatedRoute,
+          useValue: { queryParamMap: of(convertToParamMap({ status: 'late' })) },
+        },
+      ],
+    });
+    const backend = TestBed.inject(HttpTestingController);
+    TestBed.tick();
+    backend.expectOne('/staff-attendance/board').flush(BOARD);
+    await settle(rendered);
+
+    const late = screen.getByRole('button', { name: /^1\s*Late$/ });
+    expect(late).toHaveAttribute('aria-pressed', 'true');
+    expect(names()).toEqual(['تالا المعلمة']);
+
+    late.click();
+    await settle(rendered);
+    expect(names()).toHaveLength(ROWS.length);
+  });
+
+  /** No `status` in the link is no filter — the whole board, as it has always been. */
+  it('ignores a status it does not know', async () => {
+    const rendered = await renderHq(AttendanceBoardPage, {
+      providers: [
+        ...providers,
+        {
+          provide: ActivatedRoute,
+          useValue: { queryParamMap: of(convertToParamMap({ status: 'noCheckOut' })) },
+        },
+      ],
+    });
+    const backend = TestBed.inject(HttpTestingController);
+    TestBed.tick();
+    backend.expectOne('/staff-attendance/board').flush(BOARD);
+    await settle(rendered);
+
+    expect(names()).toHaveLength(ROWS.length);
   });
 
   it('tells a teacher who leads nobody so, rather than drawing an empty table', async () => {

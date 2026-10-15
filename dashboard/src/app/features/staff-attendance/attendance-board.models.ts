@@ -70,6 +70,18 @@ export function academiesOf(rows: readonly { academies?: string[] }[]): readonly
   return [...new Set(rows.flatMap((row) => row.academies ?? []))].sort();
 }
 
+/**
+ * Feature 21: the card a `?status=` in the link stands for.
+ *
+ * The "What needs me today?" Home links each of its four attendance numbers here, and the card
+ * *is* the filter — so the link does not need a filter language of its own. `noCheckOut` is not
+ * offered: it is a flag a present row also carries, and no card on that Home counts it.
+ */
+export function cardFromStatus(status: string | null | undefined): Card | null {
+  const card = (status ?? '').trim();
+  return card !== 'noCheckOut' && (CARDS as readonly string[]).includes(card) ? (card as Card) : null;
+}
+
 /** Tapping the card that is already on turns the filter off. */
 export function toggleCard(filter: BoardFilter, card: Card): BoardFilter {
   return { ...filter, card: filter.card === card ? null : card };

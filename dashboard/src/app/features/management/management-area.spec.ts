@@ -319,6 +319,64 @@ describe('RM3a — the management area', () => {
       rendered.fixture.destroy();
     });
 
+    /**
+     * Feature 21: the same "What needs me today?" cards the Admin gets, scoped by the server to
+     * her academy. Her four counts become the strip at the bottom, and the statistics table —
+     * the reason this screen exists (DR5) — stays.
+     */
+    it('leads with what needs her today when todayHome is on, and keeps the statistics', async () => {
+      const rendered = await renderHq(ManagementHomePage, {
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideRouter([{ path: '**', children: [] }]),
+          { provide: BASE_PATH, useValue: '' },
+          { provide: FlagService, useValue: { isOn: () => true, ready: () => true } },
+        ],
+      });
+      const backend = TestBed.inject(HttpTestingController);
+      TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
+      TestBed.inject(AuthService).loadMe().subscribe();
+      backend.expectOne('/me').flush(MANAGERIAL_USER);
+      await Promise.resolve();
+      TestBed.tick();
+
+      // `<hq-today>` reads her keys: the device reset is the Admin's, and she holds no write here.
+      for (const request of backend.match('/me/permissions'))
+        if (!request.cancelled)
+          request.flush({ role: 'MANAGERIAL', permissions: ['attendance.requests.decide'], readOnly: false });
+      backend.expectOne('/management/me').flush(ME);
+      backend.expectOne('/management/teachers').flush([]);
+      backend.expectOne('/management/classes').flush([]);
+      backend.expectOne((request) => request.url === '/management/stats').flush(STATS);
+      await Promise.resolve();
+      TestBed.tick();
+      backend.expectOne('/me/today').flush({
+        day: '2026-10-19',
+        timeZone: 'Asia/Riyadh',
+        attendance: { scope: 'ACADEMY', counts: { present: 9, late: 1, notArrived: 0, remote: 0, noCheckOut: 0 } },
+        waiting: { requests: [], devices: [] },
+        overdueComplaints: { total: 0, items: [] },
+        unread: { count: 0, senders: [] },
+        counts: [],
+      });
+      await Promise.resolve();
+      TestBed.tick();
+      rendered.fixture.detectChanges();
+
+      expect(rendered.container.querySelector('[data-hq-today]')).not.toBeNull();
+      // Her academy's board, from her own namespace.
+      expect(
+        rendered.container
+          .querySelector('[data-hq-today-status="late"]')
+          ?.getAttribute('href'),
+      ).toBe('/management/staff-attendance?status=late');
+      // The counts are still there, as the strip, and the statistics table is untouched.
+      expect(rendered.container.querySelector('.em-stats-grid--strip')).not.toBeNull();
+      expect(document.querySelectorAll('tbody tr').length).toBe(3);
+      rendered.fixture.destroy();
+    });
+
     it('sorts grades, puts the total last, and keeps a missing count apart from a missing rate', () => {
       const rows = statsRows(STATS);
 

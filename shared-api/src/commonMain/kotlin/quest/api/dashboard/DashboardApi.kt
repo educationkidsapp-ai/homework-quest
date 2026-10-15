@@ -468,6 +468,12 @@ interface DashboardApi {
     suspend fun attendanceEmployeeDay(kind: String, id: String, day: String? = null): EmployeeDay
     suspend fun attendanceReport(month: String? = null): AttendanceReport
 
+    /**
+     * Feature 21: `GET /me/today` — the Admin's and the department manager's "what needs me today?" Home
+     * (`home.today`, behind `todayHome`). One call; every card is already narrowed to the caller (see [TodayHome]).
+     */
+    suspend fun todayHome(): TodayHome
+
     /** Puts an app-registered child on a section's roster, and takes her off it again; both answer the child. */
     suspend fun attachChildToClass(classId: String, request: AttachChildRequest): RosterChild
     suspend fun detachChildFromClass(classId: String, childId: String): RosterChild
