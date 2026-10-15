@@ -108,6 +108,8 @@ describe('the screen table', () => {
       // Feature 22: the screen all three staff roles read, and the one she writes her own
       // school-wide announcement from — the voice note included.
       'announcements',
+      // Feature 26: the Document reader, under Announcements because that is what it feeds.
+      'documents',
     ]);
 
     const routes = childrenOf(areaRoutes('ADMIN'));
@@ -381,6 +383,8 @@ describe('the screen table', () => {
       // because she writes the week from it.
       'weekly-plans',
       'announcements',
+      // Feature 26: the same Document reader the Admin has — `document.read` is hers too.
+      'documents',
       'messages',
       // D2 (list 3): back in the rail, built on S1's `GET /management/complaints`.
       'complaints',

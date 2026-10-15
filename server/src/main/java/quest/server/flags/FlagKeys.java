@@ -74,6 +74,27 @@ public final class FlagKeys {
     public static final String VOICE_ANNOUNCEMENT = "voiceAnnouncement";
 
     /**
+     * Feature 23: a remote study day — the school, one academy or chosen grades study from home
+     * (`/admin/remote-study-days`). It replaces feature 18's school-wide remote day, whose rows V46 copied into the
+     * new table, so turning this on restores every day a school had already declared. Seeded off by V46.
+     */
+    public static final String REMOTE_STUDY_DAYS = "remoteStudyDays";
+
+    /**
+     * Feature 25: the Admin's and the department manager's Home opens with a short bilingual brief of yesterday and
+     * today (`GET /me/morning-brief`), written once a school morning by `MorningBriefJob`. The server counts the
+     * facts and the AI only phrases them. Seeded off by V47.
+     */
+    public static final String MORNING_BRIEF = "morningBrief";
+
+    /**
+     * Feature 26: the Admin and a department manager upload a circular — a PDF, a Word file or a photograph — and
+     * read what it says in both languages, with its dates and actions (`/management/documents/**`). The file itself
+     * is never stored. Seeded off by V48.
+     */
+    public static final String DOCUMENT_READER = "documentReader";
+
+    /**
      * Feature 27: a new complaint is sorted by the AI for the staff who answer it — category, urgency, a bilingual
      * summary and a suggested reply ({@code quest.server.chat.ComplaintTriage}). Seeded off by V49. It gates the
      * triage only: the complaint itself, and the parent's expected reply time (which is `chatOfficeHours`), are
@@ -87,5 +108,5 @@ public final class FlagKeys {
             STICKERS_TREASURE_CHEST, PROGRESS_WEEKLY_EMAIL, CERTIFICATES,
             MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST,
             CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, FLOOR_SUPERVISOR, TODAY_HOME,
-            VOICE_ANNOUNCEMENT, COMPLAINT_TRIAGE);
+            VOICE_ANNOUNCEMENT, REMOTE_STUDY_DAYS, MORNING_BRIEF, DOCUMENT_READER, COMPLAINT_TRIAGE);
 }

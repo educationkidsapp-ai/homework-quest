@@ -138,6 +138,13 @@ quest:
       # before the summary is sent, so reruns and a second instance send nothing twice.
       enabled: ${QUEST_CHAT_OFFICE_HOURS_JOB_ENABLED:true}
       interval-seconds: ${QUEST_CHAT_OFFICE_HOURS_JOB_INTERVAL_SECONDS:300}
+  morning-brief:
+    job:
+      # Feature 25: one short brief per Admin and per department manager, from 07:15 in the school's own zone, for the
+      # schools with `morningBrief` on. Every brief is claimed in `morning_briefs` before the model is called, so
+      # reruns and a second instance neither generate nor notify twice.
+      enabled: ${QUEST_MORNING_BRIEF_JOB_ENABLED:true}
+      interval-seconds: ${QUEST_MORNING_BRIEF_JOB_INTERVAL_SECONDS:300}
   push:
     # B4: Firebase Cloud Messaging to parents' phones. Off by default — H2, tests and a laptop record the sends instead
     # (`RecordingPushSender`); on in `qa` and `prod`, where the Firebase app runs on the runtime service account.
@@ -235,6 +242,9 @@ quest:
   # Feature 19: nor the office-hours summary, for the same reason — it would summarise messages another context sent.
   # `ChatOfficeHoursApiTest` calls `run()` outright.
   chat-office-hours.job.enabled: false
+  # Feature 25: nor the morning brief — it would brief leaders another context seeded, and a tick against the shared
+  # SessionFactory would make the query-count tests off by one. `MorningBriefApiTest` calls `run()` outright.
+  morning-brief.job.enabled: false
   # Pushes are recorded, not sent, and a scripted transient failure is retried at once rather than after a second.
   push.backoff-millis: 0
 

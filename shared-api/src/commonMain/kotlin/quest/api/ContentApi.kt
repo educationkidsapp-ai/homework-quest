@@ -285,6 +285,12 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "todayHome" to false,
     // Feature 22: a leader's voice note becomes a formal bilingual announcement she reviews and sends (V44).
     "voiceAnnouncement" to false,
+    // Feature 23: a remote study day for the school, one academy or chosen grades (V46).
+    "remoteStudyDays" to false,
+    // Feature 25: the Admin's and the manager's morning brief, above feature 21's cards (V47).
+    "morningBrief" to false,
+    // Feature 26: a leader uploads a circular and reads what it says, in both languages (V48).
+    "documentReader" to false,
     // Feature 27: a new complaint is sorted by the AI for the staff who answer it (V49).
     "complaintTriage" to false,
 )

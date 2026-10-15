@@ -126,6 +126,7 @@
     "management.people": ["ADMIN", "MANAGERIAL"],
     "management.broadcast": ["ADMIN", "MANAGERIAL"],
     "broadcast.voice": ["ADMIN", "MANAGERIAL"],
+    "document.read": ["ADMIN", "MANAGERIAL"],
     "management.chat": ["ADMIN", "MANAGERIAL"],
     "management.complaints": ["ADMIN", "MANAGERIAL"],
     "manager.manage": ["ADMIN"],
@@ -144,7 +145,8 @@
     "attendance.requests.decide": ["ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "FLOOR_SUPERVISOR"],
     "attendance.correction.write": ["ADMIN"],
     "attendance.board": ["ADMIN", "MANAGERIAL", "COORDINATOR", "TEACHER", "FLOOR_SUPERVISOR"],
-    "home.today": ["ADMIN", "MANAGERIAL"]
+    "home.today": ["ADMIN", "MANAGERIAL"],
+    "brief.read": ["ADMIN", "MANAGERIAL"]
   },
   "endpoints": [
     { "method": "GET", "path": "/health", "permission": "health.read" },
@@ -175,6 +177,7 @@
     { "method": "GET", "path": "/me/permissions", "permission": "me.permissions" },
     { "method": "GET", "path": "/me/home", "permission": "me.home" },
     { "method": "GET", "path": "/me/today", "permission": "home.today" },
+    { "method": "GET", "path": "/me/morning-brief", "permission": "brief.read" },
 
     { "method": "GET", "path": "/children", "permission": "child.read" },
     { "method": "POST", "path": "/children", "permission": "child.write" },
@@ -284,9 +287,9 @@
     { "method": "GET", "path": "/admin/staff/{kind}/{id}/attendance-device", "permission": "attendance.settings.read" },
     { "method": "DELETE", "path": "/admin/staff/{kind}/{id}/attendance-device", "permission": "attendance.device.reset" },
     { "method": "POST", "path": "/admin/staff/{kind}/{id}/attendance-corrections", "permission": "attendance.correction.write" },
-    { "method": "GET", "path": "/admin/attendance/remote-days", "permission": "attendance.settings.read" },
-    { "method": "POST", "path": "/admin/attendance/remote-days", "permission": "attendance.settings.write" },
-    { "method": "DELETE", "path": "/admin/attendance/remote-days/{id}", "permission": "attendance.settings.write" },
+    { "method": "GET", "path": "/admin/remote-study-days", "permission": "attendance.settings.read" },
+    { "method": "POST", "path": "/admin/remote-study-days", "permission": "attendance.settings.write" },
+    { "method": "DELETE", "path": "/admin/remote-study-days/{id}", "permission": "attendance.settings.write" },
     { "method": "GET", "path": "/attendance/requests", "permission": "attendance.requests.decide" },
     { "method": "POST", "path": "/attendance/requests/{id}/approve", "permission": "attendance.requests.decide" },
     { "method": "POST", "path": "/attendance/requests/{id}/reject", "permission": "attendance.requests.decide" },
@@ -543,6 +546,9 @@
     { "method": "GET", "path": "/management/weekly-plans", "permission": "management.broadcast" },
     { "method": "POST", "path": "/management/broadcasts", "permission": "management.broadcast" },
     { "method": "POST", "path": "/management/broadcasts/voice-drafts", "permission": "broadcast.voice" },
+    { "method": "POST", "path": "/management/documents/read", "permission": "document.read" },
+    { "method": "GET", "path": "/management/documents", "permission": "document.read" },
+    { "method": "GET", "path": "/management/documents/{id}", "permission": "document.read" },
     { "method": "GET", "path": "/management/complaints", "permission": "management.complaints" },
     { "method": "GET", "path": "/management/complaints/{id}", "permission": "management.complaints" },
     { "method": "POST", "path": "/management/complaints/{id}/messages", "permission": "management.complaints" },

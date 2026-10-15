@@ -43,7 +43,7 @@ import {
   previewRadius,
   requestOf,
 } from './attendance-settings.models';
-import { RemoteDaysCardComponent } from './remote-days-card.component';
+import { RemoteStudyDaysCardComponent } from './remote-study-days-card.component';
 
 /** One employee as the direct-managers table shows her. */
 interface StaffRow {
@@ -90,7 +90,7 @@ const EMPTY_SETTINGS: AttendanceSettings = {};
     TableComponent,
     EmptyStateComponent,
     SkeletonComponent,
-    RemoteDaysCardComponent,
+    RemoteStudyDaysCardComponent,
     TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,

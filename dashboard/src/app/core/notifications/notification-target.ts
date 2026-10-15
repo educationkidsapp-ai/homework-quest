@@ -156,6 +156,12 @@ export function notificationTarget(item: NotificationView, role: Role | null): N
         queryParams: request === null ? null : { request },
       };
     }
+    // Feature 25: the morning brief. `NotificationService.morningBriefLink()` writes `/` for
+    // everybody, because the brief is the first thing on whichever Home the reader has — and `/`
+    // is in nobody's area, so the branch above never follows it. Her own Home is the answer, and
+    // the row carries no number of its own to open: the lines are read off the card itself.
+    case NotificationViewKindEnum.MORNING_BRIEF:
+      return area === null ? INBOX : { path: area, queryParams: null };
     // The other two are the employee's own news — her decision and the school's remote day. She
     // has no screen of her own for either on the dashboard (both live in the staff app), so the
     // notifications page, which can always show the row itself, is where they stay.

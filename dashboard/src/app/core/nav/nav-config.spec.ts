@@ -45,6 +45,8 @@ describe('the nav switch', () => {
       // Feature 22: the one screen all three staff roles read, hers at last — it is a school
       // screen rather than a platform one, so this switch does not touch it either.
       'announcements',
+      // Feature 26: the Document reader, a school screen for the same reason.
+      'documents',
     ]);
   });
 

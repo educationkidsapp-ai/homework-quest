@@ -56,6 +56,8 @@ data class ApiError(val code: String, val message: String) {
     companion object {
         const val UNREADABLE_FILE = "unreadable_file"; const val NO_TEACHING_CONTENT = "no_teaching_content"; const val MODEL_FAILED = "model_failed"
         const val TOO_LARGE = "too_large"; const val NOT_FOUND = "not_found"; const val BAD_REQUEST = "bad_request"; const val NETWORK = "network"
+        /** 422 (feature 26): the file is small enough and has too many pages — the document reader takes twenty. */
+        const val TOO_LONG = "too_long"
         const val UNAUTHORIZED = "unauthorized"; const val FORBIDDEN = "forbidden"
         /** CR4: what went wrong while turning one upload into Markdown (`source_files.convert_error_code`). */
         const val ENCRYPTED = "encrypted"; const val UNSUPPORTED = "unsupported"; const val MALFORMED = "malformed"

@@ -79,7 +79,7 @@ class IsolationTest extends ApiTestSupport {
     @Autowired quest.server.push.StaffDeviceRepository staffDevices;
     @Autowired quest.server.staffattendance.StaffAttendanceDayRepository attendanceDays;
     @Autowired quest.server.staffattendance.StaffAttendanceAlertRepository attendanceAlerts;
-    @Autowired quest.server.staffattendance.AttendanceRemoteDayRepository remoteDays;
+    @Autowired quest.server.staffattendance.RemoteStudyDayRepository remoteDays;
     @Autowired quest.server.staffattendance.StaffAttendanceRequestRepository attendanceRequests;
     @Autowired quest.server.chat.ChatAfterHoursRepository afterHours;
     @Autowired quest.server.floors.FloorRepository floors;
@@ -87,6 +87,8 @@ class IsolationTest extends ApiTestSupport {
     @Autowired quest.server.floors.FloorSupervisorRepository floorSupervisors;
     @Autowired quest.server.broadcasts.AnnouncementDraftRepository drafts;
     @Autowired quest.server.ai.AiCallRepository aiCalls;
+    @Autowired quest.server.brief.MorningBriefRepository morningBriefs;
+    @Autowired quest.server.documents.DocumentSummaryRepository documentSummaries;
     @Autowired quest.server.chat.ChatThreadRepository chatThreads;
     @Autowired quest.server.chat.ComplaintTriageRepository complaintTriage;
 
@@ -189,10 +191,17 @@ class IsolationTest extends ApiTestSupport {
         }
     }
 
-    @Test void feature_18s_remote_days_and_requests_stay_in_their_school() {
+    /**
+     * Feature 18's requests and feature 23's remote study days, which replaced its school-wide remote day. A
+     * principal of A finds neither B's declared day nor B's request, and naming B's school herself answers nothing:
+     * `remote_study_days` is read by the attendance job with no request behind it, so every query names a school
+     * <em>and</em> the filter is on.
+     */
+    @Test void feature_18s_requests_and_feature_23s_remote_study_days_stay_in_their_school() {
         var now = java.time.Instant.now();
-        var remote = new quest.server.staffattendance.Entities.AttendanceRemoteDayEntity();
+        var remote = new quest.server.staffattendance.Entities.RemoteStudyDayEntity();
         remote.setId("iso-remote-b"); remote.setSchoolId(B); remote.setDay(DATE_B); remote.setReason("Rain");
+        remote.setAcademy("british"); remote.setGradesJson("[1]");
         remote.setCreatedBy("admin"); remote.setCreatedAt(now);
         var request = new quest.server.staffattendance.Entities.StaffAttendanceRequestEntity();
         request.setId("iso-request-b"); request.setSchoolId(B); request.setStaffKind("USER"); request.setStaffId("teacher-b");
@@ -204,10 +213,14 @@ class IsolationTest extends ApiTestSupport {
             assertThat(remoteDays.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
             assertThat(attendanceRequests.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
             assertThat(remoteDays.findBySchoolIdAndDay(A, DATE_B)).isEmpty();
+            assertThat(remoteDays.findBySchoolIdAndDay(B, DATE_B)).as("and B's own school is not hers to ask about").isEmpty();
+            assertThat(remoteDays.findOneBySchoolIdAndId(B, "iso-remote-b")).isEmpty();
+            assertThat(remoteDays.findBySchoolIdAndDayBetweenOrderByDayAsc(B, DATE_B, DATE_B)).isEmpty();
             assertThat(attendanceRequests.findOneBySchoolIdAndId(A, "iso-request-b")).isEmpty();
             tenant.set("MANAGERIAL", B, null);
             assertThat(attendanceRequests.findAll()).anyMatch(r -> "iso-request-b".equals(r.getId()));
             assertThat(remoteDays.findAll()).anyMatch(r -> "iso-remote-b".equals(r.getId()));
+            assertThat(remoteDays.findOneBySchoolIdAndId(B, "iso-remote-b")).isPresent();
         } finally {
             tenant.clear();
             remoteDays.deleteById("iso-remote-b"); attendanceRequests.deleteById("iso-request-b");
@@ -329,36 +342,63 @@ class IsolationTest extends ApiTestSupport {
     }
 
     /**
-     * Feature 27's tenant table. A triage is a working note about one family's complaint — what the school thinks it
-     * is about, how urgent it is and what it might answer — so it is filtered like every other tenant table: a
-     * principal of A finds neither the row nor the complaint it belongs to, and asking for B's own complaint by id
-     * answers nothing either.
+     * Feature 25's tenant table. A brief holds a school's own numbers and the wording written from them, per leader
+     * and per day, so it is scoped by the `school` filter like every other tenant table and by the leader inside it.
+     * A principal of A finds neither B's brief nor B's leader's, and naming B's school herself answers nothing
+     * either — which is also what makes the job's claim safe: it names the school it is running for.
      */
-    @Test void feature_27s_complaint_triage_stays_in_its_school() {
-        var complaint = new quest.server.chat.Entities.ChatThreadEntity();
-        complaint.setId("iso-complaint-b"); complaint.setSchoolId(B); complaint.setChildId("iso-child-b");
-        complaint.setTeacherId("iso-teacher-b"); complaint.setStaffRole("TEACHER"); complaint.setTopic("complaint");
-        complaint.setStatus("open"); complaint.setThreadKey("iso-complaint-b"); complaint.setTitle("The bus is late");
-        complaint.setCreatedAt(Instant.now());
-        chatThreads.save(complaint);
-        var row = new quest.server.chat.Entities.ComplaintTriageEntity();
-        row.setComplaintId("iso-complaint-b"); row.setSchoolId(B); row.setCategory("transport"); row.setUrgency("high");
-        row.setSummaryAr("الحافلة تتأخر"); row.setSummaryEn("The bus is late every morning.");
-        row.setReplyAr("شكرًا لتواصلكم."); row.setReplyEn("Thank you for telling us.");
-        row.setCreatedAt(Instant.now());
-        complaintTriage.save(row);
+    @Test void feature_25s_morning_briefs_stay_in_their_school_and_with_their_leader() {
+        var row = new quest.server.brief.Entities.MorningBriefEntity();
+        row.setId("iso-brief-b"); row.setSchoolId(B); row.setUserId("director-b");
+        row.setDay(LocalDate.of(2027, 4, 7));
+        row.setFactsJson("{\"scope\":\"ACADEMY\",\"yesterday\":\"2027-04-06\",\"lateYesterday\":2}");
+        row.setTextAr("أمس: 2 متأخرون"); row.setTextEn("Yesterday: 2 late");
+        row.setSource("template"); row.setCreatedAt(Instant.now());
+        morningBriefs.save(row);
         try {
             tenant.set("MANAGERIAL", A, null);
-            assertThat(complaintTriage.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
-            assertThat(complaintTriage.findByComplaintIdIn(List.of("iso-complaint-b"))).as("not A's, whoever she names").isEmpty();
-            assertThat(chatThreads.findOneById("iso-complaint-b")).as("nor the complaint it is about").isEmpty();
+            assertThat(morningBriefs.findAll()).noneMatch(b -> B.equals(b.getSchoolId()));
+            assertThat(morningBriefs.findOneBySchoolIdAndUserIdAndDay(A, "director-b", LocalDate.of(2027, 4, 7)))
+                    .as("not A's, whoever she names").isEmpty();
+            assertThat(morningBriefs.findOneBySchoolIdAndUserIdAndDay(B, "director-b", LocalDate.of(2027, 4, 7)))
+                    .as("and B's own school is not hers to ask about").isEmpty();
             tenant.set("MANAGERIAL", B, null);
-            assertThat(complaintTriage.findByComplaintIdIn(List.of("iso-complaint-b")))
-                    .extracting(r -> r.getUrgency()).containsExactly("high");
+            assertThat(morningBriefs.findOneBySchoolIdAndUserIdAndDay(B, "director-b", LocalDate.of(2027, 4, 7))).isPresent();
+            assertThat(morningBriefs.findOneBySchoolIdAndUserIdAndDay(B, "teacher-b", LocalDate.of(2027, 4, 7)))
+                    .as("another leader of the same school has her own brief, not this one").isEmpty();
         } finally {
             tenant.clear();
-            complaintTriage.deleteById("iso-complaint-b");
-            chatThreads.deleteById("iso-complaint-b");
+            morningBriefs.deleteById("iso-brief-b");
+        }
+    }
+
+    /**
+     * Feature 26's tenant table. A summary is what one leader read out of a document nobody else has — the document
+     * itself is never stored — so it is scoped twice, as feature 22's draft is: by the `school` filter, and by the
+     * author inside it. A principal of A finds neither B's summary nor B's author's, and naming B's school herself
+     * answers nothing either; the retention sweep is the one unscoped read and names no school at all.
+     */
+    @Test void feature_26s_document_summaries_stay_in_their_school_and_with_their_author() {
+        var row = new quest.server.documents.Entities.DocumentSummaryEntity();
+        row.setId("iso-doc-b"); row.setSchoolId(B); row.setAuthorId("manager-b");
+        row.setFileName("circular.pdf"); row.setPages(2);
+        row.setSummaryJson("{\"title\":\"تعميم\",\"summaryAr\":\"تعميم\",\"summaryEn\":\"A circular.\"}");
+        row.setCreatedAt(Instant.now());
+        documentSummaries.save(row);
+        try {
+            var page = org.springframework.data.domain.PageRequest.of(0, 20);
+            tenant.set("MANAGERIAL", A, null);
+            assertThat(documentSummaries.findAll()).noneMatch(d -> B.equals(d.getSchoolId()));
+            assertThat(documentSummaries.findOneOfAuthor(A, "iso-doc-b", "manager-b")).as("not A's, whoever she names").isEmpty();
+            assertThat(documentSummaries.findOneOfAuthor(B, "iso-doc-b", "manager-b")).as("and B's own school is not hers to ask about").isEmpty();
+            assertThat(documentSummaries.byAuthor(A, "manager-b", page)).isEmpty();
+            tenant.set("MANAGERIAL", B, null);
+            assertThat(documentSummaries.findOneOfAuthor(B, "iso-doc-b", "manager-b")).isPresent();
+            assertThat(documentSummaries.findOneOfAuthor(B, "iso-doc-b", "teacher-b")).as("another author of the same school is a 404 too").isEmpty();
+            assertThat(documentSummaries.byAuthor(B, "manager-b", page)).hasSize(1);
+        } finally {
+            tenant.clear();
+            documentSummaries.deleteById("iso-doc-b");
         }
     }
 
@@ -424,8 +464,9 @@ class IsolationTest extends ApiTestSupport {
                         Arguments.of("GET", "/staff/attendance/today"),
                         Arguments.of("GET", "/staff/attendance/month"),
                         Arguments.of("GET", "/admin/staff/USER/teacher-a/attendance-device"),
-                        // Feature 18: remote days, an employee's own requests and the decider's inbox.
-                        Arguments.of("GET", "/admin/attendance/remote-days"),
+                        // Feature 18: an employee's own requests and the decider's inbox. Feature 23: the Admin's
+                        // remote study days, which replaced feature 18's school-wide remote day.
+                        Arguments.of("GET", "/admin/remote-study-days"),
                         Arguments.of("GET", "/staff/attendance/requests"),
                         Arguments.of("GET", "/attendance/requests"),
                         Arguments.of("POST", "/attendance/requests/no-such-request/approve")),
@@ -815,5 +856,39 @@ class IsolationTest extends ApiTestSupport {
         l.setDate(date); l.setStatus("published"); l.setVersion(1); l.setTitle("Lesson of " + schoolId); l.setSource("pdf");
         l.setCreatedAt(Instant.now()); l.setUpdatedAt(Instant.now()); l.setPublishedAt(Instant.now());
         lessons.save(l);
+    }
+
+    /**
+     * Feature 27's tenant table. A triage is a working note about one family's complaint — what the school thinks it
+     * is about, how urgent it is and what it might answer — so it is filtered like every other tenant table: a
+     * principal of A finds neither the row nor the complaint it belongs to, and asking for B's own complaint by id
+     * answers nothing either.
+     */
+    @Test void feature_27s_complaint_triage_stays_in_its_school() {
+        var complaint = new quest.server.chat.Entities.ChatThreadEntity();
+        complaint.setId("iso-complaint-b"); complaint.setSchoolId(B); complaint.setChildId("iso-child-b");
+        complaint.setTeacherId("iso-teacher-b"); complaint.setStaffRole("TEACHER"); complaint.setTopic("complaint");
+        complaint.setStatus("open"); complaint.setThreadKey("iso-complaint-b"); complaint.setTitle("The bus is late");
+        complaint.setCreatedAt(Instant.now());
+        chatThreads.save(complaint);
+        var row = new quest.server.chat.Entities.ComplaintTriageEntity();
+        row.setComplaintId("iso-complaint-b"); row.setSchoolId(B); row.setCategory("transport"); row.setUrgency("high");
+        row.setSummaryAr("الحافلة تتأخر"); row.setSummaryEn("The bus is late every morning.");
+        row.setReplyAr("شكرًا لتواصلكم."); row.setReplyEn("Thank you for telling us.");
+        row.setCreatedAt(Instant.now());
+        complaintTriage.save(row);
+        try {
+            tenant.set("MANAGERIAL", A, null);
+            assertThat(complaintTriage.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(complaintTriage.findByComplaintIdIn(List.of("iso-complaint-b"))).as("not A's, whoever she names").isEmpty();
+            assertThat(chatThreads.findOneById("iso-complaint-b")).as("nor the complaint it is about").isEmpty();
+            tenant.set("MANAGERIAL", B, null);
+            assertThat(complaintTriage.findByComplaintIdIn(List.of("iso-complaint-b")))
+                    .extracting(r -> r.getUrgency()).containsExactly("high");
+        } finally {
+            tenant.clear();
+            complaintTriage.deleteById("iso-complaint-b");
+            chatThreads.deleteById("iso-complaint-b");
+        }
     }
 }

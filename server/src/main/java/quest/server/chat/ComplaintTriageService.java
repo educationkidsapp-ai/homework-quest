@@ -125,7 +125,7 @@ public class ComplaintTriageService {
         String title = complaint.getTitle() == null ? "" : complaint.getTitle();
         String body = messages.oldest(complaintId, PageRequest.of(0, 1)).stream()
                 .map(Entities.ChatMessageEntity::getBody).findFirst().orElse("");
-        var accepted = ai.run(AiTask.of("complaintTriage", "F-" + schoolId, schoolId, Prompts.SYSTEM_F, Prompts.userF(title, body))
+        var accepted = ai.run(AiTask.of("complaintTriage", "F-" + schoolId, schoolId, Prompts.COMPLAINT_TRIAGE, Prompts.userComplaintTriage(title, body))
                 .guardedBy(AiInputGuard.masking(namesAround(complaint)))
                 .reading(this::read)
                 .keepingRejects()).json();

@@ -18,6 +18,8 @@ import quest.server.auth.Principals;
 import quest.server.children.ChildRepository;
 import quest.server.children.Entities.ChildEntity;
 import quest.server.config.ApiException;
+import quest.server.platform.SchoolCalendar;
+import quest.server.staffattendance.RemoteStudyDayService;
 import quest.server.tenancy.Entities.ClassEntity;
 import quest.server.tenancy.TeacherScope;
 
@@ -30,13 +32,18 @@ public class AttendanceService {
     private final ChildRepository children;
     private final TeacherScope scope;
     private final AuditService audit;
+    private final RemoteStudyDayService remoteStudyDays;
+    private final SchoolCalendar calendar;
 
     public AttendanceService(AttendanceRepository attendance, ChildRepository children,
-                             TeacherScope scope, AuditService audit) {
+                             TeacherScope scope, AuditService audit,
+                             RemoteStudyDayService remoteStudyDays, SchoolCalendar calendar) {
         this.attendance = attendance;
         this.children = children;
         this.scope = scope;
         this.audit = audit;
+        this.remoteStudyDays = remoteStudyDays;
+        this.calendar = calendar;
     }
 
     /**
@@ -52,7 +59,8 @@ public class AttendanceService {
         List<AttendanceEntity> recorded = attendance.findBySectionIdAndDate(classId, targetDate);
         Map<String, AttendanceEntity> byChild = recorded.stream()
                 .collect(Collectors.toMap(AttendanceEntity::getChildId, Function.identity(), (a, b) -> a));
-        return dayOf(section, targetDate, roster, byChild);
+        boolean remote = remoteStudyDays.covers(section.getSchoolId(), section.getCurriculum(), section.getGrade(), targetDate);
+        return dayOf(section, targetDate, roster, byChild, remote);
     }
 
     /**
@@ -75,15 +83,18 @@ public class AttendanceService {
         var byDate = new HashMap<LocalDate, Map<String, AttendanceEntity>>();
         for (AttendanceEntity row : attendance.findBySectionIdAndDateBetweenOrderByDateAsc(section.getId(), from, to))
             byDate.computeIfAbsent(row.getDate(), d -> new HashMap<String, AttendanceEntity>()).putIfAbsent(row.getChildId(), row);
+        // One statement for the window's remote study days, not one per day: a month is sixty-two of them.
+        var remote = remoteStudyDays.coveredDates(section.getSchoolId(), section.getCurriculum(), section.getGrade(), from, to);
         var days = new ArrayList<AttendanceDto.ClassAttendanceResponse>();
         for (LocalDate day = from; !day.isAfter(to); day = day.plusDays(1))
-            days.add(dayOf(section, day, roster, byDate.getOrDefault(day, Map.of())));
+            days.add(dayOf(section, day, roster, byDate.getOrDefault(day, Map.of()), remote.contains(day)));
         return List.copyOf(days);
     }
 
     /** One day of one section: the roster in name order, each child's row or `NOT_MARKED`, and the five counts. */
     private AttendanceDto.ClassAttendanceResponse dayOf(ClassEntity section, LocalDate targetDate,
-                                                       List<ChildEntity> roster, Map<String, AttendanceEntity> byChild) {
+                                                       List<ChildEntity> roster, Map<String, AttendanceEntity> byChild,
+                                                       boolean remoteStudyDay) {
         List<AttendanceDto.ClassAttendanceItem> items = new ArrayList<>();
         int present = 0, absent = 0, late = 0, excused = 0;
 
@@ -126,7 +137,8 @@ public class AttendanceService {
                 absent,
                 late,
                 excused,
-                roundedRate
+                roundedRate,
+                remoteStudyDay
         );
     }
 
@@ -198,8 +210,10 @@ public class AttendanceService {
         LocalDate endDate = to != null ? to : LocalDate.now();
 
         List<AttendanceEntity> entities = attendance.findByChildIdAndDateBetweenOrderByDateDesc(child.getId(), startDate, endDate);
+        var remote = remoteStudyDays.coveredDates(child.getSchoolId(), child.getCurriculum(), child.getGrade(), startDate, endDate);
         List<AttendanceDto.ChildAttendanceRecord> records = entities.stream()
-                .map(e -> new AttendanceDto.ChildAttendanceRecord(e.getDate(), e.getStatus(), e.getNotes()))
+                .map(e -> new AttendanceDto.ChildAttendanceRecord(e.getDate(), e.getStatus(), e.getNotes(),
+                        remote.contains(e.getDate())))
                 .toList();
 
         int present = 0, absent = 0, late = 0, excused = 0;
@@ -228,9 +242,14 @@ public class AttendanceService {
     @Transactional(readOnly = true)
     public AttendanceDto.ChildAttendanceRecord getTodayAttendance(Principals.Parent parent, String childId) {
         ChildEntity child = requireParentChild(parent, childId);
+        // Feature 23 asks the school's calendar, which is where a school day lives; the record's own day is still the
+        // server's, as every write of this table has been since the beginning, and the two differ only across midnight.
+        LocalDate schoolToday = calendar.today(child.getSchoolId());
+        boolean remote = remoteStudyDays.covers(child.getSchoolId(), child.getCurriculum(), child.getGrade(), schoolToday);
         return attendance.findByChildIdAndDate(child.getId(), LocalDate.now())
-                .map(e -> new AttendanceDto.ChildAttendanceRecord(e.getDate(), e.getStatus(), e.getNotes()))
-                .orElse(null);
+                .map(e -> new AttendanceDto.ChildAttendanceRecord(e.getDate(), e.getStatus(), e.getNotes(), remote))
+                // Nobody marked a roster that is at home, and the parent still has to be told where her child is.
+                .orElseGet(() -> remote ? new AttendanceDto.ChildAttendanceRecord(schoolToday, "NOT_MARKED", null, true) : null);
     }
 
     private ChildEntity requireParentChild(Principals.Parent parent, String childId) {

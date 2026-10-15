@@ -38,13 +38,13 @@ async function settle(): Promise<void> {
   TestBed.tick();
 }
 
-async function renderRollCall() {
+async function renderRollCall(day: Record<string, unknown> = ROLL_CALL) {
   await renderHq(ClassAttendanceComponent, {
     providers,
     inputs: { classId: 'c-1a', className: '1A British' },
   });
   const backend = TestBed.inject(HttpTestingController);
-  backend.expectOne(`/teacher/classes/c-1a/attendance?date=${TODAY}`).flush(ROLL_CALL);
+  backend.expectOne(`/teacher/classes/c-1a/attendance?date=${TODAY}`).flush(day);
   await settle();
   return { backend };
 }
@@ -85,5 +85,21 @@ describe('the class page Attendance tab', () => {
     vi.advanceTimersByTime(1);
     await settle();
     expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  /** Feature 23: the children of this class are at home today, so the quiet roster is explained. */
+  it('says it is a remote study day when the class is in scope', async () => {
+    await renderRollCall({ ...ROLL_CALL, remoteStudyDay: true });
+
+    expect(screen.getByText('Remote study day')).toBeInTheDocument();
+    expect(
+      screen.getByText('Children study from home today — there is no roster to mark.'),
+    ).toBeInTheDocument();
+  });
+
+  it('says nothing about remote study when the day is an ordinary one', async () => {
+    await renderRollCall();
+
+    expect(screen.queryByText('Remote study day')).not.toBeInTheDocument();
   });
 });
