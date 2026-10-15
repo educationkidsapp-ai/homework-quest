@@ -68,6 +68,11 @@ class AttendanceBoardApiTest extends ApiTestSupport {
     @Autowired StaffCheckInRepository checkIns;
     @Autowired AdminJwtService jwt;
     @Autowired JdbcTemplate jdbc;
+    @Autowired quest.server.tenancy.ClassRepository sections;
+    @Autowired quest.server.tenancy.TeachingAssignmentRepository teachingAssignments;
+    @Autowired quest.server.floors.FloorRepository floors;
+    @Autowired quest.server.floors.FloorClassRepository floorClasses;
+    @Autowired quest.server.floors.FloorSupervisorRepository floorSupervisors;
 
     @BeforeEach void pin() { clock.pinTo(SUNDAY.atTime(9, 0).atZone(RIYADH).toInstant()); }
     @AfterEach void unpin() { clock.release(); }
@@ -257,6 +262,28 @@ class AttendanceBoardApiTest extends ApiTestSupport {
         mvc.perform(bearer(get("/management/staff-attendance/summary?month=2026-10"), director)).andExpect(status().isOk());
     }
 
+    /**
+     * Feature 20: a FLOOR_SUPERVISOR sees the teachers assigned to the classes on her floors — plus, like everybody
+     * else, anyone whose direct manager she is, and never herself. `BoardScope` reads the floors through
+     * `FloorScope`, so a class she does not hold is not on her board however the request is shaped.
+     */
+    @Test void a_floor_supervisor_sees_the_teachers_on_her_floors_and_her_own_reports() throws Exception {
+        var s = school("floorsup");
+        String nadia = s.user("nadia", quest.server.tenancy.FloorScope.ROLE, "Nadia Floor");
+        String onFloor = s.section("1A"), elsewhere = s.section("2A");
+        s.assign(s.british, onFloor); s.assign(s.american, elsewhere);
+        s.floor("Second floor", nadia, onFloor);
+        s.reportsTo(s.loner, nadia);
+
+        var board = ok(bearer(get("/staff-attendance/board"), token(nadia, quest.server.tenancy.FloorScope.ROLE, s.id)));
+        assertThat(board.get("scope").asText()).isEqualTo("REPORTS");
+        assertThat(ids(board)).as("the teacher on her floor and her one direct report, never the American teacher or herself")
+                .containsExactlyInAnyOrder(s.british, s.loner);
+        ok(bearer(get("/staff-attendance/employees/USER/" + s.british), token(nadia, quest.server.tenancy.FloorScope.ROLE, s.id)));
+        mvc.perform(bearer(get("/staff-attendance/employees/USER/" + s.american), token(nadia, quest.server.tenancy.FloorScope.ROLE, s.id)))
+                .andExpect(status().isNotFound());
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private JsonNode ok(MockHttpServletRequestBuilder request) throws Exception {
@@ -335,6 +362,42 @@ class AttendanceBoardApiTest extends ApiTestSupport {
             t.setUserId(userId); t.setCurriculum(curriculum); t.setUpdatedAt(Instant.now());
             teachers.save(t);
             return userId;
+        }
+
+        /** Feature 20: a section, an assignment on it, a floor holding it, and one direct report. */
+        String section(String name) {
+            var k = new quest.server.tenancy.Entities.ClassEntity();
+            k.setId(id + "-" + name); k.setSchoolId(id); k.setCurriculum("british"); k.setGrade(1);
+            k.setName(name); k.setActive(true); k.setCreatedAt(Instant.now());
+            return sections.save(k).getId();
+        }
+
+        void assign(String teacherId, String classId) {
+            var a = new quest.server.tenancy.Entities.TeachingAssignmentEntity();
+            a.setId(UUID.randomUUID().toString()); a.setSchoolId(id); a.setTeacherId(teacherId);
+            a.setClassId(classId); a.setSubject("math"); a.setCreatedAt(Instant.now());
+            teachingAssignments.save(a);
+        }
+
+        void floor(String name, String supervisorId, String classId) {
+            var f = new quest.server.floors.Entities.FloorEntity();
+            f.setId(id + "-floor"); f.setSchoolId(id); f.setName(name); f.setAcademy("british"); f.setCreatedAt(Instant.now());
+            floors.save(f);
+            var on = new quest.server.floors.Entities.FloorClassEntity();
+            on.setId(UUID.randomUUID().toString()); on.setFloorId(f.getId()); on.setSchoolId(id);
+            on.setSectionId(classId); on.setCreatedAt(Instant.now());
+            floorClasses.save(on);
+            var holder = new quest.server.floors.Entities.FloorSupervisorEntity();
+            holder.setId(UUID.randomUUID().toString()); holder.setFloorId(f.getId()); holder.setSchoolId(id);
+            holder.setUserId(supervisorId); holder.setCreatedAt(Instant.now());
+            floorSupervisors.save(holder);
+        }
+
+        void reportsTo(String employee, String manager) {
+            var p = new Entities.StaffAttendanceProfileEntity();
+            p.setId(UUID.randomUUID().toString()); p.setSchoolId(id); p.setStaffKind("USER"); p.setStaffId(employee);
+            p.setDirectManagerId(manager); p.setUpdatedAt(Instant.now());
+            profiles.save(p);
         }
 
         String user(String label, String role, String name) {

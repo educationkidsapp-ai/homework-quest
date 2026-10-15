@@ -3,12 +3,16 @@ package quest.feature.staff.domain
 import quest.api.staff.StaffMe
 
 /**
- * Feature 13: the five roles that sign in to the **app**. The wire words are the server's (`permissions.json`,
+ * Feature 13: the roles that sign in to the **app**. The wire words are the server's (`permissions.json`,
  * `quest.api.dashboard.Role`); an account whose role this build has never heard of is treated as staff all the same —
  * it holds `staff.app` or the server would not have let it through `GET /staff/me` — and simply shows no role word.
+ *
+ * Feature 20 adds the floor supervisor: `permissions.json` gives her `staff.app`, and `StaffService` answers her
+ * thread list from her floors, so on the app she is an ordinary staff member with messages.
  */
 enum class StaffRole(val wire: String) {
-    ADMIN("ADMIN"), TEACHER("TEACHER"), MANAGERIAL("MANAGERIAL"), COORDINATOR("COORDINATOR"), WORKER("WORKER");
+    ADMIN("ADMIN"), TEACHER("TEACHER"), MANAGERIAL("MANAGERIAL"), COORDINATOR("COORDINATOR"), WORKER("WORKER"),
+    FLOOR_SUPERVISOR("FLOOR_SUPERVISOR");
 
     /** A WORKER has no chat partners yet (`StaffService`: her thread list is empty and a thread id is 404). */
     val hasChat: Boolean get() = this != WORKER

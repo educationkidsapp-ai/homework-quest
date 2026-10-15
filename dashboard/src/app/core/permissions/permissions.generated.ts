@@ -37,6 +37,8 @@ export const WRITE_PERMISSIONS: ReadonlySet<string> = new Set([
   'coordinator.manage',
   'device.register',
   'flag.write',
+  'floor.chat',
+  'floor.manage',
   'invite.accept',
   'lesson.delete',
   'lesson.publish',

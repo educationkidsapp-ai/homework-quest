@@ -16,13 +16,16 @@ import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { catchError, of, tap } from 'rxjs';
+import { type Observable, catchError, of, tap } from 'rxjs';
 import {
   ChatApi,
   ChatMessage,
   ChatMessageSenderEnum,
   ChatThread,
   ChatThreadPeerRoleEnum,
+  FloorChatPeers,
+  FloorSupervisorApi,
+  FloorSupervisorChatApi,
   ManagementApi,
   ManagementChatApi,
   ManagersApi,
@@ -59,6 +62,13 @@ import {
  * `management` (the teacher's own end of them, plus the coordinator's manager thread).
  */
 type Peer = 'parents' | 'coordinators' | 'admin' | 'teachers' | 'management';
+
+/**
+ * D2 (list 3): the roles a thread the school's administration opened is named by **office** to —
+ * "School administration" rather than the name of an Admin they may never have met. Feature 20's
+ * floor supervisor is one of them for the same reason the teacher and the coordinator are.
+ */
+const NAMED_BY_OFFICE: ReadonlySet<string> = new Set(['TEACHER', 'COORDINATOR', 'FLOOR_SUPERVISOR']);
 
 interface EmojiCategory {
   id: 'smileys' | 'education' | 'fun';
@@ -1680,6 +1690,8 @@ export class ChatPage implements AfterViewChecked {
   private readonly managementChat = inject(ManagementChatApi);
   private readonly management = inject(ManagementApi);
   private readonly managers = inject(ManagersApi);
+  private readonly floorChat = inject(FloorSupervisorChatApi);
+  private readonly floor = inject(FloorSupervisorApi);
 
   readonly flag = FLAGS.chat;
   readonly senderTeacher = ChatMessageSenderEnum.TEACHER;
@@ -1726,6 +1738,9 @@ export class ChatPage implements AfterViewChecked {
       // Her threads are not all "parents of your students" — one of them is a manager.
       case 'COORDINATOR':
         return 'chat.coordinatorSubtitle';
+      // Feature 20: parents of her floor, the teachers on it, the managers and the Admin.
+      case 'FLOOR_SUPERVISOR':
+        return 'chat.floorSubtitle';
       default:
         return 'chat.subtitle';
     }
@@ -1792,7 +1807,7 @@ export class ChatPage implements AfterViewChecked {
     if (!this.isStaff(thread)) return thread.childName;
     // D2 (list 3): a thread the school's admin opened with a teacher or a coordinator says who is
     // on the other end by office, not by a name she may never have met.
-    if (thread.withAdmin === true && (this.auth.role() === 'TEACHER' || this.auth.role() === 'COORDINATOR')) {
+    if (thread.withAdmin === true && NAMED_BY_OFFICE.has(this.auth.role() ?? '')) {
       return this.transloco.translate<string>('chat.schoolAdministration');
     }
     return thread.teacherName || this.transloco.translate<string>('chat.management');
@@ -1816,9 +1831,34 @@ export class ChatPage implements AfterViewChecked {
     () =>
       this.auth.role() === 'MANAGERIAL' ||
       this.auth.role() === 'TEACHER' ||
+      // Feature 20: `POST /floor/chat/threads` names a manager or an Admin, which is how she
+      // reaches the office without waiting to be written to. Her parent threads start from a row
+      // of her Children screen, where a child is chosen.
+      this.auth.role() === 'FLOOR_SUPERVISOR' ||
       // Same header, same reason: there is no school for a new thread to belong to.
       (this.auth.role() === 'ADMIN' && this.chatService.canWrite()),
   );
+
+  /** Feature 20: the managers and Admins she may open a thread with (`GET /floor/chat/peers`). */
+  private readonly floorPeers = rxResource<FloorChatPeers, boolean>({
+    params: () => this.auth.role() === 'FLOOR_SUPERVISOR',
+    stream: ({ params }) => (params ? this.floorChat.floorChatPeers() : of<FloorChatPeers>({})),
+    defaultValue: {},
+  });
+
+  /**
+   * Feature 20: the teachers of her floor's classes (`GET /floor/teachers`).
+   *
+   * A second read rather than a field on `FloorChatPeers`, because the two answer different
+   * questions: the peers endpoint is "the office above you", scoped by role, and this one is her
+   * floor's own staff — the same list her board shows, which is what makes the names on it the
+   * ones she recognises.
+   */
+  private readonly floorTeachers = rxResource({
+    params: () => this.auth.role() === 'FLOOR_SUPERVISOR',
+    stream: ({ params }) => (params ? this.floor.floorTeachers() : of([])),
+    defaultValue: [],
+  });
 
   private readonly coordinators = rxResource({
     params: () => this.auth.role() === 'MANAGERIAL',
@@ -1945,6 +1985,43 @@ export class ChatPage implements AfterViewChecked {
         },
       ];
     }
+    // Feature 20: her three groups — the teachers on her floor first, because they are who she
+    // talks to during a school day, then the office above her (`GET /floor/chat/peers`). Parents
+    // are not here: a parent thread is about one child, and the child is chosen on her Children
+    // screen, where "Message parent" posts `{childId}`.
+    if (this.auth.role() === 'FLOOR_SUPERVISOR') {
+      const peers = this.floorPeers.value();
+      return [
+        {
+          label: this.transloco.translate<string>('chat.peer.floorTeachers'),
+          options: this.floorTeachers
+            .value()
+            .filter((person) => person.userId !== undefined)
+            .map((person) => ({
+              value: `teacher:${person.userId}`,
+              // The subjects she teaches, so two teachers of the same first name are told apart.
+              label: [person.displayName, (person.subjects ?? []).join(', ')]
+                .filter((part) => part !== '' && part !== undefined)
+                .join(' · '),
+            })),
+        },
+        {
+          label: this.transloco.translate<string>('chat.peer.managers'),
+          options: (peers.managers ?? [])
+            .filter((person) => person.userId !== undefined)
+            .map((person) => ({
+              value: `manager:${person.userId}`,
+              label: person.displayName ?? '',
+            })),
+        },
+        {
+          label: this.transloco.translate<string>('chat.peer.admin'),
+          options: (peers.admins ?? [])
+            .filter((person) => person.userId !== undefined)
+            .map((person) => ({ value: `admin:${person.userId}`, label: person.displayName ?? '' })),
+        },
+      ];
+    }
     if (this.auth.role() === 'ADMIN') {
       return [
         {
@@ -1996,21 +2073,7 @@ export class ChatPage implements AfterViewChecked {
     const [kind, userId] = [chosen.slice(0, chosen.indexOf(':')), chosen.slice(chosen.indexOf(':') + 1)];
     if (userId === '') return;
     this.startingThreadBusy.set(true);
-    const request =
-      this.auth.role() === 'TEACHER'
-        ? // MG2b: her end of the pair. One thread per (teacher, manager), however many times
-          // either side asks for it — so pressing this twice opens the same conversation.
-          this.chatApi.teacherStaffThread({ managerUserId: userId })
-        : kind === 'manager'
-          ? this.chatApi.supportManagerThread({ managerUserId: userId })
-          : this.managementChat.managementStaffThread(
-              kind === 'admin'
-                ? { adminUserId: userId }
-                : kind === 'teacher'
-                  ? { teacherUserId: userId }
-                  : { coordinatorUserId: userId },
-            );
-    request
+    this.threadRequest(kind, userId)
       .pipe(
         tap((thread) => {
           this.startingThreadBusy.set(false);
@@ -2027,6 +2090,41 @@ export class ChatPage implements AfterViewChecked {
         }),
       )
       .subscribe();
+  }
+
+  /**
+   * The one `POST …/chat/threads` this role has, with the one id its body takes.
+   *
+   * A method rather than the nested conditional it replaced: feature 20 made it four roles and
+   * seven bodies, and the floor supervisor's `manager:` is **not** the Admin's `manager:` — hers
+   * is `POST /floor/chat/threads`, and a chain that tested `kind` before the role would have sent
+   * her to `/admin/chat/threads` and a 403.
+   */
+  private threadRequest(kind: string, userId: string): Observable<ChatThread> {
+    switch (this.auth.role()) {
+      // MG2b: her end of the pair. One thread per (teacher, manager), however many times either
+      // side asks for it — so pressing this twice opens the same conversation.
+      case 'TEACHER':
+        return this.chatApi.teacherStaffThread({ managerUserId: userId });
+      case 'FLOOR_SUPERVISOR':
+        return this.floorChat.floorChatThread(
+          kind === 'admin'
+            ? { adminUserId: userId }
+            : kind === 'teacher'
+              ? { teacherUserId: userId }
+              : { managerUserId: userId },
+        );
+      case 'ADMIN':
+        return this.chatApi.supportManagerThread({ managerUserId: userId });
+      default:
+        return this.managementChat.managementStaffThread(
+          kind === 'admin'
+            ? { adminUserId: userId }
+            : kind === 'teacher'
+              ? { teacherUserId: userId }
+              : { coordinatorUserId: userId },
+        );
+    }
   }
 
   /**

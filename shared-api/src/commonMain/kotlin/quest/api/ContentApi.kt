@@ -279,6 +279,8 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "staffAttendance" to false,
     // Feature 19: parent messages outside office hours arrive quietly, with a morning summary (V41).
     "chatOfficeHours" to false,
+    // Feature 20: the floor supervisor role — her area, her Messages and the Admin's Floors pages (V42).
+    "floorSupervisor" to false,
 )
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */

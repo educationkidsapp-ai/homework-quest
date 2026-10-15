@@ -53,6 +53,9 @@ export const FLAGS = {
   // Feature 19: chat office hours — a parent's message after hours arrives quietly, and the
   // school's phone is what the parent is offered instead, so the Admin's phone field rides on it.
   chatOfficeHours: 'chatOfficeHours',
+  // Feature 20: the floor supervisor — her whole area, the Admin's Floors and Floor supervisors
+  // screens, and every `/floor/**` and `/admin/floor*` route behind it on the server.
+  floorSupervisor: 'floorSupervisor',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];

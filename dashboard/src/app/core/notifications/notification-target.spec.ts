@@ -46,6 +46,33 @@ describe('MG2a — where a notification sends its reader', () => {
     expect(target(item('/teacher/chat?count=3'), null)).toBe('/notifications');
   });
 
+  /**
+   * Feature 20: the floor supervisor. `NotificationService` writes `/floor` and `/floor/messages`
+   * for her, so her own links are followed as they are — and a thread link written for somebody
+   * else's area is rewritten to her screen, which is the whole point of the `?thread=` branch:
+   * the row is the same conversation whoever opens it.
+   */
+  it('follows a floor supervisor own link, and rewrites a thread link to her Messages', () => {
+    const own = row(NotificationViewKindEnum.ATTENDANCE_ALERT, { link: '/floor' });
+    expect(target(own, 'FLOOR_SUPERVISOR')).toBe('/floor');
+
+    const thread = row(NotificationViewKindEnum.TEACHER_MESSAGE, { link: '/floor/messages?thread=th-7' });
+    expect(target(thread, 'FLOOR_SUPERVISOR')).toBe('/floor/messages?thread=th-7');
+    // Written for the manager, read by her: the same thread, her own screen.
+    const elsewhere = row(NotificationViewKindEnum.TEACHER_MESSAGE, {
+      link: '/management/messages?thread=th-7',
+    });
+    expect(target(elsewhere, 'FLOOR_SUPERVISOR')).toBe('/floor/messages?thread=th-7');
+    // And a link into *her* area is not followed by anyone else.
+    expect(target(thread, 'MANAGERIAL')).toBe('/management/messages?thread=th-7');
+
+    // Feature 18: a request waiting for her decision opens her own Attendance requests.
+    const request = row(NotificationViewKindEnum.ATTENDANCE_REQUEST, {
+      link: '/notifications?request=rq-2',
+    });
+    expect(target(request, 'FLOOR_SUPERVISOR')).toBe('/floor/attendance-requests?request=rq-2');
+  });
+
   it('sends the three lesson kinds to that reader own lesson page, and never a manager', () => {
     for (const kind of [
       NotificationViewKindEnum.LESSON_NEEDS_SKILLS,

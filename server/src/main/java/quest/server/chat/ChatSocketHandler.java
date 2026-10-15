@@ -62,6 +62,7 @@ public class ChatSocketHandler extends TextWebSocketHandler {
         boolean parent = ChatService.PARENT.equals(peer.role());
         // R4, RM2: a coordinator, a manager and an admin all name a thread by id — one of their threads has no child.
         boolean byThread = CoordinatorScope.ROLE.equalsIgnoreCase(peer.role())
+                || quest.server.tenancy.FloorScope.ROLE.equalsIgnoreCase(peer.role())
                 || quest.server.tenancy.ManagerScope.ROLE.equalsIgnoreCase(peer.role()) || "ADMIN".equalsIgnoreCase(peer.role());
         switch (command) {
             case ChatCommand.Send s -> {

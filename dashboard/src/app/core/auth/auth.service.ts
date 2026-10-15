@@ -24,7 +24,7 @@ function isCredentialFailure(error: unknown): boolean {
   return error instanceof HttpErrorResponse && (error.status === 401 || error.status === 403);
 }
 
-export type Role = 'ADMIN' | 'TEACHER' | 'MANAGERIAL' | 'COORDINATOR';
+export type Role = 'ADMIN' | 'TEACHER' | 'MANAGERIAL' | 'COORDINATOR' | 'FLOOR_SUPERVISOR';
 export type AuthStatus = 'unknown' | 'anonymous' | 'authenticated';
 
 /**
@@ -60,10 +60,20 @@ export const ROLE_HOME: Readonly<Record<Role, string>> = {
   TEACHER: '/teacher',
   MANAGERIAL: '/management',
   COORDINATOR: '/coordinator',
+  // Feature 20: the floor supervisor's own area. Her Home is a Home of its own — today's staff
+  // board for her floor's teachers over the children's attendance of their classes — so `/floor`
+  // draws a screen rather than redirecting the way `/teacher` does.
+  FLOOR_SUPERVISOR: '/floor',
 };
 
 export function isRole(value: string | undefined): value is Role {
-  return value === 'ADMIN' || value === 'TEACHER' || value === 'MANAGERIAL' || value === 'COORDINATOR';
+  return (
+    value === 'ADMIN' ||
+    value === 'TEACHER' ||
+    value === 'MANAGERIAL' ||
+    value === 'COORDINATOR' ||
+    value === 'FLOOR_SUPERVISOR'
+  );
 }
 
 /**

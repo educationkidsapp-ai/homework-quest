@@ -20,6 +20,7 @@ const MIGRATIONS: readonly { readonly file: string; readonly rows: number }[] = 
   { file: 'V15__chat.sql', rows: 1 },
   { file: 'V37__attendance_settings.sql', rows: 1 },
   { file: 'V41__chat_office_hours.sql', rows: 1 },
+  { file: 'V42__floors.sql', rows: 1 },
 ];
 
 function seededBy(file: string): Record<string, boolean> {
@@ -31,8 +32,12 @@ function seededBy(file: string): Record<string, boolean> {
   // Each seeded row is `SELECT '<key>' [AS flag_key], '<description>' [AS description],
   // TRUE|FALSE [AS default_on], ...` — the first row spells out the AS aliases, the rest are
   // positional, so both are optional here.
+  //
+  // A description may hold an apostrophe, which SQL doubles (`her floor''s`, V42) — hence
+  // `'[^']*(?:''[^']*)*'` rather than `'[^']*'`: the simpler class stopped at the first half of
+  // the pair and matched the row not at all, which is what the row count below catches.
   const rowPattern =
-    /SELECT\s+'([^']+)'(?:\s+AS flag_key)?\s*,\s*'[^']*'(?:\s+AS description)?\s*,\s*(TRUE|FALSE)\s+AS default_on|SELECT\s+'([^']+)'\s*,\s*'[^']*'\s*,\s*(TRUE|FALSE)\s*,/g;
+    /SELECT\s+'([^']+)'(?:\s+AS flag_key)?\s*,\s*'[^']*(?:''[^']*)*'(?:\s+AS description)?\s*,\s*(TRUE|FALSE)\s+AS default_on|SELECT\s+'([^']+)'\s*,\s*'[^']*(?:''[^']*)*'\s*,\s*(TRUE|FALSE)\s*,/g;
   const seeded: Record<string, boolean> = {};
   for (const match of sql.matchAll(rowPattern)) {
     const key = match[1] ?? match[3];

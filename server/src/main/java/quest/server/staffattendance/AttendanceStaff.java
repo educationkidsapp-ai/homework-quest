@@ -22,8 +22,12 @@ import quest.server.workers.WorkerRepository;
  */
 @Component
 class AttendanceStaff {
-    /** The roles that are staff of a school and may be a direct manager. ADMIN is the platform's, not a school's. */
-    static final Set<String> STAFF_ROLES = Set.of("TEACHER", "COORDINATOR", "MANAGERIAL");
+    /**
+     * The roles that are staff of a school and may be a direct manager. ADMIN is the platform's, not a school's.
+     * Feature 20 adds FLOOR_SUPERVISOR: she has attendance of her own and may be named a direct manager, which is
+     * what makes feature 16's lateness alerts reach her.
+     */
+    static final Set<String> STAFF_ROLES = Set.of("TEACHER", "COORDINATOR", "MANAGERIAL", quest.server.tenancy.FloorScope.ROLE);
 
     record Employee(String kind, String id, String fullName, String role, UserEntity user) {}
 

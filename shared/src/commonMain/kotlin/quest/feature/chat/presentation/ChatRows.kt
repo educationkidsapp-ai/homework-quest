@@ -67,6 +67,8 @@ fun staffLabel(role: ChatStaffRole, subject: String?, className: String?, string
         ChatStaffRole.COORDINATOR -> strings.coordinatorRole
         ChatStaffRole.MANAGERIAL -> strings.managerRole
         ChatStaffRole.TEACHER -> strings.teacherRole
+        // Feature 20: she holds no subject, so the row says her role and the child's class — "Floor supervisor · 1A".
+        ChatStaffRole.FLOOR_SUPERVISOR -> strings.floorSupervisorRole
     }
     val detail = if (role == ChatStaffRole.MANAGERIAL) {
         listOfNotNull(department?.takeIf { it.isNotBlank() } ?: className?.takeIf { it.isNotBlank() })

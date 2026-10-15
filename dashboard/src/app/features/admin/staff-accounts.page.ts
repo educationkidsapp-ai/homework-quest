@@ -1,6 +1,8 @@
 /* hq-flag: none (shell) — Coordinators and Managers are the one-school build itself, gated by
    `coordinator.manage` / `manager.manage` rather than by a flag, exactly as the Teachers page
-   next to them is (`teachers.page.ts`). A school that has classes has the people who run them. */
+   next to them is (`teachers.page.ts`). A school that has classes has the people who run them.
+   The third row this component serves, Floor supervisors, *is* behind a flag — `floorSupervisor`,
+   on the row in `core/nav/screens.ts`, which is where the route's `featureGuard` comes from. */
 import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from '@angular/core';
@@ -10,10 +12,12 @@ import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { type Observable, filter, map } from 'rxjs';
 import {
   type CoordinatorAccount,
+  type FloorSupervisorAccount,
   type ManagerAccount,
   type Scope,
   type TemporaryPassword,
   CoordinatorsApi,
+  FloorsApi,
   ManagersApi,
   apiErrorOf,
 } from '../../api';
@@ -45,8 +49,8 @@ import { CURRICULA, SUBJECTS, type Curriculum, type Subject } from '../lessons/l
 import { AdminThreadService } from './admin-thread.service';
 import { OneTimePasswordComponent } from './one-time-password.component';
 
-/** Which of the two accounts this screen is. Set by the route's `screenId` (`area.routes.ts`). */
-export type StaffKind = 'coordinator' | 'manager';
+/** Which of the three accounts this screen is. Set by the route's `screenId` (`area.routes.ts`). */
+export type StaffKind = 'coordinator' | 'manager' | 'floor-supervisor';
 
 /**
  * One account, normalised.
@@ -64,6 +68,14 @@ interface Person {
   readonly active: boolean;
   readonly scopes: readonly Scope[];
   readonly curricula: readonly string[];
+  /**
+   * Feature 20: the floors she supervises, by name.
+   *
+   * Read-only on this screen — a floor is *assigned on the Floors page*, where the classes that
+   * make it up are, so the Scopes column shows them and there is no editor behind it. Two screens
+   * that both set the same relation would be two ways to disagree about it.
+   */
+  readonly floors: readonly string[];
 }
 
 /** A row of the table, with everything resolved for display. */
@@ -84,6 +96,27 @@ interface ScopeRow {
 }
 
 type FormMode = 'create' | 'edit';
+
+/** The route's `screenId` → which account this screen is. */
+function kindOf(screenId: unknown): StaffKind {
+  if (screenId === 'managers') return 'manager';
+  if (screenId === 'floor-supervisors') return 'floor-supervisor';
+  return 'coordinator';
+}
+
+const MANAGE_KEY: Readonly<Record<StaffKind, string>> = {
+  coordinator: 'coordinator.manage',
+  manager: 'manager.manage',
+  'floor-supervisor': 'floor.manage',
+};
+
+/** The prefix every string on the screen hangs off, so the title, the empty state and the
+ * column header cannot name three different accounts. */
+const WORDS: Readonly<Record<StaffKind, string>> = {
+  coordinator: 'admin.coordinators',
+  manager: 'admin.managers',
+  'floor-supervisor': 'admin.floorSupervisors',
+};
 
 /** `math/british` or `math/` — a subject on one track is not the same row as the same subject on both. */
 function pairKey(subject: Subject | '', curriculum: Curriculum | ''): string {
@@ -135,6 +168,7 @@ function pairKey(subject: Subject | '', curriculum: Curriculum | ''): string {
 export class StaffAccountsPage {
   private readonly coordinatorsApi = inject(CoordinatorsApi);
   private readonly managersApi = inject(ManagersApi);
+  private readonly floorsApi = inject(FloorsApi);
   private readonly transloco = inject(TranslocoService);
   private readonly band = inject(BandService);
   private readonly undo = inject(UndoService);
@@ -149,13 +183,12 @@ export class StaffAccountsPage {
    * the router already agree about (`core/nav/screens.ts`): a second declaration of "this URL is
    * the managers one" is a second thing to keep in step.
    */
-  protected readonly kind: StaffKind =
-    inject(ActivatedRoute).snapshot.data['screenId'] === 'managers' ? 'manager' : 'coordinator';
+  protected readonly kind: StaffKind = kindOf(inject(ActivatedRoute).snapshot.data['screenId']);
 
-  /** The one write key of this screen — `coordinator.manage` or `manager.manage`, ADMIN only. */
-  protected readonly manageKey = this.kind === 'manager' ? 'manager.manage' : 'coordinator.manage';
+  /** The one write key of this screen — `coordinator.manage`, `manager.manage` or `floor.manage`. */
+  protected readonly manageKey = MANAGE_KEY[this.kind];
 
-  private readonly words = this.kind === 'manager' ? 'admin.managers' : 'admin.coordinators';
+  private readonly words = WORDS[this.kind];
 
   // ---- the list ---------------------------------------------------------------------------
 
@@ -272,6 +305,13 @@ export class StaffAccountsPage {
   protected readonly allSubjects = SUBJECTS;
   protected readonly allCurricula = CURRICULA;
   protected readonly isManager = this.kind === 'manager';
+  /**
+   * Feature 20: she has no scope to edit here at all — no scopes editor in the create dialog, no
+   * Scopes item in the row menu, and no Message action (there is no `POST /admin/chat/threads`
+   * body naming a floor supervisor). What is left is exactly the account: create, edit, reset,
+   * disable.
+   */
+  protected readonly isFloor = this.kind === 'floor-supervisor';
 
   protected readonly subjectOptions = computed<readonly SelectOption[]>(() => {
     this.lang();
@@ -307,6 +347,9 @@ export class StaffAccountsPage {
     if (this.formMode() === 'edit') return true;
     if (this.email().trim() === '') return false;
     if (this.isManager) return this.createCurriculum() !== '';
+    // Feature 20: a name and an address are the whole account. Her floors come from the Floors
+    // page, so there is nothing else this form could wait for.
+    if (this.isFloor) return true;
     return this.filledScopes().length > 0 && this.duplicateScope() === null;
   });
 
@@ -554,9 +597,11 @@ export class StaffAccountsPage {
 
   protected resetPassword(person: Person | null): void {
     if (!person) return;
-    const call: Observable<TemporaryPassword> = this.isManager
-      ? this.managersApi.resetManagerPassword(person.userId)
-      : this.coordinatorsApi.resetCoordinatorPassword(person.userId);
+    const call: Observable<TemporaryPassword> = this.isFloor
+      ? this.floorsApi.resetFloorSupervisorPassword(person.userId)
+      : this.isManager
+        ? this.managersApi.resetManagerPassword(person.userId)
+        : this.coordinatorsApi.resetCoordinatorPassword(person.userId);
     call.subscribe({
       next: (result: TemporaryPassword) => this.showPassword(person.fullName, result.temporaryPassword),
       error: (error: unknown) => this.band.fail(apiErrorOf(error)?.message ?? this.t('band.unreachable')),
@@ -568,7 +613,9 @@ export class StaffAccountsPage {
   protected readonly menuRow = signal<StaffRow | null>(null);
 
   protected message(row: StaffRow | null): void {
-    if (!row) return;
+    // `POST /admin/chat/threads` names a manager, a coordinator, a teacher or a child's parent —
+    // never a floor supervisor — so the action is not offered on her rows and not sent from here.
+    if (!row || this.isFloor) return;
     this.threads.open(row.id, this.isManager ? { managerUserId: row.id } : { coordinatorUserId: row.id });
   }
   protected readonly pendingDisable = signal<StaffRow | null>(null);
@@ -627,6 +674,9 @@ export class StaffAccountsPage {
   // ---- the four calls that know which account this is ------------------------------------------
 
   private list(): Observable<readonly Person[]> {
+    if (this.isFloor) {
+      return this.floorsApi.floorSupervisors().pipe(map((rows) => rows.map((one) => this.floorPerson(one))));
+    }
     return this.isManager
       ? this.managersApi.managers().pipe(map((rows) => rows.map((one) => this.managerPerson(one))))
       : this.coordinatorsApi
@@ -636,6 +686,7 @@ export class StaffAccountsPage {
 
   private create(): Observable<{ readonly temporaryPassword?: string }> {
     const body = { fullName: this.fullName().trim(), email: this.email().trim(), phone: this.phone().trim() };
+    if (this.isFloor) return this.floorsApi.createFloorSupervisor(body);
     return this.isManager
       ? this.managersApi.createManager({ ...body, curriculum: this.createCurriculum() })
       : this.coordinatorsApi.createCoordinator({ ...body, scopes: [...this.filledScopes()] });
@@ -644,7 +695,8 @@ export class StaffAccountsPage {
   private update(
     id: string,
     body: { readonly fullName?: string; readonly phone?: string; readonly active?: boolean },
-  ): Observable<CoordinatorAccount | ManagerAccount> {
+  ): Observable<CoordinatorAccount | ManagerAccount | FloorSupervisorAccount> {
+    if (this.isFloor) return this.floorsApi.updateFloorSupervisor(id, body);
     return this.isManager
       ? this.managersApi.updateManager(id, body)
       : this.coordinatorsApi.updateCoordinator(id, body);
@@ -659,6 +711,7 @@ export class StaffAccountsPage {
       active: one.status !== 'disabled',
       scopes: one.scopes ?? [],
       curricula: [],
+      floors: [],
     };
   }
 
@@ -671,11 +724,26 @@ export class StaffAccountsPage {
       active: one.status !== 'disabled',
       scopes: [],
       curricula: one.departments ?? [],
+      floors: [],
     };
   }
 
-  /** What the Scopes column says: `Math · British`, or the departments, or "—". */
+  private floorPerson(one: FloorSupervisorAccount): Person {
+    return {
+      userId: one.userId ?? '',
+      fullName: one.fullName?.trim() || (one.email ?? '').split('@')[0] || '',
+      email: one.email ?? '',
+      phone: one.phone ?? '',
+      active: one.status !== 'disabled',
+      scopes: [],
+      curricula: [],
+      floors: (one.floors ?? []).map((floor) => floor.name ?? '').filter((name) => name !== ''),
+    };
+  }
+
+  /** What the Scopes column says: `Math · British`, the departments, the floors, or "—". */
   private scopeWords(person: Person): string {
+    if (this.isFloor) return person.floors.join(' / ');
     const words = this.isManager
       ? person.curricula.map((one) => this.word(`curriculum.${one}`, one))
       : person.scopes.map((scope) => {

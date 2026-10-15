@@ -21,6 +21,8 @@ const AREA: Readonly<Record<Role, string>> = {
   TEACHER: '/teacher',
   COORDINATOR: '/coordinator',
   MANAGERIAL: '/management',
+  // Feature 20: `NotificationService` writes `/floor` and `/floor/messages` for her.
+  FLOOR_SUPERVISOR: '/floor',
 };
 
 /**
@@ -32,6 +34,7 @@ const MESSAGES: Readonly<Record<Role, string>> = {
   TEACHER: '/teacher/chat',
   COORDINATOR: '/coordinator/messages',
   MANAGERIAL: '/management/messages',
+  FLOOR_SUPERVISOR: '/floor/messages',
 };
 
 /**

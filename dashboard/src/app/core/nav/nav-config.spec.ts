@@ -24,9 +24,14 @@ describe('the nav switch', () => {
     expect(rail(false)).toEqual([
       'home',
       'classes',
+      // Feature 20: the floors the classes are grouped into, and the accounts over them. Both are
+      // behind `floorSupervisor` at runtime; this switch is about the school *surfaces* and takes
+      // neither with it.
+      'floors',
       'teachers',
       'coordinators',
       'managers',
+      'floor-supervisors',
       'workers',
       'children',
       // Feature 14: the school's attendance rules and direct managers.
@@ -52,7 +57,7 @@ describe('the nav switch', () => {
   });
 
   it('hides nothing from any other role', () => {
-    for (const role of ['TEACHER', 'COORDINATOR', 'MANAGERIAL'] as const) {
+    for (const role of ['TEACHER', 'COORDINATOR', 'MANAGERIAL', 'FLOOR_SUPERVISOR'] as const) {
       const all = navScreens(role);
       expect(all.filter(({ screen }) => inRail(screen, { schoolSurfaces: false }))).toEqual(all);
     }

@@ -1,0 +1,182 @@
+<hq-page [title]="'admin.floors.title' | transloco" [subtitle]="'admin.floors.subtitle' | transloco">
+  <ng-container *hqFeature="floorFlag">
+    @if (pendingDelete()) {
+      <hq-band
+        variant="confirm"
+        [open]="true"
+        [title]="confirmTitle()"
+        [confirmLabel]="confirmLabel()"
+        (confirmed)="confirmDelete()"
+        (dismissed)="cancelDelete()"
+      >
+        {{ confirmMessage() }}
+      </hq-band>
+    }
+
+    @if (floors.isLoading()) {
+      <hq-skeleton
+        [loading]="true"
+        [lines]="5"
+        height="var(--hq-size-row-height)"
+        [label]="'admin.floors.loading' | transloco"
+      />
+    } @else if (floors.error()) {
+      <hq-card>
+        <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco" [dismissible]="false">
+          {{ 'band.unreachable' | transloco }}
+        </hq-band>
+        <div class="floors__retry">
+          <hq-button variant="secondary" (pressed)="floors.reload()">{{ 'ui.retry' | transloco }}</hq-button>
+        </div>
+      </hq-card>
+    } @else {
+      <hq-card [flush]="true">
+        <hq-table
+          [rows]="rows()"
+          [columns]="columns()"
+          [cellTemplate]="cell"
+          [overflowTemplate]="overflow"
+          [trackBy]="trackRow"
+          [label]="'admin.floors.title' | transloco"
+        >
+          <hq-empty-state
+            table-empty
+            [message]="'admin.floors.empty' | transloco"
+            [actionLabel]="createLabel()"
+            (action)="openCreate()"
+          />
+        </hq-table>
+      </hq-card>
+    }
+  </ng-container>
+
+  <ng-template #cell let-row let-column="column">
+    @switch (column.key) {
+      @case ('name') {
+        {{ row.name }}
+      }
+      @case ('academy') {
+        {{ row.academy }}
+      }
+      @case ('classes') {
+        {{ row.classes || '—' }}
+      }
+      @case ('supervisors') {
+        @if (row.supervisors) {
+          {{ row.supervisors }}
+        } @else {
+          <!-- A floor nobody looks after is the one thing on this screen that needs doing. -->
+          <span class="hq-muted">{{ 'admin.floors.noSupervisor' | transloco }}</span>
+        }
+      }
+    }
+  </ng-template>
+
+  <ng-template #overflow let-row>
+    <button
+      type="button"
+      class="floors__overflow"
+      [cdkMenuTriggerFor]="rowMenu"
+      (click)="menuRow.set(row)"
+      [attr.aria-label]="'admin.floors.rowActions' | transloco: { name: row.name }"
+    >
+      ⋮
+    </button>
+  </ng-template>
+
+  <ng-template #rowMenu>
+    <div cdkMenu class="hq-menu" [attr.aria-label]="'ui.table.actions' | transloco">
+      <button
+        type="button"
+        cdkMenuItem
+        class="hq-menu__item"
+        *hqCan="manageKey"
+        (cdkMenuItemTriggered)="openEdit(menuRow())"
+      >
+        {{ 'admin.floors.edit' | transloco }}
+      </button>
+      <button
+        type="button"
+        cdkMenuItem
+        class="hq-menu__item hq-menu__item--danger"
+        *hqCan="manageKey"
+        (cdkMenuItemTriggered)="requestDelete(menuRow())"
+      >
+        {{ 'admin.floors.delete' | transloco }}
+      </button>
+    </div>
+  </ng-template>
+
+  <hq-dialog
+    [(open)]="formOpen"
+    [title]="formTitle()"
+    [confirmLabel]="'ui.save' | transloco"
+    [confirmDisabled]="!canSave()"
+    [confirmReason]="canSave() ? null : ('admin.floors.formReason' | transloco)"
+    [loading]="saving()"
+    (confirmed)="save()"
+  >
+    @if (formError(); as err) {
+      <hq-band
+        variant="error"
+        [open]="true"
+        [title]="'band.failed' | transloco"
+        (dismissed)="formError.set(null)"
+      >
+        {{ err }}
+      </hq-band>
+    }
+
+    <hq-input
+      [label]="'admin.floors.form.name' | transloco"
+      [value]="name()"
+      [required]="true"
+      [hint]="'admin.floors.form.nameHint' | transloco"
+      (valueChange)="setName($event)"
+    />
+    <hq-select
+      [label]="'admin.floors.form.academy' | transloco"
+      [placeholder]="'admin.floors.form.academyPlaceholder' | transloco"
+      [options]="academyOptions()"
+      [required]="true"
+      [value]="academy()"
+      (valueChange)="setAcademy($event)"
+    />
+
+    @if (formOpen()) {
+      <fieldset class="floors__fieldset">
+        <legend class="floors__legend">{{ 'admin.floors.form.classes' | transloco }}</legend>
+        @if (classChoices().length === 0) {
+          <p class="hq-muted">{{ 'admin.floors.form.noClasses' | transloco }}</p>
+        }
+        @for (choice of classChoices(); track choice.id) {
+          <hq-checkbox
+            [label]="choice.label"
+            [checked]="hasClass(choice.id)"
+            (checkedChange)="toggleClass(choice.id, $event)"
+          />
+        }
+      </fieldset>
+
+      <fieldset class="floors__fieldset">
+        <legend class="floors__legend">{{ 'admin.floors.form.supervisors' | transloco }}</legend>
+        @if (supervisorChoices().length === 0) {
+          <p class="hq-muted">{{ 'admin.floors.form.noSupervisors' | transloco }}</p>
+        }
+        @for (choice of supervisorChoices(); track choice.id) {
+          <hq-checkbox
+            [label]="choice.label"
+            [checked]="hasSupervisor(choice.id)"
+            (checkedChange)="toggleSupervisor(choice.id, $event)"
+          />
+        }
+      </fieldset>
+    }
+  </hq-dialog>
+
+  <div page-actions>
+    <hq-button *hqCan="manageKey" variant="primary" (pressed)="openCreate()">
+      {{ 'admin.floors.create' | transloco }}
+    </hq-button>
+  </div>
+</hq-page>

@@ -29,9 +29,16 @@ enum class ChatSender { @SerialName("parent") PARENT, @SerialName("teacher") TEA
  *
  * S1: a thread the platform admin holds is `MANAGERIAL` on the wire too — a released app decodes this enum strictly,
  * so a fourth word would break its thread list — and [ChatThread.withAdmin] is what tells it apart.
+ *
+ * Feature 20 adds `FLOOR_SUPERVISOR`, the thread she opens with a parent of her floor. It is a real fourth word
+ * rather than another `MANAGERIAL` because the parent's list has to name her by her own role, and an app build older
+ * than the feature cannot decode it — which is why `floorSupervisor` stays off until the app that can is distributed.
  */
 @Serializable
-enum class ChatStaffRole { @SerialName("TEACHER") TEACHER, @SerialName("COORDINATOR") COORDINATOR, @SerialName("MANAGERIAL") MANAGERIAL }
+enum class ChatStaffRole {
+    @SerialName("TEACHER") TEACHER, @SerialName("COORDINATOR") COORDINATOR, @SerialName("MANAGERIAL") MANAGERIAL,
+    @SerialName("FLOOR_SUPERVISOR") FLOOR_SUPERVISOR,
+}
 
 /**
  * N1: the role of the person on the **other end** of a [ChatThread], relative to whoever asked for the row. Its own
@@ -42,6 +49,8 @@ enum class ChatStaffRole { @SerialName("TEACHER") TEACHER, @SerialName("COORDINA
 enum class ChatPeerRole {
     @SerialName("TEACHER") TEACHER, @SerialName("COORDINATOR") COORDINATOR, @SerialName("MANAGERIAL") MANAGERIAL,
     @SerialName("ADMIN") ADMIN, @SerialName("PARENT") PARENT,
+    /** Feature 20: the floor supervisor of the child's floor, on the parent's row and on her colleagues'. */
+    @SerialName("FLOOR_SUPERVISOR") FLOOR_SUPERVISOR,
 }
 
 /**

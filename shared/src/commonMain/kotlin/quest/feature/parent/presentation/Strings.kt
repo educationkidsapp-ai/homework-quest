@@ -125,6 +125,12 @@ data class Strings(
     val managersGroup: String = "Department manager",
     val emptyConversationManager: String = "No messages yet. Write to the manager of the department.",
 
+    // Feature 20: the floor supervisor looks across the classes of the child's floor. She opens the thread — the
+    // parent never starts one, as with the school administration — so these words only ever title a row she wrote on.
+    val floorSupervisorRole: String = "Floor supervisor",
+    val floorSupervisorsGroup: String = "Floor supervisor",
+    val emptyConversationFloorSupervisor: String = "No messages yet. Write to the supervisor of your child's floor.",
+
     // RM4 (DR4, DR6), split in two by MH3: the Weekly plan page and the Announcements page.
     val weeklyPlan: String = "Weekly plan",
     val announcements: String = "Announcements",
@@ -348,6 +354,9 @@ data class Strings(
             managerRole = "مدير القسم",
             managersGroup = "مدير القسم",
             emptyConversationManager = "لا توجد رسائل بعد. اكتب إلى مدير القسم.",
+            floorSupervisorRole = "مشرفة الدور",
+            floorSupervisorsGroup = "مشرفة الدور",
+            emptyConversationFloorSupervisor = "لا توجد رسائل بعد. اكتب إلى مشرفة دور طفلك.",
             weeklyPlan = "الخطة الأسبوعية",
             announcements = "الإعلانات",
             notificationsTitle = "الإشعارات",
@@ -498,6 +507,8 @@ data class ChatFileStrings(
     val typingCoordinator: String,
     val typingManager: String,
     val typingAdmin: String,
+    /** Feature 20: the supervisor of the child's floor, who is neither a coordinator nor the department manager. */
+    val typingFloorSupervisor: String,
     val previewPhoto: String,
     /** `{n}` photos on one message. */
     val previewPhotos: String,
@@ -528,6 +539,7 @@ data class ChatFileStrings(
             typingCoordinator = "Coordinator is typing…",
             typingManager = "Manager is typing…",
             typingAdmin = "School administration is typing…",
+            typingFloorSupervisor = "Floor supervisor is typing…",
             previewPhoto = "📷 Photo",
             previewPhotos = "📷 {n} photos",
             previewPdf = "📄 {name}",
@@ -553,6 +565,7 @@ data class ChatFileStrings(
             typingCoordinator = "منسّق المادة يكتب الآن…",
             typingManager = "مدير القسم يكتب الآن…",
             typingAdmin = "إدارة المدرسة تكتب الآن…",
+            typingFloorSupervisor = "مشرفة الدور تكتب الآن…",
             previewPhoto = "📷 صورة",
             previewPhotos = "📷 {n} صور",
             previewPdf = "📄 {name}",

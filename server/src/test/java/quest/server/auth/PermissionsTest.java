@@ -12,8 +12,12 @@ import quest.server.ApiTestSupport;
 
 /** Every endpoint the server serves must be in `permissions.json`; a new route without an entry fails here. */
 class PermissionsTest extends ApiTestSupport {
-    /** Feature 13 adds WORKER: a mobile-app-only account, so it holds `staff.app` and little else. */
-    private static final List<String> ROLES = List.of("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "WORKER", Permissions.PARENT, Permissions.PUBLIC);
+    /**
+     * Feature 13 adds WORKER: a mobile-app-only account, so it holds `staff.app` and little else. Feature 20 adds
+     * FLOOR_SUPERVISOR, the sixth role, whose own area is `floor.*`.
+     */
+    private static final List<String> ROLES = List.of("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR",
+            "FLOOR_SUPERVISOR", "WORKER", Permissions.PARENT, Permissions.PUBLIC);
 
     @Autowired Permissions permissions;
 
@@ -47,6 +51,13 @@ class PermissionsTest extends ApiTestSupport {
         assertThat(permissions.forRole("COORDINATOR")).contains("attendance.requests.decide").doesNotContain("attendance.correction.write");
         assertThat(permissions.forRole("WORKER")).contains("attendance.self").doesNotContain("attendance.requests.decide", "attendance.correction.write");
         assertThat(permissions.forRole(Permissions.PARENT)).doesNotContain("attendance.self", "attendance.requests.decide");
+        // Feature 20: she reads her floors and writes only messages — never the Admin's Floors page, never a lesson,
+        // never a coordinator's or a manager's area, and she may be a direct manager, so she decides requests.
+        assertThat(permissions.forRole("FLOOR_SUPERVISOR"))
+                .contains("floor.read", "floor.chat", "me.read", "staff.app", "attendance.board",
+                        "attendance.self", "attendance.requests.decide", "notifications.read")
+                .doesNotContain("floor.manage", "coordinator.read", "management.read", "lesson.write",
+                        "attendance.write", "attendance.correction.write", "user.impersonate", "school.write");
     }
 
     @Test void the_planned_phase_one_endpoints_are_already_declared() {

@@ -58,6 +58,9 @@ import quest.ui.design.Dimens
 private fun staffRoleOf(role: ChatPeerRole): ChatStaffRole = when (role) {
     ChatPeerRole.COORDINATOR -> ChatStaffRole.COORDINATOR
     ChatPeerRole.MANAGERIAL, ChatPeerRole.ADMIN -> ChatStaffRole.MANAGERIAL
+    // Feature 20: she resolves no complaints (they are out of her scope), but a row that ever names her must not
+    // read "Teacher".
+    ChatPeerRole.FLOOR_SUPERVISOR -> ChatStaffRole.FLOOR_SUPERVISOR
     else -> ChatStaffRole.TEACHER
 }
 

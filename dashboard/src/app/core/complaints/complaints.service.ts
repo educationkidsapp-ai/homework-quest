@@ -23,7 +23,14 @@ export type { ComplaintSignal, ComplaintStatus };
 export type ComplaintArea = 'teacher' | 'coordinator' | 'management' | 'admin';
 export type ComplaintFilter = 'open' | 'resolved' | 'all';
 
-const AREA_OF: Readonly<Record<Role, ComplaintArea>> = {
+/**
+ * **Partial, and that is the point.** Feature 20's floor supervisor has no complaints: B6 gives
+ * `/{area}/complaints` to the four roles below and `permissions.json` gives her no key for one,
+ * so she is absent rather than mapped somewhere she would be refused. `area()` answers `null` for
+ * her, {@link ComplaintsService.enabled} is then false, and nothing of hers — no rail row, no
+ * count, no socket bookkeeping — comes near a complaint.
+ */
+const AREA_OF: Readonly<Partial<Record<Role, ComplaintArea>>> = {
   ADMIN: 'admin',
   TEACHER: 'teacher',
   COORDINATOR: 'coordinator',
@@ -67,7 +74,7 @@ export class ComplaintsService {
 
   readonly area = computed<ComplaintArea | null>(() => {
     const role = this.auth.role();
-    return role === null ? null : AREA_OF[role];
+    return role === null ? null : (AREA_OF[role] ?? null);
   });
 
   /**
