@@ -82,4 +82,13 @@ interface StaffApi {
 
     /** Feature 19: `PUT /staff/me/preferences` — her own after-hours alerts choice; returns the updated [StaffMe]. */
     suspend fun staffPreferences(request: StaffPreferences): StaffMe
+
+    /**
+     * Feature 29: `POST /staff/translate` — what a parent wrote, in English or Arabic. The message must be one in a
+     * thread or a complaint she may already read (her sections, her reach, her department, her floors, her own
+     * threads); anything else is a 404. Behind the `languageBridge` flag, and the answer is always labelled
+     * [quest.api.dto.Translation.machine].
+     */
+    suspend fun staffTranslate(request: quest.api.dto.TranslateRequest): quest.api.dto.Translation =
+        throw NotImplementedError("staffTranslate needs a backend")
 }

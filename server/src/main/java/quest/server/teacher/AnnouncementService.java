@@ -125,6 +125,21 @@ public class AnnouncementService {
      * `children.class_id` changes what a parent's app already shows and is its own package on the backlog; it is
      * deliberately not changed here.
      */
+    /**
+     * Feature 29: one note by id, but only one <strong>this child's app shows</strong> — the same three conditions
+     * {@link #forChild} reads it under: her school, a class of her course, and live. A note that is not in her feed
+     * is a 404 and never a translation. The caller has already proved the child is hers, and it passes {@code now}
+     * in from its own injected {@link java.time.Clock} rather than reading the wall clock here.
+     */
+    public Entities.AnnouncementEntity readableByParent(quest.server.children.Entities.ChildEntity child, String announcementId, Instant now) {
+        var sections = classes.findBySchoolIdAndCurriculumAndGrade(child.getSchoolId(), child.getCurriculum(), child.getGrade())
+                .stream().map(ClassEntity::getId).toList();
+        if (sections.isEmpty()) throw ApiException.notFound("announcement");
+        return announcements.findLive(child.getSchoolId(), sections, now).stream()
+                .filter(a -> a.getId().equals(announcementId)).findFirst()
+                .orElseThrow(() -> ApiException.notFound("announcement"));
+    }
+
     public List<ParentAnnouncement> forChild(quest.server.children.Entities.ChildEntity child) {
         var sections = classes.findBySchoolIdAndCurriculumAndGrade(child.getSchoolId(), child.getCurriculum(), child.getGrade());
         if (sections.isEmpty()) return List.of();

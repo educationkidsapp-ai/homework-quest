@@ -92,6 +92,7 @@ class IsolationTest extends ApiTestSupport {
     @Autowired quest.server.chat.ChatThreadRepository chatThreads;
     @Autowired quest.server.chat.ComplaintTriageRepository complaintTriage;
     @Autowired quest.server.children.EveningCardRepository eveningCards;
+    @Autowired quest.server.translate.TranslationRepository translations;
 
     @BeforeEach void seedTwoSchools() {
         school(A, "Alpha Academy", "SCHLAA"); school(B, "Beta School", "SCHLBB");
@@ -424,6 +425,32 @@ class IsolationTest extends ApiTestSupport {
         } finally {
             tenant.clear();
             documentSummaries.deleteById("iso-doc-b");
+        }
+    }
+
+    /**
+     * Feature 29's tenant table. A translation holds what a parent or a teacher of <em>one</em> school wrote, in
+     * another language — exactly the words the `chat_messages` row holds, which is why it is filtered like the source
+     * is. A principal of A cannot read B's rows, and naming B's own source does not help her: the lookup takes a
+     * school, and the one it is given is the source row's, resolved before the cache is ever asked.
+     */
+    @Test void feature_29s_translation_cache_stays_in_its_school() {
+        var row = new quest.server.translate.Entities.TranslationEntity();
+        row.setId("iso-translation-b"); row.setSchoolId(B);
+        row.setSourceKind("chat"); row.setSourceId("iso-message-b"); row.setSourceHash("iso-hash");
+        row.setLang("ur"); row.setText("[ur] a message of B's"); row.setCreatedAt(Instant.now());
+        translations.save(row);
+        try {
+            tenant.set("MANAGERIAL", A, null);
+            assertThat(translations.findAll()).noneMatch(t -> B.equals(t.getSchoolId()));
+            assertThat(translations.of("chat", "iso-message-b")).as("not A's, whatever she names").isEmpty();
+            assertThat(translations.hit(B, "chat", "iso-message-b", "ur", "iso-hash")).as("nor by naming B outright").isEmpty();
+            tenant.set("MANAGERIAL", B, null);
+            assertThat(translations.of("chat", "iso-message-b")).extracting(r -> r.getId()).containsExactly("iso-translation-b");
+            assertThat(translations.hit(B, "chat", "iso-message-b", "ur", "iso-hash")).isPresent();
+        } finally {
+            tenant.clear();
+            translations.deleteById("iso-translation-b");
         }
     }
 

@@ -5745,6 +5745,9 @@
           },
           "phone" : {
             "type" : "string"
+          },
+          "readingLanguage" : {
+            "type" : "string"
           }
         },
         "type" : "object"
@@ -8732,6 +8735,49 @@
         } ],
         "required" : [ "hint", "id", "ingredient", "parentTip", "speak", "text", "title", "type" ]
       },
+      "TranslateRequest" : {
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "enum" : [ "chat", "broadcast", "announcement", "complaint" ],
+            "type" : "string"
+          },
+          "lang" : {
+            "enum" : [ "ar", "en", "ur", "hi", "bn", "fil", "fr", "id" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "kind", "lang" ],
+        "type" : "object"
+      },
+      "Translation" : {
+        "properties" : {
+          "lang" : {
+            "enum" : [ "ar", "en", "ur", "hi", "bn", "fil", "fr", "id" ],
+            "type" : "string"
+          },
+          "machine" : {
+            "type" : "boolean"
+          },
+          "original" : {
+            "type" : "string"
+          },
+          "sourceId" : {
+            "type" : "string"
+          },
+          "sourceKind" : {
+            "enum" : [ "chat", "broadcast", "announcement", "complaint" ],
+            "type" : "string"
+          },
+          "text" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "lang", "machine", "original", "sourceId", "sourceKind", "text" ],
+        "type" : "object"
+      },
       "TrueFalse" : {
         "allOf" : [ {
           "$ref" : "#/components/schemas/SingleAnswer"
@@ -9033,6 +9079,16 @@
           },
           "timezone" : {
             "maxLength" : 64,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UpdateReadingLanguageRequest" : {
+        "properties" : {
+          "lang" : {
+            "maxLength" : 8,
             "minLength" : 0,
             "type" : "string"
           }
@@ -14835,6 +14891,42 @@
         "tags" : [ "Teacher questions" ]
       }
     },
+    "/children/{id}/translate" : {
+      "post" : {
+        "operationId" : "translateForParent",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TranslateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Translation"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Language bridge" ]
+      }
+    },
     "/children/{id}/weekly-plans" : {
       "get" : {
         "operationId" : "childWeeklyPlans",
@@ -18008,6 +18100,34 @@
         "tags" : [ "Auth" ]
       }
     },
+    "/parent/me/reading-language" : {
+      "put" : {
+        "operationId" : "setReadingLanguage",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateReadingLanguageRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ParentProfile"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Auth" ]
+      }
+    },
     "/platform-settings" : {
       "get" : {
         "operationId" : "platformSettings",
@@ -18722,6 +18842,34 @@
           }
         },
         "tags" : [ "Staff app" ]
+      }
+    },
+    "/staff/translate" : {
+      "post" : {
+        "operationId" : "translateForStaff",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TranslateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Translation"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Language bridge" ]
       }
     },
     "/teacher/announcements" : {
@@ -21655,6 +21803,9 @@
   }, {
     "description" : "Cache, usage and calendar",
     "name" : "Admin reports"
+  }, {
+    "description" : "Feature 29: a parent reads the school's messages in her own language, and staff read what she writes",
+    "name" : "Language bridge"
   }, {
     "description" : "Dashboard sign-in",
     "name" : "Auth"

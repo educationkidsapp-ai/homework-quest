@@ -6,6 +6,7 @@ import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.minus
 import quest.api.dto.BroadcastKind
 import quest.api.dto.BroadcastView
+import quest.api.dto.ReadingLanguage
 
 /**
  * RM4: how one flat feed becomes the screen — pure, so the shape of the list is a unit test rather than a screenshot.
@@ -69,3 +70,12 @@ fun groupBroadcasts(items: List<BroadcastView>, nowMillis: Long): BroadcastGroup
  */
 fun broadcastBody(view: BroadcastView, arabic: Boolean): String =
     if (arabic) view.bodyAr?.takeIf { it.isNotBlank() } ?: view.bodyEn else view.bodyEn
+
+/**
+ * Feature 29: **which language** [broadcastBody] just returned. The school writes a broadcast in English and, when it
+ * has the words, in Arabic — so the body a parent is reading is one of two known languages and never a guess. Without
+ * an Arabic body the Arabic app shows the English one, and this says so, which is exactly when Translate is worth
+ * offering to a parent who reads neither.
+ */
+fun broadcastBodyLanguage(view: BroadcastView, arabic: Boolean): ReadingLanguage =
+    if (arabic && !view.bodyAr.isNullOrBlank()) ReadingLanguage.AR else ReadingLanguage.EN

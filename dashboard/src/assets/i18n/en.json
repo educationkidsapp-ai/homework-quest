@@ -3109,5 +3109,13 @@
       "badType": "That kind of file cannot be read. Upload a PDF, a Word file, or a JPEG, PNG or WebP photograph.",
       "recent": "Your recent summaries could not be read."
     }
+  },
+  "translate": {
+    "action": "Translate to English",
+    "working": "Translating…",
+    "machine": "Machine-translated",
+    "showOriginal": "Show original only",
+    "tooMany": "Too many translations, try again later",
+    "failed": "That message could not be translated. Try again in a moment."
   }
 }

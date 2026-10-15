@@ -196,6 +196,25 @@ interface ContentApi {
     suspend fun updateParentProfile(phone: String?): quest.api.dashboard.ParentProfile =
         throw NotImplementedError("updateParentProfile needs a backend")
 
+    // ---- Feature 29: the language bridge (`docs/features/29-parent-language-bridge.md`). Behind the
+    // `languageBridge` flag: 404 while off. **The original is never replaced** — a translation is an addition the
+    // reader asks for, it is always labelled machine-translated, and it carries the original back with it.
+
+    /**
+     * Feature 29 `PUT /parent/me/reading-language` — the language she reads the school's messages in, out of
+     * [quest.api.dto.ReadingLanguage]. It comes back on [parentProfile]; anything else is a 400.
+     */
+    suspend fun setReadingLanguage(lang: quest.api.dto.ReadingLanguage): quest.api.dashboard.ParentProfile =
+        throw NotImplementedError("setReadingLanguage needs a backend")
+
+    /**
+     * Feature 29 `POST /children/{id}/translate` — one staff message, complaint message, broadcast or announcement
+     * in her own language. The source must be one this child's feed or her own thread already shows her: anything
+     * else is a 404. A repeat request is served from the cache, so it is cheap to call again.
+     */
+    suspend fun translate(childId: String, request: quest.api.dto.TranslateRequest): quest.api.dto.Translation =
+        throw NotImplementedError("translate needs a backend")
+
     // ---- RM2: broadcasts (`docs/runbook.md` "Broadcasts"). Behind the `announcements` flag: 404 while off.
 
     /**
@@ -305,6 +324,8 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "complaintTriage" to false,
     // Feature 28: the parent's evening card about one child's day (V50).
     "parentEveningCard" to false,
+    // Feature 29: parents read the school's messages in their own language, and staff read what they write (V51).
+    "languageBridge" to false,
 )
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */
