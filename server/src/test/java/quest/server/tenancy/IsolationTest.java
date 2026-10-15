@@ -91,6 +91,7 @@ class IsolationTest extends ApiTestSupport {
     @Autowired quest.server.documents.DocumentSummaryRepository documentSummaries;
     @Autowired quest.server.chat.ChatThreadRepository chatThreads;
     @Autowired quest.server.chat.ComplaintTriageRepository complaintTriage;
+    @Autowired quest.server.children.EveningCardRepository eveningCards;
 
     @BeforeEach void seedTwoSchools() {
         school(A, "Alpha Academy", "SCHLAA"); school(B, "Beta School", "SCHLBB");
@@ -250,6 +251,30 @@ class IsolationTest extends ApiTestSupport {
         } finally {
             tenant.clear();
             afterHours.deleteById("iso-after-hours-b");
+        }
+    }
+
+    /**
+     * Feature 28's cards. A card of B is invisible to a principal of A, and naming B's school herself answers nothing:
+     * `evening_cards` is read on the parent side, which carries no tenant scope at all, and by the 18:00 job, which has
+     * no request behind it — so every query names a school <em>and</em> the filter is on.
+     */
+    @Test void feature_28s_evening_cards_stay_in_their_school() throws Exception {
+        var childB = parentPost("/children", "{\"name\":\"Basem\",\"avatarColor\":\"mint\",\"curriculum\":\"british\",\"grade\":1,\"schoolCode\":\"SCHLBB\"}").get("id").asText();
+        var card = new quest.server.children.Entities.EveningCardEntity();
+        card.setId("iso-card-b"); card.setSchoolId(B); card.setChildId(childB); card.setCardDay(DATE_B);
+        card.setFactsJson("{\"day\":\"" + DATE_B + "\",\"lessons\":[]}");
+        card.setTextAr("ar"); card.setTextEn("en"); card.setSource("template"); card.setCreatedAt(Instant.now());
+        eveningCards.save(card);
+        try {
+            tenant.set("MANAGERIAL", A, null);
+            assertThat(eveningCards.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(eveningCards.findOneOfChild(B, childB, DATE_B)).as("and B's own school is not hers to ask about").isEmpty();
+            tenant.set("MANAGERIAL", B, null);
+            assertThat(eveningCards.findOneOfChild(B, childB, DATE_B)).isPresent();
+        } finally {
+            tenant.clear();
+            eveningCards.deleteById("iso-card-b");
         }
     }
 

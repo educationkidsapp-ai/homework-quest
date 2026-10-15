@@ -31,6 +31,7 @@ public class SampleLlmClient implements LlmClient {
         if (system.equals(Prompts.SYSTEM_F)) return briefFromFacts(user);
         if (system.equals(Prompts.DOCUMENT_READER)) return summaryFromDocument(user);
         if (system.equals(Prompts.COMPLAINT_TRIAGE)) return triageOfComplaint(user);
+        if (system.equals(Prompts.EVENING_CARD)) return eveningCard(user);
         if (user.startsWith("Here is a Play you wrote earlier")) {
             int i = user.indexOf("different content:\n") + "different content:\n".length();
             String stop = user.substring(i, user.indexOf("\n\nDo not reuse", i)).trim();
@@ -142,6 +143,24 @@ public class SampleLlmClient implements LlmClient {
                     .put("bodyAr", cut(body, 1000)).put("bodyEn", cut(body, 1000));
         return new Result(out.toString(), 1100, 500);
     }
+
+    /**
+     * Feature 28's note without a model: the first block's own "HOW IT WENT" words in a fixed sentence pair that
+     * keeps every rule the validator checks — `{child}` in both languages and not a digit anywhere. Deterministic,
+     * which is what lets the API test read the card back and assert on it, and it still exercises the real checks.
+     */
+    private Result eveningCard(String user) {
+        String en = "went well", ar = "سار على ما يرام";
+        var went = WENT.matcher(user);
+        if (went.find()) { en = went.group(1).strip(); ar = went.group(2).strip(); }
+        var out = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+        out.put("textEn", "{child} worked on today's homework — " + en + ". Ask about the part {child} practised this evening.");
+        out.put("textAr", "عمل {child} في واجب اليوم — " + ar + ". اسألوا {child} هذا المساء عما تدرب عليه.");
+        return new Result(out.toString(), 600, 300);
+    }
+
+    /** The result line of one `EveningCardFacts.Lesson.block`: `HOW IT WENT: went well / سار على ما يرام`. */
+    private static final java.util.regex.Pattern WENT = java.util.regex.Pattern.compile("HOW IT WENT: ([^/\n]+) / ([^\n]+)");
 
     /** One audience line of {@link Prompts#userE}: `curriculum "british", grade 1`. */
     private static final java.util.regex.Pattern CELL = java.util.regex.Pattern.compile("curriculum \"([a-z]+)\", grade (\\d+)");

@@ -24,7 +24,7 @@ class FlagAdminTest extends ApiTestSupport {
     @Test void the_flags_are_seeded_exactly_as_the_code_lists_them() {
         assertThat(definitions.findAllByOrderByKeyAsc()).extracting(Entities.FeatureFlagEntity::getKey)
                 .containsExactlyInAnyOrderElementsOf(FlagKeys.ALL);
-        assertThat(FlagKeys.ALL).hasSize(32);
+        assertThat(FlagKeys.ALL).hasSize(33);
 
         var on = definitions.findAllByOrderByKeyAsc().stream().filter(Entities.FeatureFlagEntity::isDefaultOn)
                 .map(Entities.FeatureFlagEntity::getKey).toList();
@@ -62,7 +62,9 @@ class FlagAdminTest extends ApiTestSupport {
                         // Feature 26: the document reader, off until a school switches it on.
                         FlagKeys.DOCUMENT_READER,
                         // Feature 27: the AI's reading of a new complaint, off until a school switches it on.
-                        FlagKeys.COMPLAINT_TRIAGE);
+                        FlagKeys.COMPLAINT_TRIAGE,
+                        // Feature 28: the parent's evening card, off until a school switches it on.
+                        FlagKeys.PARENT_EVENING_CARD);
         assertThat(definitions.findAllByOrderByKeyAsc()).allSatisfy(f ->
                 assertThat(f.getRolloutStage()).isIn("internal", "beta", "ga"));
     }

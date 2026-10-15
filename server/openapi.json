@@ -3249,6 +3249,31 @@
         },
         "type" : "object"
       },
+      "EveningCard" : {
+        "properties" : {
+          "day" : {
+            "type" : "string"
+          },
+          "lessonIds" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "source" : {
+            "enum" : [ "model", "template" ],
+            "type" : "string"
+          },
+          "textAr" : {
+            "type" : "string"
+          },
+          "textEn" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "day", "lessonIds", "source", "textAr", "textEn" ],
+        "type" : "object"
+      },
       "ExamBand" : {
         "properties" : {
           "band" : {
@@ -5441,7 +5466,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message", "attendance.reminder", "attendance.alert", "attendance.digest", "attendance.request", "attendance.decision", "attendance.remote_day", "chat.after_hours_summary", "morning.brief" ],
+            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message", "attendance.reminder", "attendance.alert", "attendance.digest", "attendance.request", "attendance.decision", "attendance.remote_day", "chat.after_hours_summary", "morning.brief", "evening.card" ],
             "type" : "string"
           },
           "lessonId" : {
@@ -14540,6 +14565,42 @@
         "tags" : [ "Chat" ]
       }
     },
+    "/children/{id}/evening-card" : {
+      "get" : {
+        "operationId" : "eveningCard",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EveningCard"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "204" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "Nothing to show: before 16:00 school time, a day the school does not teach, or no homework of hers today"
+          }
+        },
+        "tags" : [ "Evening card" ]
+      }
+    },
     "/children/{id}/managers" : {
       "get" : {
         "operationId" : "parentManagers",
@@ -21516,6 +21577,9 @@
   }, {
     "description" : "A teacher's own lessons: create, move, copy, publish and the pipeline",
     "name" : "Teacher lessons"
+  }, {
+    "description" : "Feature 28: one card per child about today, for her parent",
+    "name" : "Evening card"
   }, {
     "description" : "School pin, staff hours, holidays, rules and direct managers",
     "name" : "Staff attendance settings"

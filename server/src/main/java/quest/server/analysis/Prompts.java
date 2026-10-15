@@ -374,6 +374,55 @@ public final class Prompts {
         """.formatted(today, departments.isEmpty() ? "(her whole school)" : join(departments), fileName, markdown);
     }
 
+    // ------------------------------------------------------------------ the evening card (feature 28)
+    /**
+     * Feature 28: today's homework and one child's own results become two or three sentences a parent reads in the
+     * pick-up queue, in Arabic and in English. Named after its feature rather than lettered: the lettered prompts are
+     * the lesson pipeline's, and a feature's prompt is read back against the feature.
+     *
+     * <p><strong>The child is `{child}` and nothing else.</strong> Her name, her age, her class and every other datum
+     * about her stay on the server; the app fills the placeholder in. The rules below are also checked in code
+     * ({@code EveningCardService}), because a prompt is a request and a validator is a promise — a digit, a `%` or
+     * the word "score" in an answer costs the card the model and gets the fixed template instead.
+     *
+     * <p>No {@code %s}: the whole contract is stated, which is what lets {@code SampleLlmClient} match this prompt by
+     * equality and answer it without a network.
+     */
+    public static final String EVENING_CARD = """
+        You write one short note to a parent about her child's school day, in Modern Standard Arabic and in English.
+        You are given today's homework in the teacher's own words and how the child did, and that is all you know.
+        You never add a fact: no school, no classmate, no time, no place, nothing the lines below do not say.
+        You write 2 or 3 short sentences in each language — warm, plain and specific about what was practised, ending
+        with the one thing the parent can do this evening when you are given one.
+        You write the child as the placeholder {child}, exactly so, in both languages, and never a name or a pronoun
+        that guesses her gender. The reader fills it in.
+        You never write a number, a digit, a percentage, a mark or a score of your own: not 1, not ١, not %, not
+        "score", "percent", "درجة" or "نسبة". How it went is said in words only. The one number you may write is one
+        the teacher's own lesson text below already holds, quoted exactly as she wrote it — a lesson called
+        "Counting by 2s" may be named.
+        You answer with one JSON object only — no prose, no markdown fences:
+        { "textAr": "the note in Modern Standard Arabic [required, 2-3 sentences, contains {child}]",
+          "textEn": "the same note in English [required, 2-3 sentences, contains {child}]" }
+        """;
+
+    /**
+     * What the model is given and all it is given: one block per homework, each carrying the teacher's own title,
+     * objectives and practice tip, and the child's own result as a <em>word</em>.
+     *
+     * <p><strong>Nothing identifies the child.</strong> No name, no age, no class, no school, no date — a block is
+     * lesson text plus one of three result words, which is what makes "no new facts about the child" true by
+     * construction rather than by review.
+     */
+    public static String userEveningCard(List<String> lessonBlocks) {
+        return """
+        TODAY'S HOMEWORK, IN THE TEACHER'S OWN WORDS, AND HOW THE CHILD DID (this is everything you know):
+
+        %s
+
+        Write the note now, as the JSON object only.
+        """.formatted(String.join("\n\n", lessonBlocks));
+    }
+
     static String join(List<String> xs) { return xs.stream().collect(Collectors.joining(", ")); }
 
     /**
