@@ -1327,6 +1327,9 @@
           "notes" : {
             "type" : "string"
           },
+          "remoteStudyDay" : {
+            "type" : "boolean"
+          },
           "status" : {
             "type" : "string"
           }
@@ -1791,6 +1794,9 @@
           "presentCount" : {
             "format" : "int32",
             "type" : "integer"
+          },
+          "remoteStudyDay" : {
+            "type" : "boolean"
           },
           "students" : {
             "items" : {
@@ -2722,6 +2728,28 @@
           }
         },
         "required" : [ "curriculum", "email", "fullName" ],
+        "type" : "object"
+      },
+      "CreateRemoteStudyDay" : {
+        "properties" : {
+          "academy" : {
+            "type" : "string"
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "grades" : {
+            "items" : {
+              "format" : "int32",
+              "type" : "integer"
+            },
+            "type" : "array"
+          },
+          "reason" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "date", "grades", "reason" ],
         "type" : "object"
       },
       "CreateRosterChildRequest" : {
@@ -5179,6 +5207,77 @@
         },
         "type" : "object"
       },
+      "MorningBrief" : {
+        "properties" : {
+          "day" : {
+            "type" : "string"
+          },
+          "facts" : {
+            "$ref" : "#/components/schemas/MorningBriefFacts"
+          },
+          "linesAr" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "linesEn" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "source" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "MorningBriefFacts" : {
+        "properties" : {
+          "absentYesterday" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "childAttendanceRate" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "eventsToday" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "lateYesterday" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "missingCheckoutYesterday" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "overdueComplaints" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "remoteStudyDayReason" : {
+            "type" : "string"
+          },
+          "remoteStudyDayToday" : {
+            "type" : "boolean"
+          },
+          "requestsWaiting" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "scope" : {
+            "type" : "string"
+          },
+          "yesterday" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "Move" : {
         "allOf" : [ {
           "$ref" : "#/components/schemas/Stop"
@@ -5309,7 +5408,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message", "attendance.reminder", "attendance.alert", "attendance.digest", "attendance.request", "attendance.decision", "attendance.remote_day", "chat.after_hours_summary" ],
+            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message", "attendance.reminder", "attendance.alert", "attendance.digest", "attendance.request", "attendance.decision", "attendance.remote_day", "chat.after_hours_summary", "morning.brief" ],
             "type" : "string"
           },
           "lessonId" : {
@@ -6064,13 +6163,20 @@
         "required" : [ "correct", "stopId", "title" ],
         "type" : "object"
       },
-      "RemoteDay" : {
+      "RemoteStudyDay" : {
         "properties" : {
           "academy" : {
             "type" : "string"
           },
           "date" : {
             "type" : "string"
+          },
+          "grades" : {
+            "items" : {
+              "format" : "int32",
+              "type" : "integer"
+            },
+            "type" : "array"
           },
           "id" : {
             "type" : "string"
@@ -6079,14 +6185,14 @@
             "type" : "string"
           }
         },
-        "required" : [ "date", "reason" ],
+        "required" : [ "date", "grades", "id", "reason" ],
         "type" : "object"
       },
-      "RemoteDayList" : {
+      "RemoteStudyDayList" : {
         "properties" : {
           "days" : {
             "items" : {
-              "$ref" : "#/components/schemas/RemoteDay"
+              "$ref" : "#/components/schemas/RemoteStudyDay"
             },
             "type" : "array"
           }
@@ -9631,69 +9737,6 @@
         "tags" : [ "Staff attendance settings" ]
       }
     },
-    "/admin/attendance/remote-days" : {
-      "get" : {
-        "operationId" : "remoteDays",
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/RemoteDayList"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [ "Attendance requests" ]
-      },
-      "post" : {
-        "operationId" : "createRemoteDay",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/RemoteDay"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/RemoteDay"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [ "Attendance requests" ]
-      }
-    },
-    "/admin/attendance/remote-days/{id}" : {
-      "delete" : {
-        "operationId" : "deleteRemoteDay",
-        "parameters" : [ {
-          "in" : "path",
-          "name" : "id",
-          "required" : true,
-          "schema" : {
-            "type" : "string"
-          }
-        } ],
-        "responses" : {
-          "204" : {
-            "description" : "No Content"
-          }
-        },
-        "tags" : [ "Attendance requests" ]
-      }
-    },
     "/admin/auth/sign-in" : {
       "post" : {
         "operationId" : "signIn",
@@ -12028,6 +12071,69 @@
           }
         },
         "tags" : [ "Admin lessons" ]
+      }
+    },
+    "/admin/remote-study-days" : {
+      "get" : {
+        "operationId" : "remoteStudyDays",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RemoteStudyDayList"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Remote study days" ]
+      },
+      "post" : {
+        "operationId" : "createRemoteStudyDay",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateRemoteStudyDay"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RemoteStudyDay"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Remote study days" ]
+      }
+    },
+    "/admin/remote-study-days/{id}" : {
+      "delete" : {
+        "operationId" : "deleteRemoteStudyDay",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "tags" : [ "Remote study days" ]
       }
     },
     "/admin/schools" : {
@@ -17429,6 +17535,24 @@
         "tags" : [ "Home" ]
       }
     },
+    "/me/morning-brief" : {
+      "get" : {
+        "operationId" : "morningBrief",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MorningBrief"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Morning brief" ]
+      }
+    },
     "/me/notifications" : {
       "get" : {
         "operationId" : "listNotifications",
@@ -21366,6 +21490,9 @@
     "description" : "The school's non-teaching staff (no accounts)",
     "name" : "Workers"
   }, {
+    "description" : "The Admin's and the department manager's morning brief (feature 25)",
+    "name" : "Morning brief"
+  }, {
     "description" : "Questions a teacher sends to her students, and the answers",
     "name" : "Teacher questions"
   }, {
@@ -21404,6 +21531,9 @@
   }, {
     "description" : "Teacher class attendance taking and parent attendance reflection",
     "name" : "Attendance"
+  }, {
+    "description" : "The school, one academy or chosen grades study from home for a day",
+    "name" : "Remote study days"
   }, {
     "description" : "What needs the Admin or the department manager today (feature 21)",
     "name" : "Today"

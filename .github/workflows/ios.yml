@@ -65,5 +65,22 @@ jobs:
       - name: Full cycle on the simulator
         run: |
           UDID=$(xcrun simctl list devices available -j | python3 -c 'import sys,json;d=json.load(sys.stdin);print(next(x["udid"] for r in d["devices"].values() for x in r if x["name"].startswith("iPhone")))')
+          xcrun simctl list devices available | grep "$UDID"
           xcrun simctl boot "$UDID" || true
-          xcodebuild test -project iosApp/iosApp.xcodeproj -scheme iosApp -sdk iphonesimulator -destination "platform=iOS Simulator,id=$UDID" -only-testing:iosAppUITests/JourneyUITests CODE_SIGNING_ALLOWED=NO -quiet
+          xcrun simctl bootstatus "$UDID" -b
+          # A fresh simulator may show the one-time "slide to type" keyboard tip over the sign-in form; mark it as seen.
+          xcrun simctl spawn "$UDID" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true || true
+          # -quiet hides the failing assertion, so the run keeps a result bundle and prints the failure lines itself.
+          set +e
+          xcodebuild test -project iosApp/iosApp.xcodeproj -scheme iosApp -sdk iphonesimulator -destination "platform=iOS Simulator,id=$UDID" -only-testing:iosAppUITests/JourneyUITests CODE_SIGNING_ALLOWED=NO -quiet -resultBundlePath "$RUNNER_TEMP/journey.xcresult" > "$RUNNER_TEMP/journey.log" 2>&1
+          status=$?
+          set -e
+          grep -E "error:|failed|Executed|JourneyUITests:" "$RUNNER_TEMP/journey.log" || tail -40 "$RUNNER_TEMP/journey.log"
+          exit $status
+      - name: Keep the result bundle of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: journey-xcresult
+          path: ${{ runner.temp }}/journey.xcresult
+          retention-days: 7

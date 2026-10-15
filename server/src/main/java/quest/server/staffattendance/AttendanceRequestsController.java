@@ -7,7 +7,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,8 +20,6 @@ import quest.api.staff.AdminCorrection;
 import quest.api.staff.AttendanceRequestList;
 import quest.api.staff.AttendanceRequestView;
 import quest.api.staff.NewAttendanceRequest;
-import quest.api.staff.RemoteDay;
-import quest.api.staff.RemoteDayList;
 import quest.server.auth.Principals;
 import quest.server.config.ApiException;
 import quest.server.config.Json;
@@ -39,17 +36,18 @@ import quest.server.flags.FlagKeys;
  *       (every role that can be a direct manager, and the Admin). The role only opens the door: which requests a
  *       caller may decide is {@link AttendanceRequestService#mayDecide}. The Android push's Approve and Reject buttons
  *       call these same two routes.</li>
- *   <li>`/admin/attendance/remote-days` and `/admin/staff/{kind}/{id}/attendance-corrections` — the Admin's.</li>
+ *   <li>`/admin/staff/{kind}/{id}/attendance-corrections` — the Admin's. The school-wide remote day that used to
+ *       live here moved to feature 23's {@link RemoteStudyDayController}, behind its own flag.</li>
  * </ul>
  */
 @RestController
 @FeatureFlag(FlagKeys.STAFF_ATTENDANCE)
 @Tag(name = "Attendance requests", description = "Remote days and attendance corrections, and their approval")
 public class AttendanceRequestsController {
-    private final AttendanceRequestService requests; private final RemoteDayService remoteDays; private final Json json;
+    private final AttendanceRequestService requests; private final Json json;
 
-    public AttendanceRequestsController(AttendanceRequestService requests, RemoteDayService remoteDays, Json json) {
-        this.requests = requests; this.remoteDays = remoteDays; this.json = json;
+    public AttendanceRequestsController(AttendanceRequestService requests, Json json) {
+        this.requests = requests; this.json = json;
     }
 
     // ---------------------------------------------------------------- the employee
@@ -111,30 +109,6 @@ public class AttendanceRequestsController {
                                             @PathVariable String id, @RequestBody String body) {
         var correction = decode(body, AdminCorrection.Companion.serializer(), "Send {\"date\": \"yyyy-MM-dd\", \"reason\": \"…\", \"checkIn\": \"HH:mm\"}.");
         return json.encodeShared(requests.adminCorrection(caller, kind, id, correction), AttendanceRequestView.Companion.serializer());
-    }
-
-    @GetMapping(value = "/admin/attendance/remote-days", produces = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@permit.has('attendance.settings.read')")
-    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RemoteDayList.class)))
-    public String remoteDays() {
-        return json.encodeShared(remoteDays.list(), RemoteDayList.Companion.serializer());
-    }
-
-    @PostMapping(value = "/admin/attendance/remote-days", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@permit.has('attendance.settings.write')")
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RemoteDay.class)))
-    @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RemoteDay.class)))
-    public String createRemoteDay(@AuthenticationPrincipal Principals.User caller, @RequestBody String body) {
-        var day = decode(body, RemoteDay.Companion.serializer(), "Send {\"date\": \"yyyy-MM-dd\", \"academy\": null, \"reason\": \"…\"}.");
-        return json.encodeShared(remoteDays.create(caller, day), RemoteDay.Companion.serializer());
-    }
-
-    @DeleteMapping(value = "/admin/attendance/remote-days/{id}")
-    @PreAuthorize("@permit.has('attendance.settings.write')")
-    @ApiResponse(responseCode = "204")
-    public org.springframework.http.ResponseEntity<Void> deleteRemoteDay(@PathVariable String id) {
-        remoteDays.delete(id);
-        return org.springframework.http.ResponseEntity.noContent().build();
     }
 
     private <T> T decode(String body, kotlinx.serialization.KSerializer<T> serializer, String hint) {

@@ -79,7 +79,7 @@ class IsolationTest extends ApiTestSupport {
     @Autowired quest.server.push.StaffDeviceRepository staffDevices;
     @Autowired quest.server.staffattendance.StaffAttendanceDayRepository attendanceDays;
     @Autowired quest.server.staffattendance.StaffAttendanceAlertRepository attendanceAlerts;
-    @Autowired quest.server.staffattendance.AttendanceRemoteDayRepository remoteDays;
+    @Autowired quest.server.staffattendance.RemoteStudyDayRepository remoteDays;
     @Autowired quest.server.staffattendance.StaffAttendanceRequestRepository attendanceRequests;
     @Autowired quest.server.chat.ChatAfterHoursRepository afterHours;
     @Autowired quest.server.floors.FloorRepository floors;
@@ -87,6 +87,7 @@ class IsolationTest extends ApiTestSupport {
     @Autowired quest.server.floors.FloorSupervisorRepository floorSupervisors;
     @Autowired quest.server.broadcasts.AnnouncementDraftRepository drafts;
     @Autowired quest.server.ai.AiCallRepository aiCalls;
+    @Autowired quest.server.brief.MorningBriefRepository morningBriefs;
     @Autowired quest.server.documents.DocumentSummaryRepository documentSummaries;
 
     @BeforeEach void seedTwoSchools() {
@@ -188,10 +189,17 @@ class IsolationTest extends ApiTestSupport {
         }
     }
 
-    @Test void feature_18s_remote_days_and_requests_stay_in_their_school() {
+    /**
+     * Feature 18's requests and feature 23's remote study days, which replaced its school-wide remote day. A
+     * principal of A finds neither B's declared day nor B's request, and naming B's school herself answers nothing:
+     * `remote_study_days` is read by the attendance job with no request behind it, so every query names a school
+     * <em>and</em> the filter is on.
+     */
+    @Test void feature_18s_requests_and_feature_23s_remote_study_days_stay_in_their_school() {
         var now = java.time.Instant.now();
-        var remote = new quest.server.staffattendance.Entities.AttendanceRemoteDayEntity();
+        var remote = new quest.server.staffattendance.Entities.RemoteStudyDayEntity();
         remote.setId("iso-remote-b"); remote.setSchoolId(B); remote.setDay(DATE_B); remote.setReason("Rain");
+        remote.setAcademy("british"); remote.setGradesJson("[1]");
         remote.setCreatedBy("admin"); remote.setCreatedAt(now);
         var request = new quest.server.staffattendance.Entities.StaffAttendanceRequestEntity();
         request.setId("iso-request-b"); request.setSchoolId(B); request.setStaffKind("USER"); request.setStaffId("teacher-b");
@@ -203,10 +211,14 @@ class IsolationTest extends ApiTestSupport {
             assertThat(remoteDays.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
             assertThat(attendanceRequests.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
             assertThat(remoteDays.findBySchoolIdAndDay(A, DATE_B)).isEmpty();
+            assertThat(remoteDays.findBySchoolIdAndDay(B, DATE_B)).as("and B's own school is not hers to ask about").isEmpty();
+            assertThat(remoteDays.findOneBySchoolIdAndId(B, "iso-remote-b")).isEmpty();
+            assertThat(remoteDays.findBySchoolIdAndDayBetweenOrderByDayAsc(B, DATE_B, DATE_B)).isEmpty();
             assertThat(attendanceRequests.findOneBySchoolIdAndId(A, "iso-request-b")).isEmpty();
             tenant.set("MANAGERIAL", B, null);
             assertThat(attendanceRequests.findAll()).anyMatch(r -> "iso-request-b".equals(r.getId()));
             assertThat(remoteDays.findAll()).anyMatch(r -> "iso-remote-b".equals(r.getId()));
+            assertThat(remoteDays.findOneBySchoolIdAndId(B, "iso-remote-b")).isPresent();
         } finally {
             tenant.clear();
             remoteDays.deleteById("iso-remote-b"); attendanceRequests.deleteById("iso-request-b");
@@ -328,6 +340,37 @@ class IsolationTest extends ApiTestSupport {
     }
 
     /**
+     * Feature 25's tenant table. A brief holds a school's own numbers and the wording written from them, per leader
+     * and per day, so it is scoped by the `school` filter like every other tenant table and by the leader inside it.
+     * A principal of A finds neither B's brief nor B's leader's, and naming B's school herself answers nothing
+     * either — which is also what makes the job's claim safe: it names the school it is running for.
+     */
+    @Test void feature_25s_morning_briefs_stay_in_their_school_and_with_their_leader() {
+        var row = new quest.server.brief.Entities.MorningBriefEntity();
+        row.setId("iso-brief-b"); row.setSchoolId(B); row.setUserId("director-b");
+        row.setDay(LocalDate.of(2027, 4, 7));
+        row.setFactsJson("{\"scope\":\"ACADEMY\",\"yesterday\":\"2027-04-06\",\"lateYesterday\":2}");
+        row.setTextAr("أمس: 2 متأخرون"); row.setTextEn("Yesterday: 2 late");
+        row.setSource("template"); row.setCreatedAt(Instant.now());
+        morningBriefs.save(row);
+        try {
+            tenant.set("MANAGERIAL", A, null);
+            assertThat(morningBriefs.findAll()).noneMatch(b -> B.equals(b.getSchoolId()));
+            assertThat(morningBriefs.findOneBySchoolIdAndUserIdAndDay(A, "director-b", LocalDate.of(2027, 4, 7)))
+                    .as("not A's, whoever she names").isEmpty();
+            assertThat(morningBriefs.findOneBySchoolIdAndUserIdAndDay(B, "director-b", LocalDate.of(2027, 4, 7)))
+                    .as("and B's own school is not hers to ask about").isEmpty();
+            tenant.set("MANAGERIAL", B, null);
+            assertThat(morningBriefs.findOneBySchoolIdAndUserIdAndDay(B, "director-b", LocalDate.of(2027, 4, 7))).isPresent();
+            assertThat(morningBriefs.findOneBySchoolIdAndUserIdAndDay(B, "teacher-b", LocalDate.of(2027, 4, 7)))
+                    .as("another leader of the same school has her own brief, not this one").isEmpty();
+        } finally {
+            tenant.clear();
+            morningBriefs.deleteById("iso-brief-b");
+        }
+    }
+
+    /**
      * Feature 26's tenant table. A summary is what one leader read out of a document nobody else has — the document
      * itself is never stored — so it is scoped twice, as feature 22's draft is: by the `school` filter, and by the
      * author inside it. A principal of A finds neither B's summary nor B's author's, and naming B's school herself
@@ -419,8 +462,9 @@ class IsolationTest extends ApiTestSupport {
                         Arguments.of("GET", "/staff/attendance/today"),
                         Arguments.of("GET", "/staff/attendance/month"),
                         Arguments.of("GET", "/admin/staff/USER/teacher-a/attendance-device"),
-                        // Feature 18: remote days, an employee's own requests and the decider's inbox.
-                        Arguments.of("GET", "/admin/attendance/remote-days"),
+                        // Feature 18: an employee's own requests and the decider's inbox. Feature 23: the Admin's
+                        // remote study days, which replaced feature 18's school-wide remote day.
+                        Arguments.of("GET", "/admin/remote-study-days"),
                         Arguments.of("GET", "/staff/attendance/requests"),
                         Arguments.of("GET", "/attendance/requests"),
                         Arguments.of("POST", "/attendance/requests/no-such-request/approve")),

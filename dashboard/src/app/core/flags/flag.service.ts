@@ -64,6 +64,15 @@ export const FLAGS = {
   // sends. Off until an Admin turns it on — it rides on `announcements`, which is the feed it
   // writes into, so a school needs both.
   voiceAnnouncement: 'voiceAnnouncement',
+  // Feature 23: the school, one academy or chosen grades study from home for a day. Off until an
+  // Admin turns it on — with it off the routes answer 404 and the Admin's card is absent, because
+  // it replaced feature 18's school-wide remote day rather than sitting beside it.
+  remoteStudyDays: 'remoteStudyDays',
+  // Feature 25: the Admin's and the manager's Home opens with a short bilingual brief of
+  // yesterday and today, above feature 21's cards (`GET /me/morning-brief`). Off until an Admin
+  // turns it on; with it off the route answers 404 and Home is exactly what it was, because the
+  // brief is a sentence above the screen rather than part of it.
+  morningBrief: 'morningBrief',
   // Feature 26: the Admin's and a department manager's Document reader — a circular in, what it
   // says in both languages out. Off until an Admin turns it on, and it rides on nothing: the
   // screen reads a file and stores a summary, and only the "Draft an announcement" button needs

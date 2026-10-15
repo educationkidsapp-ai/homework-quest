@@ -3,6 +3,10 @@
 **Status:** Done · **Area:** mobile app (staff), dashboard, server · **Depends on:** 15 (and 16 for statuses) ·
 **Feature switch:** `staff_attendance`
 
+> **Replaced in part by feature 23.** The school-wide remote day is now a *remote study day*
+> ([23-remote-study-days.md](23-remote-study-days.md)): its rows were copied, and the `/admin/attendance/remote-days`
+> routes are gone. The per-employee remote-day request and corrections below are unchanged.
+
 **Leftovers:**
 - **The Admin's direct correction is not on the employee's day yet.** She adds it from the dashboard's "Attendance
   requests" screen, picking the employee and the day there. A button on feature 17's employee-day view could call the

@@ -273,6 +273,23 @@ describe('MG2a — where a notification sends its reader', () => {
     }
   });
 
+  /**
+   * Feature 25: the brief. The server writes `/` for everybody, because the card is the first
+   * thing on whichever Home the reader has — so the row opens her own Home, and nothing else.
+   */
+  it("opens the morning brief on the reader's own Home", () => {
+    const item = row(NotificationViewKindEnum.MORNING_BRIEF, { link: '/', title: 'Good morning' });
+
+    expect(target(item, 'ADMIN')).toBe('/admin');
+    expect(target(item, 'MANAGERIAL')).toBe('/management');
+    // Nobody known yet: the one screen that can always show the row itself.
+    expect(target(item, null)).toBe('/notifications');
+    // A link written for somebody else's area is still not followed out of hers.
+    expect(target(row(NotificationViewKindEnum.MORNING_BRIEF, { link: '/admin' }), 'MANAGERIAL')).toBe(
+      '/management',
+    );
+  });
+
   it('falls back to the notifications page before /me has landed', () => {
     expect(target(row(NotificationViewKindEnum.BROADCAST_POSTED, { lessonId: 'b-1' }), null)).toBe(
       '/notifications',

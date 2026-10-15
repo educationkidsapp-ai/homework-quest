@@ -227,8 +227,9 @@
         }
       </hq-card>
 
-      <!-- Feature 18: remote days, saved one row at a time rather than with the page's Save -->
-      <hq-remote-days-card />
+      <!-- Feature 23: remote study days, each saved on its own row rather than with the page's
+           Save, and absent while `remoteStudyDays` is off (the card asks the flag itself). -->
+      <hq-remote-study-days-card />
 
       <!-- Rules -->
       <hq-card [title]="'admin.attendanceSettings.rules.title' | transloco">

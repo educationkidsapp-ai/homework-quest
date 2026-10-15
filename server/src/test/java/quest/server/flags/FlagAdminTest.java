@@ -24,7 +24,7 @@ class FlagAdminTest extends ApiTestSupport {
     @Test void the_flags_are_seeded_exactly_as_the_code_lists_them() {
         assertThat(definitions.findAllByOrderByKeyAsc()).extracting(Entities.FeatureFlagEntity::getKey)
                 .containsExactlyInAnyOrderElementsOf(FlagKeys.ALL);
-        assertThat(FlagKeys.ALL).hasSize(29);
+        assertThat(FlagKeys.ALL).hasSize(31);
 
         var on = definitions.findAllByOrderByKeyAsc().stream().filter(Entities.FeatureFlagEntity::isDefaultOn)
                 .map(Entities.FeatureFlagEntity::getKey).toList();
@@ -53,7 +53,14 @@ class FlagAdminTest extends ApiTestSupport {
                         FlagKeys.TODAY_HOME,
                         // Feature 22: the leader's voice note turned into an announcement, off until a school
                         // switches it on.
-                        FlagKeys.VOICE_ANNOUNCEMENT, FlagKeys.DOCUMENT_READER);
+                        FlagKeys.VOICE_ANNOUNCEMENT,
+                        // Feature 23: the remote study day, off until a school switches it on — and with it off, a
+                        // school-wide remote day does not exist there at all.
+                        FlagKeys.REMOTE_STUDY_DAYS,
+                        // Feature 25: the morning brief, off until a school switches it on.
+                        FlagKeys.MORNING_BRIEF,
+                        // Feature 26: the document reader, off until a school switches it on.
+                        FlagKeys.DOCUMENT_READER);
         assertThat(definitions.findAllByOrderByKeyAsc()).allSatisfy(f ->
                 assertThat(f.getRolloutStage()).isIn("internal", "beta", "ga"));
     }

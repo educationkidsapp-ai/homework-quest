@@ -12,6 +12,7 @@ import { activeLang } from '../../core/i18n/active-lang';
 import { PermissionService } from '../../core/permissions/permission.service';
 import { SchoolCardComponent } from '../admin/school-card.component';
 import { BandComponent, ButtonComponent, CountUpDirective, PageComponent, SkeletonComponent } from '../../ui';
+import { MorningBriefComponent } from './morning-brief.component';
 import { TodayComponent } from './today.component';
 
 /**
@@ -64,6 +65,7 @@ interface QuickActionItem {
     BandComponent,
     ButtonComponent,
     RouterLink,
+    MorningBriefComponent,
     TodayComponent,
     TranslocoPipe,
   ],
@@ -95,6 +97,13 @@ interface QuickActionItem {
         </div>
       } @else {
         <div class="em-dashboard">
+          <!-- Feature 25: the morning brief, above feature 21's cards whether or not 21 is on —
+               the sentence that says where to look comes before the cards that act. It draws
+               nothing on a day the school does not teach, and nothing when the call failed. -->
+          @if (briefOn()) {
+            <hq-morning-brief />
+          }
+
           <!-- Feature 21: what needs a decision today, above everything else. The counts stay
                exactly where they were while the switch is off — a flag may empty a section of
                Home, never reorder a screen a school has not asked to change. -->
@@ -753,6 +762,15 @@ export class HomePage {
    */
   protected readonly todayOn = computed(
     () => this.flags.isOn(FLAGS.todayHome) && this.auth.role() === 'ADMIN',
+  );
+
+  /**
+   * Feature 25: the brief, for the same reason and the same role. `brief.read` is the Admin's and
+   * the manager's (`permissions.json`), so a teacher's Home never asks for one — the endpoint
+   * would refuse her, and the card would be a frame that cannot fill.
+   */
+  protected readonly briefOn = computed(
+    () => this.flags.isOn(FLAGS.morningBrief) && this.auth.role() === 'ADMIN',
   );
 
   protected readonly home = rxResource<HomeResponse, string | undefined>({

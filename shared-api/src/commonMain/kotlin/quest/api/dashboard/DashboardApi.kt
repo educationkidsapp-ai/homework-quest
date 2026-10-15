@@ -481,6 +481,12 @@ interface DashboardApi {
      */
     suspend fun todayHome(): TodayHome
 
+    /**
+     * Feature 25: `GET /me/morning-brief` — the three to five lines above feature 21's cards (`brief.read`, behind
+     * `morningBrief`). Null on a day the school does not teach, which is the route's `204 No Content`.
+     */
+    suspend fun morningBrief(): MorningBrief?
+
     /** Puts an app-registered child on a section's roster, and takes her off it again; both answer the child. */
     suspend fun attachChildToClass(classId: String, request: AttachChildRequest): RosterChild
     suspend fun detachChildFromClass(classId: String, childId: String): RosterChild

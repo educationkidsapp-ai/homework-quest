@@ -133,8 +133,8 @@ public class DocumentReaderService {
     private JsonNode summarise(String schoolId, String fileName, String markdown) {
         String today = LocalDate.now(clock.withZone(calendar.of(schoolId).zone())).toString();
         try {
-            return ai.run(AiTask.of("documentReader", "F-" + schoolId, schoolId, Prompts.SYSTEM_F,
-                            Prompts.userF(today, fileName, markdown))
+            return ai.run(AiTask.of("documentReader", "F-" + schoolId, schoolId, Prompts.DOCUMENT_READER,
+                            Prompts.userDocumentReader(today, fileName, markdown))
                     .guardedBy(AiInputGuard.numbersOnly())
                     .reading((raw, attempt) -> {
                         JsonNode candidate;

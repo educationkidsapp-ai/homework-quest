@@ -258,6 +258,51 @@ describe('Home', () => {
     TestBed.inject(HttpTestingController).expectNone('/me/today');
   });
 
+  /**
+   * Feature 25: the brief is the sentence above feature 21's cards — it says where to look, and
+   * the cards let her act, so the order on screen is the whole of it.
+   */
+  it('opens with the morning brief, above what needs her today', async () => {
+    const rendered = await renderHome(ADMIN_USER, ADMIN_HOME, ADMIN_PERMISSIONS, [
+      { provide: FlagService, useValue: { isOn: () => true, ready: () => true } },
+    ]);
+    const backend = TestBed.inject(HttpTestingController);
+    TestBed.tick();
+    backend.expectOne('/me/morning-brief').flush({
+      day: '2026-10-19',
+      source: 'template',
+      linesEn: ['Two people arrived late yesterday.'],
+      linesAr: ['تأخر شخصان أمس.'],
+    });
+    backend.expectOne('/me/today').flush({
+      day: '2026-10-19',
+      timeZone: 'Asia/Riyadh',
+      waiting: { requests: [], devices: [] },
+      overdueComplaints: { total: 0, items: [] },
+      unread: { count: 0, senders: [] },
+      counts: [],
+    });
+    await Promise.resolve();
+    TestBed.tick();
+    rendered.fixture.detectChanges();
+
+    expect(screen.getByText('Good morning')).toBeInTheDocument();
+    expect(screen.getByText('Two people arrived late yesterday.')).toBeInTheDocument();
+    const order = [...rendered.container.querySelectorAll('[data-hq-brief], [data-hq-today]')].map(
+      (element) => (element.hasAttribute('data-hq-brief') ? 'brief' : 'today'),
+    );
+    expect(order).toEqual(['brief', 'today']);
+  });
+
+  /** The switch off: no card and no call, whatever feature 21 is doing. */
+  it('asks nothing of /me/morning-brief while the switch is off', async () => {
+    const rendered = await renderHome(ADMIN_USER, ADMIN_HOME);
+
+    expect(rendered.container.querySelector('[data-hq-brief]')).toBeNull();
+    expect(screen.queryByText('Good morning')).not.toBeInTheDocument();
+    TestBed.inject(HttpTestingController).expectNone('/me/morning-brief');
+  });
+
   it('re-renders in Arabic without asking the server again', async () => {
     const { fixture } = await renderHome(TEACHER_USER, TEACHER_HOME);
     const backend = TestBed.inject(HttpTestingController);

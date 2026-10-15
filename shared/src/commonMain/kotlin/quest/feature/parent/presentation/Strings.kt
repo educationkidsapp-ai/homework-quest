@@ -102,6 +102,8 @@ data class Strings(
     val excused: String = "Excused",
     val noAttendanceRecorded: String = "Not recorded yet",
     val attendanceNote: String = "Note from teacher",
+    /** Feature 23: the class studied from home that day, so there is no status to show. */
+    val remoteStudyDay: String = "Remote study day",
     // R8: the parent writes to the coordinator of a subject (DR3). B6 / M8: complaints are their own page.
     val teacherRole: String = "Teacher",
     val coordinatorRole: String = "Subject coordinator",
@@ -341,6 +343,7 @@ data class Strings(
             excused = "معذور",
             noAttendanceRecorded = "لم يُسجل بعد",
             attendanceNote = "ملاحظة المعلم",
+            remoteStudyDay = "يوم دراسة عن بعد",
             teacherRole = "معلّمة",
             coordinatorRole = "منسّق المادة",
             teachersGroup = "معلّمو طفلك",
