@@ -40,6 +40,11 @@ object Ids {
 }
 
 object Today {
-    fun date(): LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
+    /**
+     * A fixed day for UI-test mode only (`QUEST_UI_TEST`): the fake server's seed lessons have fixed dates, and the child
+     * home only asks for the last 30 days, so a wall-clock day drifts them out of the home. Never set outside tests.
+     */
+    var pinned: LocalDate? = null
+    fun date(): LocalDate = pinned ?: Clock.System.todayIn(TimeZone.currentSystemDefault())
     fun epochMillis(): Long = Clock.System.now().toEpochMilliseconds()
 }

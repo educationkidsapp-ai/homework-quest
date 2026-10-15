@@ -20,7 +20,12 @@ private var hookInstalled = false
 @Suppress("unused", "FunctionName")
 fun MainViewController(): UIViewController {
     // XCUITest waits for the app to go idle before every event; looping animations never let it.
-    if (platform.Foundation.NSProcessInfo.processInfo.environment["QUEST_UI_TEST"] != null) quest.ui.design.Motion.reduced = true
+    if (platform.Foundation.NSProcessInfo.processInfo.environment["QUEST_UI_TEST"] != null) {
+        quest.ui.design.Motion.reduced = true
+        // The journey test plays the seeded Hot Soup lesson; on the wall clock it left the home's 30-day window on
+        // 15 Oct 2026. Pin the day to the seed's, as the desktop tests do with the fake server's `today`.
+        quest.core.platform.Today.pinned = quest.api.samples.HotSoupSeed.date
+    }
     // Uncaught Kotlin exceptions abort the process; NSLog puts their message and stack in the unified log first,
     // so `log show --predicate 'eventMessage CONTAINS "QUEST UNCAUGHT"'` explains a crash report.
     if (!hookInstalled) {
