@@ -114,6 +114,13 @@ export class ClassAttendanceComponent {
     return days === null ? null : attendanceRange(days);
   });
 
+  /**
+   * Feature 23: the day she is looking at is a remote study day for this class — its academy and
+   * its grade are in scope. The server answers the field only while `remoteStudyDays` is on, so a
+   * missing one is simply a no.
+   */
+  protected readonly remoteStudyDay = computed(() => this.attendanceData()?.remoteStudyDay === true);
+
   protected childLink(childId: string): readonly string[] | null {
     const base = this.childBase();
     return base === null ? null : [base, childId];

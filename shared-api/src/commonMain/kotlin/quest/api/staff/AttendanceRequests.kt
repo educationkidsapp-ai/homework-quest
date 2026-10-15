@@ -8,6 +8,9 @@ import quest.api.dto.AttachmentRef
  * an approved remote day (record mode [CheckInMode.REMOTE]), and a missed check-in or check-out is fixed by a request
  * the direct manager approves (mode [CheckInMode.CORRECTION]) — nobody edits a record by hand. Behind `staffAttendance`.
  *
+ * The Admin's **school-wide** remote day moved to feature 23's [RemoteStudyDay]; the per-employee request below is
+ * unchanged by it.
+ *
  * **Who decides.** The employee's direct manager as feature 14 resolves it (direct → academy director → the Admins),
  * or any Admin. Nobody else, and never the employee herself.
  *
@@ -93,21 +96,6 @@ data class AdminCorrection(
     val checkIn: String? = null,
     val checkOut: String? = null,
 )
-
-/**
- * A school-wide remote day (`academy == null`) or one academy's (a curriculum such as `british`). `GET`/`POST
- * /admin/attendance/remote-days`, `DELETE /admin/attendance/remote-days/{id}`.
- */
-@Serializable
-data class RemoteDay(
-    val id: String? = null,
-    val date: String,
-    val academy: String? = null,
-    val reason: String,
-)
-
-@Serializable
-data class RemoteDayList(val days: List<RemoteDay>)
 
 /** The staff app's requests routes. Implemented by the app's staff gateway. */
 interface StaffAttendanceRequestsApi {

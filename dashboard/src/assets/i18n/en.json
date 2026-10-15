@@ -388,19 +388,27 @@
         "add": "Add holiday",
         "remove": "Remove"
       },
-      "remoteDays": {
-        "title": "Remote days",
-        "hint": "On a remote day the check-in skips the school's location and the record is marked remote.",
-        "empty": "No remote days yet.",
-        "loading": "Loading remote days...",
+      "remoteStudyDays": {
+        "title": "Remote study days",
+        "hint": "Children in scope study from home that day: their parents get an announcement, and the staff in scope check in from home.",
+        "empty": "No remote study days yet.",
+        "loading": "Loading remote study days...",
         "date": "Day",
-        "scope": "Scope",
+        "academy": "Academy",
         "wholeSchool": "Whole school",
+        "scope": "Studies from home",
+        "grades": "Grades",
+        "gradesHint": "Leave every grade unticked for the whole academy. Staff are in scope by the academy either way.",
+        "gradeChip": "Grade {{grade}}",
+        "gradesValue": "Grades {{grades}}",
+        "separator": ", ",
         "reason": "Reason",
-        "reasonPlaceholder": "Rain day",
-        "add": "Add remote day",
+        "reasonPlaceholder": "Sandstorm warning",
+        "add": "Add remote study day",
         "remove": "Remove",
-        "removeOne": "Remove the remote day on {{date}}"
+        "removeOne": "Remove the remote study day on {{date}}",
+        "confirmTitle": "Cancel this remote study day?",
+        "confirmBody": "{{date}} · {{scope}}. The parents' announcement is withdrawn at once and nothing new is sent."
       },
       "rules": {
         "title": "Rules",
@@ -626,6 +634,8 @@
       "EXCUSED": "E"
     },
     "notMarked": "Not marked",
+    "remoteStudyDay": "Remote study day",
+    "remoteStudyDayBody": "Children study from home today — there is no roster to mark.",
     "rangeCount": "{{children}} children over {{days}} days",
     "noDays": "No register was kept in this range."
   },

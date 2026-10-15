@@ -21,6 +21,12 @@ export interface ClassAttendanceResponse {
   readonly lateCount: number;
   readonly excusedCount: number;
   readonly attendanceRate: number;
+  /**
+   * Feature 23: the children of this class study from home on this date — the whole school, their
+   * academy or their grade was declared a remote study day. Absent from a server that has the
+   * `remoteStudyDays` flag off, so it is optional here.
+   */
+  readonly remoteStudyDay?: boolean;
 }
 
 export interface SaveAttendanceItem {

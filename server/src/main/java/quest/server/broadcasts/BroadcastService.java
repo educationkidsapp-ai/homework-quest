@@ -145,6 +145,44 @@ public class BroadcastService {
         return view(row, displayName(caller.userId()), true);
     }
 
+    // ---------------------------------------------------------------- the school itself writes (feature 23)
+
+    /**
+     * An announcement <strong>the school</strong> posts to the parents of named sections, with no composer's scope
+     * behind it: feature 23's remote study day is declared by the Admin, who manages no department, and the parents
+     * who must hear it are the ones whose children are in scope. Everything else is an ordinary announcement — one
+     * `broadcasts` row of kind {@link #ANNOUNCEMENT} addressed to {@link #PARENTS}, the feed predicate
+     * {@link #forChild} unchanged, and the bell and the push of {@link #tellParents}. Answers the row's id, which the
+     * caller keeps so it can be expired again.
+     *
+     * @param sections the sections in scope; the caller has already resolved them from its own rule, and an empty
+     *                 list is not this method's business — there would be nobody to tell
+     */
+    @Transactional
+    public String announceToParents(String schoolId, String authorId, List<ClassEntity> sections,
+                                    String title, String bodyEn, String bodyAr, Instant expiresAt) {
+        if (sections.isEmpty()) throw ApiException.badRequest("An announcement needs at least one section to reach.");
+        var request = new BroadcastDto.CreateRequest(ANNOUNCEMENT, bodyEn, title, bodyAr, null, null,
+                List.of(PARENTS), null, null, null, expiresAt == null ? null : expiresAt.toEpochMilli(), null);
+        var row = write(schoolId, authorId, "ADMIN", request, null, null, null, sections, List.of(PARENTS));
+        tellParents(row, schoolId);
+        return row.getId();
+    }
+
+    /**
+     * Ends a broadcast now, so it leaves every feed the moment the thing it announced is called off (feature 23's
+     * deleted remote study day). It tells nobody: a parent who already read it is not pushed about its disappearance,
+     * and the bell rows it wrote stay as the history of what she was told.
+     */
+    @Transactional
+    public void expireNow(String broadcastId, Instant now) {
+        rows.findOneById(broadcastId).ifPresent(row -> {
+            if (row.getExpiresAt() != null && !row.getExpiresAt().isAfter(now)) return;
+            row.setExpiresAt(now);
+            rows.save(row);
+        });
+    }
+
     /** `GET /management/broadcasts`: what she posted, newest first, expired rows included — her own composer list. */
     public List<BroadcastDto.View> managerPosts(Principals.User caller) {
         managers.departments(caller);

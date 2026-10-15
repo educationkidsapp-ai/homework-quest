@@ -243,18 +243,12 @@ fun CalendarScreen(state: CalendarContract.State, s: Strings, dispatch: (Calenda
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
+                        val display = attendanceDisplay(att, s)
                         Column(Modifier.weight(1f)) {
-                            val statusText = when (att.status.uppercase()) {
-                                "PRESENT" -> "✓ ${s.present}"
-                                "LATE" -> "⏰ ${s.late}"
-                                "ABSENT" -> "✕ ${s.absent}"
-                                "EXCUSED" -> "ℹ ${s.excused}"
-                                else -> att.status
-                            }
                             Text(
-                                text = statusText,
+                                text = display.headline,
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = DashboardTokens.inkStrong,
+                                color = if (display.muted) DashboardTokens.inkSoft else DashboardTokens.inkStrong,
                             )
                             if (!att.notes.isNullOrBlank()) {
                                 Spacer(Modifier.height(4.dp))
@@ -265,21 +259,7 @@ fun CalendarScreen(state: CalendarContract.State, s: Strings, dispatch: (Calenda
                                 )
                             }
                         }
-                        val variant = when (att.status.uppercase()) {
-                            "PRESENT" -> DashboardPillVariant.SUCCESS
-                            "LATE" -> DashboardPillVariant.WARNING
-                            "ABSENT" -> DashboardPillVariant.ERROR
-                            "EXCUSED" -> DashboardPillVariant.INFO
-                            else -> DashboardPillVariant.NEUTRAL
-                        }
-                        val chipText = when (att.status.uppercase()) {
-                            "PRESENT" -> s.present
-                            "LATE" -> s.late
-                            "ABSENT" -> s.absent
-                            "EXCUSED" -> s.excused
-                            else -> att.status
-                        }
-                        DashboardPill(text = chipText, variant = variant)
+                        display.chip?.let { DashboardPill(text = it, variant = display.variant) }
                     }
                 }
             }

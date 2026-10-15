@@ -73,11 +73,18 @@ public final class FlagKeys {
      */
     public static final String VOICE_ANNOUNCEMENT = "voiceAnnouncement";
 
+    /**
+     * Feature 23: a remote study day — the school, one academy or chosen grades study from home
+     * (`/admin/remote-study-days`). It replaces feature 18's school-wide remote day, whose rows V46 copied into the
+     * new table, so turning this on restores every day a school had already declared. Seeded off by V46.
+     */
+    public static final String REMOTE_STUDY_DAYS = "remoteStudyDays";
+
     public static final List<String> ALL = List.of(
             LESSONS_PDF, LESSONS_SLIDES, LESSONS_IMAGES, LESSONS_MANUAL, LEVELS_THREE, RETELL_RECORDING,
             OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, COMPLAINTS, ANNOUNCEMENTS, TEACHER_QUESTIONS,
             STICKERS_TREASURE_CHEST, PROGRESS_WEEKLY_EMAIL, CERTIFICATES,
             MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST,
             CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, FLOOR_SUPERVISOR, TODAY_HOME,
-            VOICE_ANNOUNCEMENT);
+            VOICE_ANNOUNCEMENT, REMOTE_STUDY_DAYS);
 }

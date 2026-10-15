@@ -276,7 +276,10 @@ class OpenApiContractTest extends ApiTestSupport {
             "/admin/staff/{kind}/{id}/attendance-device",
             // Feature 17: the leaders' board, one employee's day, and the monthly report with its two files.
             "/staff-attendance/board", "/staff-attendance/employees/{kind}/{id}", "/staff-attendance/report",
-            "/staff-attendance/report.csv", "/staff-attendance/report.xlsx");
+            "/staff-attendance/report.csv", "/staff-attendance/report.xlsx",
+            // Feature 23 (`quest.api.staff.RemoteStudyDays`): the Admin's remote study days, which replaced feature
+            // 18's `/admin/attendance/remote-days`. Same page, same permissions, its own flag.
+            "/admin/remote-study-days", "/admin/remote-study-days/{id}");
 
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */
     static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings",
