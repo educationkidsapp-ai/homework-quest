@@ -41,6 +41,8 @@ class OpenApiContractTest extends ApiTestSupport {
             "/me/home",
             // Feature 21: the Admin's and the manager's "what needs me today?" Home, behind `todayHome`.
             "/me/today",
+            // Feature 25: the morning brief above those cards, behind `morningBrief`.
+            "/me/morning-brief",
             "/admin/schools/wizard",
             "/admin/schools/{id}/classes", "/admin/schools/{id}/classes/{classId}",
             "/admin/schools/{id}/usage", "/admin/schools/{id}/billing",

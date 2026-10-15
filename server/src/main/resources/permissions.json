@@ -144,7 +144,8 @@
     "attendance.requests.decide": ["ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "FLOOR_SUPERVISOR"],
     "attendance.correction.write": ["ADMIN"],
     "attendance.board": ["ADMIN", "MANAGERIAL", "COORDINATOR", "TEACHER", "FLOOR_SUPERVISOR"],
-    "home.today": ["ADMIN", "MANAGERIAL"]
+    "home.today": ["ADMIN", "MANAGERIAL"],
+    "brief.read": ["ADMIN", "MANAGERIAL"]
   },
   "endpoints": [
     { "method": "GET", "path": "/health", "permission": "health.read" },
@@ -175,6 +176,7 @@
     { "method": "GET", "path": "/me/permissions", "permission": "me.permissions" },
     { "method": "GET", "path": "/me/home", "permission": "me.home" },
     { "method": "GET", "path": "/me/today", "permission": "home.today" },
+    { "method": "GET", "path": "/me/morning-brief", "permission": "brief.read" },
 
     { "method": "GET", "path": "/children", "permission": "child.read" },
     { "method": "POST", "path": "/children", "permission": "child.write" },

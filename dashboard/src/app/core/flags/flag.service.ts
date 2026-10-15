@@ -68,6 +68,11 @@ export const FLAGS = {
   // Admin turns it on — with it off the routes answer 404 and the Admin's card is absent, because
   // it replaced feature 18's school-wide remote day rather than sitting beside it.
   remoteStudyDays: 'remoteStudyDays',
+  // Feature 25: the Admin's and the manager's Home opens with a short bilingual brief of
+  // yesterday and today, above feature 21's cards (`GET /me/morning-brief`). Off until an Admin
+  // turns it on; with it off the route answers 404 and Home is exactly what it was, because the
+  // brief is a sentence above the screen rather than part of it.
+  morningBrief: 'morningBrief',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];

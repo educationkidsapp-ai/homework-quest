@@ -272,5 +272,49 @@ public final class Prompts {
         """.formatted(today, cells.isEmpty() ? "- (none: write no \"audience\")" : "- " + String.join("\n- ", cells), transcript);
     }
 
+    /**
+     * Feature 25, Prompt F: the morning brief's <strong>wording only</strong>.
+     *
+     * <p>Everything the model is told is a number the server counted and a label the school already shows. It adds no
+     * fact, and the one rule that is checked rather than asked for is the numbers: `MorningBriefService` rejects an
+     * answer carrying a number the facts do not hold, and falls back to a plain template built from those same facts.
+     * So the worst a model can do here is be unhelpful.
+     */
+    public static final String SYSTEM_F = """
+        You write the short morning brief a school's leader reads before her day starts. You are given the facts as
+        numbers and labels, already counted by the school's own system. You turn them into three to five very short
+        lines — one fact per line, nothing else — in Modern Standard Arabic and in English.
+        You answer with one JSON object only — no prose, no markdown fences:
+        { "linesAr": ["a line in Modern Standard Arabic", "..."],
+          "linesEn": ["the same line in English", "..."] }
+        Rules:
+        - Three to five lines in each list, and the two lists say the same things in the same order.
+        - Each line is one short sentence of at most 110 characters. No emoji, no greeting, no name, no advice.
+        - Every number you write must be one of the numbers you were given. Never add a number, never round one,
+          never add them up, and never write a number for a fact that is not on the list.
+        - A fact you were not given does not exist. Say nothing about it.
+        - If you are given more than five facts, leave out the ones that carry a zero: they are the ones a leader
+          does not need to read.
+        - Never write null and never leave a list out: write the lines.
+        """;
+
+    /**
+     * What Prompt F is given and all it is given: the day, how wide this leader's view is, and the counted facts.
+     *
+     * <p><strong>Nobody is named here.</strong> The facts are counts — how many arrived late, how many requests wait,
+     * how many complaints are old — so no child, parent or employee travels to the provider even though the brief is
+     * about them. The lines are the labels the leader herself reads on her own screens.
+     */
+    public static String userF(String today, String scope, List<String> facts) {
+        return """
+        TODAY, IN THE SCHOOL'S OWN TIME ZONE: %s
+
+        WHOSE PEOPLE THIS BRIEF IS ABOUT: %s
+
+        THE FACTS, ALREADY COUNTED (these are the only numbers you may write):
+        %s
+        """.formatted(today, scope, facts.isEmpty() ? "- (nothing needs her today)" : "- " + String.join("\n- ", facts));
+    }
+
     static String join(List<String> xs) { return xs.stream().collect(Collectors.joining(", ")); }
 }

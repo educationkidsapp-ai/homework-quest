@@ -53,18 +53,19 @@ public class AttendanceBoardService {
     private final StaffAttendanceProfileRepository profiles; private final ScheduleResolver schedules;
     private final AttendanceSettingsService settings; private final DirectManagerResolver managers;
     private final CheckInService records; private final StaffAttendanceRepository manualMarks;
+    private final StaffAttendanceDayRepository days;
     private final TenantContext tenant; private final SchoolCalendar calendar; private final Clock clock;
 
     public AttendanceBoardService(BoardScope scope, StaffCheckInRepository checkIns, StaffCheckInAttemptRepository attempts,
                                   StaffAttendanceAlertRepository alerts, StaffAttendanceProfileRepository profiles,
                                   ScheduleResolver schedules, AttendanceSettingsService settings,
                                   DirectManagerResolver managers, CheckInService records,
-                                  StaffAttendanceRepository manualMarks, TenantContext tenant, SchoolCalendar calendar,
-                                  Clock clock) {
+                                  StaffAttendanceRepository manualMarks, StaffAttendanceDayRepository days,
+                                  TenantContext tenant, SchoolCalendar calendar, Clock clock) {
         this.scope = scope; this.checkIns = checkIns; this.attempts = attempts; this.alerts = alerts;
         this.profiles = profiles; this.schedules = schedules; this.settings = settings; this.managers = managers;
-        this.records = records; this.manualMarks = manualMarks; this.tenant = tenant; this.calendar = calendar;
-        this.clock = clock;
+        this.records = records; this.manualMarks = manualMarks; this.days = days; this.tenant = tenant;
+        this.calendar = calendar; this.clock = clock;
     }
 
     // ---------------------------------------------------------------- GET /staff-attendance/board
@@ -130,6 +131,35 @@ public class AttendanceBoardService {
                 yield day.absent() ? StaffAttendanceDto.ABSENT : StaffAttendanceDto.NOT_ARRIVED;
             }
         };
+    }
+
+    // ---------------------------------------------------------------- feature 25: one past day, in three numbers
+
+    /** A past day's late, absent and missing-check-out totals over exactly the people one leader's board shows. */
+    public record DayTally(int late, int absent, int missingCheckout) {}
+
+    /**
+     * Feature 25's staff numbers. <strong>Read from feature 16's own rows</strong>
+     * ({@link StaffAttendanceDayRepository#findBySchoolIdAndDay}) rather than re-evaluated the way {@link #board}
+     * does, because a <em>finished</em> day is exactly what the job already decided: re-deciding it would make the
+     * brief disagree with the alerts that were sent and with the report the leader can open.
+     *
+     * <p>{@link BoardScope} is the authority on whose rows they are, so a manager's brief counts her academy and the
+     * Admin's counts the school — the same answer as her board, for the same reason feature 21 reads the board
+     * itself. The school is a parameter, not the filter's: {@link MorningBriefJob} runs on the scheduler's thread.
+     */
+    @Transactional(readOnly = true)
+    public DayTally tally(String schoolId, Principals.User caller, LocalDate day) {
+        var mine = new java.util.HashSet<String>();
+        for (var e : scope.of(schoolId, caller).employees()) mine.add(BoardScope.key(e.kind(), e.id()));
+        int late = 0, absent = 0, missingCheckout = 0;
+        for (var row : days.findBySchoolIdAndDay(schoolId, day)) {
+            if (!mine.contains(BoardScope.key(row.getStaffKind(), row.getStaffId()))) continue;
+            if (row.getLateMinutes() != null) late++;
+            if (row.isAbsent()) absent++;
+            if (row.isMissingCheckout()) missingCheckout++;
+        }
+        return new DayTally(late, absent, missingCheckout);
     }
 
     // ---------------------------------------------------------------- GET /staff-attendance/employees/{kind}/{id}

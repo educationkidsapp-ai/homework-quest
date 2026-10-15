@@ -377,6 +377,96 @@ describe('RM3a — the management area', () => {
       rendered.fixture.destroy();
     });
 
+    /**
+     * Feature 25: her academy's brief opens her Home, above feature 21's cards and above the
+     * statistics — the sentence first, then what needs a decision, then the numbers.
+     */
+    it('opens with the morning brief, above what needs her today', async () => {
+      const rendered = await renderHq(ManagementHomePage, {
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideRouter([{ path: '**', children: [] }]),
+          { provide: BASE_PATH, useValue: '' },
+          { provide: FlagService, useValue: { isOn: () => true, ready: () => true } },
+        ],
+      });
+      const backend = TestBed.inject(HttpTestingController);
+      TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
+      TestBed.inject(AuthService).loadMe().subscribe();
+      backend.expectOne('/me').flush(MANAGERIAL_USER);
+      await Promise.resolve();
+      TestBed.tick();
+
+      for (const request of backend.match('/me/permissions'))
+        if (!request.cancelled)
+          request.flush({ role: 'MANAGERIAL', permissions: ['attendance.requests.decide'], readOnly: false });
+      backend.expectOne('/management/me').flush(ME);
+      backend.expectOne('/management/teachers').flush([]);
+      backend.expectOne('/management/classes').flush([]);
+      backend.expectOne((request) => request.url === '/management/stats').flush(STATS);
+      await Promise.resolve();
+      TestBed.tick();
+      backend.expectOne('/me/morning-brief').flush({
+        day: '2026-10-19',
+        source: 'ai',
+        linesEn: ['Your academy had one late arrival yesterday.'],
+        linesAr: ['سجّل قسمك تأخّرًا واحدًا أمس.'],
+      });
+      backend.expectOne('/me/today').flush({
+        day: '2026-10-19',
+        timeZone: 'Asia/Riyadh',
+        waiting: { requests: [], devices: [] },
+        overdueComplaints: { total: 0, items: [] },
+        unread: { count: 0, senders: [] },
+        counts: [],
+      });
+      await Promise.resolve();
+      TestBed.tick();
+      rendered.fixture.detectChanges();
+
+      expect(screen.getByText('Your academy had one late arrival yesterday.')).toBeInTheDocument();
+      // The assistant wrote these lines, and the card says so.
+      expect(rendered.container.querySelector('[data-hq-brief-ai]')).not.toBeNull();
+      const order = [...rendered.container.querySelectorAll('[data-hq-brief], [data-hq-today]')].map(
+        (element) => (element.hasAttribute('data-hq-brief') ? 'brief' : 'today'),
+      );
+      expect(order).toEqual(['brief', 'today']);
+      // And the reason the screen exists (DR5) is still under both.
+      expect(document.querySelectorAll('tbody tr').length).toBe(3);
+      rendered.fixture.destroy();
+    });
+
+    /** The switch off: no card and no call. */
+    it('asks nothing of /me/morning-brief while the switch is off', async () => {
+      const rendered = await renderHq(ManagementHomePage, {
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideRouter([{ path: '**', children: [] }]),
+          { provide: BASE_PATH, useValue: '' },
+        ],
+      });
+      const backend = TestBed.inject(HttpTestingController);
+      TestBed.inject(SessionStore).set({ token: 'access-1', refreshToken: 'refresh-1' });
+      TestBed.inject(AuthService).loadMe().subscribe();
+      backend.expectOne('/me').flush(MANAGERIAL_USER);
+      await Promise.resolve();
+      TestBed.tick();
+
+      backend.expectOne('/management/me').flush(ME);
+      backend.expectOne('/management/teachers').flush([]);
+      backend.expectOne('/management/classes').flush([]);
+      backend.expectOne((request) => request.url === '/management/stats').flush(STATS);
+      await Promise.resolve();
+      TestBed.tick();
+      rendered.fixture.detectChanges();
+
+      expect(rendered.container.querySelector('[data-hq-brief]')).toBeNull();
+      backend.expectNone('/me/morning-brief');
+      rendered.fixture.destroy();
+    });
+
     it('sorts grades, puts the total last, and keeps a missing count apart from a missing rate', () => {
       const rows = statsRows(STATS);
 

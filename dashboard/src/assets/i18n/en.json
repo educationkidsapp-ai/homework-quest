@@ -1779,6 +1779,12 @@
           "title": "Remote day",
           "body": "A remote working day was announced."
         }
+      },
+      "morning": {
+        "brief": {
+          "title": "Your morning brief",
+          "body": "Today's brief is ready on your Home."
+        }
       }
     },
     "attendance": {
@@ -3027,6 +3033,12 @@
       "count": "{{count}} unread",
       "openMessages": "Open Messages"
     }
+  },
+  "morningBrief": {
+    "greeting": "Good morning",
+    "byAssistant": "Written by the assistant",
+    "show": "Show",
+    "hide": "Hide"
   },
   "voice": {
     "record": "Record a voice note",

@@ -5130,6 +5130,77 @@
         },
         "type" : "object"
       },
+      "MorningBrief" : {
+        "properties" : {
+          "day" : {
+            "type" : "string"
+          },
+          "facts" : {
+            "$ref" : "#/components/schemas/MorningBriefFacts"
+          },
+          "linesAr" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "linesEn" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "source" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "MorningBriefFacts" : {
+        "properties" : {
+          "absentYesterday" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "childAttendanceRate" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "eventsToday" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "lateYesterday" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "missingCheckoutYesterday" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "overdueComplaints" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "remoteStudyDayReason" : {
+            "type" : "string"
+          },
+          "remoteStudyDayToday" : {
+            "type" : "boolean"
+          },
+          "requestsWaiting" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "scope" : {
+            "type" : "string"
+          },
+          "yesterday" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "Move" : {
         "allOf" : [ {
           "$ref" : "#/components/schemas/Stop"
@@ -5260,7 +5331,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message", "attendance.reminder", "attendance.alert", "attendance.digest", "attendance.request", "attendance.decision", "attendance.remote_day", "chat.after_hours_summary" ],
+            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message", "attendance.reminder", "attendance.alert", "attendance.digest", "attendance.request", "attendance.decision", "attendance.remote_day", "chat.after_hours_summary", "morning.brief" ],
             "type" : "string"
           },
           "lessonId" : {
@@ -17306,6 +17377,24 @@
         "tags" : [ "Home" ]
       }
     },
+    "/me/morning-brief" : {
+      "get" : {
+        "operationId" : "morningBrief",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MorningBrief"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Morning brief" ]
+      }
+    },
     "/me/notifications" : {
       "get" : {
         "operationId" : "listNotifications",
@@ -21239,6 +21328,9 @@
   }, {
     "description" : "The school's non-teaching staff (no accounts)",
     "name" : "Workers"
+  }, {
+    "description" : "The Admin's and the department manager's morning brief (feature 25)",
+    "name" : "Morning brief"
   }, {
     "description" : "Questions a teacher sends to her students, and the answers",
     "name" : "Teacher questions"
