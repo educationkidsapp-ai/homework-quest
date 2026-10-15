@@ -86,6 +86,7 @@ class IsolationTest extends ApiTestSupport {
     @Autowired quest.server.floors.FloorClassRepository floorClasses;
     @Autowired quest.server.floors.FloorSupervisorRepository floorSupervisors;
     @Autowired quest.server.broadcasts.AnnouncementDraftRepository drafts;
+    @Autowired quest.server.ai.AiCallRepository aiCalls;
 
     @BeforeEach void seedTwoSchools() {
         school(A, "Alpha Academy", "SCHLAA"); school(B, "Beta School", "SCHLBB");
@@ -298,6 +299,30 @@ class IsolationTest extends ApiTestSupport {
         } finally {
             tenant.clear();
             drafts.deleteById("iso-draft-b");
+        }
+    }
+
+    /**
+     * Feature 24's tenant table. `ai_calls` holds numbers only — no prompt and no answer — but what a school spends on
+     * the AI is still a school's own business, so the ledger is filtered like every other tenant table. A principal of
+     * A cannot read B's rows, and naming B's own tag answers nothing either.
+     */
+    @Test void feature_24s_ai_call_ledger_stays_in_its_school() {
+        var row = new quest.server.ai.Entities.AiCallEntity();
+        row.setId("iso-ai-call-b"); row.setSchoolId(B); row.setFeature("lessonAnalysis"); row.setTag("iso-A");
+        row.setProvider("sample"); row.setInputTokens(1200); row.setOutputTokens(800);
+        row.setOutcome(quest.server.ai.AiCallLedger.OK); row.setDurationMs(1234); row.setCreatedAt(Instant.now());
+        aiCalls.save(row);
+        try {
+            tenant.set("MANAGERIAL", A, null);
+            assertThat(aiCalls.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(aiCalls.findByTagOrderByCreatedAtAsc("iso-A")).as("not A's, whatever she asks for").isEmpty();
+            assertThat(aiCalls.findByFeatureOrderByCreatedAtAsc("lessonAnalysis")).noneMatch(r -> "iso-ai-call-b".equals(r.getId()));
+            tenant.set("MANAGERIAL", B, null);
+            assertThat(aiCalls.findByTagOrderByCreatedAtAsc("iso-A")).extracting(r -> r.getId()).containsExactly("iso-ai-call-b");
+        } finally {
+            tenant.clear();
+            aiCalls.deleteById("iso-ai-call-b");
         }
     }
 

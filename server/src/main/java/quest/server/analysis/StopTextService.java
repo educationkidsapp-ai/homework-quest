@@ -12,8 +12,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -22,6 +20,10 @@ import quest.api.dto.Play;
 import quest.api.dto.Stop;
 import quest.api.dto.StopKt;
 import quest.api.validation.Schemas;
+import quest.server.ai.AiFailure;
+import quest.server.ai.AiService;
+import quest.server.ai.AiTask;
+import quest.server.ai.AiVerdict;
 import quest.server.config.ApiException;
 import quest.server.config.Json;
 import quest.server.content.Entities.StopEntity;
@@ -47,18 +49,17 @@ import quest.server.content.StopRepository;
  */
 @Service
 public class StopTextService {
-    private static final Logger log = LoggerFactory.getLogger(StopTextService.class);
     /** `{ "code": "rephrase" }` — the save could not be made to match the schema, twice. */
     public static final String REPHRASE = "rephrase";
     private static final Pattern REF = Pattern.compile("\"\\$ref\"\\s*:\\s*\"#/\\$defs/([^\"]+)\"");
     private static final int MAX_TEXT = 8000;
 
     private final StopRepository stops; private final PlayRepository plays; private final LessonRepository lessons;
-    private final LessonStore store; private final LlmClient llm; private final Json json; private final LessonState state; private final quest.server.tenancy.TenantGuard guard;
+    private final LessonStore store; private final AiService ai; private final Json json; private final LessonState state; private final quest.server.tenancy.TenantGuard guard;
     private final TransactionTemplate tx;
 
-    public StopTextService(StopRepository stops, PlayRepository plays, LessonRepository lessons, LessonStore store, LlmClient llm, Json json, LessonState state, quest.server.tenancy.TenantGuard guard, PlatformTransactionManager transactions) {
-        this.stops = stops; this.plays = plays; this.lessons = lessons; this.store = store; this.llm = llm; this.json = json; this.state = state; this.guard = guard; this.tx = new TransactionTemplate(transactions);
+    public StopTextService(StopRepository stops, PlayRepository plays, LessonRepository lessons, LessonStore store, AiService ai, Json json, LessonState state, quest.server.tenancy.TenantGuard guard, PlatformTransactionManager transactions) {
+        this.stops = stops; this.plays = plays; this.lessons = lessons; this.store = store; this.ai = ai; this.json = json; this.state = state; this.guard = guard; this.tx = new TransactionTemplate(transactions);
     }
 
     /**
@@ -85,42 +86,43 @@ public class StopTextService {
 
         ObjectNode playNode = (ObjectNode) json.tree(pe.getPlayJson());
         ArrayNode playStops = (ArrayNode) playNode.get("stops");
-        int index = -1; for (int i = 0; i < playStops.size(); i++) if (stopId.equals(playStops.get(i).path("id").asText())) index = i;
-        if (index < 0) throw ApiException.notFound("stop");
+        int found = -1; for (int i = 0; i < playStops.size(); i++) if (stopId.equals(playStops.get(i).path("id").asText())) found = i;
+        if (found < 0) throw ApiException.notFound("stop");
+        final int index = found;
 
         String system = Prompts.SYSTEM_D.formatted(branchSchema(se.getType()));
         String user = Prompts.userD(se.getType(), stopId, se.getContentJson(), text);
-        long usage = 0; List<String> errors = List.of(); ObjectNode accepted = null;
-        for (int attempt = 0; attempt < 2; attempt++) {
-            String u = attempt == 0 ? user : user + "\n\nYour previous answer was rejected by the validator:\n- " + String.join("\n- ", errors) + "\nAnswer again with corrected JSON only.";
-            LlmClient.Result r;
-            // The provider billed for the first attempt whether or not the second one answers. Charging it before the
-            // throw leaves that turn on the lesson through `LessonState`'s own REQUIRES_NEW transaction, which this
-            // one's rollback cannot take back; without it a second-attempt 429 made the first turn free.
-            try { r = call(system, u); }
-            catch (RuntimeException e) { if (usage > 0) state.addUsage(lesson.getId(), usage, 0); throw e; }
-            usage += r.total();
-            ObjectNode candidate;
-            try {
-                candidate = (ObjectNode) json.tree(r.text());
-                // the two fields the teacher's text may never move, pinned before the repairs so the branch they select is hers
-                candidate.put("type", se.getType()); candidate.put("id", stopId);
-                candidate = (ObjectNode) json.tree(LlmJson.dropUnknownStopFields(LlmJson.cleanIllustrations(candidate.toString())));
-            } catch (Exception e) { errors = List.of("the answer was not a single JSON object"); continue; }
-            if (candidate.has("stops")) { errors = List.of("answer with the one stop, not the whole play"); continue; }
-            ObjectNode trial = playNode.deepCopy(); ((ArrayNode) trial.get("stops")).set(index, candidate);
-            List<String> wrong = LlmJson.stopErrors(trial.toString(), index, stopId, pe.getLevel(), "manual".equals(lesson.getSource()));
-            if (wrong.isEmpty()) { accepted = candidate; break; }
-            errors = wrong;
-            log.warn("Prompt D stop {} attempt {} invalid: {}", stopId, attempt + 1, errors);
-            LlmFailures.keep("D-" + stopId, r.text(), errors);
-        }
-        if (accepted == null) {
-            // the provider billed for the turns whether or not anything could be stored
-            state.addUsage(lesson.getId(), usage, 0);
-            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, REPHRASE,
-                    "Couldn't save, please rephrase. " + String.join("; ", errors.subList(0, Math.min(5, errors.size()))));
-        }
+        // The provider billed for the first attempt whether or not the second one answers. Charging it before the
+        // throw leaves that turn on the lesson through `LessonState`'s own REQUIRES_NEW transaction, which this one's
+        // rollback cannot take back; without it a second-attempt 429 made the first turn free. `AiService` hands over
+        // each answered attempt's tokens as it gets them, which is what keeps that true.
+        long[] usage = {0}; ObjectNode accepted;
+        try {
+            accepted = (ObjectNode) ai.run(AiTask.of("stopFromText", "D-" + stopId, lesson.getSchoolId(), system, user)
+                    .reading((raw, attempt) -> {
+                        ObjectNode candidate;
+                        try {
+                            candidate = (ObjectNode) json.tree(raw);
+                            // the two fields the teacher's text may never move, pinned before the repairs so the branch they select is hers
+                            candidate.put("type", se.getType()); candidate.put("id", stopId);
+                            candidate = (ObjectNode) json.tree(LlmJson.dropUnknownStopFields(LlmJson.cleanIllustrations(candidate.toString())));
+                        } catch (Exception e) { return AiVerdict.rejected("the answer was not a single JSON object"); }
+                        if (candidate.has("stops")) return AiVerdict.rejected("answer with the one stop, not the whole play");
+                        ObjectNode trial = playNode.deepCopy(); ((ArrayNode) trial.get("stops")).set(index, candidate);
+                        List<String> wrong = LlmJson.stopErrors(trial.toString(), index, stopId, pe.getLevel(), "manual".equals(lesson.getSource()));
+                        return wrong.isEmpty() ? AiVerdict.ok(candidate) : AiVerdict.rejected(wrong);
+                    })
+                    .keepingRejects()
+                    .billing((in, out) -> usage[0] += in + out)).json();
+        } catch (AiFailure f) {
+            if (f.kind() == AiFailure.Kind.INVALID) {
+                // the provider billed for the turns whether or not anything could be stored
+                state.addUsage(lesson.getId(), usage[0], 0);
+                throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, REPHRASE, "Couldn't save, please rephrase. " + f.errorsJoined(5));
+            }
+            if (usage[0] > 0) state.addUsage(lesson.getId(), usage[0], 0);
+            throw busyOrFailed(f);
+        } catch (RuntimeException e) { if (usage[0] > 0) state.addUsage(lesson.getId(), usage[0], 0); throw e; }
 
         // ---------------------------------------------------------------- store it: one short transaction
         playStops.set(index, accepted);
@@ -132,16 +134,14 @@ public class StopTextService {
             StopEntity saved = stops.findById(stopId).orElseThrow(() -> ApiException.notFound("stop"));
             saved.setText(text); saved.setTextUpdatedAt(Instant.now()); stops.save(saved);
         });
-        state.addUsage(lesson.getId(), usage, 0);
+        state.addUsage(lesson.getId(), usage[0], 0);
         return StopKt.withTeacherText(json.decodeShared(stored.toString(), Stop.Companion.serializer()), text);
     }
 
-    private LlmClient.Result call(String system, String user) {
-        try { return llm.complete(system, user, List.of()); }
-        catch (LlmClient.LlmException e) {
-            if (e.isTransient()) throw new ApiException(HttpStatus.BAD_GATEWAY, quest.api.dto.ApiError.MODEL_FAILED, "The AI is busy — try that save again in a moment.");
-            throw new ApiException(HttpStatus.BAD_GATEWAY, quest.api.dto.ApiError.MODEL_FAILED, e.getMessage());
-        }
+    /** A busy provider is a save she can press again in a moment; anything else carries the provider's own words. */
+    private static ApiException busyOrFailed(AiFailure f) {
+        if (f.isTransient()) return new ApiException(HttpStatus.BAD_GATEWAY, quest.api.dto.ApiError.MODEL_FAILED, "The AI is busy — try that save again in a moment.");
+        return new ApiException(HttpStatus.BAD_GATEWAY, quest.api.dto.ApiError.MODEL_FAILED, f.getMessage());
     }
 
     /**
