@@ -331,6 +331,7 @@ data class StaffStrings(
             roleNames = mapOf(
                 "ADMIN" to "Administrator", "TEACHER" to "Teacher", "MANAGERIAL" to "Department manager",
                 "COORDINATOR" to "Subject coordinator", "WORKER" to "Staff member",
+                "FLOOR_SUPERVISOR" to "Floor supervisor",
             ),
         )
 
@@ -474,6 +475,7 @@ data class StaffStrings(
             roleNames = mapOf(
                 "ADMIN" to "مدير النظام", "TEACHER" to "معلّم", "MANAGERIAL" to "مدير قسم",
                 "COORDINATOR" to "منسّق مادة", "WORKER" to "موظف",
+                "FLOOR_SUPERVISOR" to "مشرفة الدور",
             ),
         )
 

@@ -119,6 +119,16 @@ export const AREAS: Readonly<Record<Role, Area>> = {
       // `class.write`; Teachers reads with `teacher.read` and writes with `teacher.manage`, so a
       // MANAGERIAL account gets both screens and none of their actions.
       { id: 'classes', path: 'classes', labelKey: 'nav.classes', permission: 'section.read' },
+      // Feature 20: the floors her classes are grouped into, beside Classes because that is what
+      // a floor is — a named group of them in one academy. `floor.manage` is ADMIN's alone, and
+      // the row (like the whole feature) only exists while `floorSupervisor` is on.
+      {
+        id: 'floors',
+        path: 'floors',
+        labelKey: 'nav.floors',
+        flag: FLAGS.floorSupervisor,
+        permission: 'floor.manage',
+      },
       { id: 'teachers', path: 'teachers', labelKey: 'nav.teachers', permission: 'teacher.read' },
       // MA2 (the owner's admin list, 2026-09-30, items 3–5): the four people screens that were
       // missing. Their order is the order she reads them in — the three staff lists that carry a
@@ -134,6 +144,16 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         permission: 'coordinator.manage',
       },
       { id: 'managers', path: 'managers', labelKey: 'nav.managers', permission: 'manager.manage' },
+      // Feature 20: the third staff list that carries a login, and the same component as the two
+      // above it (`data.screenId` says which). Her floors are assigned on the Floors screen, so
+      // this one has no scopes editor at all.
+      {
+        id: 'floor-supervisors',
+        path: 'floor-supervisors',
+        labelKey: 'nav.floorSupervisors',
+        flag: FLAGS.floorSupervisor,
+        permission: 'floor.manage',
+      },
       // `worker.read` and not `worker.write`, the way Teachers reads with `teacher.read`: the key on
       // the row has to be the one the GET carries, or a read-only "View as" session would be shown
       // no list at all rather than a list with no buttons. Every action inside is `worker.write`.
@@ -597,6 +617,64 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         labelKey: 'nav.staffAttendance',
         flag: FLAGS.staffAttendance,
         permission: 'attendance.board',
+      },
+    ],
+  },
+  // Feature 20 (`docs/features/20-floor-supervisor-role.md`): the floor supervisor's area. She
+  // looks *across* the classes on her floor rather than down one subject, so her rail is short on
+  // purpose — her Home, the children of her floor, and the people she talks to.
+  //
+  // **Every row carries `FLAGS.floorSupervisor`**, which no other area does. The two read-only
+  // supervisors are roles the build has always had; she is a whole feature, and a school that has
+  // not turned it on has no floors, no supervisors and nothing for these screens to draw. The
+  // router answers `/not-found` for the same reason the server answers 404.
+  FLOOR_SUPERVISOR: {
+    base: '/floor',
+    screens: [
+      // No permission on the Home, as in every other area: it is what `/` redirects to, and a
+      // redirect target that can be refused has nowhere to send her. The flag stays, because a
+      // school without the feature has no Home here either — `roleGuard` keeps everyone else out.
+      { id: 'home', path: '', labelKey: 'nav.home', flag: FLAGS.floorSupervisor },
+      {
+        id: 'children',
+        path: 'children',
+        labelKey: 'nav.children',
+        flag: FLAGS.floorSupervisor,
+        permission: 'floor.read',
+      },
+      // The teacher's child report, read-only, through `/floor/children/{id}` — no `labelKey`,
+      // because it is opened from a row of the screen above and never from the rail.
+      {
+        id: 'child',
+        path: 'children/:childId',
+        flag: FLAGS.floorSupervisor,
+        permission: 'floor.read',
+        readOnly: true,
+      },
+      {
+        id: 'messages',
+        path: 'messages',
+        labelKey: 'nav.messages',
+        flag: FLAGS.floorSupervisor,
+        permission: 'floor.chat',
+      },
+      // Features 17 and 18, one namespace over. Both carry **two** flags' worth of truth and only
+      // one slot for a flag: `floorSupervisor` is the one that decides whether she exists at all,
+      // so it is the one on the row, and the board's own `staffAttendance` gate is the server's
+      // (her `/staff-attendance/board` answers 404 without it) and `*hqFeature`'s inside the page.
+      {
+        id: 'staff-attendance',
+        path: 'staff-attendance',
+        labelKey: 'nav.staffAttendance',
+        flag: FLAGS.staffAttendance,
+        permission: 'attendance.board',
+      },
+      {
+        id: 'attendance-requests',
+        path: 'attendance-requests',
+        labelKey: 'nav.attendanceRequests',
+        flag: FLAGS.staffAttendance,
+        permission: 'attendance.requests.decide',
       },
     ],
   },

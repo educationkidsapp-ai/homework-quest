@@ -6,6 +6,7 @@ import {
   ChatReadReceipt,
   ChatThread,
   CoordinatorChatApi,
+  FloorSupervisorChatApi,
   ManagementChatApi,
   SendChatMessageRequest,
 } from '../../api';
@@ -67,6 +68,7 @@ export class ChatRoutes {
   private readonly teacher = inject(ChatApi);
   private readonly coordinator = inject(CoordinatorChatApi);
   private readonly management = inject(ManagementChatApi);
+  private readonly floor = inject(FloorSupervisorChatApi);
   private readonly auth = inject(AuthService);
   private readonly scope = inject(SchoolScopeStore);
 
@@ -145,6 +147,19 @@ export class ChatRoutes {
           messages: (key, since) => this.coordinator.coordinatorChatMessages(key, undefined, since),
           send: (key, request) => this.coordinator.coordinatorSendChatMessage(key, request),
           read: (key) => this.coordinator.coordinatorMarkChatRead(key),
+        };
+      // Feature 20: the floor supervisor, keyed by thread like the two supervisors above her. One
+      // of her rows has no child on it either — a manager, or the school's administration — and
+      // `POST /floor/chat/threads` names a person or a child rather than being keyed by one.
+      case 'FLOOR_SUPERVISOR':
+        return {
+          owns: () => true,
+          keyOf: (thread) => thread.id ?? '',
+          commandKey: (key) => ({ threadId: key }),
+          threads: () => this.floor.floorChatThreads(),
+          messages: (key, since) => this.floor.floorChatMessages(key, undefined, since),
+          send: (key, request) => this.floor.floorSendChatMessage(key, request),
+          read: (key) => this.floor.floorMarkChatRead(key),
         };
       case 'MANAGERIAL':
         return {

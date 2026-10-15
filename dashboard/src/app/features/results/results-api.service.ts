@@ -10,11 +10,13 @@ import {
   CoordinatorApi,
   CoordinatorResultsApi,
   ExamsApi,
+  FloorSupervisorApi,
   ManagementApi,
   ManagementResultsApi,
   ResultsAndGradebookApi,
 } from '../../api';
 import { StaffAreaService } from '../../core/auth/staff-area';
+import { FLAGS } from '../../core/flags/flag.service';
 
 /**
  * One read surface over the results, exams and attendance the server publishes twice (R6, DR2).
@@ -40,11 +42,19 @@ export class ResultsApiService {
   private readonly coordinator = inject(CoordinatorApi);
   private readonly managementResults = inject(ManagementResultsApi);
   private readonly management = inject(ManagementApi);
+  private readonly floor = inject(FloorSupervisorApi);
   private readonly staff = inject(StaffAreaService);
 
   private readonly area = this.staff.area;
   readonly isCoordinator = computed(() => this.area() === 'coordinator');
   readonly isManager = computed(() => this.area() === 'management');
+  /**
+   * Feature 20: the floor supervisor reads **one** of these six screens — the child report, on
+   * `GET /floor/children/{id}` — because that is the only one her area has a row for. The other
+   * five have no floor branch on purpose: there is no floor route to branch to, and a request to
+   * `/teacher/**` for her would be a 403 under a screen she was never offered.
+   */
+  readonly isFloor = computed(() => this.area() === 'floor');
 
   /**
    * The exams list arrives complete on both supervisors' routes.
@@ -88,6 +98,30 @@ export class ResultsApiService {
   readonly classesLink = computed(() => `${this.base()}/classes`);
 
   /**
+   * The first crumb of the child page, as a label key and a link.
+   *
+   * Feature 20: the floor supervisor has no Classes screen — she looks *across* the classes on her
+   * floor, and her way into a child is the Children list she searched — so her crumb is that list
+   * rather than a `/floor/classes` that resolves to nothing. A crumb that navigates to
+   * `/not-found` is worse than a crumb that names the screen she came from.
+   */
+  readonly childRootCrumb = computed<{ readonly labelKey: string; readonly link: string }>(() =>
+    this.isFloor()
+      ? { labelKey: 'nav.children', link: `${this.base()}/children` }
+      : { labelKey: 'classes.title', link: this.classesLink() },
+  );
+
+  /**
+   * The flag the shared child page draws its contents behind.
+   *
+   * `gradebook` for the three areas whose row carries it; `floorSupervisor` for hers, which is the
+   * flag her whole area carries and the one `/floor/children/{id}` is gated by on the server. A
+   * page gated on a flag its own API does not carry would have been blank for a school that bought
+   * the floor supervisor and not the gradebook.
+   */
+  readonly childContentFlag = computed(() => (this.isFloor() ? FLAGS.floorSupervisor : FLAGS.gradebook));
+
+  /**
    * `/teacher/classes/{id}`, or `null` for a role whose area has no per-class page.
    *
    * The coordinator's Classes screen lists every section in scope and opens none of them (R5's
@@ -114,6 +148,7 @@ export class ResultsApiService {
   childReport(id: string): Observable<ChildReport> {
     if (this.isCoordinator()) return this.results.coordinatorChild(id);
     if (this.isManager()) return this.managementResults.managementChild(id);
+    if (this.isFloor()) return this.floor.floorChild(id);
     return this.teacher.childReport(id);
   }
 

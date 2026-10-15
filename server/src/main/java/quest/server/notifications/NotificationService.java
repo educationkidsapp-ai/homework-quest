@@ -655,6 +655,7 @@ public class NotificationService {
     public static String area(String role) {
         return switch (role == null ? "" : role) {
             case "COORDINATOR" -> "coordinator";
+            case quest.server.tenancy.FloorScope.ROLE -> "floor";
             case "MANAGERIAL" -> "management";
             default -> "teacher";
         };
@@ -672,6 +673,7 @@ public class NotificationService {
         String screen = switch (role == null ? "" : role) {
             case "ADMIN" -> "/admin/messages";
             case "COORDINATOR" -> "/coordinator/messages";
+            case quest.server.tenancy.FloorScope.ROLE -> "/floor/messages";
             case "MANAGERIAL" -> "/management/messages";
             default -> "/teacher/chat";
         };

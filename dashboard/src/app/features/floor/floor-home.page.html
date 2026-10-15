@@ -1,0 +1,73 @@
+<hq-page [title]="'floor.home.title' | transloco" [subtitle]="subtitle()">
+  <ng-container *hqFeature="floorFlag">
+    @if (home.isLoading()) {
+      <hq-skeleton
+        [loading]="true"
+        [lines]="6"
+        height="var(--hq-size-row-height)"
+        [label]="'floor.home.loading' | transloco"
+      />
+    } @else if (home.error()) {
+      <hq-coordinator-read-failed (retry)="home.reload()" />
+    } @else {
+      <!-- Feature 17's board, scoped by the server to her floor's teachers and her own reports. -->
+      @if (hasBoard()) {
+        <section class="floor-home__block">
+          <h2 class="floor-home__heading">{{ 'floor.home.staff' | transloco }}</h2>
+          <hq-attendance-board view="today" />
+        </section>
+      }
+
+      <section class="floor-home__block">
+        <h2 class="floor-home__heading">{{ 'floor.home.children' | transloco }}</h2>
+        <hq-card [flush]="true">
+          <hq-table
+            [rows]="rows()"
+            [columns]="columns()"
+            [cellTemplate]="cell"
+            [trackBy]="trackRow"
+            [wrapHeaders]="true"
+            [label]="'floor.home.children' | transloco"
+          >
+            <hq-empty-state table-empty [message]="'floor.home.empty' | transloco" />
+          </hq-table>
+        </hq-card>
+      </section>
+    }
+  </ng-container>
+
+  <ng-template #cell let-row let-column="column">
+    @switch (column.key) {
+      @case ('className') {
+        <span class="floor-home__class">{{ row.className }}</span>
+        @if (row.floorName) {
+          <span class="hq-muted">{{ row.floorName }}</span>
+        }
+      }
+      @case ('children') {
+        {{ row.children }}
+      }
+      @case ('present') {
+        {{ row.present }}
+      }
+      @case ('absent') {
+        {{ row.absent }}
+      }
+      @case ('late') {
+        {{ row.late }}
+      }
+      @case ('excused') {
+        {{ row.excused }}
+      }
+      @case ('notMarked') {
+        <!-- The one number she acts on: a register nobody took is a class nobody has looked at.
+             The column's own header carries the meaning; the pill only makes it findable. -->
+        @if (row.notMarked > 0) {
+          <span class="hq-badge hq-badge--warning">{{ row.notMarked }}</span>
+        } @else {
+          {{ row.notMarked }}
+        }
+      }
+    }
+  </ng-template>
+</hq-page>

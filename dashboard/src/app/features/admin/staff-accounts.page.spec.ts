@@ -16,7 +16,8 @@ import { StaffAccountsPage } from './staff-accounts.page';
 
 const ADMIN_PERMISSIONS = {
   role: 'ADMIN',
-  permissions: ['coordinator.manage', 'manager.manage'],
+  // Feature 20: `floor.manage` is the third row's key, held by the Admin alone.
+  permissions: ['coordinator.manage', 'manager.manage', 'floor.manage'],
   readOnly: false,
 };
 
@@ -49,7 +50,9 @@ async function settle(rendered: { fixture: { detectChanges: () => void } }): Pro
  * The route's `screenId` is what tells the one component which of the two accounts it is
  * (`core/nav/area.routes.ts`), so the spec supplies it exactly as the router does.
  */
-function providersFor(screenId: 'coordinators' | 'managers'): (Provider | EnvironmentProviders)[] {
+type ScreenId = 'coordinators' | 'managers' | 'floor-supervisors';
+
+function providersFor(screenId: ScreenId): (Provider | EnvironmentProviders)[] {
   return [
     provideHttpClient(),
     provideHttpClientTesting(),
@@ -59,11 +62,7 @@ function providersFor(screenId: 'coordinators' | 'managers'): (Provider | Enviro
   ];
 }
 
-async function renderSignedIn(
-  screenId: 'coordinators' | 'managers',
-  rows: readonly unknown[],
-  permissions = ADMIN_PERMISSIONS,
-) {
+async function renderSignedIn(screenId: ScreenId, rows: readonly unknown[], permissions = ADMIN_PERMISSIONS) {
   const rendered = await renderHq(StaffAccountsPage, { providers: providersFor(screenId) });
   const backend = TestBed.inject(HttpTestingController);
 
@@ -304,5 +303,103 @@ describe('Managers', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: 'Message' }));
 
     expect(open).toHaveBeenCalledWith('u-nadia', { managerUserId: 'u-nadia' });
+  });
+});
+
+/**
+ * Feature 20: the third row of the same component. What is asserted is the part that is *not*
+ * like the other two — she has no scope to set here, because her floors are assigned on the
+ * Floors page, where the classes that make them up are.
+ */
+describe('Floor supervisors', () => {
+  const MONA = {
+    userId: 'u-mona',
+    email: 'floor2@alnoor.test',
+    fullName: 'Mona Saeed',
+    phone: '0507778899',
+    status: 'active',
+    floors: [{ id: 'f-2', name: 'Floor 2', academy: 'british' }],
+  };
+
+  beforeEach(() => localStorage.clear());
+
+  it('lists her with her number and the floors she looks after', async () => {
+    await renderSignedIn('floor-supervisors', [MONA]);
+
+    expect(screen.getByRole('heading', { name: 'Floor supervisors' })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'Mona Saeed' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '0507778899' })).toHaveAttribute('href', 'tel:0507778899');
+    expect(screen.getByRole('columnheader', { name: 'Floors' })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'Floor 2' })).toBeInTheDocument();
+  });
+
+  it('creates one from a name and an email, and shows the one-time password once', async () => {
+    const { rendered, backend } = await renderSignedIn('floor-supervisors', []);
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Add floor supervisor' })[0]!);
+    await userEvent.type(screen.getByLabelText('Full name'), 'Mona Saeed');
+    await userEvent.type(screen.getByLabelText('Email'), 'floor2@alnoor.test');
+    await settle(rendered);
+    // Nothing else to pick: the line under the fields says where her floors are assigned.
+    expect(
+      screen.getByText('Her floors are assigned on the Floors page, together with the classes on them.'),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    const created = backend.expectOne('/admin/floor-supervisors');
+    expect(created.request.method).toBe('POST');
+    expect(created.request.body).toMatchObject({ fullName: 'Mona Saeed', email: 'floor2@alnoor.test' });
+    created.flush({ supervisor: MONA, temporaryPassword: 'plain-heron-9' });
+    await settle(rendered);
+    backend.expectOne('/admin/floor-supervisors').flush([MONA]);
+    await settle(rendered);
+
+    expect(screen.getByText('plain-heron-9')).toBeInTheDocument();
+  });
+
+  it('resets her password from the row menu', async () => {
+    const { rendered, backend } = await renderSignedIn('floor-supervisors', [MONA]);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Mona Saeed' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Reset password' }));
+
+    const reset = backend.expectOne('/admin/floor-supervisors/u-mona/reset-password');
+    expect(reset.request.method).toBe('POST');
+    reset.flush({ temporaryPassword: 'brisk-otter-4' });
+    await settle(rendered);
+
+    expect(screen.getByText('brisk-otter-4')).toBeInTheDocument();
+  });
+
+  /**
+   * The two actions the other two rows have and she does not: a scope editor (her floors are the
+   * Floors page's) and Message (no `POST /admin/chat/threads` body names a floor supervisor).
+   */
+  it('offers her row no scope editor and no Message', async () => {
+    fakeThreads();
+    const { rendered } = await renderSignedIn('floor-supervisors', [MONA]);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Mona Saeed' }));
+    await settle(rendered);
+
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Floors' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Message' })).not.toBeInTheDocument();
+  });
+
+  it('sends only the three fields the edit form takes', async () => {
+    const { rendered, backend } = await renderSignedIn('floor-supervisors', [MONA]);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Mona Saeed' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
+    await settle(rendered);
+    await userEvent.clear(screen.getByLabelText('Full name'));
+    await userEvent.type(screen.getByLabelText('Full name'), 'Mona S.');
+    await settle(rendered);
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    const patch = backend.expectOne('/admin/floor-supervisors/u-mona');
+    expect(patch.request.method).toBe('PATCH');
+    expect(patch.request.body).toEqual({ fullName: 'Mona S.', phone: '0507778899', active: true });
   });
 });

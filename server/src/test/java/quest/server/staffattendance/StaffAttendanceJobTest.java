@@ -129,6 +129,25 @@ class StaffAttendanceJobTest extends ApiTestSupport {
         assertThat(day(s, teacher).get("LATE_MINUTES")).isEqualTo(18);
     }
 
+    /**
+     * Feature 20: she may be a direct manager, which is the acceptance criterion "set as direct manager, she receives
+     * lateness alerts for her teachers". Nothing in the job knows about floors — she is simply staff of the school
+     * now (`AttendanceStaff.STAFF_ROLES`), which is the whole change.
+     */
+    @Test void a_floor_supervisor_set_as_direct_manager_hears_about_a_late_check_in() {
+        var s = school("floorsup");
+        String teacher = s.teacher("t", "british"), nadia = s.supervisor("n");
+        s.directManager(teacher, nadia);
+        s.checkIn(teacher, "07:18", null);
+        run(s, "07:20");
+        assertThat(alerts(nadia)).singleElement().satisfies(r -> {
+            var p = params(r);
+            assertThat(p.get(AttendanceLink.TYPE)).isEqualTo(AttendanceLink.ALERT_LATE);
+            assertThat(p.get(AttendanceLink.STAFF)).isEqualTo("USER:" + teacher);
+            assertThat(p.get(AttendanceLink.MINUTES)).isEqualTo("18");
+        });
+    }
+
     @Test void an_on_time_check_in_tells_nobody() {
         var s = school("ontime");
         String teacher = s.teacher("t", "british"), manager = s.manager("m", null);
@@ -373,6 +392,9 @@ class StaffAttendanceJobTest extends ApiTestSupport {
             }
             return userId;
         }
+
+        /** Feature 20: a floor supervisor — staff of the school, and so nameable as a direct manager. */
+        String supervisor(String label) { return user(label, quest.server.tenancy.FloorScope.ROLE); }
 
         /** A worker with an app account; answers the account's id, which is where her bell is. */
         String worker(String label) {

@@ -82,6 +82,9 @@ class IsolationTest extends ApiTestSupport {
     @Autowired quest.server.staffattendance.AttendanceRemoteDayRepository remoteDays;
     @Autowired quest.server.staffattendance.StaffAttendanceRequestRepository attendanceRequests;
     @Autowired quest.server.chat.ChatAfterHoursRepository afterHours;
+    @Autowired quest.server.floors.FloorRepository floors;
+    @Autowired quest.server.floors.FloorClassRepository floorClasses;
+    @Autowired quest.server.floors.FloorSupervisorRepository floorSupervisors;
 
     @BeforeEach void seedTwoSchools() {
         school(A, "Alpha Academy", "SCHLAA"); school(B, "Beta School", "SCHLBB");
@@ -230,6 +233,41 @@ class IsolationTest extends ApiTestSupport {
         } finally {
             tenant.clear();
             afterHours.deleteById("iso-after-hours-b");
+        }
+    }
+
+    /**
+     * Feature 20's three tenant tables. A floor of B, the class on it and the supervisor who holds it are invisible to
+     * a principal of A — and `FloorScope` reads all three through these very queries, so a scope that leaked would
+     * leak here first.
+     */
+    @Test void feature_20s_floors_stay_in_their_school() {
+        var now = java.time.Instant.now();
+        var floor = new quest.server.floors.Entities.FloorEntity();
+        floor.setId("iso-floor-b"); floor.setSchoolId(B); floor.setName("Second floor"); floor.setAcademy("british");
+        floor.setCreatedAt(now);
+        var onFloor = new quest.server.floors.Entities.FloorClassEntity();
+        onFloor.setId("iso-floor-class-b"); onFloor.setFloorId("iso-floor-b"); onFloor.setSchoolId(B);
+        onFloor.setSectionId(CLASS_B); onFloor.setCreatedAt(now);
+        var holder = new quest.server.floors.Entities.FloorSupervisorEntity();
+        holder.setId("iso-floor-sup-b"); holder.setFloorId("iso-floor-b"); holder.setSchoolId(B);
+        holder.setUserId("teacher-b"); holder.setCreatedAt(now);
+        floors.save(floor); floorClasses.save(onFloor); floorSupervisors.save(holder);
+        try {
+            tenant.set("FLOOR_SUPERVISOR", A, null);
+            assertThat(floors.findAll()).noneMatch(f -> B.equals(f.getSchoolId()));
+            assertThat(floors.findOneById("iso-floor-b")).isEmpty();
+            assertThat(floors.findBySchoolIdOrderByNameAsc(A)).isEmpty();
+            assertThat(floorClasses.findBySchoolIdAndSectionId(A, CLASS_B)).as("A cannot ask about B's class either").isEmpty();
+            assertThat(floorSupervisors.findBySchoolIdAndUserIdOrderByFloorIdAsc(A, "teacher-b")).isEmpty();
+            tenant.set("FLOOR_SUPERVISOR", B, null);
+            assertThat(floors.findOneById("iso-floor-b")).isPresent();
+            assertThat(floorClasses.findBySchoolIdAndSectionId(B, CLASS_B)).isPresent();
+            assertThat(floorSupervisors.findBySchoolIdAndUserIdOrderByFloorIdAsc(B, "teacher-b")).hasSize(1);
+        } finally {
+            tenant.clear();
+            floorSupervisors.deleteById("iso-floor-sup-b"); floorClasses.deleteById("iso-floor-class-b");
+            floors.deleteById("iso-floor-b");
         }
     }
 

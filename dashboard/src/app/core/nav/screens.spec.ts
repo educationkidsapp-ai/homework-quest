@@ -4,7 +4,7 @@ import type { Role } from '../auth/auth.service';
 import { areaRoutes } from './area.routes';
 import { AREAS, linkOf, navScreens, phaseOf } from './screens';
 
-const ROLES: readonly Role[] = ['ADMIN', 'TEACHER', 'MANAGERIAL', 'COORDINATOR'];
+const ROLES: readonly Role[] = ['ADMIN', 'TEACHER', 'MANAGERIAL', 'COORDINATOR', 'FLOOR_SUPERVISOR'];
 
 /** Guards are closures, so they are counted rather than identified by reference. */
 function gateCount(route: Route): number {
@@ -80,11 +80,16 @@ describe('the screen table', () => {
     expect(navScreens('ADMIN').map(({ screen }) => screen.id)).toEqual([
       'home',
       'classes',
+      // Feature 20: the floors the classes are grouped into, beside Classes because that is what
+      // a floor is. Behind `floorSupervisor`, so a school without the feature has neither row.
+      'floors',
       'teachers',
       // MA2 (items 3–5): the three staff lists that carry a login, then the staff who have none,
       // then the families. Coordinators and Managers are one component, two rows.
       'coordinators',
       'managers',
+      // Feature 20: the third list that carries a login, the same component as the two above it.
+      'floor-supervisors',
       'workers',
       'children',
       // Feature 14: the school's attendance rules and direct managers, behind `staffAttendance`.
@@ -148,10 +153,21 @@ describe('the screen table', () => {
       );
   });
 
+  /**
+   * A Home is where `/` sends a role, so it may not be refused for who she is: a redirect target
+   * that needs a permission has nowhere to send her.
+   *
+   * Feature 20 made the assertion about **permissions** rather than about the number of guards.
+   * The floor supervisor's Home carries `floorSupervisor` — a whole role behind one switch, which
+   * every row of her area carries — and a flag is the other answer entirely: "this school does not
+   * have that feature" is not "your account may not", and it is the same answer the server gives.
+   */
   it('leaves each role Home open to that role — the redirect target cannot need a permission', () => {
     for (const role of ROLES) {
-      const home = childrenOf(areaRoutes(role)).find((route) => route.path === '');
-      expect(gateCount(home!)).toBe(0);
+      const home = AREAS[role].screens.find((screen) => screen.path === '');
+      expect(`${role}:${String(home?.permission)}`).toBe(`${role}:undefined`);
+      const route = childrenOf(areaRoutes(role)).find((candidate) => candidate.path === '');
+      expect(`${role}:${gateCount(route!)}`).toBe(`${role}:${home?.flag === undefined ? 0 : 1}`);
     }
   });
 
@@ -406,6 +422,89 @@ describe('the screen table', () => {
     expect(usage?.phase).toBeUndefined();
     expect(usage?.permission).toBe('usage.school');
     expect(phaseOf('/management/usage')).toBeUndefined();
+  });
+
+  /**
+   * Feature 20 (`docs/features/20-floor-supervisor-role.md`): the floor supervisor's rail, and the
+   * one property of it nothing else in the table has — **every row carries `floorSupervisor`**.
+   *
+   * A school that has not turned the feature on has no floors, so there is nothing for any of her
+   * screens to draw; the router answering `/not-found` is the same answer the server's 404 gives.
+   * The two rows that carry `staffAttendance` instead are features 17's and 18's own switches: the
+   * board and the requests screen are shared by all four areas, and a floor supervisor reaches
+   * them only in a school that takes staff attendance at all.
+   */
+  it('gives the floor supervisor her five rail items, every one behind the flag', () => {
+    expect(navScreens('FLOOR_SUPERVISOR').map(({ screen }) => screen.id)).toEqual([
+      'home',
+      'children',
+      'messages',
+      // Features 17 and 18, one namespace over: the board of her floor's teachers, and the
+      // requests of anyone whose direct manager she is.
+      'staff-attendance',
+      'attendance-requests',
+    ]);
+    expect(navScreens('FLOOR_SUPERVISOR').map(({ link }) => link)).toEqual([
+      '/floor',
+      '/floor/children',
+      '/floor/messages',
+      '/floor/staff-attendance',
+      '/floor/attendance-requests',
+    ]);
+
+    // Her own three rows carry her own flag and her own keys; the two shared screens carry the
+    // flag and the key every area's copy of them carries.
+    const row = (id: string) => AREAS.FLOOR_SUPERVISOR.screens.find((screen) => screen.id === id);
+    expect(row('home')?.flag).toBe('floorSupervisor');
+    expect([row('children')?.flag, row('children')?.permission]).toEqual(['floorSupervisor', 'floor.read']);
+    expect([row('messages')?.flag, row('messages')?.permission]).toEqual(['floorSupervisor', 'floor.chat']);
+    expect([row('staff-attendance')?.flag, row('staff-attendance')?.permission]).toEqual([
+      'staffAttendance',
+      'attendance.board',
+    ]);
+    expect([row('attendance-requests')?.flag, row('attendance-requests')?.permission]).toEqual([
+      'staffAttendance',
+      'attendance.requests.decide',
+    ]);
+
+    // The child report is a route, not a rail item: it is opened from a row of her Children
+    // screen. Read-only — she writes nothing on it, and the shared page reads `data.readOnly`.
+    const child = row('child');
+    expect(child?.path).toBe('children/:childId');
+    expect(child?.labelKey).toBeUndefined();
+    expect(child?.readOnly).toBe(true);
+    const route = childrenOf(areaRoutes('FLOOR_SUPERVISOR')).find(
+      (candidate) => candidate.path === 'children/:childId',
+    );
+    expect(route?.data?.['readOnly']).toBe(true);
+
+    // Nothing of hers is a stub waiting on a later phase, and none of her rows writes anything
+    // outside her own namespace or the two shared decisions.
+    expect(AREAS.FLOOR_SUPERVISOR.screens.every((screen) => screen.phase === undefined)).toBe(true);
+    const keys = AREAS.FLOOR_SUPERVISOR.screens.map((screen) => screen.permission ?? '');
+    expect(
+      keys.every(
+        (key) =>
+          key === '' ||
+          key.startsWith('floor.') ||
+          key === 'attendance.board' ||
+          key === 'attendance.requests.decide',
+      ),
+    ).toBe(true);
+    // D5: no Complaints row at all — `permissions.json` gives her no key for one.
+    expect(keys.some((key) => key.endsWith('complaints'))).toBe(false);
+  });
+
+  /** Feature 20: the Admin's two rows, behind the flag and on her one write key. */
+  it('puts Floors and Floor supervisors behind the flag and floor.manage', () => {
+    for (const id of ['floors', 'floor-supervisors']) {
+      const row = AREAS.ADMIN.screens.find((screen) => screen.id === id);
+      expect(`${id}:${row?.flag}`).toBe(`${id}:floorSupervisor`);
+      expect(`${id}:${row?.permission}`).toBe(`${id}:floor.manage`);
+      // Two guards, in the order `areaRoutes` puts them: the flag, then the key.
+      const route = childrenOf(areaRoutes('ADMIN')).find((candidate) => candidate.path === id);
+      expect(`${id}:${gateCount(route!)}`).toBe(`${id}:2`);
+    }
   });
 
   it('names the phase of a stub, including on a detail route', () => {

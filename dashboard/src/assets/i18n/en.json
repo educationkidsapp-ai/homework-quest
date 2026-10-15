@@ -432,7 +432,8 @@
         "TEACHER": "Teacher",
         "COORDINATOR": "Coordinator",
         "MANAGERIAL": "Manager",
-        "WORKER": "Worker"
+        "WORKER": "Worker",
+        "FLOOR_SUPERVISOR": "Floor supervisor"
       },
       "day": {
         "SUNDAY": "Sun",
@@ -494,6 +495,57 @@
         "reset": "Reset device",
         "confirmTitle": "Reset the approved device?",
         "confirmMessage": "The employee's next successful check-in will approve the phone they use then. The current phone can no longer check in until then."
+      }
+    },
+    "floors": {
+      "title": "Floors",
+      "subtitle": "A floor is a named group of classes in one academy, with the supervisors who look after it.",
+      "loading": "Loading floors",
+      "empty": "No floors yet. Add the first one.",
+      "create": "Add floor",
+      "createTitle": "Add a floor",
+      "editTitle": "Edit floor",
+      "formReason": "A floor needs a name and an academy.",
+      "edit": "Edit",
+      "delete": "Delete floor",
+      "noSupervisor": "No supervisor",
+      "rowActions": "Actions for {{name}}",
+      "table": {
+        "name": "Floor",
+        "academy": "Academy",
+        "classes": "Classes",
+        "supervisors": "Supervisors"
+      },
+      "form": {
+        "name": "Floor name",
+        "nameHint": "What the school calls it — Floor 2, or Lower primary.",
+        "academy": "Academy",
+        "academyPlaceholder": "Choose an academy",
+        "classes": "Classes on this floor",
+        "supervisors": "Floor supervisors",
+        "noClasses": "This school has no active classes yet.",
+        "noSupervisors": "No floor supervisor accounts yet. Add one on Floor supervisors."
+      },
+      "deleteConfirm": {
+        "title": "Delete this floor?",
+        "message": "{{name}} goes, and its supervisors lose everything they could see through it. The classes and the children stay.",
+        "confirm": "Delete"
+      }
+    },
+    "floorSupervisors": {
+      "title": "Floor supervisors",
+      "subtitle": "Who looks across the classes on a floor, and the floors she looks after.",
+      "loading": "Loading floor supervisors",
+      "empty": "No floor supervisors yet. Add the first one.",
+      "createAction": "Add floor supervisor",
+      "createTitle": "Add a floor supervisor",
+      "editTitle": "Edit floor supervisor",
+      "formReason": "A full name and an email.",
+      "table": {
+        "scopes": "Floors"
+      },
+      "form": {
+        "floorsHint": "Her floors are assigned on the Floors page, together with the classes on them."
       }
     }
   },
@@ -1595,7 +1647,8 @@
       "ADMIN": "Admin",
       "TEACHER": "Teacher",
       "MANAGERIAL": "Management",
-      "COORDINATOR": "Coordinator"
+      "COORDINATOR": "Coordinator",
+      "FLOOR_SUPERVISOR": "Floor supervisor"
     },
     "home": "Home",
     "schools": "Schools",
@@ -1624,7 +1677,9 @@
     "childrenParents": "Children & parents",
     "manager": "Manager",
     "attendanceSettings": "Attendance settings",
-    "attendanceRequests": "Attendance requests"
+    "attendanceRequests": "Attendance requests",
+    "floors": "Floors",
+    "floorSupervisors": "Floor supervisors"
   },
   "notifications": {
     "title": "Notifications",
@@ -1786,7 +1841,8 @@
       "COORDINATOR": "Coordinator",
       "MANAGERIAL": "Manager",
       "ADMIN": "School administration",
-      "PARENT": "Parent"
+      "PARENT": "Parent",
+      "FLOOR_SUPERVISOR": "Floor supervisor"
     },
     "peer": {
       "all": "All",
@@ -1795,7 +1851,8 @@
       "admin": "Admin",
       "managers": "Management",
       "teachers": "Teachers",
-      "management": "Management"
+      "management": "Management",
+      "floorTeachers": "Teachers on your floor"
     },
     "supportSubtitle": "Your conversations with the managers, coordinators, teachers and parents of this school.",
     "supportEmptyHint": "Use Message on a person's row in Teachers, Coordinators, Managers or Children & parents — or pick a manager under New message.",
@@ -1827,7 +1884,8 @@
       "photos": "📷 {{count}} photos",
       "file": "📄 {{name}}"
     },
-    "attachmentAlreadySent": "Not sent: these files were already sent in another message. Attach them again."
+    "attachmentAlreadySent": "Not sent: these files were already sent in another message. Attach them again.",
+    "floorSubtitle": "Parents of your floor, its teachers, the managers and the administration"
   },
   "profile": {
     "title": "Your profile",
@@ -1992,7 +2050,8 @@
     "ADMIN": "Admin",
     "TEACHER": "Teacher",
     "MANAGERIAL": "Management",
-    "COORDINATOR": "Coordinator"
+    "COORDINATOR": "Coordinator",
+    "FLOOR_SUPERVISOR": "Floor supervisor"
   },
   "shell": {
     "darkMode": "Dark mode",
@@ -2740,7 +2799,8 @@
       "COORDINATOR": "Coordinator",
       "MANAGERIAL": "Manager",
       "ADMIN": "Admin",
-      "PARENT": "Parent"
+      "PARENT": "Parent",
+      "FLOOR_SUPERVISOR": "Floor supervisor"
     },
     "unread": "{{count}} new",
     "empty": {
@@ -2904,6 +2964,37 @@
       "HOLIDAY": "Holiday",
       "UPCOMING": "—",
       "LEAVE": "Leave"
+    }
+  },
+  "floor": {
+    "home": {
+      "title": "Today on your floor",
+      "subtitle": "Your floor",
+      "loading": "Loading your floor",
+      "staff": "Staff attendance",
+      "children": "Children’s attendance",
+      "empty": "No classes on your floor yet.",
+      "table": {
+        "class": "Class",
+        "children": "Children",
+        "present": "Present",
+        "absent": "Absent",
+        "late": "Late",
+        "excused": "Excused",
+        "notMarked": "Not marked"
+      }
+    },
+    "children": {
+      "subtitle": "Every child in the classes on your floor.",
+      "search": "Search by name",
+      "empty": "No children found.",
+      "message": "Message parent",
+      "messageFailed": "This child has no registered parent yet, so there is nobody to write to.",
+      "table": {
+        "name": "Child",
+        "class": "Class",
+        "floor": "Floor"
+      }
     }
   },
   "today": {

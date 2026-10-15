@@ -25,8 +25,11 @@ import quest.server.config.QuestProperties;
  */
 @Service
 public class AdminJwtService {
-    /** Feature 13 adds WORKER: a mobile-app-only account, refused on every dashboard path by `SecurityConfig`. */
-    public static final Set<String> ROLES = Set.of("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "WORKER");
+    /**
+     * Feature 13 adds WORKER: a mobile-app-only account, refused on every dashboard path by `SecurityConfig`.
+     * Feature 20 adds FLOOR_SUPERVISOR, the sixth role, whose dashboard is `/floor/**`.
+     */
+    public static final Set<String> ROLES = Set.of("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "WORKER", "FLOOR_SUPERVISOR");
     private static final String PREFIX = "admin.";
     private static final String RESET_PREFIX = "reset.";
 

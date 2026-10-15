@@ -2,7 +2,6 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { FLAGS } from '../../core/flags/flag.service';
 import { FeatureDirective } from '../../core/flags/feature.directive';
 import { activeLang } from '../../core/i18n/active-lang';
 import {
@@ -33,7 +32,9 @@ import { scoreLabel } from './results.models';
  * than invent them from scores, the page leaves them out and the package reports the gap.
  *
  * Behind `gradebook` (`*hqFeature` on the way in, and `featureGuard` on the route from
- * `core/nav/screens.ts`) and `results.read`.
+ * `core/nav/screens.ts`) and `results.read` — or, for the floor supervisor whose area feature 20
+ * added, behind `floorSupervisor` and `floor.read`, which are the keys her row and her own
+ * `GET /floor/children/{id}` carry.
  */
 @Component({
   selector: 'hq-child-page',
@@ -58,8 +59,13 @@ export class ChildPage {
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
 
-  /** The flag the page's own contents carry, beside the route's `featureGuard`. */
-  protected readonly gradebookFlag = FLAGS.gradebook;
+  /**
+   * The flag the page's own contents carry, beside the route's `featureGuard`.
+   *
+   * `gradebook` for the three areas whose row carries it, `floorSupervisor` for the floor
+   * supervisor's — the area decides, not this page (`ResultsApiService.childContentFlag`).
+   */
+  protected readonly contentFlag = this.reads.childContentFlag;
 
   private readonly path = toSignal(this.route.paramMap, { initialValue: this.route.snapshot.paramMap });
   protected readonly childId = computed(() => this.path().get('childId') ?? '');
@@ -80,8 +86,9 @@ export class ChildPage {
   protected readonly breadcrumbs = computed<readonly Breadcrumb[]>(() => {
     this.lang();
     const classId = this.report.value().classId ?? '';
+    const root = this.reads.childRootCrumb();
     return [
-      { label: this.t('classes.title'), link: this.reads.classesLink() },
+      { label: this.t(root.labelKey), link: root.link },
       ...(classId
         ? [{ label: this.className(), ...linkOrNothing(this.reads.classLink(classId, 'gradebook')) }]
         : []),

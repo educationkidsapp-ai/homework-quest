@@ -16,8 +16,9 @@ import quest.server.tenancy.StaffScopeRepository;
  * when there is none, the Admin. Feature 16 sends the immediate alert here and feature 18 the approvals.
  *
  * <p><strong>Her academy</strong> is a curriculum (`british`, `american`): a teacher's is `teachers.curriculum`, a
- * coordinator's the curricula of her `staff_scopes` rows. A manager is herself a director and a worker belongs to no
- * academy, so both fall through to the Admin. <strong>The director</strong> of an academy is an active manager whose
+ * coordinator's the curricula of her `staff_scopes` rows, and a floor supervisor's the academies of the floors she
+ * holds (feature 20). A manager is herself a director and a worker belongs to no academy, so both fall through to the
+ * Admin. <strong>The director</strong> of an academy is an active manager whose
  * department row (`subject` NULL) names it. When an academy has two, the earliest created wins, and when the employee
  * spans two academies they are tried in name order, so the answer is the same every time it is asked.
  */
@@ -30,10 +31,13 @@ public class DirectManagerResolver {
 
     private final StaffAttendanceProfileRepository profiles; private final AttendanceStaff directory;
     private final UserRepository users; private final TeacherRepository teachers; private final StaffScopeRepository scopes;
+    private final quest.server.tenancy.FloorScope floors;
 
     public DirectManagerResolver(StaffAttendanceProfileRepository profiles, AttendanceStaff directory, UserRepository users,
-                                 TeacherRepository teachers, StaffScopeRepository scopes) {
-        this.profiles = profiles; this.directory = directory; this.users = users; this.teachers = teachers; this.scopes = scopes;
+                                 TeacherRepository teachers, StaffScopeRepository scopes,
+                                 quest.server.tenancy.FloorScope floors) {
+        this.profiles = profiles; this.directory = directory; this.users = users; this.teachers = teachers;
+        this.scopes = scopes; this.floors = floors;
     }
 
     public Resolved resolve(String schoolId, String kind, String staffId) {
@@ -81,6 +85,8 @@ public class DirectManagerResolver {
         if ("TEACHER".equals(employee.getRole()))
             teachers.findById(employee.getId()).map(t -> t.getCurriculum()).filter(c -> c != null && !c.isBlank())
                     .ifPresent(c -> academies.add(c.trim().toLowerCase(Locale.ROOT)));
+        else if (quest.server.tenancy.FloorScope.ROLE.equals(employee.getRole()))
+            academies.addAll(floors.academiesOf(schoolId, employee.getId()));   // feature 20: her floors' academies
         else if ("COORDINATOR".equals(employee.getRole()) || "MANAGERIAL".equals(employee.getRole()))
             for (var row : scopes.findBySchoolIdAndUserIdOrderBySubjectAscCurriculumAsc(schoolId, employee.getId()))
                 if (row.getCurriculum() != null && !row.getCurriculum().isBlank()

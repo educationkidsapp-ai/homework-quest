@@ -774,6 +774,9 @@ export class ShellHeaderComponent {
         return '/coordinator/messages';
       case 'MANAGERIAL':
         return '/management/messages';
+      // Feature 20: hers is `/floor/chat/**` behind one screen, like the two supervisors' above.
+      case 'FLOOR_SUPERVISOR':
+        return '/floor/messages';
       case 'ADMIN':
         return '/admin/messages';
       default:

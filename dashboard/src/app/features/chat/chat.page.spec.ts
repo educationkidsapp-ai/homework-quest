@@ -15,6 +15,8 @@ import {
   ChatThreadStaffRoleEnum,
   ChatThreadStatusEnum,
   ChatThreadTopicEnum,
+  FloorSupervisorApi,
+  FloorSupervisorChatApi,
   ManagementApi,
   ManagementChatApi,
   ManagersApi,
@@ -116,9 +118,25 @@ describe('ChatPage', () => {
     uploadChatAttachment,
   };
 
+  /** Feature 20: `GET /floor/teachers` and `POST /floor/chat/threads`. */
+  const floorApi = {
+    floorTeachers: vi.fn().mockReturnValue(
+      of([
+        { userId: 'u-tala', displayName: 'Tala Nasser', subjects: ['math'] },
+        { userId: 'u-rana', displayName: 'Rana Omar', subjects: [] },
+      ]),
+    ),
+  };
+  const floorChatApi = {
+    floorChatPeers: vi
+      .fn()
+      .mockReturnValue(of({ managers: [{ userId: 'u-nada', displayName: 'Nada Fahad' }], admins: [] })),
+    floorChatThread: vi.fn().mockReturnValue(of({ id: 'th-7' })),
+  };
+
   async function renderPage(
     query: BehaviorSubject<Record<string, string>> | null = null,
-    role: 'TEACHER' | 'ADMIN' | 'MANAGERIAL' | 'COORDINATOR' = 'TEACHER',
+    role: 'TEACHER' | 'ADMIN' | 'MANAGERIAL' | 'COORDINATOR' | 'FLOOR_SUPERVISOR' = 'TEACHER',
   ) {
     return renderHq(ChatPage, {
       providers: [
@@ -136,6 +154,10 @@ describe('ChatPage', () => {
           useValue: { managementCoordinators: () => of([]), managementTeachers: () => of([]) },
         },
         { provide: ManagementChatApi, useValue: { managementAdmins: () => of([]) } },
+        // Feature 20: a floor supervisor's chooser reads her floor's teachers and the office
+        // above her, and opens the thread on her own route.
+        { provide: FloorSupervisorApi, useValue: floorApi },
+        { provide: FloorSupervisorChatApi, useValue: floorChatApi },
         {
           provide: AuthService,
           useValue: { role: signal(role), user: signal({ id: 'u-sara' }) },
@@ -647,6 +669,46 @@ describe('ChatPage', () => {
       expect(mockChatService.selectThread).toHaveBeenCalledWith('th-new');
       expect(mockChatService.loadThreads).not.toHaveBeenCalled();
       expect(screen.getByText('Nada Fahad')).toBeTruthy();
+    });
+  });
+  /**
+   * Feature 20's acceptance criterion: "She can message parents of her floor and the teachers on
+   * it." The parents' half starts from her Children screen (a thread is about one child); the
+   * teachers' half is this chooser, and it posts the teacher rather than the manager the other
+   * `manager:`-shaped options do.
+   */
+  describe('a floor supervisor starting a conversation', () => {
+    it('lists the teachers on her floor beside the office above her', async () => {
+      const rendered = await renderPage(null, 'FLOOR_SUPERVISOR');
+
+      await userEvent.click(screen.getByRole('button', { name: 'New message' }));
+      await Promise.resolve();
+      TestBed.tick();
+      rendered.fixture.detectChanges();
+
+      const groups = screen.getAllByRole('group').map((group) => group.getAttribute('label'));
+      expect(groups).toContain('Teachers on your floor');
+      // The subject rides on the label — the same shape the manager's chooser uses — so two
+      // teachers of one first name are told apart.
+      expect(screen.getByRole('option', { name: 'Tala Nasser · math' })).toBeTruthy();
+      expect(screen.getByRole('option', { name: 'Rana Omar' })).toBeTruthy();
+      // And the office above her is still in the same chooser.
+      expect(screen.getByRole('option', { name: 'Nada Fahad' })).toBeTruthy();
+      expect(floorApi.floorTeachers).toHaveBeenCalled();
+    });
+
+    it('opens the thread with the teacher she picked', async () => {
+      const rendered = await renderPage(null, 'FLOOR_SUPERVISOR');
+
+      await userEvent.click(screen.getByRole('button', { name: 'New message' }));
+      await userEvent.selectOptions(screen.getByLabelText(/Who do you want to write to/), ['teacher:u-tala']);
+      rendered.fixture.detectChanges();
+      await userEvent.click(screen.getByRole('button', { name: 'Open the conversation' }));
+
+      expect(floorChatApi.floorChatThread).toHaveBeenCalledWith({ teacherUserId: 'u-tala' });
+      // The list, then the row: a thread this press created is not in the list yet.
+      expect(mockChatService.loadThreads).toHaveBeenCalled();
+      expect(mockChatService.selectThread).toHaveBeenCalledWith('th-7');
     });
   });
 });

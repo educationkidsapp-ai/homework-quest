@@ -553,6 +553,7 @@ fun typingLine(who: Resolver, strings: Strings): String = when (who) {
     Resolver.COORDINATOR -> strings.chatFiles.typingCoordinator
     Resolver.MANAGER -> strings.chatFiles.typingManager
     Resolver.ADMIN -> strings.chatFiles.typingAdmin
+    Resolver.FLOOR_SUPERVISOR -> strings.chatFiles.typingFloorSupervisor
 }
 
 
@@ -666,6 +667,7 @@ fun ChatConversationScreen(
                             ChatStaffRole.COORDINATOR -> strings.emptyConversationCoordinator
                             ChatStaffRole.MANAGERIAL -> strings.emptyConversationManager
                             ChatStaffRole.TEACHER -> strings.emptyConversation
+                            ChatStaffRole.FLOOR_SUPERVISOR -> strings.emptyConversationFloorSupervisor
                         },
                         style = MaterialTheme.typography.bodyLarge,
                         color = DashboardTokens.inkSoft,

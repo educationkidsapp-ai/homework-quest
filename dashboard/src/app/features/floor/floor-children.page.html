@@ -1,0 +1,72 @@
+<hq-page [title]="'nav.children' | transloco" [subtitle]="'floor.children.subtitle' | transloco">
+  <ng-container *hqFeature="floorFlag">
+    @if (threads.failed()) {
+      <hq-band
+        variant="error"
+        [open]="true"
+        [title]="'band.failed' | transloco"
+        (dismissed)="threads.failed.set(false)"
+      >
+        {{ 'floor.children.messageFailed' | transloco }}
+      </hq-band>
+    }
+
+    <div data-hq-search class="floor-children__search">
+      <hq-input
+        type="search"
+        keycap="/"
+        [label]="'floor.children.search' | transloco"
+        [placeholder]="'floor.children.search' | transloco"
+        [value]="search()"
+        (valueChange)="onSearch($event)"
+      />
+    </div>
+
+    @if (children.isLoading()) {
+      <hq-skeleton
+        [loading]="true"
+        [lines]="6"
+        height="var(--hq-size-row-height)"
+        [label]="'ui.loading' | transloco"
+      />
+    } @else if (children.error()) {
+      <hq-coordinator-read-failed (retry)="children.reload()" />
+    } @else {
+      <hq-table
+        [bordered]="true"
+        [rows]="rows()"
+        [columns]="columns()"
+        [cellTemplate]="cell"
+        [trackBy]="trackRow"
+        [label]="'nav.children' | transloco"
+      >
+        <hq-empty-state table-empty [message]="'floor.children.empty' | transloco" />
+      </hq-table>
+    }
+  </ng-container>
+
+  <ng-template #cell let-row let-column="column">
+    @switch (column.key) {
+      @case ('name') {
+        <!-- Her one way into a child: the report, read-only, on `/floor/children/{id}`. -->
+        <a [routerLink]="row.link">{{ row.name }}</a>
+      }
+      @case ('className') {
+        {{ row.className }}
+      }
+      @case ('floorName') {
+        {{ row.floorName || '—' }}
+      }
+      @case ('actions') {
+        <hq-button
+          *hqCan="'floor.chat'"
+          variant="secondary"
+          [loading]="threads.pending() === row.childId"
+          (pressed)="message(row)"
+        >
+          {{ 'floor.children.message' | transloco }}
+        </hq-button>
+      }
+    }
+  </ng-template>
+</hq-page>

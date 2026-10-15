@@ -54,6 +54,13 @@ public final class FlagKeys {
     public static final String CHAT_OFFICE_HOURS = "chatOfficeHours";
 
     /**
+     * Feature 20: the floor supervisor role — her area `/floor/**`, her Messages, and the Admin's Floors and Floor
+     * supervisors pages. Seeded off by V42, and it stays off until the app build that can decode the new
+     * `FLOOR_SUPERVISOR` chat role is distributed.
+     */
+    public static final String FLOOR_SUPERVISOR = "floorSupervisor";
+
+    /**
      * Feature 21: the Admin's and the department manager's Home leads with what needs a decision today — attendance,
      * the requests waiting for her, overdue complaints and unread messages (`GET /me/today`). Seeded off by V43.
      */
@@ -64,5 +71,5 @@ public final class FlagKeys {
             OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, COMPLAINTS, ANNOUNCEMENTS, TEACHER_QUESTIONS,
             STICKERS_TREASURE_CHEST, PROGRESS_WEEKLY_EMAIL, CERTIFICATES,
             MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST,
-            CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, TODAY_HOME);
+            CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, FLOOR_SUPERVISOR, TODAY_HOME);
 }

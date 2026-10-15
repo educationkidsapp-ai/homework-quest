@@ -10,6 +10,7 @@ import {
   ChatThreadStatusEnum,
   ChatThreadTopicEnum,
   CoordinatorChatApi,
+  FloorSupervisorChatApi,
   ManagementChatApi,
   SchoolsApi,
 } from '../../api';
@@ -74,6 +75,7 @@ describe('ChatRoutes', () => {
   let teacherApi: Partial<ChatApi>;
   let coordinatorApi: Partial<CoordinatorChatApi>;
   let managementApi: Partial<ManagementChatApi>;
+  let floorApi: Partial<FloorSupervisorChatApi>;
   let schoolsApi: Partial<SchoolsApi>;
   const role = signal<Role | null>('COORDINATOR');
   /** D13: with `multiSchool` off there is one school and no switcher to pick it with. */
@@ -112,6 +114,13 @@ describe('ChatRoutes', () => {
       managementSendChatMessage: vi.fn().mockReturnValue(of({})),
       managementMarkChatRead: vi.fn().mockReturnValue(of({})),
     };
+    // Feature 20: the floor supervisor's four calls, keyed by thread like the two above her.
+    floorApi = {
+      floorChatThreads: vi.fn().mockReturnValue(of([parentThread, staffThread])),
+      floorChatMessages: vi.fn().mockReturnValue(of([])),
+      floorSendChatMessage: vi.fn().mockReturnValue(of({})),
+      floorMarkChatRead: vi.fn().mockReturnValue(of({})),
+    };
     schoolsApi = { listSchools: vi.fn().mockImplementation(() => of(schools())) };
 
     TestBed.configureTestingModule({
@@ -119,6 +128,7 @@ describe('ChatRoutes', () => {
         { provide: ChatApi, useValue: teacherApi },
         { provide: CoordinatorChatApi, useValue: coordinatorApi },
         { provide: ManagementChatApi, useValue: managementApi },
+        { provide: FloorSupervisorChatApi, useValue: floorApi },
         { provide: SchoolsApi, useValue: schoolsApi },
         // The multi-school build; the switcher-hidden default has its own case below.
         { provide: NAV_CONFIG, useValue: { schoolSurfaces } },
@@ -176,6 +186,40 @@ describe('ChatRoutes', () => {
       clientId: anyId,
     });
     expect(coordinatorApi.coordinatorMarkChatRead).toHaveBeenCalledWith('th-2');
+  });
+
+  /**
+   * Feature 20: the floor supervisor reads `/floor/chat/**` and nothing else.
+   *
+   * Keyed by thread, like the two supervisors above her: one of her rows is a manager or the
+   * school's administration and has no child on it at all. The negative half matters as much as
+   * the positive one — her account holds no `coordinator.chat` or `management.chat`, so a call to
+   * either namespace would be a 403 under a screen she was offered.
+   */
+  it('keys a floor supervisor by thread and reads only the floor routes', () => {
+    role.set('FLOOR_SUPERVISOR');
+    const { routes, chat } = setup();
+
+    expect(routes.transport()?.keyOf(staffThread)).toBe('th-2');
+    expect(routes.transport()?.commandKey('th-2')).toEqual({ threadId: 'th-2' });
+    // One transport, which owns every row its own `GET /floor/chat/threads` answered.
+    expect(routes.transports().length).toBe(1);
+    expect(routes.transport()?.owns(parentThread)).toBe(true);
+
+    chat.loadThreads();
+    expect(floorApi.floorChatThreads).toHaveBeenCalled();
+    expect(coordinatorApi.coordinatorChatThreads).not.toHaveBeenCalled();
+    expect(managementApi.managementChatThreads).not.toHaveBeenCalled();
+    expect(teacherApi.teacherChatThreads).not.toHaveBeenCalled();
+
+    chat.selectThread('th-2');
+    expect(floorApi.floorChatMessages).toHaveBeenCalledWith('th-2', undefined, undefined);
+    chat.sendMessage('Her daughter was late twice this week');
+    expect(floorApi.floorSendChatMessage).toHaveBeenCalledWith('th-2', {
+      body: 'Her daughter was late twice this week',
+      clientId: anyId,
+    });
+    expect(floorApi.floorMarkChatRead).toHaveBeenCalledWith('th-2');
   });
 
   it('keys a teacher by child and never touches the coordinator routes', () => {

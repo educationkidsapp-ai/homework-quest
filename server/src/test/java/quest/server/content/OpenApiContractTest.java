@@ -205,6 +205,21 @@ class OpenApiContractTest extends ApiTestSupport {
             "/admin/coordinators/{id}/reset-password", "/admin/coordinators/{id}/scopes");
 
     /**
+     * Feature 20 (`quest.api.dashboard.Floors`): the floor supervisor's read-only area, her Messages, and the Admin's
+     * Floors and Floor supervisors pages. Behind `floorSupervisor` at run time and still in the document, for the
+     * reason every flagged area is: `server/openapi.json` describes the API the server can serve rather than what one
+     * school has switched on.
+     */
+    static final List<String> FLOOR_API = List.of(
+            "/floor/me", "/floor/home", "/floor/teachers", "/floor/classes",
+            "/floor/children", "/floor/children/{id}",
+            "/floor/chat/peers", "/floor/chat/threads", "/floor/chat/threads/{id}/messages",
+            "/floor/chat/threads/{id}/read",
+            "/admin/floors", "/admin/floors/{id}",
+            "/admin/floor-supervisors", "/admin/floor-supervisors/{id}",
+            "/admin/floor-supervisors/{id}/reset-password");
+
+    /**
      * RM1: the department manager's read-only area and the Admin routes that create one
      * (`quest.api.dashboard.Management.kt`, DR5). {@link #COORDINATOR_API}'s mirror one axis over — wide in subject,
      * narrow in track — and every path is a GET except the two that mint an account and set a department.
@@ -282,6 +297,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(DEVICES_API);
         assertThat(paths).containsAll(STAFF_API);
         assertThat(paths).containsAll(COORDINATOR_API);
+        assertThat(paths).containsAll(FLOOR_API);
         assertThat(paths).containsAll(MANAGEMENT_API);
         assertThat(paths).containsAll(BROADCASTS_API);
         assertThat(paths).containsAll(PUBLIC_API);

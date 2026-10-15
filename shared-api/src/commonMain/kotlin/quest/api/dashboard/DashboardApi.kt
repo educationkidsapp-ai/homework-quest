@@ -31,6 +31,13 @@ enum class Role {
      */
     @SerialName("COORDINATOR") COORDINATOR,
     /**
+     * Feature 20: the floor supervisor (مشرفة الدور) — she looks **across** the classes of her floor rather than down
+     * one subject. A floor is a named group of classes in one academy ([Floor]); her area is `/floor` ([FloorMe]) and
+     * she never sees a class outside her floors. She may be a direct manager (feature 14), so feature 16's lateness
+     * alerts reach her.
+     */
+    @SerialName("FLOOR_SUPERVISOR") FLOOR_SUPERVISOR,
+    /**
      * Feature 13: a member of the school's non-teaching staff who signs in to the **mobile app** and nowhere else —
      * the caretaker, the driver, the nurse, the secretary, given an account by
      * `POST /admin/workers/{id}/app-access` ([WorkerAccess]). She holds `staff.app` and her notifications, and is

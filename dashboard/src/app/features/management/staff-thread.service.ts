@@ -5,9 +5,10 @@ import {
   type ChatThread,
   type StaffThreadRequest,
   CoordinatorChatApi,
+  FloorSupervisorChatApi,
   ManagementChatApi,
 } from '../../api';
-import { AuthService } from '../../core/auth/auth.service';
+import { AuthService, type Role } from '../../core/auth/auth.service';
 import { ChatService } from '../../core/chat/chat.service';
 
 /**
@@ -37,12 +38,17 @@ import { ChatService } from '../../core/chat/chat.service';
  *
  * A **coordinator** presses the same button on her Teachers page: `POST /coordinator/chat/threads
  * {teacherUserId}`, shown on `/coordinator/messages`. The role picks the route, never the caller.
+ *
+ * Feature 20 added the **floor supervisor**, who presses it on her Children screen: `POST
+ * /floor/chat/threads {childId}` is the same idempotent promise one namespace over, and her
+ * conversation shows on `/floor/messages`.
  */
 
 @Injectable({ providedIn: 'root' })
 export class StaffThreadService {
   private readonly management = inject(ManagementChatApi);
   private readonly coordinator = inject(CoordinatorChatApi);
+  private readonly floor = inject(FloorSupervisorChatApi);
   private readonly auth = inject(AuthService);
   private readonly chat = inject(ChatService);
   private readonly router = inject(Router);
@@ -53,17 +59,15 @@ export class StaffThreadService {
 
   open(rowId: string, body: StaffThreadRequest): void {
     if (rowId === '' || this.pending() !== '') return;
-    const coordinator = this.auth.role() === 'COORDINATOR';
+    const role = this.auth.role();
     this.pending.set(rowId);
     this.failed.set(false);
-    this.request(coordinator, body)
+    this.request(role, body)
       .pipe(
         tap((thread) => {
           this.pending.set('');
           const key = this.chat.adopt(thread);
-          void this.router.navigate([coordinator ? '/coordinator/messages' : '/management/messages'], {
-            queryParams: { thread: key },
-          });
+          void this.router.navigate([`${areaOf(role)}/messages`], { queryParams: { thread: key } });
         }),
         catchError(() => {
           this.pending.set('');
@@ -74,9 +78,19 @@ export class StaffThreadService {
       .subscribe();
   }
 
-  private request(coordinator: boolean, body: StaffThreadRequest): Observable<ChatThread> {
-    if (!coordinator) return this.management.managementStaffThread(body);
+  private request(role: Role | null, body: StaffThreadRequest): Observable<ChatThread> {
+    // Feature 20: hers is the parent of a child on her floor, which is the only row her Children
+    // screen presses this on — `{childId}` and nothing else, as the route expects.
+    if (role === 'FLOOR_SUPERVISOR') return this.floor.floorChatThread({ childId: body.childId });
+    if (role !== 'COORDINATOR') return this.management.managementStaffThread(body);
     // Exactly one id: the route takes a manager *or* a teacher, and this button is the teacher's.
     return this.coordinator.coordinatorStaffThread({ teacherUserId: body.teacherUserId });
   }
+}
+
+/** Where the thread this press opened is shown. `/management` is the answer for everyone else. */
+function areaOf(role: Role | null): string {
+  if (role === 'COORDINATOR') return '/coordinator';
+  if (role === 'FLOOR_SUPERVISOR') return '/floor';
+  return '/management';
 }

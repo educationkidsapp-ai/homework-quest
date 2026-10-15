@@ -69,6 +69,11 @@ export const routes: Routes = [
         loadChildren: () =>
           import('./features/coordinator/coordinator.routes').then((m) => m.COORDINATOR_ROUTES),
       },
+      // Feature 20: the floor supervisor's area, behind `floorSupervisor` on every row.
+      {
+        path: 'floor',
+        loadChildren: () => import('./features/floor/floor.routes').then((m) => m.FLOOR_ROUTES),
+      },
       // "Preview as child" (teacher-flow §8). Outside the three role areas because the player is
       // nobody's screen — it is the child's app, shown to whoever authored the lesson — and out
       // of `screens.ts` because a row there is a rail item or a role's route, and this is neither.
