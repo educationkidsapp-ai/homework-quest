@@ -80,11 +80,17 @@ public final class FlagKeys {
      */
     public static final String REMOTE_STUDY_DAYS = "remoteStudyDays";
 
+    /**
+     * Feature 28: the parent's evening card about one child's day (`GET /children/{id}/evening-card` and the 18:00
+     * push). Seeded off by V50.
+     */
+    public static final String PARENT_EVENING_CARD = "parentEveningCard";
+
     public static final List<String> ALL = List.of(
             LESSONS_PDF, LESSONS_SLIDES, LESSONS_IMAGES, LESSONS_MANUAL, LEVELS_THREE, RETELL_RECORDING,
             OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, COMPLAINTS, ANNOUNCEMENTS, TEACHER_QUESTIONS,
             STICKERS_TREASURE_CHEST, PROGRESS_WEEKLY_EMAIL, CERTIFICATES,
             MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST,
             CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, FLOOR_SUPERVISOR, TODAY_HOME,
-            VOICE_ANNOUNCEMENT, REMOTE_STUDY_DAYS);
+            VOICE_ANNOUNCEMENT, REMOTE_STUDY_DAYS, PARENT_EVENING_CARD);
 }

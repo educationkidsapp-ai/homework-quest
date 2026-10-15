@@ -367,6 +367,10 @@ class PushTest {
         NotificationTap("exam.released", "/children/c1/progress", "nt-10", childId = "c1", collapseKey = "lesson:e1") to { r ->
             assertEquals(PushNavigator.Step.Parent(Routes.Progress(focusExam = "e1")), r, "the parent's result, with its score")
         },
+        // Feature 28: the evening card has no page of its own — it is the top of that child's parent home.
+        NotificationTap("evening.card", "/children/c1/evening-card", "nt-12", childId = "c1", collapseKey = "evening:2026-10-15") to { r ->
+            assertEquals(PushNavigator.Step.Parent(Routes.ParentHome), r, "her parent home, where the card is")
+        },
         NotificationTap("something.new", null, "nt-11", childId = "c1") to { r ->
             assertEquals(PushNavigator.Step.Parent(Routes.Broadcasts(focusRow = "nt-11")), r, "unknown: the Notifications page, that row highlighted")
         },

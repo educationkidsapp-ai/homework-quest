@@ -20,7 +20,9 @@ import quest.server.ApiTestSupport;
  */
 class OpenApiContractTest extends ApiTestSupport {
     static final List<String> CONTENT_API = List.of(
-            "/children", "/children/{id}", "/children/{id}/map", "/children/{id}/attempts", "/children/{id}/stops/{stopId}/media", "/children/{id}/progress", "/lessons/{id}");
+            "/children", "/children/{id}", "/children/{id}/map", "/children/{id}/attempts", "/children/{id}/stops/{stopId}/media", "/children/{id}/progress", "/lessons/{id}",
+            // Feature 28: the parent's evening card about one child's day (204 before 16:00 school time).
+            "/children/{id}/evening-card");
     static final List<String> ADMIN_API = List.of(
             "/admin/auth/sign-in", "/admin/lessons", "/admin/lessons/{id}", "/admin/lessons/{id}/status", "/admin/lessons/{id}/files", "/admin/lessons/{id}/analyze", "/admin/lessons/{id}/skills",
             "/admin/lessons/{id}/files/{fileId}/markdown", "/admin/lessons/{id}/files/{fileId}/retry-conversion",

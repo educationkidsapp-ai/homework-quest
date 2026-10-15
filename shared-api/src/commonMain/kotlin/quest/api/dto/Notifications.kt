@@ -134,6 +134,13 @@ enum class NotificationKind {
      * word the row in the reader's language.
      */
     @SerialName("chat.after_hours_summary") CHAT_AFTER_HOURS_SUMMARY,
+    /**
+     * Feature 28 (parents only): the evening card about one child's day is ready. [NotificationView.title] is "Today
+     * with &lt;her name&gt;" — the **push** may name her, because nothing of her ever reached the model that wrote the
+     * card ([EveningCard]) — [NotificationView.childId] is that child and [NotificationView.link]
+     * `/children/{childId}/evening-card`. Once per child and day.
+     */
+    @SerialName("evening.card") EVENING_CARD,
 }
 
 /**

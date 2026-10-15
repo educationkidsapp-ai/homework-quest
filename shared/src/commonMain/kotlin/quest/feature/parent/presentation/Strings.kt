@@ -220,6 +220,14 @@ data class Strings(
     val currentChild: String = "Current",
     val noChildrenLinked: String = "Your school has not linked a child to this account yet — contact the school.",
     val checkAgain: String = "Check again",
+    /**
+     * Feature 28: the evening card at the top of the parent home. `{name}` in the title is her own child's first
+     * name, filled in on this phone — as is the `{child}` the card's own sentences carry, because nothing about her
+     * ever reached the assistant that wrote them.
+     */
+    val eveningCardTitle: String = "Today with {name}",
+    val eveningCardByAssistant: String = "Written by the assistant",
+    val eveningCardUpdate: String = "Evening card",
     /** The lesson and exam screens' own table; the student home draws its exam badge and read-aloud label from it. */
     val lesson: LessonStrings = LessonStrings.en,
     /** M8: the Complaints page's own table. */
@@ -427,6 +435,9 @@ data class Strings(
             currentChild = "الحالي",
             noChildrenLinked = "لم تربط مدرستك أي طفل بهذا الحساب بعد — يرجى التواصل مع المدرسة.",
             checkAgain = "تحقّق مرة أخرى",
+            eveningCardTitle = "اليوم مع {name}",
+            eveningCardByAssistant = "كتبها المساعد",
+            eveningCardUpdate = "بطاقة المساء",
             lesson = LessonStrings.ar,
             complaints = ComplaintStrings.ar,
             officeHours = OfficeHoursWords.ar,
