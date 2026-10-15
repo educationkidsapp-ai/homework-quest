@@ -6,6 +6,7 @@ import {
   type Complaint,
   type ComplaintDetail,
   type ComplaintList,
+  type ComplaintTriage,
   ComplaintStatusRequestStatusEnum,
   ComplaintsApi,
   CoordinatorChatApi,
@@ -103,6 +104,20 @@ export class ComplaintsService {
    * move); the Admin and a read-only "View as" session may not.
    */
   readonly canMoveStatus = computed(() => this.area() !== 'admin' && !this.permissions.readOnly());
+
+  /**
+   * Feature 27: whether the triage may be drawn at all. The rows and the detail carry `triage`
+   * only for staff and only once the model has answered, so a screen asks this **and** looks at
+   * the row: the flag off, a complaint of the seconds before the answer landed, and one whose
+   * model failed all look the same on screen — no chips, no panel, and the complaint itself
+   * exactly as it was before this feature.
+   */
+  readonly triageOn = computed(() => this.flags.isOn(FLAGS.complaintTriage));
+
+  /** The triage to draw for one complaint, or `null` when there is nothing to draw. */
+  triageOf(complaint: Complaint | null | undefined): ComplaintTriage | null {
+    return this.triageOn() ? (complaint?.triage ?? null) : null;
+  }
 
   /** `ComplaintList.open` / `.resolved` — every complaint of hers, whatever the filter. */
   readonly counts = signal<{ readonly open: number; readonly resolved: number }>(NO_COUNTS);
@@ -263,4 +278,21 @@ export class ComplaintsService {
       .pipe(catchError(() => of(null)))
       .subscribe();
   }
+}
+
+/**
+ * Feature 27: the summary and the suggested reply in the language she is **reading**, not the
+ * school's and not the parent's — the triage is written in both, and the one she is shown is the
+ * one she would write in. The reply is a suggestion to put in the box; nothing here is ever sent
+ * by itself.
+ */
+export function triageText(
+  triage: ComplaintTriage,
+  lang: string,
+): { readonly summary: string; readonly reply: string } {
+  const arabic = lang.startsWith('ar');
+  return {
+    summary: arabic ? triage.summaryAr : triage.summaryEn,
+    reply: arabic ? triage.replyAr : triage.replyEn,
+  };
 }

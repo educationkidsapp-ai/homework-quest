@@ -41,6 +41,11 @@ sealed interface Destination {
     data class Broadcast(val broadcastId: String) : Destination
     /** `homework.published`: the parent's view of that lesson (the lesson panel) for that child. */
     data class Lesson(val lessonId: String) : Destination
+    /**
+     * Feature 28: `evening.card` — the parent home of the child the card is about, where the card itself sits at the
+     * top. The router has already made her the current child, so the home opens on her.
+     */
+    data object ParentHome : Destination
     /** `exam.published` (or any `…/map` link): the child's home, where the exam's card is — title and window, never the paper. */
     data object ExamCard : Destination
     /** The parent's Progress page — an `…/progress` link that names no exam. */
@@ -93,6 +98,8 @@ class NotificationRouter(
             "homework.published" -> lesson(tap, child) { Destination.Lesson(it) }
             "exam.published" -> lesson(tap, child) { Destination.ExamCard }
             "exam.released" -> tap.idFor("lesson")?.let { Destination.ExamResult(it) } ?: Destination.Progress
+            // Feature 28: the card has no page of its own — it is the top of her parent home.
+            EVENING_CARD -> if (child != null) Destination.ParentHome else notifications(tap)
             "announcement.posted", "question.sent" -> notifications(tap)
             else -> byLink(tap, child)                  // a kind still to come: its link decides
         }
@@ -228,6 +235,13 @@ fun isAttendance(kind: String?): Boolean = kind != null && kind.startsWith("atte
  * names no thread and cannot be mistaken for one.
  */
 const val CHAT_AFTER_HOURS_SUMMARY = "chat.after_hours_summary"
+
+/**
+ * Feature 28: `NotificationKind.EVENING_CARD` — today's card about one child, linking
+ * `/children/{id}/evening-card`. A parent's kind, always about a child, so it goes through the parent gate like the
+ * rest of them.
+ */
+const val EVENING_CARD = "evening.card"
 
 /** The `?count=` of an after-hours summary's link, when it carries a positive one. */
 fun afterHoursCount(link: String?): Int? =

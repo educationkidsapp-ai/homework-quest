@@ -71,7 +71,7 @@ internal class FakeComplaints(
     fun detail(childId: String, complaintId: String, since: String?): ComplaintDetail {
         val entry = find(childId, complaintId)
         val messages = since?.let { id -> entry.messages.indexOfFirst { it.id == id }.takeIf { it >= 0 }?.let { entry.messages.drop(it + 1) } } ?: entry.messages
-        return ComplaintDetail(entry.view(), messages.toList(), entry.events.toList())
+        return ComplaintDetail(entry.view(), messages.toList(), entry.events.toList(), entry.expectedReply())
     }
 
     suspend fun reply(childId: String, complaintId: String, request: SendChatMessageRequest): ChatMessage {
@@ -110,7 +110,14 @@ internal class FakeComplaints(
         unread = messages.count { it.sender != ChatSender.PARENT && it.readAt == null },
     )
 
-    private fun Entry.detail() = ComplaintDetail(view(), messages.toList(), events.toList())
+    private fun Entry.detail() = ComplaintDetail(view(), messages.toList(), events.toList(), expectedReply())
+
+    /**
+     * Feature 27: the fake answers as a school inside its office hours does — four hours from now — and promises
+     * nothing on a resolved complaint, which is the one rule the parent's screen depends on.
+     */
+    private fun Entry.expectedReply(): Long? =
+        if (complaint.status == ChatThreadStatus.OPEN) now() + 4 * 3_600_000L else null
 
     private fun entries(childId: String): MutableList<Entry> = byChild.getOrPut(childId) { seed(childId) }
 

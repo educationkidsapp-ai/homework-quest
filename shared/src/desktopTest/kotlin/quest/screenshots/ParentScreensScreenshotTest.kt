@@ -5,10 +5,18 @@ import quest.core.platform.BiometricKind
 import quest.ui.design.LocalDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.datetime.LocalDate
+import quest.api.DEFAULT_FLAGS
 import quest.api.dto.Child
 import quest.api.dto.Curriculum
+import quest.api.dto.EveningCard
 import quest.api.dto.Subject
+import quest.feature.school.domain.FlagStore
+import quest.feature.school.domain.Flags
+import quest.feature.school.presentation.LocalFlags
 import quest.api.progress.Band
 import quest.api.samples.HotSoupSeed
 import quest.feature.auth.presentation.SignInContract
@@ -68,6 +76,18 @@ class ParentScreensScreenshotTest {
     private val maya = Child("c1", "Maya", "sun", Curriculum.BRITISH, 1)
     private val omar = Child("c2", "Omar", "mint", Curriculum.AMERICAN, 2)
 
+    /** Feature 28: the words as the server writes them — `{child}` where her name goes, and never a number. */
+    private val eveningCard = EveningCard(
+        day = today.toString(),
+        textAr = "اليوم عملت {child} على العدّ بخطوات، وأتمّت الدرس كاملًا. سار الأمر جيدًا. لو أعادت محطة «المقارنة» معكما قبل النوم فستثبت الفكرة أكثر.",
+        textEn = "{child} worked on counting in steps today and finished the whole lesson. It went well. Going over the comparing step together before bed would make it stick.",
+        lessonIds = listOf("l1"),
+    )
+    private val eveningCardOn = object : FlagStore {
+        override val flags: StateFlow<Map<String, Boolean>> =
+            MutableStateFlow(DEFAULT_FLAGS + (Flags.PARENT_EVENING_CARD to true)).asStateFlow()
+    }
+
     private fun shot(name: String, strings: Strings = Strings.en, overrides: ThemeOverrides = ThemeOverrides(), dark: Boolean = false, content: @Composable (Strings) -> Unit) {
         val f = Screenshots.render(name) {
             CompositionLocalProvider(LocalThemeOverrides provides overrides, LocalDarkTheme provides dark) {
@@ -86,6 +106,19 @@ class ParentScreensScreenshotTest {
     @Test fun pin() = shot("43-pin") { s -> PinScreen(PinContract.State(PinContract.Mode.ENTER, "12"), {}, s) }
     @Test fun home() = shot("44-parent-home") { s -> ParentHomeScreen(ParentHomeContract.State(false, listOf(maya, omar), maya, listOf(CalendarDay(today, listOf(Subject.MATH, Subject.ENGLISH), listOf("l1", "l2"), listOf("l2")))), s, {}, {}, {}, {}, {}) }
     @Test fun homeArabic() = shot("44b-parent-home-ar", Strings.ar) { s -> ParentHomeScreen(ParentHomeContract.State(false, listOf(maya), maya, listOf(CalendarDay(today, listOf(Subject.ENGLISH), listOf("l2"), listOf("l2")))), s, {}, {}, {}, {}, {}) }
+    /** Feature 28: the evening card at the top of the home, her name filled in on this phone. */
+    @Test fun homeEveningCard() = shot("44c-parent-home-evening-card") { s ->
+        CompositionLocalProvider(LocalFlags provides eveningCardOn) {
+            ParentHomeScreen(ParentHomeContract.State(false, listOf(maya, omar), maya, listOf(CalendarDay(today, listOf(Subject.MATH), listOf("l1"), listOf("l1"))), eveningCard = eveningCard), s, {}, {}, {}, {}, {})
+        }
+    }
+
+    @Test fun homeEveningCardArabic() = shot("44d-parent-home-evening-card-ar", Strings.ar) { s ->
+        CompositionLocalProvider(LocalFlags provides eveningCardOn) {
+            ParentHomeScreen(ParentHomeContract.State(false, listOf(maya), maya, listOf(CalendarDay(today, listOf(Subject.MATH), listOf("l1"), listOf("l1"))), eveningCard = eveningCard), s, {}, {}, {}, {}, {})
+        }
+    }
+
     @Test fun calendar() = shot("45-calendar") { s -> CalendarScreen(CalendarContract.State(2026, 9, today, today, mapOf(today to CalendarDay(today, listOf(Subject.MATH, Subject.ENGLISH), listOf("l1", "l2"), listOf("l2")), LocalDate(2026, 9, 11) to CalendarDay(LocalDate(2026, 9, 11), listOf(Subject.ENGLISH), listOf("l0"), listOf("l0")))), s, {}, {}) }
     @Test fun progress() = shot("46-progress") { s -> ProgressScreen(ProgressContract.State(false, listOf(
         SkillReport("s1", "Counting by 2s", Subject.MATH, Band.GOING_WELL, "most of the time", 14, null),

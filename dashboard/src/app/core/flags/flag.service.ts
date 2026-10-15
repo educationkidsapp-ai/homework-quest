@@ -78,6 +78,11 @@ export const FLAGS = {
   // screen reads a file and stores a summary, and only the "Draft an announcement" button needs
   // the feed, which is why that button is the one thing on it behind `announcements` as well.
   documentReader: 'documentReader',
+  // Feature 27: a new complaint reaches the staff who answer it already sorted — the category and
+  // urgency chips on the list, and the summary and suggested reply on the detail. It gates the
+  // triage and nothing else: a complaint with no triage row (the flag off, the seconds before the
+  // answer lands, a model that failed) is the ordinary case, so the screen draws what it has.
+  complaintTriage: 'complaintTriage',
   // Feature 29: the parent language bridge. On a staff screen it adds one action under a
   // parent's own message — "Translate to English" / «ترجم إلى العربية» — and nothing else:
   // the original is always what is stored and always what is shown.

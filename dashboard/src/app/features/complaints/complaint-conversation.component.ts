@@ -4,6 +4,7 @@ import {
   Component,
   DestroyRef,
   ElementRef,
+  type Signal,
   afterRenderEffect,
   computed,
   effect,
@@ -24,6 +25,7 @@ import {
   type ComplaintEvent,
   ChatMessageSenderEnum,
   ComplaintStatusEnum,
+  ComplaintTriageUrgencyEnum,
   TranslateRequestKindEnum,
   apiErrorCodeOf,
 } from '../../api';
@@ -34,6 +36,7 @@ import {
   COMPLAINT_PAGE,
   ComplaintsService,
   type ComplaintStatus,
+  triageText,
 } from '../../core/complaints/complaints.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import type { StaffSource } from '../../core/translate/staff-translation.service';
@@ -150,6 +153,41 @@ interface LocalMessage extends ChatMessage {
           }
         </header>
 
+        <!-- Feature 27: what the assistant made of the complaint, for the member of staff who
+             answers it. A note, never a decision: the chips and the summary are all the Admin's
+             read-only view gets, and "Use suggested reply" puts the words in the box and stops
+             there — the Send button below is still hers to press. -->
+        @if (suggestion(); as suggested) {
+          <aside class="complaint__triage">
+            <div class="complaint__triage-head">
+              <h3 class="complaint__triage-title">{{ 'complaints.triage.panel' | transloco }}</h3>
+              <span class="hq-badge complaint__chip--category">
+                {{ 'complaints.triage.category.' + suggested.category | transloco }}
+              </span>
+              <span
+                class="hq-badge"
+                [class.hq-badge--error]="suggested.urgency === high"
+                [class.complaint__chip--muted]="suggested.urgency === low"
+                [attr.aria-label]="
+                  'complaints.triage.urgencyOf'
+                    | transloco: { label: 'complaints.triage.urgency.' + suggested.urgency | transloco }
+                "
+              >
+                {{ 'complaints.triage.urgency.' + suggested.urgency | transloco }}
+              </span>
+            </div>
+            <p class="complaint__triage-summary" dir="auto">{{ suggested.summary }}</p>
+            @if (canReply()) {
+              <div class="complaint__triage-use">
+                <hq-button variant="secondary" (pressed)="useSuggestedReply()">
+                  {{ 'complaints.triage.use' | transloco }}
+                </hq-button>
+                <span class="complaint__triage-note">{{ 'complaints.triage.note' | transloco }}</span>
+              </div>
+            }
+          </aside>
+        }
+
         @if (hasOlder()) {
           <div class="complaint__older">
             <hq-button variant="quiet" [loading]="loadingOlder()" (pressed)="loadOlder()">
@@ -210,6 +248,7 @@ interface LocalMessage extends ChatMessage {
           <form class="complaint__composer" novalidate (submit)="$event.preventDefault(); send()">
             <hq-chat-staged-files />
             <hq-textarea
+              #replyBox
               [label]="'complaints.reply' | transloco"
               [placeholder]="'complaints.replyPlaceholder' | transloco"
               [rows]="2"
@@ -289,6 +328,62 @@ interface LocalMessage extends ChatMessage {
       margin: var(--hq-space-4) 0 0;
       color: var(--hq-color-ink-muted);
       font-size: var(--hq-text-note);
+    }
+
+    // A note beside the conversation, not a message in it: the sunken surface and a thin rule,
+    // so it reads as the school's own margin note rather than as something a person wrote.
+    .complaint__triage {
+      margin-block-start: var(--hq-space-16);
+      padding: var(--hq-space-12) var(--hq-space-16);
+      border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+      border-radius: var(--hq-radius-card);
+      background: var(--hq-color-surface-sunken);
+    }
+
+    .complaint__triage-head {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--hq-space-8);
+    }
+
+    .complaint__triage-title {
+      flex: 1 1 auto;
+      margin: 0;
+      font-size: var(--hq-font-label-size);
+      font-weight: var(--hq-font-label-weight);
+      letter-spacing: var(--hq-font-letter-spacing-label);
+      color: var(--hq-color-ink-soft);
+    }
+
+    .complaint__triage-summary {
+      margin: var(--hq-space-8) 0 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .complaint__triage-use {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--hq-space-8);
+      margin-block-start: var(--hq-space-12);
+    }
+
+    .complaint__triage-note {
+      color: var(--hq-color-ink-muted);
+      font-size: var(--hq-text-note);
+    }
+
+    .complaint__chip--category {
+      --hq-badge-bg: transparent;
+      --hq-badge-fg: var(--hq-color-ink-soft);
+      border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+    }
+
+    .complaint__chip--muted {
+      --hq-badge-bg: var(--hq-color-surface);
+      --hq-badge-fg: var(--hq-color-ink-muted);
     }
 
     .complaint__older {
@@ -442,6 +537,22 @@ export class ComplaintConversationComponent {
       !this.permissions.readOnly(),
   );
 
+  /** Feature 27: only `high` wears the red, and `low` steps back; `normal` is the plain pill. */
+  protected readonly high = ComplaintTriageUrgencyEnum.HIGH;
+  protected readonly low = ComplaintTriageUrgencyEnum.LOW;
+
+  /**
+   * Feature 27: the panel's content, in the language she is reading — absent while the switch is
+   * off, before the triage has landed and whenever the model failed, which are all the same thing
+   * on screen: the complaint as it was before this feature.
+   */
+  protected readonly suggestion = computed(() => {
+    const triage = this.complaints.triageOf(this.complaint());
+    if (triage === null) return null;
+    const { summary, reply } = triageText(triage, this.lang());
+    return { category: triage.category, urgency: triage.urgency, summary, reply };
+  });
+
   protected readonly parentLabel = computed(() => {
     this.lang();
     const c = this.complaint();
@@ -478,6 +589,11 @@ export class ComplaintConversationComponent {
         event,
       })),
     ].sort((a, b) => a.at - b.at);
+  });
+
+  /** `hq-textarea` is a component, so the element carrying the real `<textarea>` is read by hand. */
+  private readonly replyBox: Signal<ElementRef<HTMLElement> | undefined> = viewChild('replyBox', {
+    read: ElementRef,
   });
 
   private readonly end = viewChild<ElementRef<HTMLElement>>('end');
@@ -589,6 +705,18 @@ export class ComplaintConversationComponent {
   protected ask(): void {
     this.failure.set(null);
     this.asking.set(this.isOpen() ? 'resolved' : 'open');
+  }
+
+  /**
+   * Feature 27: the suggested reply goes **into the box**, and that is the whole of it — no
+   * request is made, no message is written, and she reads it, edits it and presses Send as she
+   * would her own words. The box takes focus so the caret is already where she would change it.
+   */
+  protected useSuggestedReply(): void {
+    const suggested = this.suggestion();
+    if (suggested === null || !this.canReply()) return;
+    this.draft.set(suggested.reply);
+    this.replyBox()?.nativeElement.querySelector('textarea')?.focus();
   }
 
   protected move(status: ComplaintStatus): void {

@@ -154,4 +154,37 @@ public final class Entities {
         public LocalDate getDueDay() { return dueDay; } public void setDueDay(LocalDate v) { dueDay = v; }
         public Instant getSummarizedAt() { return summarizedAt; } public void setSummarizedAt(Instant v) { summarizedAt = v; }
     }
+
+    /**
+     * V49 (feature 27): what the AI made of one complaint — <strong>one row per complaint</strong>, which is what the
+     * complaint's own id being the primary key says. The triage runs once, after the complaint has committed and on a
+     * task thread, and is never rewritten; a complaint with no row is the ordinary case for a school with the switch
+     * off, for the seconds before the answer arrives, and for a model that failed.
+     *
+     * <p><strong>Staff only.</strong> {@link ComplaintService} fills {@code Complaint.triage} for a staff viewer and
+     * leaves it null for the parent: a guess about her complaint is the school's working note, and the suggested
+     * reply is a draft nobody has agreed to.
+     */
+    @Entity(name = "ComplaintTriageEntity") @Table(name = "complaint_triage")
+    @Filter(name = "school", condition = "school_id = :schoolId")
+    public static class ComplaintTriageEntity {
+        @Id @Column(name = "complaint_id") private String complaintId;
+        @Column(name = "school_id", nullable = false) private String schoolId;
+        @Column(nullable = false) private String category;
+        @Column(nullable = false) private String urgency;
+        @Column(name = "summary_ar", nullable = false) private String summaryAr;
+        @Column(name = "summary_en", nullable = false) private String summaryEn;
+        @Column(name = "reply_ar", nullable = false) private String replyAr;
+        @Column(name = "reply_en", nullable = false) private String replyEn;
+        @Column(name = "created_at", nullable = false) private Instant createdAt;
+        public String getComplaintId() { return complaintId; } public void setComplaintId(String v) { complaintId = v; }
+        public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
+        public String getCategory() { return category; } public void setCategory(String v) { category = v; }
+        public String getUrgency() { return urgency; } public void setUrgency(String v) { urgency = v; }
+        public String getSummaryAr() { return summaryAr; } public void setSummaryAr(String v) { summaryAr = v; }
+        public String getSummaryEn() { return summaryEn; } public void setSummaryEn(String v) { summaryEn = v; }
+        public String getReplyAr() { return replyAr; } public void setReplyAr(String v) { replyAr = v; }
+        public String getReplyEn() { return replyEn; } public void setReplyEn(String v) { replyEn = v; }
+        public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
+    }
 }

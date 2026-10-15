@@ -169,4 +169,40 @@ public final class Entities {
         public long getSizeBytes() { return sizeBytes; } public void setSizeBytes(long v) { sizeBytes = v; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
     }
+
+    /**
+     * V50 (feature 28): one evening card per child and day, which V50's unique `evening_cards_once` enforces — the
+     * endpoint writes it on the first request after 16:00 and the 18:00 job writes whatever is missing, so the claim
+     * is the index rather than a read ({@link EveningCardRepository#insertOnce}).
+     *
+     * <p>{@code textAr} and {@code textEn} hold the placeholder `{child}` and never the child's name: her name is
+     * filled in by the app, because nothing about her is ever sent to the model. {@code factsJson} is what the card
+     * was written from ({@link EveningCardFacts}) — lesson text and her own results in words, and <strong>no score
+     * and no percentage</strong>.
+     *
+     * <p>Tenant table: the `school` filter scopes every read, and the parent-side queries name `school_id`
+     * explicitly as well, because a parent's request carries no tenant scope at all (as `ChildRepository` says).
+     */
+    @Entity(name = "EveningCardEntity") @Table(name = "evening_cards")
+    @Filter(name = "school", condition = "school_id = :schoolId")
+    public static class EveningCardEntity {
+        @Id private String id;
+        @Column(name = "school_id", nullable = false) private String schoolId;
+        @Column(name = "child_id", nullable = false) private String childId;
+        @Column(name = "card_day", nullable = false) private LocalDate cardDay;
+        @Column(name = "facts_json", nullable = false) private String factsJson;
+        @Column(name = "text_ar", nullable = false) private String textAr;
+        @Column(name = "text_en", nullable = false) private String textEn;
+        @Column(nullable = false) private String source;
+        @Column(name = "created_at", nullable = false) private Instant createdAt;
+        public String getId() { return id; } public void setId(String v) { id = v; }
+        public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
+        public String getChildId() { return childId; } public void setChildId(String v) { childId = v; }
+        public LocalDate getCardDay() { return cardDay; } public void setCardDay(LocalDate v) { cardDay = v; }
+        public String getFactsJson() { return factsJson; } public void setFactsJson(String v) { factsJson = v; }
+        public String getTextAr() { return textAr; } public void setTextAr(String v) { textAr = v; }
+        public String getTextEn() { return textEn; } public void setTextEn(String v) { textEn = v; }
+        public String getSource() { return source; } public void setSource(String v) { source = v; }
+        public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
+    }
 }

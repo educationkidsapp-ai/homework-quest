@@ -95,6 +95,20 @@ public final class FlagKeys {
     public static final String DOCUMENT_READER = "documentReader";
 
     /**
+     * Feature 27: a new complaint is sorted by the AI for the staff who answer it — category, urgency, a bilingual
+     * summary and a suggested reply ({@code quest.server.chat.ComplaintTriage}). Seeded off by V49. It gates the
+     * triage only: the complaint itself, and the parent's expected reply time (which is `chatOfficeHours`), are
+     * unaffected by it.
+     */
+    public static final String COMPLAINT_TRIAGE = "complaintTriage";
+
+    /**
+     * Feature 28: the parent's evening card about one child's day (`GET /children/{id}/evening-card` and the 18:00
+     * push). Seeded off by V50.
+     */
+    public static final String PARENT_EVENING_CARD = "parentEveningCard";
+
+    /**
      * Feature 29: a parent reads the school's messages in her own language and staff read what she writes
      * (`PUT /parent/me/reading-language`, `POST /children/{id}/translate`, `POST /staff/translate`). The original
      * text is always the record; a translation is an addition, cached per language and labelled machine-translated.
@@ -108,5 +122,5 @@ public final class FlagKeys {
             STICKERS_TREASURE_CHEST, PROGRESS_WEEKLY_EMAIL, CERTIFICATES,
             MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST,
             CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, FLOOR_SUPERVISOR, TODAY_HOME,
-            VOICE_ANNOUNCEMENT, REMOTE_STUDY_DAYS, MORNING_BRIEF, DOCUMENT_READER, LANGUAGE_BRIDGE);
+            VOICE_ANNOUNCEMENT, REMOTE_STUDY_DAYS, MORNING_BRIEF, DOCUMENT_READER, COMPLAINT_TRIAGE, PARENT_EVENING_CARD, LANGUAGE_BRIDGE);
 }

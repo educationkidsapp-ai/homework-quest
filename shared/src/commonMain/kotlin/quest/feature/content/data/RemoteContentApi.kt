@@ -55,6 +55,7 @@ import quest.api.dto.ComplaintRecipient
 import quest.api.dto.ComplaintStatusRequest
 import quest.api.dto.CreateComplaintRequest
 import quest.api.dto.CreateChildRequest
+import quest.api.dto.EveningCard
 import quest.api.dto.MapResponse
 import quest.api.dto.MediaKind
 import quest.api.dto.MediaRef
@@ -167,6 +168,26 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
 
     override suspend fun markBroadcastRead(childId: String, broadcastId: String): BroadcastView =
         call { client.post("$baseUrl/children/$childId/broadcasts/$broadcastId/read") { authed() } }
+
+    /**
+     * Feature 28: today's evening card. **204** is the ordinary answer, not a failure — before 16:00 school time, on
+     * a day the school does not teach, and when there is nothing to say about today — so it becomes `null` rather
+     * than an exception, while a 404 (the flag off, or another family's child) is thrown like any other refusal and
+     * swallowed by the one caller, which simply draws no card.
+     */
+    override suspend fun eveningCard(childId: String): EveningCard? {
+        val response = try {
+            client.get("$baseUrl/children/$childId/evening-card") { authed() }
+        } catch (e: ApiException) {
+            throw e
+        } catch (e: Exception) {
+            throw ApiException(ApiError(ApiError.NETWORK, e.message ?: "network"), e)
+        }
+        if (response.status == HttpStatusCode.NoContent) return null
+        if (!response.status.isSuccess()) throw response.toException()
+        val text = response.bodyAsText().trim()
+        return if (text.isEmpty() || text == "null") null else AppJson.decodeFromString(EveningCard.serializer(), text)
+    }
 
     // ---- B3: the parent's own notification rows — the same `/me/notifications` routes as the dashboard bell.
     override suspend fun notifications(unread: Boolean?, limit: Int?): List<quest.api.dto.NotificationView> =

@@ -44,8 +44,14 @@ public class OfficeHours {
      * Where one member of staff stands. {@code open} is "inside her hours now"; {@code startedToday} is "today is a
      * working day and its start has passed", which is what the summary job waits for; {@code nextStart} is null when
      * she is open, and {@code nextStartLocal} the same moment in the school's zone, which is what the parent reads.
+     *
+     * <p>{@code closesAt} is the end of the period she is inside right now, and null whenever she is not — feature
+     * 27's cap on "within four hours", derived from the very hours this status was resolved from (Ramadan's end
+     * rather than the ordinary one, on the day the school is actually on) so that there is no second reading of the
+     * schedule to disagree with the first.
      */
-    public record Status(boolean open, boolean startedToday, Instant nextStart, LocalDateTime nextStartLocal, LocalDate today) {}
+    public record Status(boolean open, boolean startedToday, Instant nextStart, LocalDateTime nextStartLocal, LocalDate today,
+                         Instant closesAt) {}
 
     private final ScheduleResolver schedules; private final AttendanceSettingsService settings;
     private final StaffAttendanceProfileService categories; private final SchoolCalendar calendar;
@@ -95,7 +101,7 @@ public class OfficeHours {
         if (expected.kind() == ScheduleResolver.Kind.WORK) {
             if (local.toLocalTime().isBefore(expected.start())) return closed(today.atTime(expected.start()), zone, today, false);
             if (local.toLocalTime().isBefore(expected.end()))
-                return new Status(true, true, null, null, today);
+                return new Status(true, true, null, null, today, today.atTime(expected.end()).atZone(zone).toInstant());
         }
         boolean startedToday = expected.kind() == ScheduleResolver.Kind.WORK;   // a work day whose start is behind us
         for (int ahead = 1; ahead <= MAX_LOOKAHEAD_DAYS; ahead++) {
@@ -103,11 +109,11 @@ public class OfficeHours {
             var next = ScheduleResolver.resolve(hours, holidays, day);
             if (next.kind() == ScheduleResolver.Kind.WORK) return closed(day.atTime(next.start()), zone, today, startedToday);
         }
-        return new Status(false, startedToday, null, null, today);
+        return new Status(false, startedToday, null, null, today, null);
     }
 
     private static Status closed(LocalDateTime nextStart, ZoneId zone, LocalDate today, boolean startedToday) {
-        return new Status(false, startedToday, nextStart.atZone(zone).toInstant(), nextStart, today);
+        return new Status(false, startedToday, nextStart.atZone(zone).toInstant(), nextStart, today, null);
     }
 
     /** Her category (feature 14) or her role's default; an account that is gone is administrative, like the Admin. */

@@ -9,7 +9,15 @@ import { BehaviorSubject, map } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ADMIN_USER, COORDINATOR_USER, TEACHER_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
-import { type Complaint, type ComplaintDetail, type DashboardUser, BASE_PATH } from '../../api';
+import {
+  type Complaint,
+  type ComplaintDetail,
+  type ComplaintTriage,
+  type DashboardUser,
+  BASE_PATH,
+  ComplaintTriageCategoryEnum,
+  ComplaintTriageUrgencyEnum,
+} from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
 import { BandService } from '../../core/band/band.service';
 import { SchoolScopeStore } from '../../core/auth/school-scope.store';
@@ -56,6 +64,32 @@ const RESOLVED: Complaint = {
   unread: 0,
 };
 
+/**
+ * Feature 27: what the assistant made of a complaint — written after it was created, so a row
+ * carries it or does not, and a screen draws only what it has.
+ */
+const TRIAGE: ComplaintTriage = {
+  category: ComplaintTriageCategoryEnum.TRANSPORT,
+  urgency: ComplaintTriageUrgencyEnum.HIGH,
+  summaryAr: 'تأخرت الحافلة ثلاث مرات هذا الأسبوع.',
+  summaryEn: 'The bus was late three times this week.',
+  replyAr: 'شكرًا لإبلاغنا. سنتابع الأمر مع مشرف الحافلة اليوم.',
+  replyEn: 'Thank you for telling us. We will take it up with the bus supervisor today.',
+};
+
+const TRIAGED: Complaint = { ...COMPLAINT, triage: TRIAGE };
+
+const LOW: Complaint = {
+  ...COMPLAINT,
+  id: 'c-3',
+  title: 'Canteen queue',
+  triage: {
+    ...TRIAGE,
+    category: ComplaintTriageCategoryEnum.FEES,
+    urgency: ComplaintTriageUrgencyEnum.LOW,
+  },
+};
+
 const DETAIL: ComplaintDetail = {
   complaint: COMPLAINT,
   messages: [COMPLAINT.lastMessage!],
@@ -92,10 +126,13 @@ describe('filterComplaints', () => {
 describe('the Complaints page', () => {
   let query: BehaviorSubject<Record<string, string>>;
   let readOnly: ReturnType<typeof signal<boolean>>;
+  /** Which flags are on: `complaintTriage` (feature 27) is flipped mid-suite. */
+  let flagsOn: ReturnType<typeof signal<readonly string[]>>;
 
   beforeEach(() => {
     query = new BehaviorSubject<Record<string, string>>({});
     readOnly = signal(false);
+    flagsOn = signal<readonly string[]>(['chat', 'complaintTriage']);
   });
 
   afterEach(() => TestBed.inject(HttpTestingController).verify());
@@ -122,7 +159,10 @@ describe('the Complaints page', () => {
           provide: ActivatedRoute,
           useValue: { queryParamMap: query.pipe(map((params) => convertToParamMap(params))) },
         },
-        { provide: FlagService, useValue: { isOn: () => true, ready: () => true } },
+        {
+          provide: FlagService,
+          useValue: { isOn: (key: string) => flagsOn().includes(key), ready: () => true },
+        },
         {
           provide: PermissionService,
           useValue: { can: (key: string) => key === permission, readOnly },
@@ -282,6 +322,102 @@ describe('the Complaints page', () => {
     expect(screen.queryByRole('textbox', { name: 'Reply' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Mark resolved' })).toBeNull();
     expect(screen.getByRole('note').textContent).toContain('read-only');
+  });
+
+  /**
+   * Feature 27. The chips are a help, not a verdict: a complaint whose triage has not landed (or
+   * whose model failed) is drawn exactly as it was before this feature, and only `high` is red.
+   */
+  it('draws the category and urgency chips of a triaged row, and nothing on one without a triage', async () => {
+    const { backend } = await render(TEACHER_USER, 'teacher.complaints');
+    lists(backend, '/teacher/complaints', [TRIAGED, LOW, { ...COMPLAINT, id: 'c-4', title: 'Lost jumper' }]);
+    await settle();
+
+    const table = screen.getByRole('table', { name: 'Complaints' });
+    expect(table.textContent).toContain('Transport');
+    expect(table.textContent).toContain('Fees');
+    // The palette's danger token for `high`, and the muted pill for `low`.
+    expect(screen.getByText('Urgent').className).toContain('hq-badge--error');
+    expect(screen.getByText('Low').className).not.toContain('hq-badge--error');
+    expect(screen.getByText('Low').className).toContain('complaints__chip--muted');
+    // The row with no triage says nothing extra — no chip, no "unknown".
+    const plain = screen.getByText('Lost jumper').closest('tr')!;
+    expect(plain.textContent).not.toContain('Urgent');
+    expect(plain.textContent).not.toContain('Low');
+    expect(plain.querySelector('.complaints__chips')).toBeNull();
+  });
+
+  it('draws no chips at all while complaintTriage is off', async () => {
+    flagsOn.set(['chat']);
+    const { backend } = await render(TEACHER_USER, 'teacher.complaints');
+    lists(backend, '/teacher/complaints', [TRIAGED, LOW]);
+    await settle();
+
+    const table = screen.getByRole('table', { name: 'Complaints' });
+    expect(table.textContent).toContain('Homework never marked');
+    expect(table.textContent).not.toContain('Transport');
+    expect(table.textContent).not.toContain('Urgent');
+    expect(table.querySelector('.complaints__chips')).toBeNull();
+  });
+
+  /**
+   * The one rule of this feature: **nothing is ever sent by the triage.** "Use suggested reply"
+   * puts the words in the box in the language she is reading, and the existing Send is still hers
+   * to press.
+   */
+  it('fills the reply box from the suggestion, in her language, and sends nothing', async () => {
+    const { backend } = await render(TEACHER_USER, 'teacher.complaints');
+    lists(backend, '/teacher/complaints', [TRIAGED]);
+    await open('c-1');
+    detailOf(backend, '/teacher/complaints/c-1').flush({
+      ...DETAIL,
+      complaint: { ...TRIAGED, unread: 0 },
+    });
+    await settle();
+
+    expect(screen.getByRole('heading', { name: 'Suggested by the assistant' })).toBeTruthy();
+    expect(document.body.textContent).toContain(TRIAGE.summaryEn);
+    // The school's working note, not the parent's words: it is not a line of the conversation.
+    expect(screen.getByRole('list', { name: 'Conversation' }).textContent).not.toContain(TRIAGE.summaryEn);
+
+    const box = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Reply' });
+    expect(box.value).toBe('');
+    screen.getByRole('button', { name: 'Use suggested reply' }).click();
+    await settle();
+
+    expect(box.value).toBe(TRIAGE.replyEn);
+    // Nothing left: no message was written, and no request of any kind was made.
+    backend.expectNone('/teacher/complaints/c-1/messages');
+    expect(screen.getByRole('list', { name: 'Conversation' }).textContent).not.toContain(TRIAGE.replyEn);
+
+    // In Arabic she is offered the Arabic summary and the Arabic reply.
+    TestBed.inject(TranslocoService).setActiveLang('ar');
+    await settle();
+    expect(document.body.textContent).toContain(TRIAGE.summaryAr);
+    screen.getByRole('button', { name: 'استخدم الرد المقترح' }).click();
+    await settle();
+    expect(box.value).toBe(TRIAGE.replyAr);
+    backend.expectNone('/teacher/complaints/c-1/messages');
+  });
+
+  it('gives the Admin the summary and no way to use it: her complaints are read-only', async () => {
+    const { backend } = await render(ADMIN_USER, 'admin.complaints');
+    const scope = TestBed.inject(SchoolScopeStore);
+    scope.setMultiSchool(false);
+    scope.setSoleSchool('school-a');
+    await settle();
+    lists(backend, '/admin/complaints', [TRIAGED]);
+    await open('c-1');
+    detailOf(backend, '/admin/complaints/c-1').flush({
+      ...DETAIL,
+      complaint: { ...TRIAGED, canReply: false, unread: 0 },
+    });
+    await settle();
+
+    expect(screen.getByRole('heading', { name: 'Suggested by the assistant' })).toBeTruthy();
+    expect(document.body.textContent).toContain(TRIAGE.summaryEn);
+    expect(screen.queryByRole('button', { name: 'Use suggested reply' })).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Reply' })).toBeNull();
   });
 
   it('a read-only "View as" session gets neither the composer nor the status button', async () => {
