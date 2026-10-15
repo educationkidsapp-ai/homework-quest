@@ -51,6 +51,16 @@ class ChildEndpointsHaveNoAiTest {
     private static final List<String> CHILD_FACING = List.of("/children", "/lessons/", "/media/");
 
     /**
+     * The routes under those prefixes that a <em>parent</em> reads and the child's own screens never call. Feature
+     * 28's evening card is the parent's note about her child's day: read on the parent home behind the parent gate,
+     * written by a model from the teacher's lesson text and the child's own results, and never shown to the child.
+     * It is the one route under `/children` that may reach the AI, and it is named here so that the next one is a
+     * decision and not an accident. Every entry has to exist — the test below checks — so a renamed route comes back
+     * under the rule instead of keeping a dead exemption.
+     */
+    private static final Set<String> PARENT_ONLY = Set.of("/children/{id}/evening-card");
+
+    /**
      * The exam-attempt path, which no route of its own leads to: a child hands her paper in through
      * `POST /children/{id}/attempts` like any other answer, and the exam half of that is this service. Named
      * explicitly so a model call added inside it is caught even if the sweep of the handler above ever misses it.
@@ -77,6 +87,14 @@ class ChildEndpointsHaveNoAiTest {
                 if (found != null) reaching.add(type.getSimpleName() + "#" + method.getName() + " -> " + found);
             }
         assertThat(reaching).as("an attempt — a homework's or an exam's — is scored on the server with no model in it").isEmpty();
+    }
+
+    @Test void every_parent_only_exemption_is_a_route_that_exists() {
+        var declared = new LinkedHashSet<String>();
+        SERVER.stream().filter(c -> c.isAnnotatedWith(RestController.class)).forEach(controller -> {
+            for (JavaMethod method : controller.getMethods()) declared.addAll(routes(controller, method));
+        });
+        assertThat(declared).as("a renamed route comes back under the rule; it does not keep a dead exemption").containsAll(PARENT_ONLY);
     }
 
     @Test void the_sweep_can_see_an_ai_call_when_there_is_one() {
@@ -110,7 +128,11 @@ class ChildEndpointsHaveNoAiTest {
     private static List<JavaMethod> childFacingHandlers() {
         var out = new ArrayList<JavaMethod>();
         SERVER.stream().filter(c -> c.isAnnotatedWith(RestController.class)).forEach(controller -> {
-            for (JavaMethod method : controller.getMethods()) if (!routes(controller, method).isEmpty()) out.add(method);
+            for (JavaMethod method : controller.getMethods()) {
+                var declared = routes(controller, method);
+                if (declared.isEmpty() || PARENT_ONLY.containsAll(declared)) continue;
+                out.add(method);
+            }
         });
         return out;
     }

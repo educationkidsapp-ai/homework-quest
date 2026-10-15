@@ -4,6 +4,9 @@
 **Feature switch:** `smartHints` (camelCase, like the other switches).
 
 **Leftovers:**
+- **One parent-only route under `/children` is exempt from the no-AI rule:** feature 28's evening card
+  (`/children/{id}/evening-card`). A parent reads it behind the parent gate, and the child's screens never call it. The rule names it, and a
+  test checks the route still exists, so the next exemption is a decision rather than an accident.
 - **Hint and practice quality needs the real model on QA.** The fake model deliberately writes one bad hint per
   lesson, so the reject, retry and drop path runs on every test build.
 - **Hints and practice are not cached.** A rebuild pays for them again, because the cache is keyed to stop ids that
