@@ -32,6 +32,7 @@ public class SampleLlmClient implements LlmClient {
         if (system.equals(Prompts.DOCUMENT_READER)) return summaryFromDocument(user);
         if (system.equals(Prompts.COMPLAINT_TRIAGE)) return triageOfComplaint(user);
         if (system.equals(Prompts.EVENING_CARD)) return eveningCard(user);
+        if (system.equals(Prompts.TRANSLATE)) return markedTranslation(user);
         if (system.equals(Prompts.SMART_HINTS)) return hints(user);
         if (system.equals(Prompts.TARGETED_PRACTICE)) return practice(user);
         if (user.startsWith("Here is a Play you wrote earlier")) {
@@ -255,6 +256,22 @@ public class SampleLlmClient implements LlmClient {
 
     /** The result line of one `EveningCardFacts.Lesson.block`: `HOW IT WENT: went well / سار على ما يرام`. */
     private static final java.util.regex.Pattern WENT = java.util.regex.Pattern.compile("HOW IT WENT: ([^/\n]+) / ([^\n]+)");
+
+    /**
+     * Feature 29's turn without a model: the source text with the target language's code in front of it, e.g.
+     * `[ur] Please send her reading book tomorrow.`. A marker rather than a real translation, and deliberately so —
+     * it is deterministic, it carries the source through so a test can see that nothing was lost, it adds no link,
+     * and it stays inside the validator's length bound for any source. What the API test then proves is the
+     * machinery: the cache, the hash, who may ask, and that the original is untouched.
+     */
+    private Result markedTranslation(String user) {
+        var code = LANG.matcher(between(user, "TRANSLATE INTO: ", "\n"));
+        String text = between(user, "nothing but the translation):\n", "\n\nYour previous answer");
+        return new Result("[" + (code.find() ? code.group(1) : "xx") + "] " + text, 300, 200);
+    }
+
+    /** The code in `Urdu (ur)`, which {@link Prompts#userTranslate} is given. */
+    private static final java.util.regex.Pattern LANG = java.util.regex.Pattern.compile("\\(([a-z]{2,3})\\)");
 
     /** One audience line of {@link Prompts#userE}: `curriculum "british", grade 1`. */
     private static final java.util.regex.Pattern CELL = java.util.regex.Pattern.compile("curriculum \"([a-z]+)\", grade (\\d+)");

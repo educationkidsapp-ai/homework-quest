@@ -138,6 +138,9 @@ internal fun ChatConversationContract.State.staffLabelled(
     },
     emptyMessage = if (key.withParent) staffStrings.emptyConversationParent else staffStrings.emptyConversationStaff,
     typingText = if (key.withParent) staffStrings.typingParent else typingLine(resolverOf(key.peerRole, ChatStaffRole.TEACHER, false), strings),
+    // Feature 29: the parent's Translate action belongs to her end of the thread. A staff member translates what a
+    // parent wrote through `POST /staff/translate` on the dashboard, which is where she reads her inbox.
+    parentSide = false,
 )
 
 private fun StaffThreadKey.staffRole(): ChatStaffRole = when (peerRole) {

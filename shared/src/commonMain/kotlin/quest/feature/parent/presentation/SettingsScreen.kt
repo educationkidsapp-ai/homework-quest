@@ -8,6 +8,7 @@ import quest.ui.design.DashboardFilterChip
 import quest.feature.parent.domain.Appearance
 import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -43,6 +44,9 @@ import quest.feature.parent.domain.Phones
 import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.FeatureGate
 import quest.feature.school.presentation.LocalSchoolBranding
+import quest.api.dto.ReadingLanguage
+import quest.feature.translate.domain.ReadingLanguages
+import quest.feature.translate.domain.TranslationStore
 import quest.ui.design.Dimens
 
 object SettingsContract {
@@ -64,6 +68,13 @@ object SettingsContract {
         val biometricKind: BiometricKind? = null,
         val lockToSetUp: BiometricKind? = null,
         val biometricOn: Boolean = false,
+        /**
+         * Feature 29: the language the school's messages are translated into when she asks. Null is "none chosen",
+         * which is what every family had before the bridge and leaves no Translate action anywhere.
+         */
+        val readingLanguage: ReadingLanguage? = null,
+        /** The server did not take the choice. Her old one stays selected rather than a value nothing holds. */
+        val readingLanguageFailed: Boolean = false,
     ) : MviState
     sealed interface Intent : MviIntent {
         data object Load : Intent
@@ -75,11 +86,19 @@ object SettingsContract {
         data class Biometric(val on: Boolean, val reason: String) : Intent
         /** M6: back on the screen — she may have just set a screen lock (or enrolled a fingerprint) in the phone's settings. */
         data object RefreshLock : Intent
+        /** Feature 29 `PUT /parent/me/reading-language`: the language she reads the school's messages in. */
+        data class SetReadingLanguage(val lang: ReadingLanguage) : Intent
     }
     sealed interface Effect : MviEffect
 }
 
-class SettingsViewModel(private val parent: ParentRepository, private val api: ContentApi, private val lock: AppLock) : MviViewModel<SettingsContract.State, SettingsContract.Intent, SettingsContract.Effect>(SettingsContract.State()) {
+class SettingsViewModel(
+    private val parent: ParentRepository,
+    private val api: ContentApi,
+    private val lock: AppLock,
+    /** Feature 29: the same store the Translate actions read, so a choice made here is live on the next message. */
+    private val translations: TranslationStore,
+) : MviViewModel<SettingsContract.State, SettingsContract.Intent, SettingsContract.Effect>(SettingsContract.State()) {
     override suspend fun handle(intent: SettingsContract.Intent) {
         when (intent) {
             SettingsContract.Intent.Load -> {
@@ -89,7 +108,13 @@ class SettingsViewModel(private val parent: ParentRepository, private val api: C
                 // MH1 `GET /parent/me`. A build against a server without the route, or a device offline, simply shows no
                 // number rather than an error on a screen whose other four sections are all local.
                 val me = runCatching { api.parentProfile() }.getOrNull() ?: return
-                reduce { copy(phone = me.phone.orEmpty(), phoneKnown = true) }
+                reduce { copy(phone = me.phone.orEmpty(), phoneKnown = true, readingLanguage = me.readingLanguage) }
+            }
+            is SettingsContract.Intent.SetReadingLanguage -> {
+                // The picker shows what the server holds, never what was tapped: a choice it refused would otherwise
+                // leave her reading nothing but Translate actions that cannot work.
+                val saved = translations.setReadingLanguage(intent.lang)
+                reduce { copy(readingLanguage = if (saved) intent.lang else readingLanguage, readingLanguageFailed = !saved) }
             }
             is SettingsContract.Intent.Biometric -> { val on = lock.setEnabled(intent.on, intent.reason); reduce { copy(biometricOn = on) } }
             SettingsContract.Intent.RefreshLock -> { val on = lock.enabled(); reduce { copy(biometricKind = lock.available(), lockToSetUp = lock.toSetUp(), biometricOn = on) } }
@@ -164,6 +189,31 @@ fun SettingsScreen(state: SettingsContract.State, s: Strings, dispatch: (Setting
                 Chip("English", selected = state.settings.language == "en") { dispatch(SettingsContract.Intent.Language("en")) }
                 Chip("العربية", selected = state.settings.language == "ar") { dispatch(SettingsContract.Intent.Language("ar")) }
             }
+        }
+        // Feature 29: the language the school's *messages* are translated into when she asks — not the app's own,
+        // which stays English or Arabic above. Each option is spelled in itself, because "Urdu" is no help to
+        // somebody looking for اردو.
+        FeatureGate(Flags.LANGUAGE_BRIDGE) {
+            val t = s.translate
+            SectionTitle(t.readingLanguage)
+            Text(t.readingLanguageHint, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
+            Spacer(Modifier.height(Dimens.s8))
+            // A flow, not a row: eight names in two scripts do not fit one line on a phone.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Dimens.s8), verticalArrangement = Arrangement.spacedBy(Dimens.s8)) {
+                ReadingLanguages.all.forEach { lang ->
+                    DashboardFilterChip(
+                        ReadingLanguages.name(lang),
+                        selected = state.readingLanguage == lang,
+                        onClick = { dispatch(SettingsContract.Intent.SetReadingLanguage(lang)) },
+                    )
+                }
+            }
+            if (state.readingLanguageFailed) Text(
+                t.readingLanguageSaveFailed,
+                style = MaterialTheme.typography.bodySmall,
+                color = DashboardTokens.inkSoft,
+                modifier = Modifier.padding(top = Dimens.s4),
+            )
         }
         // Light / Dark / System. System is the default and follows the device as it changes.
         SectionTitle(s.appearance)

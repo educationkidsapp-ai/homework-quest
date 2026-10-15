@@ -109,6 +109,14 @@ public final class FlagKeys {
     public static final String PARENT_EVENING_CARD = "parentEveningCard";
 
     /**
+     * Feature 29: a parent reads the school's messages in her own language and staff read what she writes
+     * (`PUT /parent/me/reading-language`, `POST /children/{id}/translate`, `POST /staff/translate`). The original
+     * text is always the record; a translation is an addition, cached per language and labelled machine-translated.
+     * Seeded off by V51.
+     */
+    public static final String LANGUAGE_BRIDGE = "languageBridge";
+
+    /**
      * Feature 30: teacher-approved hints on every question and one short practice set per weak skill, both written
      * only by the lesson's `HINTS` pipeline step at build time (`/teacher/lessons/{id}/smart-hints`). Seeded off by
      * V52, and nothing of it is published until the teacher has approved it.
@@ -121,5 +129,5 @@ public final class FlagKeys {
             STICKERS_TREASURE_CHEST, PROGRESS_WEEKLY_EMAIL, CERTIFICATES,
             MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST,
             CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, FLOOR_SUPERVISOR, TODAY_HOME,
-            VOICE_ANNOUNCEMENT, REMOTE_STUDY_DAYS, MORNING_BRIEF, DOCUMENT_READER, COMPLAINT_TRIAGE, PARENT_EVENING_CARD, SMART_HINTS);
+            VOICE_ANNOUNCEMENT, REMOTE_STUDY_DAYS, MORNING_BRIEF, DOCUMENT_READER, COMPLAINT_TRIAGE, PARENT_EVENING_CARD, LANGUAGE_BRIDGE, SMART_HINTS);
 }

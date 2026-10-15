@@ -52,6 +52,8 @@ import quest.feature.auth.domain.SessionRoles
 import quest.feature.staff.domain.RoleRouter
 import quest.feature.school.presentation.LevelGate
 import quest.feature.school.presentation.SchoolThemeHost
+import quest.feature.translate.domain.TranslationStore
+import quest.feature.translate.presentation.LocalTranslations
 import quest.ui.design.AcademicTheme
 import quest.ui.design.AnimatedLoadingView
 
@@ -85,9 +87,13 @@ fun App() {
             RoleRouter.Start.StaffPassword -> Routes.StaffChangePassword
             RoleRouter.Start.ParentFlow -> Routes.WorldMap
         }
-        // Everything below sees the joined school's colours, name, logo and feature flags (§3, §4).
+        // Everything below sees the joined school's colours, name, logo and feature flags (§3, §4) — and (feature 29)
+        // the one store that holds her reading language and the translations she has asked for, so a translation
+        // opened in Messages is still there when the same broadcast is drawn again.
         SchoolThemeHost {
-            AppLockHost(onSignedOut = { nav.navigate(Routes.SignIn) { popUpTo(0) { inclusive = true } } }) { QuestNavHost(nav, start) }
+            CompositionLocalProvider(LocalTranslations provides koinInject<TranslationStore>()) {
+                AppLockHost(onSignedOut = { nav.navigate(Routes.SignIn) { popUpTo(0) { inclusive = true } } }) { QuestNavHost(nav, start) }
+            }
         }
     }
 }

@@ -423,6 +423,47 @@ public final class Prompts {
         """.formatted(String.join("\n\n", lessonBlocks));
     }
 
+    // ------------------------------------------------------------------ TRANSLATE (feature 29)
+    /**
+     * Feature 29: one of the school's own messages into the language a reader asked for. Named after its feature
+     * rather than lettered, because it has nothing to do with the lesson pipeline's A–E.
+     *
+     * <p><strong>Plain text, not JSON</strong> — the one prompt here that is. The answer <em>is</em> the whole value,
+     * there is no field to name, and a JSON wrapper would only give the model another thing to get wrong on a route a
+     * parent waits on. The validator is in {@link quest.server.translate.TranslationService}: not empty, within
+     * length bounds, and no link that was not in the source.
+     *
+     * <p>No {@code %s}, so {@code SampleLlmClient} can match it by equality and answer without a network.
+     */
+    public static final String TRANSLATE = """
+        You translate messages between a school and a child's family. You are given one message and one target
+        language, and you answer with that message in that language and with nothing else.
+        You translate everything you are given and you add nothing: no greeting, no explanation, no note about the
+        translation, no quotation marks around it, no markdown, no transliteration beside the translation.
+        You keep names, dates, times, numbers and amounts exactly as they are. You keep `[email]` and `[phone]`
+        exactly as they are — they are placeholders the school put there, not words to translate.
+        You add no link, and you keep any link that is already there unchanged.
+        You keep the message's own line breaks, and you keep its tone: a teacher's short note stays a short note.
+        If part of the message is already in the target language, you leave that part as it is.
+        Answer with the translation only.
+        """;
+
+    /**
+     * What the model is given and all it is given: the target language and the text. Nothing is said about who wrote
+     * it, which child it is about or which school it came from — a translation needs none of that, and
+     * {@link quest.server.ai.AiInputGuard} has already taken the e-mail addresses and telephone numbers out.
+     *
+     * @param language the language's own name and code, e.g. {@code Urdu (ur)}
+     */
+    public static String userTranslate(String language, String text) {
+        return """
+        TRANSLATE INTO: %s
+
+        THE MESSAGE (translate all of it and answer with nothing but the translation):
+        %s
+        """.formatted(language, text);
+    }
+
     // ------------------------------------------------------------------ Smart hints (feature 30)
     /**
      * Feature 30: two graded hints for every answerable stop of a lesson, written once when the lesson is built and

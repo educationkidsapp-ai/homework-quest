@@ -51,6 +51,8 @@ export const DEFAULT_FLAGS: Readonly<Record<string, boolean>> = {
   documentReader: false,
   // V49 (feature 27): off until an Admin turns it on per school.
   complaintTriage: false,
+  // V51 (feature 29): off until an Admin turns it on per school.
+  languageBridge: false,
   // V52 (feature 30): off until an Admin turns it on per school.
   smartHints: false,
 };

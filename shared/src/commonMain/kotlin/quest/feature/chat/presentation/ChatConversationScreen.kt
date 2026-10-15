@@ -1,6 +1,8 @@
 package quest.feature.chat.presentation
 
 import quest.core.text.isolate
+import quest.api.dto.TranslationSource
+import quest.feature.translate.presentation.TranslateBlock
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -167,6 +169,11 @@ object ChatConversationContract {
          * this and nothing else; it is always null on the staff end of the conversation.
          */
         val officeHours: OfficeHoursStatus? = null,
+        /**
+         * Feature 29: this is the **parent's** end of the thread, so a message from staff may be offered a
+         * translation. False on the staff end (`staffLabelled`), where the reader has the dashboard's own route.
+         */
+        val parentSide: Boolean = true,
     ) : MviState {
         /** Words, files or both — and only once every file is up, so nothing is sent without what she attached. */
         val canSend: Boolean
@@ -680,7 +687,14 @@ fun ChatConversationScreen(
                     verticalArrangement = Arrangement.spacedBy(Dimens.s8),
                 ) {
                     items(state.messages, key = { it.id }) { msg ->
-                        MessageBubble(msg = msg, strings = strings, onRetry = onRetry)
+                        MessageBubble(
+                            msg = msg,
+                            strings = strings,
+                            onRetry = onRetry,
+                            // Feature 29: only a staff member's message, and only on the parent's end of the thread.
+                            translatable = state.parentSide && !msg.isMine,
+                            childId = state.childId,
+                        )
                     }
                 }
             }
@@ -780,6 +794,8 @@ private fun MessageBubble(
     msg: ChatConversationContract.UiMessage,
     strings: Strings,
     onRetry: (String) -> Unit,
+    translatable: Boolean = false,
+    childId: String = "",
 ) {
     val isParent = msg.isMine
     val bubbleColor = if (isParent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
@@ -811,6 +827,16 @@ private fun MessageBubble(
                     color = textColor,
                 )
             }
+
+            // Feature 29: an addition under the original, never a replacement — the message above is the record.
+            if (translatable && childId.isNotBlank() && msg.body.isNotBlank()) TranslateBlock(
+                childId = childId,
+                kind = TranslationSource.CHAT,
+                sourceId = msg.id,
+                original = msg.body,
+                strings = strings.translate,
+                textColor = textColor,
+            )
 
             Spacer(Modifier.height(Dimens.s4))
 

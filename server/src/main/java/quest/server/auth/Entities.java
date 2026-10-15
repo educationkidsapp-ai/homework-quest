@@ -25,12 +25,19 @@ public final class Entities {
          * so the directory prints the address for those.
          */
         @Column(name = "display_name", length = 80) private String displayName;
+        /**
+         * Feature 29 (V51): the language she reads the school's messages in — one of `ReadingLanguage`'s eight
+         * codes. Null means "the app's own language", which is what every family had before the language bridge, so
+         * nothing was backfilled. It changes nothing she is <em>sent</em>: the original text stays the record.
+         */
+        @Column(name = "reading_language", length = 8) private String readingLanguage;
         @Column(name = "created_at", nullable = false) private Instant createdAt;
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getFirebaseUid() { return firebaseUid; } public void setFirebaseUid(String v) { firebaseUid = v; }
         public String getEmail() { return email; } public void setEmail(String v) { email = v; }
         public String getPhone() { return phone; } public void setPhone(String v) { phone = v; }
         public String getDisplayName() { return displayName; } public void setDisplayName(String v) { displayName = v; }
+        public String getReadingLanguage() { return readingLanguage; } public void setReadingLanguage(String v) { readingLanguage = v; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
     }
 

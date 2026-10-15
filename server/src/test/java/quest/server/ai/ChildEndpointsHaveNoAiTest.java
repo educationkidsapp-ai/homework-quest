@@ -54,11 +54,16 @@ class ChildEndpointsHaveNoAiTest {
      * The routes under those prefixes that a <em>parent</em> reads and the child's own screens never call. Feature
      * 28's evening card is the parent's note about her child's day: read on the parent home behind the parent gate,
      * written by a model from the teacher's lesson text and the child's own results, and never shown to the child.
-     * It is the one route under `/children` that may reach the AI, and it is named here so that the next one is a
-     * decision and not an accident. Every entry has to exist — the test below checks — so a renamed route comes back
+     * Feature 29's parent translate is the parent's own action on a message she may read. They are the routes under
+     * `/children` that may reach the AI, and they are named here so that the next one is a decision and not an
+     * accident. Every entry has to exist — the test below checks — so a renamed route comes back
      * under the rule instead of keeping a dead exemption.
      */
-    private static final Set<String> PARENT_ONLY = Set.of("/children/{id}/evening-card");
+    private static final Set<String> PARENT_ONLY = Set.of(
+            // feature 28: the parent's evening card, written from the teacher's lesson text and the child's own results
+            "/children/{id}/evening-card",
+            // feature 29: the parent translates a staff message she may read; the original is never changed
+            "/children/{id}/translate");
 
     /**
      * The exam-attempt path, which no route of its own leads to: a child hands her paper in through

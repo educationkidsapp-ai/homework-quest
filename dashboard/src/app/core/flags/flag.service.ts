@@ -83,6 +83,10 @@ export const FLAGS = {
   // triage and nothing else: a complaint with no triage row (the flag off, the seconds before the
   // answer lands, a model that failed) is the ordinary case, so the screen draws what it has.
   complaintTriage: 'complaintTriage',
+  // Feature 29: the parent language bridge. On a staff screen it adds one action under a
+  // parent's own message — "Translate to English" / «ترجم إلى العربية» — and nothing else:
+  // the original is always what is stored and always what is shown.
+  languageBridge: 'languageBridge',
   // Feature 30: the two hints the build wrote for every question, and one practice set per weak
   // skill — both unapproved until the teacher signs them. Off until an Admin turns it on, and
   // with it off the `/smart-hints` routes answer 404 and the lesson page draws no section at all,
