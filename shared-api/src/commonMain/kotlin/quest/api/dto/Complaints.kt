@@ -55,6 +55,40 @@ data class Complaint(
     val resolvedAt: Long? = null,
     val resolvedByName: String? = null,
     val canReply: Boolean = false,
+    /**
+     * Feature 27: what the AI made of this complaint — **staff only**, and absent on every parent endpoint. Also
+     * absent while `complaintTriage` is off, before the triage has finished (it runs after the complaint is
+     * committed) and whenever the model failed, so a client draws its chips only when there is something to draw.
+     */
+    val triage: ComplaintTriage? = null,
+)
+
+/** Feature 27: what a complaint is about. `OTHER` is the honest answer, not a failure. */
+@Serializable
+enum class ComplaintCategory {
+    @SerialName("academic") ACADEMIC, @SerialName("behaviour") BEHAVIOUR, @SerialName("transport") TRANSPORT,
+    @SerialName("fees") FEES, @SerialName("facilities") FACILITIES, @SerialName("staff") STAFF,
+    @SerialName("other") OTHER,
+}
+
+/** Feature 27: how soon it needs somebody. `HIGH` also rings the department manager once. */
+@Serializable
+enum class ComplaintUrgency { @SerialName("low") LOW, @SerialName("normal") NORMAL, @SerialName("high") HIGH }
+
+/**
+ * Feature 27: the AI's reading of one complaint, written once after it was created and never rewritten. The summaries
+ * are two or three lines; [replyAr] / [replyEn] are a **suggestion** — "Use suggested reply" fills the reply box and
+ * the member of staff still presses Send, which is the existing `POST /{area}/complaints/{id}/messages`. Nothing here
+ * is ever sent, shown to a parent, or treated as a decision.
+ */
+@Serializable
+data class ComplaintTriage(
+    val category: ComplaintCategory,
+    val urgency: ComplaintUrgency,
+    val summaryAr: String,
+    val summaryEn: String,
+    val replyAr: String,
+    val replyEn: String,
 )
 
 /** Who moved a complaint: the parent (a reopen) or a staff member (the recipient or a supervisor in scope). */
@@ -74,7 +108,20 @@ data class ComplaintEvent(val status: ChatThreadStatus, val by: ComplaintActor, 
  * `before` / `since` / `limit` exactly as a Messages thread is) and **every** status change it has had.
  */
 @Serializable
-data class ComplaintDetail(val complaint: Complaint, val messages: List<ChatMessage> = emptyList(), val events: List<ComplaintEvent> = emptyList())
+data class ComplaintDetail(
+    val complaint: Complaint,
+    val messages: List<ChatMessage> = emptyList(),
+    val events: List<ComplaintEvent> = emptyList(),
+    /**
+     * Feature 27: when the parent may expect an answer (epoch ms), on **her own** two routes only —
+     * `POST /children/{id}/complaints` and `GET /children/{id}/complaints/{complaintId}`. It is the recipient's own
+     * office hours (feature 19) in the school's zone: inside them, four hours from now capped at today's closing
+     * time; outside them, two hours after her next working period starts. Absent while `chatOfficeHours` is off,
+     * when no working day can be found, and on every staff route — it is a promise to the parent, not a deadline the
+     * school is measured on. It is **not** part of [Complaint.triage] and does not follow `complaintTriage`.
+     */
+    val expectedReplyBy: Long? = null,
+)
 
 /**
  * `GET …/complaints?status=open|resolved|all` (default `all`): the rows the filter keeps, newest activity first with

@@ -291,6 +291,8 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "morningBrief" to false,
     // Feature 26: a leader uploads a circular and reads what it says, in both languages (V48).
     "documentReader" to false,
+    // Feature 27: a new complaint is sorted by the AI for the staff who answer it (V49).
+    "complaintTriage" to false,
 )
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */

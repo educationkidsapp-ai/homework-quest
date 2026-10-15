@@ -38,6 +38,16 @@ data class ComplaintStrings(
     /** The accessible label of a failed reply's Retry. */
     val retryReply: String,
     val reopenFailed: String,
+    /**
+     * Feature 27: when she may expect an answer, on an open complaint and only while the school keeps office hours
+     * (`ComplaintDetail.expectedReplyBy`). `{when}` is one of the three below, its `{time}` on feature 19's own
+     * clock ("2:00 PM", "2:00 م") — a promise, never a countdown.
+     */
+    val expectedReply: String,
+    val expectedToday: String,
+    val expectedTomorrow: String,
+    /** A day further out: `{day}` is the full weekday name, as the office-hours banner spells it. */
+    val expectedOnWeekday: String,
 ) {
     companion object {
         val en = ComplaintStrings(
@@ -75,6 +85,10 @@ data class ComplaintStrings(
             sendFailed = "The complaint was not sent. Check the connection and try again.",
             retryReply = "Send this reply again",
             reopenFailed = "The complaint was not reopened. Check the connection and try again.",
+            expectedReply = "Expected reply: {when}",
+            expectedToday = "today by {time}",
+            expectedTomorrow = "tomorrow by {time}",
+            expectedOnWeekday = "{day} by {time}",
         )
 
         val ar = ComplaintStrings(
@@ -112,6 +126,10 @@ data class ComplaintStrings(
             sendFailed = "لم تُرسل الشكوى. تحقّق من الاتصال وحاول مجددًا.",
             retryReply = "أعد إرسال هذا الرد",
             reopenFailed = "لم يُعد فتح الشكوى. تحقّق من الاتصال وحاول مجددًا.",
+            expectedReply = "الرد المتوقع: {when}",
+            expectedToday = "اليوم قبل {time}",
+            expectedTomorrow = "غدًا قبل {time}",
+            expectedOnWeekday = "{day} قبل {time}",
         )
     }
 }
