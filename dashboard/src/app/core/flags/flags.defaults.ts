@@ -43,4 +43,6 @@ export const DEFAULT_FLAGS: Readonly<Record<string, boolean>> = {
   todayHome: false,
   // V44 (feature 22): off until an Admin turns it on per school.
   voiceAnnouncement: false,
+  // V49 (feature 27): off until an Admin turns it on per school.
+  complaintTriage: false,
 };

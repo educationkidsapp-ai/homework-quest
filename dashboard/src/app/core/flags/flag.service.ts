@@ -64,6 +64,11 @@ export const FLAGS = {
   // sends. Off until an Admin turns it on — it rides on `announcements`, which is the feed it
   // writes into, so a school needs both.
   voiceAnnouncement: 'voiceAnnouncement',
+  // Feature 27: a new complaint reaches the staff who answer it already sorted — the category and
+  // urgency chips on the list, and the summary and suggested reply on the detail. It gates the
+  // triage and nothing else: a complaint with no triage row (the flag off, the seconds before the
+  // answer lands, a model that failed) is the ordinary case, so the screen draws what it has.
+  complaintTriage: 'complaintTriage',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];

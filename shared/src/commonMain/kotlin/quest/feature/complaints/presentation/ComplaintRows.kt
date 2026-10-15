@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.toLocalDateTime
 import quest.api.dto.ChatPeerRole
 import quest.api.dto.ChatSender
@@ -42,6 +43,7 @@ import quest.api.dto.ChatThreadStatus
 import quest.api.dto.Complaint
 import quest.api.dto.ComplaintActor
 import quest.api.dto.ComplaintEvent
+import quest.core.platform.Today
 import quest.core.text.isolate
 import quest.feature.chat.presentation.avatarInitial
 import quest.feature.chat.presentation.staffLabel
@@ -72,6 +74,40 @@ fun recipientLabel(role: ChatPeerRole, subject: String?, strings: Strings): Stri
 fun complaintDate(epochMillis: Long, strings: Strings): String {
     val dt = Instant.fromEpochMilliseconds(epochMillis).toLocalDateTime(TimeZone.currentSystemDefault())
     return "${dt.dayOfMonth} ${strings.months[dt.monthNumber - 1]}"
+}
+
+/**
+ * Feature 27: "Expected reply: today by 2:00 PM" — the one calm line the parent is told about timing, from
+ * `ComplaintDetail.expectedReplyBy` (the recipient's office hours, worked out by the server). The clock is feature
+ * 19's own (`OfficeHoursWords.clock`), so a promise here reads exactly as the office-hours banner's does.
+ *
+ * **Null is the normal answer**, and nothing is drawn: the school keeps no office hours (`chatOfficeHours` off), the
+ * server could find no working day, [status] is already `RESOLVED` — a complaint that has been answered promises
+ * nothing — or the moment has simply passed, and a promise that has run out is worse than none. The day and the
+ * clock are the **device's** own zone, which is where the parent reads them, and a date further out than tomorrow is
+ * named by its weekday rather than counted in days.
+ */
+fun expectedReplyLine(
+    expectedReplyBy: Long?,
+    status: ChatThreadStatus,
+    strings: Strings,
+    now: Long = Today.epochMillis(),
+    zone: TimeZone = TimeZone.currentSystemDefault(),
+): String? {
+    if (expectedReplyBy == null || status == ChatThreadStatus.RESOLVED || expectedReplyBy < now) return null
+    val c = strings.complaints
+    val at = Instant.fromEpochMilliseconds(expectedReplyBy).toLocalDateTime(zone)
+    val today = Instant.fromEpochMilliseconds(now).toLocalDateTime(zone).date
+    val time = strings.officeHours.clock(at)
+    // `toEpochDays()` counts whole days, so a promise at 23:30 is still "today" and one at 00:30 is "tomorrow".
+    val away = at.date.toEpochDays().toLong() - today.toEpochDays().toLong()
+    val whenBy = when (away) {
+        0L -> c.expectedToday.replace("{time}", time)
+        1L -> c.expectedTomorrow.replace("{time}", time)
+        // The office-hours banner's table holds the full weekday names, Monday-first as `isoDayNumber` counts.
+        else -> c.expectedOnWeekday.replace("{day}", strings.officeHours.weekdays[at.date.dayOfWeek.isoDayNumber - 1]).replace("{time}", time)
+    }
+    return c.expectedReply.replace("{when}", whenBy)
 }
 
 /** The system line for a status change: "Resolved by Ms. Lina · 3 October", "Reopened by you · 4 October". */

@@ -272,5 +272,48 @@ public final class Prompts {
         """.formatted(today, cells.isEmpty() ? "- (none: write no \"audience\")" : "- " + String.join("\n- ", cells), transcript);
     }
 
+    /**
+     * Feature 27, Prompt F: one new complaint is sorted for the member of staff who will answer it. The categories
+     * and the urgencies are a closed list, because they are drawn as chips and sorted on; the reply is a
+     * <strong>draft</strong> and the prompt says so, since nothing here is ever sent without a human pressing Send.
+     *
+     * <p>The lengths are the table's own ({@code summary_*} 400, {@code reply_*} 600) minus nothing: an answer that
+     * overruns is rejected and asked for again rather than cut, because half a suggested reply reads as a decision
+     * the school has made.
+     */
+    public static final String SYSTEM_F = """
+        You sort a school's incoming complaints for the member of staff who will answer it. You never answer the
+        parent yourself: you prepare, and she decides.
+        Names, e-mail addresses and telephone numbers have been removed before you were given this and appear as
+        [name], [email] and [phone]. Never guess what they were, and never write a name of your own.
+        You answer with one JSON object only — no prose, no markdown fences:
+        { "category": "academic | behaviour | transport | fees | facilities | staff | other [required]",
+          "urgency": "low | normal | high [required]",
+          "summaryAr": "two or three lines in Modern Standard Arabic [required, <= 400 characters]",
+          "summaryEn": "the same summary in English [required, <= 400 characters]",
+          "replyAr": "a courteous draft reply in Modern Standard Arabic [required, <= 600 characters]",
+          "replyEn": "the same draft reply in English [required, <= 600 characters]" }
+        "category" is exactly one of those seven words; "other" is the honest answer when none of the six fits.
+        "urgency" is "high" only for a child's safety, health or a missing child, "low" for a question or a request
+        that can wait, and "normal" otherwise.
+        The summary says what the parent is complaining about and what she is asking for, and adds no fact she did
+        not give. The draft reply acknowledges the complaint, says what will be looked into, and promises nothing
+        specific — no date, no decision, no apology on anyone else's behalf. No emoji, no dialect.
+        """;
+
+    /**
+     * What the model is given and all it is given: the complaint's title and its first message, already masked by
+     * {@link quest.server.ai.AiInputGuard}. <strong>No name, address or number from the school's own records.</strong>
+     */
+    public static String userF(String title, String body) {
+        return """
+        THE COMPLAINT'S TITLE:
+        %s
+
+        WHAT THE PARENT WROTE (her own words; names, e-mails and numbers are already masked):
+        %s
+        """.formatted(title, body == null || body.isBlank() ? "(nothing but the title and, perhaps, an attachment)" : body);
+    }
+
     static String join(List<String> xs) { return xs.stream().collect(Collectors.joining(", ")); }
 }

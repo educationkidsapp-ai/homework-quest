@@ -2027,6 +2027,9 @@
           "title" : {
             "type" : "string"
           },
+          "triage" : {
+            "$ref" : "#/components/schemas/ComplaintTriage"
+          },
           "unread" : {
             "format" : "int32",
             "type" : "integer"
@@ -2045,6 +2048,10 @@
               "$ref" : "#/components/schemas/ComplaintEvent"
             },
             "type" : "array"
+          },
+          "expectedReplyBy" : {
+            "format" : "int64",
+            "type" : "integer"
           },
           "messages" : {
             "items" : {
@@ -2127,6 +2134,32 @@
           }
         },
         "required" : [ "status" ],
+        "type" : "object"
+      },
+      "ComplaintTriage" : {
+        "properties" : {
+          "category" : {
+            "enum" : [ "academic", "behaviour", "transport", "fees", "facilities", "staff", "other" ],
+            "type" : "string"
+          },
+          "replyAr" : {
+            "type" : "string"
+          },
+          "replyEn" : {
+            "type" : "string"
+          },
+          "summaryAr" : {
+            "type" : "string"
+          },
+          "summaryEn" : {
+            "type" : "string"
+          },
+          "urgency" : {
+            "enum" : [ "low", "normal", "high" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "category", "replyAr", "replyEn", "summaryAr", "summaryEn", "urgency" ],
         "type" : "object"
       },
       "CoordinatorAccount" : {

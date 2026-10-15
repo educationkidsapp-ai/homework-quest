@@ -73,11 +73,19 @@ public final class FlagKeys {
      */
     public static final String VOICE_ANNOUNCEMENT = "voiceAnnouncement";
 
+    /**
+     * Feature 27: a new complaint is sorted by the AI for the staff who answer it — category, urgency, a bilingual
+     * summary and a suggested reply ({@code quest.server.chat.ComplaintTriage}). Seeded off by V49. It gates the
+     * triage only: the complaint itself, and the parent's expected reply time (which is `chatOfficeHours`), are
+     * unaffected by it.
+     */
+    public static final String COMPLAINT_TRIAGE = "complaintTriage";
+
     public static final List<String> ALL = List.of(
             LESSONS_PDF, LESSONS_SLIDES, LESSONS_IMAGES, LESSONS_MANUAL, LEVELS_THREE, RETELL_RECORDING,
             OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, COMPLAINTS, ANNOUNCEMENTS, TEACHER_QUESTIONS,
             STICKERS_TREASURE_CHEST, PROGRESS_WEEKLY_EMAIL, CERTIFICATES,
             MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST,
             CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, FLOOR_SUPERVISOR, TODAY_HOME,
-            VOICE_ANNOUNCEMENT);
+            VOICE_ANNOUNCEMENT, COMPLAINT_TRIAGE);
 }
