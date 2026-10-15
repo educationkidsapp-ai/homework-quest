@@ -5,14 +5,24 @@ import { ActivatedRoute, convertToParamMap, type ParamMap, provideRouter } from 
 import { BehaviorSubject } from 'rxjs';
 import { screen } from '@testing-library/angular';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { COORDINATOR_USER, MANAGERIAL_USER, TEACHER_USER } from '../../../testing/fixtures';
+import { ADMIN_USER, COORDINATOR_USER, MANAGERIAL_USER, TEACHER_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
 import { scrollIntoView } from '../../../testing/intersection';
 import { BASE_PATH } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
 import { FlagService } from '../../core/flags/flag.service';
+import { type SpeechInput, SPEECH_INPUT } from '../../core/speech/speech-input';
 import { AnnouncementsPage } from './announcements.page';
+
+/**
+ * Feature 22: a device that can transcribe, so the record button is on the screen for the two
+ * roles that may use it. What it does once pressed is `voice-note.component.spec.ts`.
+ */
+const SPEECH: SpeechInput = {
+  supported: () => true,
+  start: () => ({ stop: () => undefined }),
+};
 
 /** MH1: a plan is a grade, a week and an image — no title and no body at all. */
 const PLAN = {
@@ -74,6 +84,28 @@ const CLASSES = [
 ];
 
 /**
+ * Feature 22: the **whole school** as `GET /management/classes` answers it for the Admin — two
+ * academies, three grades. One group per (academy, grade), which is the shape the server groups by.
+ */
+const SCHOOL_CLASSES = [
+  {
+    grade: 1,
+    curriculum: 'british',
+    classes: [{ classId: 'c-1', className: '1A British', grade: 1, curriculum: 'british' }],
+  },
+  {
+    grade: 3,
+    curriculum: 'british',
+    classes: [{ classId: 'c-2', className: '3A British', grade: 3, curriculum: 'british' }],
+  },
+  {
+    grade: 5,
+    curriculum: 'american',
+    classes: [{ classId: 'c-3', className: '5A American', grade: 5, curriculum: 'american' }],
+  },
+];
+
+/**
  * RM3b: one feed, three roles — narrowed by MH2 item 5 to the announcements and the events. These
  * tests are about the three things only the screen can get wrong: which routes a role reads, when a
  * row stops being unread, and where a `broadcast.posted` for a *plan* ends up.
@@ -107,6 +139,7 @@ describe('the announcements screen', () => {
         // query empty — so it is supplied as the observable the page subscribes to, which is
         // also what lets a test change it *after* the component is on screen.
         { provide: ActivatedRoute, useValue: { queryParamMap: query.asObservable() } },
+        { provide: SPEECH_INPUT, useValue: SPEECH },
       ],
     });
     const backend = TestBed.inject(HttpTestingController);
@@ -116,11 +149,17 @@ describe('the announcements screen', () => {
     await settle();
     // `*hqCan` on the compose button reads `GET /me/permissions`, so the list has to land or the
     // footer is empty for the two roles that do hold a `*.broadcast` key.
-    backend
-      .match('/me/permissions')
-      .forEach((request) =>
-        request.flush({ permissions: ['broadcast.read', 'coordinator.broadcast', 'management.broadcast'] }),
-      );
+    backend.match('/me/permissions').forEach((request) =>
+      request.flush({
+        permissions: [
+          'broadcast.read',
+          'coordinator.broadcast',
+          'management.broadcast',
+          // Feature 22: the key on `POST /management/broadcasts/voice-drafts`.
+          'broadcast.voice',
+        ],
+      }),
+    );
     await settle();
     return backend;
   }
@@ -286,6 +325,80 @@ describe('the announcements screen', () => {
       title: 'Sports day',
       bodyEn: 'Thursday, on the big field.',
       audience: ['parents'],
+    });
+  });
+
+  /**
+   * **Feature 22: the Admin writes one too, over the whole school.**
+   *
+   * She holds `management.broadcast` and always did; what she had no door to was writing an
+   * announcement, because she reads the shared screens through `/teacher/**` and this screen asked
+   * the *area* rather than the role who the composer belonged to.
+   *
+   * Her audience is the school's own academies and grades, read from `GET /management/classes`
+   * (`ManagerScope` answers the Admin with all of it) — "the suggested audience exists in the
+   * school's data **and can be changed**". A row from an author who spans two academies has to
+   * name sections (`BroadcastService.one`), so that is what the sheet sends: the chosen academy's
+   * sections, or the chosen grade's.
+   */
+  it('gives the Admin the school’s academies and grades, and names the sections', async () => {
+    const backend = await signedInAs(ADMIN_USER);
+    backend.expectOne('/me/broadcasts').flush({ items: [], unread: 0 });
+    backend.expectOne('/management/broadcasts').flush([]);
+    backend.expectOne('/management/classes').flush(SCHOOL_CLASSES);
+    await settle();
+
+    // Her namespace is `/teacher/**`: the supervisor scope still asks nothing for her, and the
+    // composer's cells are the one read this screen added.
+    expect(backend.match('/management/me')).toEqual([]);
+    expect(backend.match('/management/teachers')).toEqual([]);
+    // Both ways in: the typed sheet, and the voice note beside it.
+    expect(screen.getByRole('button', { name: 'Record a voice note' })).toBeTruthy();
+
+    screen.getByRole('button', { name: 'Write an announcement' }).click();
+    await settle();
+
+    // Both academies of the school, and no grade yet — "grade 3" of which academy is not a
+    // question the sheet may answer for her.
+    const selects = () => [...document.querySelectorAll<HTMLSelectElement>('hq-select select')];
+    const values = (select: HTMLSelectElement) =>
+      [...select.options].map((option) => option.getAttribute('value'));
+    const [, department, scope] = selects();
+    // Sorted, so the list does not depend on which academy the school happens to list first.
+    expect(values(department!)).toEqual(['', 'american', 'british']);
+    expect(values(scope!)).toEqual(['']);
+
+    department!.value = 'british';
+    department!.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle();
+
+    // The British academy's grades, from the school's real classes.
+    expect(values(selects()[2]!)).toEqual(['', '1', '3']);
+    selects()[2]!.value = '3';
+    selects()[2]!.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle();
+
+    const title = document.querySelector('hq-input input') as HTMLInputElement;
+    title.value = 'Sunday is a holiday';
+    title.dispatchEvent(new Event('input'));
+    const body = document.querySelector('hq-textarea textarea') as HTMLTextAreaElement;
+    body.value = 'The school is closed on Sunday.';
+    body.dispatchEvent(new Event('input'));
+    await settle();
+
+    screen.getByRole('button', { name: 'Post' }).click();
+    await settle();
+
+    const request = backend.expectOne('/management/broadcasts');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({
+      kind: 'announcement',
+      title: 'Sunday is a holiday',
+      bodyEn: 'The school is closed on Sunday.',
+      audience: ['parents'],
+      // Grade 3 of the British academy, said as its sections: the server refuses `grade` from an
+      // author who holds two departments, and refuses it beside named sections either way.
+      sectionIds: ['c-2'],
     });
   });
 

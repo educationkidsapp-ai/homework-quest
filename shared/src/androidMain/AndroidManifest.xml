@@ -18,6 +18,13 @@
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
+        <!--
+          Feature 22: `SpeechRecognizer.isRecognitionAvailable` has to see the device's recognition service, and on
+          API 30 and up a package this app does not declare here is invisible to it.
+        -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
     </queries>
     <application>
         <!-- M5: push for parents. The token is asked for only after sign-in, never by Firebase on its own. -->

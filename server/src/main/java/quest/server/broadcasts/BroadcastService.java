@@ -77,17 +77,21 @@ public class BroadcastService {
     private final quest.server.files.AttachmentRepository attachments; private final quest.server.files.FileStore files;
     private final TenantContext tenant; private final Clock clock;
     private final quest.server.children.ChildRepository children;
+    /** Feature 22: only `managerPost` touches it, and only to resolve and link a `voiceDraftId`. */
+    private final VoiceDraftService voiceDrafts;
 
     public BroadcastService(BroadcastRepository rows, BroadcastReadRepository reads, ManagerScope managers,
                            CoordinatorScope coordinators, TeacherScope teachers,
                            UserRepository users, ChildService childService, NotificationService notifications,
                            CoordinatorAnnouncementService announcements,
                            quest.server.files.AttachmentRepository attachments, quest.server.files.FileStore files,
-                           TenantContext tenant, Clock clock, quest.server.children.ChildRepository children) {
+                           TenantContext tenant, Clock clock, quest.server.children.ChildRepository children,
+                           VoiceDraftService voiceDrafts) {
         this.rows = rows; this.reads = reads; this.managers = managers; this.coordinators = coordinators;
         this.teachers = teachers; this.users = users; this.childService = childService;
         this.notifications = notifications; this.announcements = announcements; this.attachments = attachments;
         this.files = files; this.tenant = tenant; this.clock = clock; this.children = children;
+        this.voiceDrafts = voiceDrafts;
     }
 
     // ---------------------------------------------------------------- the manager composes (POST /management/broadcasts)
@@ -101,10 +105,17 @@ public class BroadcastService {
      * plan for all grades" is a plan per grade as well as one for all of them. It is refused beside `sectionIds`,
      * which already say which grade is meant, and a grade she manages no class in is 400 rather than a broadcast
      * nobody is the audience of.
+     *
+     * <p>Feature 22: `voiceDraftId` is <strong>Send</strong> for a draft prepared from a voice note. It is resolved
+     * before anything is written — her own draft of this school or 404, unsent or {@code 409 already_sent} — and
+     * linked to the row in this same transaction, so the transcript follows exactly what went out and a double tap on
+     * Send posts once. It changes nothing else about the broadcast: what is posted is what this request carries.
      */
     @Transactional
     public BroadcastDto.View managerPost(Principals.User caller, BroadcastDto.CreateRequest request) {
         String schoolId = tenant.writeSchoolId();
+        var draft = blank(request.voiceDraftId()) ? null
+                : voiceDrafts.requireSendable(schoolId, caller.userId(), request.voiceDraftId().strip());
         boolean plan = WEEKLY_PLAN.equals(kind(request.kind()));
         var departments = managers.departments(caller);
         var reach = managers.reach(caller);
@@ -128,6 +139,7 @@ public class BroadcastService {
         // names it — the parents, the teachers and the coordinators of that grade.
         var audience = plan ? List.of(PARENTS, TEACHERS, COORDINATORS) : audience(request.audience());
         var row = write(schoolId, caller.userId(), ManagerScope.ROLE, request, curriculum, grade, null, named ? targets : null, audience);
+        if (draft != null) voiceDrafts.link(draft, row.getId());
         fanOut(row, schoolId, audience, reach);
         tellParents(row, schoolId);
         return view(row, displayName(caller.userId()), true);

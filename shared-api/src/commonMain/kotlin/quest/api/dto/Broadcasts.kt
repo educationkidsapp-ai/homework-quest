@@ -123,6 +123,13 @@ data class CreateBroadcastRequest(
     /** MH1: an [AttachmentRef.id] from `POST /media/attachments`, and the author's own upload — anybody else's is 400. */
     val attachmentId: String? = null,
     val expiresAt: Long? = null,
+    /**
+     * Feature 22: the [VoiceDraft] this announcement is being sent from, so the transcript stays with what was sent.
+     * It changes nothing about the broadcast — the title, the bodies and the audience are whatever this request
+     * carries, edits included. A draft of another school or another author is 404 and one already sent is
+     * `409 already_sent`, so pressing Send twice posts once.
+     */
+    val voiceDraftId: String? = null,
 )
 
 // ---- MG1: the archive (`GET /management/weekly-plans`, `GET /me/weekly-plans`, `GET /children/{id}/weekly-plans`)

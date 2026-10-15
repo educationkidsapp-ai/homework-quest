@@ -24,16 +24,21 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import quest.api.ApiException
+import quest.api.dashboard.ManagementGradeGroup
 import quest.api.dto.ApiError
 import quest.api.dto.AttachmentRef
+import quest.api.dto.BroadcastView
 import quest.api.dto.ChatMessage
 import quest.api.dto.ChatReadReceipt
 import quest.api.dto.ChatThread
+import quest.api.dto.CreateBroadcastRequest
+import quest.api.dto.CreateVoiceDraftRequest
 import quest.api.dto.NotificationView
 import quest.api.dto.RegisterDeviceRequest
 import quest.api.dto.SendChatMessageRequest
 import quest.api.dto.UnregisterDeviceRequest
 import quest.api.dto.UnreadCount
+import quest.api.dto.VoiceDraft
 import quest.api.staff.AttendanceRequestList
 import quest.api.staff.AttendanceRequestView
 import quest.api.staff.CheckInMonth
@@ -47,6 +52,7 @@ import quest.core.json.AppJson
 import quest.feature.chat.data.source
 import quest.feature.chat.domain.StagedUpload
 import quest.feature.staff.domain.StaffGateway
+import quest.feature.staff.domain.VoiceAnnouncementGateway
 
 /**
  * The `/staff` facade over HTTP, plus the three routes that already existed and now take a staff token (the bell, the
@@ -60,7 +66,7 @@ class RemoteStaffApi(
     private val baseUrl: String,
     private val auth: StaffAuth,
     engineClient: HttpClient,
-) : StaffGateway {
+) : StaffGateway, VoiceAnnouncementGateway {
 
     private val client = engineClient.config {
         install(ContentNegotiation) { json(AppJson) }
@@ -151,6 +157,17 @@ class RemoteStaffApi(
 
     override suspend fun rejectAttendanceRequest(id: String): AttendanceRequestView =
         call { client.post("$baseUrl/attendance/requests/$id/reject") { staffed() } }
+
+    // ---------------------------------------------------------------- feature 22: voice note to announcement
+
+    override suspend fun managementClasses(): List<ManagementGradeGroup> =
+        call { client.get("$baseUrl/management/classes") { staffed() } }
+
+    override suspend fun voiceDraft(request: CreateVoiceDraftRequest): VoiceDraft =
+        call { client.post("$baseUrl/management/broadcasts/voice-drafts") { staffed(); contentType(ContentType.Application.Json); setBody(request) } }
+
+    override suspend fun createBroadcast(request: CreateBroadcastRequest): BroadcastView =
+        call { client.post("$baseUrl/management/broadcasts") { staffed(); contentType(ContentType.Application.Json); setBody(request) } }
 
     override suspend fun notifications(limit: Int): List<NotificationView> =
         call { client.get("$baseUrl/me/notifications") { staffed(); parameter("limit", limit) } }

@@ -159,25 +159,37 @@ describe('the announcement composer rules', () => {
   });
 
   /**
-   * **The two-department rule** — the one the sheet cannot post its way around.
+   * **The two-department rule, said the way the server accepts it** (feature 22).
    *
    * `BroadcastService.grade` refuses `grade` beside named sections, and `BroadcastService.one`
-   * refuses a row with *no* named sections from a manager who holds two departments ("name the
-   * sections this is for"). Together: she can write to a whole department by naming its sections,
-   * and to no single grade at all.
+   * refuses a row with *no* named sections from an author who holds two departments ("name the
+   * sections this is for"). That used to mean she could name no grade at all — which took the
+   * suggested audience away from the **Admin**, whose scope is every academy of the school. One
+   * grade of one academy is still expressible: it is that grade's sections.
    */
-  it('refuses a grade from a manager of two departments, and still names her department', () => {
+  it('sends a grade from an author of two departments as that grade’s sections', () => {
     const ctx = manager(['british', 'american']);
-    expect(canChooseGrade(ctx)).toBe(false);
+    expect(canChooseGrade(ctx)).toBe(true);
+    // Her chosen academy's grades, not both academies' — "grade 3" must mean one of them.
     expect(gradeOptions(note({ department: 'british' }), ctx)).toEqual([1, 3]);
-    expect(composeErrors(note({ department: 'british', grade: 1 }), ctx).grade).toBe(
-      'broadcasts.errors.gradeOneDepartment',
-    );
-    expect(canPost(note({ department: 'british', grade: 1 }), ctx)).toBe(false);
 
-    const body = requestOf(note({ department: 'british' }), ctx);
-    expect(body.sectionIds).toEqual(['c-1', 'c-2']);
+    const narrowed = note({ department: 'british', grade: 3 });
+    expect(composeErrors(narrowed, ctx).grade).toBeNull();
+    expect(canPost(narrowed, ctx)).toBe(true);
+    const body = requestOf(narrowed, ctx);
+    expect(body.sectionIds).toEqual(['c-2']);
+    // Both halves of the server's rule: no `grade` from a two-department author, and never a
+    // `grade` beside the sections that already say which one it is.
     expect('grade' in body).toBe(false);
-    expect(canPost(note({ department: 'british' }), ctx)).toBe(true);
+
+    // A grade the school has no class in is still refused rather than posted.
+    expect(composeErrors(note({ department: 'british', grade: 9 }), ctx).grade).toBe(
+      'broadcasts.errors.gradeUnmanaged',
+    );
+
+    // And the whole academy is still every section of it.
+    const whole = requestOf(note({ department: 'british' }), ctx);
+    expect(whole.sectionIds).toEqual(['c-1', 'c-2']);
+    expect('grade' in whole).toBe(false);
   });
 });

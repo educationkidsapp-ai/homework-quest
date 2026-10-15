@@ -105,6 +105,9 @@ describe('the screen table', () => {
       'messages',
       // D5: the support view of every complaint, read-only.
       'complaints',
+      // Feature 22: the screen all three staff roles read, and the one she writes her own
+      // school-wide announcement from — the voice note included.
+      'announcements',
     ]);
 
     const routes = childrenOf(areaRoutes('ADMIN'));

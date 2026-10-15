@@ -983,6 +983,15 @@ interface DashboardApi {
     suspend fun managementBroadcasts(): List<quest.api.dto.BroadcastView>
 
     /**
+     * Feature 22 `POST /management/broadcasts/voice-drafts` — the transcript her device produced becomes a formal
+     * Arabic and English announcement with a suggested audience and expiry, stored unsent. **It posts nothing**: Send
+     * is `createManagementBroadcast` with [quest.api.dto.CreateBroadcastRequest.voiceDraftId]. Behind the
+     * `voiceAnnouncement` flag and `broadcast.voice`; 422 `rephrase` when the assistant cannot produce an
+     * announcement, 502 `model_failed` when the provider is unreachable.
+     */
+    suspend fun createVoiceDraft(request: quest.api.dto.CreateVoiceDraftRequest): quest.api.dto.VoiceDraft
+
+    /**
      * MG1 `GET /management/weekly-plans?from&to&grade` — every weekly plan of her department(s) in the window, newest
      * week first, each entry with `readBy`. Absent dates mean the last twelve weeks; past weeks are never hidden.
      */

@@ -45,7 +45,11 @@ import quest.feature.staff.presentation.MyRecordContract
 import quest.feature.staff.presentation.StaffMyRecordScreen
 import quest.feature.staff.presentation.StaffAccountContract
 import quest.feature.staff.presentation.StaffAccountScreen
+import quest.api.dashboard.ManagementGradeGroup
+import quest.api.dto.Curriculum
 import quest.feature.staff.presentation.StaffHomeScreen
+import quest.feature.staff.presentation.VoiceAnnouncementContract
+import quest.feature.staff.presentation.VoiceAnnouncementScreen
 import quest.feature.staff.presentation.StaffMessagesContract
 import quest.feature.staff.presentation.StaffMessagesScreen
 import quest.feature.staff.presentation.StaffNotificationsContract
@@ -70,7 +74,12 @@ class StaffScreensScreenshotTest {
     /** Her school with the staff app switched on — what `GET /staff/me` answers. */
     private object StaffFlags : FlagStore {
         override val flags: StateFlow<Map<String, Boolean>> =
-            MutableStateFlow(DEFAULT_FLAGS + mapOf(Flags.STAFF_MOBILE_APP to true, Flags.CHAT to true, Flags.STAFF_ATTENDANCE to true))
+            MutableStateFlow(
+                DEFAULT_FLAGS + mapOf(
+                    Flags.STAFF_MOBILE_APP to true, Flags.CHAT to true, Flags.STAFF_ATTENDANCE to true,
+                    Flags.ANNOUNCEMENTS to true, Flags.VOICE_ANNOUNCEMENT to true,
+                ),
+            )
     }
 
     private val profile = StaffProfile(
@@ -140,6 +149,42 @@ class StaffScreensScreenshotTest {
         }
         shot("staff-home-dark", StaffStrings.en, dark = true, title = { it.attendance }) { staff, _ ->
             StaffHomeScreen(staff, unreadMessages = 0, hasChat = true, onMessages = {}, today = { checkInCard(afterArrival)(staff) }, switch = {})
+        }
+    }
+
+    /** Feature 22: the recorder while she is speaking, and the preview the assistant prepared. */
+    @Test fun staffVoiceAnnouncement() {
+        val recording = VoiceAnnouncementContract.State(
+            allowed = true, recording = true, elapsedSeconds = 37,
+            transcript = "بكرة عندنا رحلة لطلاب الصف الثالث، ودوا معهم وجبة خفيفة وماء.",
+        )
+        val preview = VoiceAnnouncementContract.State(
+            allowed = true,
+            step = VoiceAnnouncementContract.Step.PREVIEW,
+            draftId = "draft-1",
+            transcript = recording.transcript,
+            cells = listOf(Curriculum.BRITISH, Curriculum.AMERICAN).flatMap { track ->
+                (1..3).map { grade -> ManagementGradeGroup(curriculum = track, grade = grade, sections = 1, children = 20) }
+            },
+            form = VoiceAnnouncementContract.Form(
+                title = "رحلة الصف الثالث",
+                bodyAr = "نحيط أولياء أمور طلاب الصف الثالث علمًا بأن الرحلة المدرسية غدًا، ونرجو تزويد الطالب بوجبة خفيفة وماء.",
+                bodyEn = "Dear parents of Grade 3, the school trip is tomorrow. Please send a light snack and water.",
+                curriculum = Curriculum.BRITISH,
+                grade = 3,
+                expiresOn = "2026-11-30",
+            ),
+        )
+        listOf("staff-voice-record-ar" to StaffStrings.ar, "staff-voice-record-en" to StaffStrings.en).forEach { (name, s) ->
+            shot(name, s, dark = false, title = { it.voiceAnnouncement }) { staff, _ ->
+                VoiceAnnouncementScreen(recording, staff)
+            }
+        }
+        shot("staff-voice-preview-ar", StaffStrings.ar, dark = false, title = { it.voiceAnnouncement }) { staff, _ ->
+            VoiceAnnouncementScreen(preview, staff)
+        }
+        shot("staff-voice-preview-dark", StaffStrings.en, dark = true, title = { it.voiceAnnouncement }) { staff, _ ->
+            VoiceAnnouncementScreen(preview, staff)
         }
     }
 

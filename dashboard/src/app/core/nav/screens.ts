@@ -239,6 +239,18 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.chat,
         permission: 'admin.complaints',
       },
+      // Feature 22: **Announcements**, the Admin's own row at last. The screen is the one all
+      // three staff roles read (`features/broadcasts/announcements.page.ts`) and she always held
+      // `management.broadcast`; what she had no door to was writing one. Same flag and same key as
+      // the manager's row — `broadcast.read` is the feed's key, and the composer inside is gated
+      // on her write key — because it is the same screen.
+      {
+        id: 'announcements',
+        path: 'announcements',
+        labelKey: 'nav.announcements',
+        flag: FLAGS.announcements,
+        permission: 'broadcast.read',
+      },
       // lessons (P3.2c/d): the new-lesson wizard and the review page. Neither has a `labelKey`
       // — the wizard is a quick action on her Home and the review page is what the Home's
       // "needs you" rows and the bell's notifications open, not rail items of their own. The

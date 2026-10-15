@@ -27,6 +27,7 @@ public class SampleLlmClient implements LlmClient {
             return new Result(json.encodeToString(ParentPanel.Companion.serializer(), p), 3000, 600);
         }
         if (system.startsWith(PROMPT_D)) return stopFromText(user);
+        if (system.equals(Prompts.SYSTEM_E)) return announcementFromTranscript(user);
         if (user.startsWith("Here is a Play you wrote earlier")) {
             int i = user.indexOf("different content:\n") + "different content:\n".length();
             String stop = user.substring(i, user.indexOf("\n\nDo not reuse", i)).trim();
@@ -58,6 +59,32 @@ public class SampleLlmClient implements LlmClient {
             return new Result(node.toString(), 900, 300);
         } catch (Exception e) { return new Result(current, 900, 300); }
     }
+
+    /**
+     * Feature 22's turn without a model: the first line of the transcript becomes the title, the whole transcript
+     * becomes both bodies, the <em>first</em> audience line offered is copied into `audience`, and an ISO date written
+     * anywhere in the transcript becomes `expiresOn`. Deterministic, which is what lets the API test and the local H2
+     * run press the button and assert on what comes back — and it exercises the real checks either way, because the
+     * server still has to recognise that first cell as one of the caller's own.
+     */
+    private Result announcementFromTranscript(String user) {
+        String cells = between(user, "out for all of them):\n", "\n\nWHAT SHE SAID");
+        String transcript = between(user, "punctuation may be missing):\n", "\n\nYour previous answer").strip();
+        List<String> lines = transcript.lines().map(String::strip).filter(l -> !l.isEmpty()).toList();
+        var out = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+        out.put("title", cut(lines.isEmpty() ? "Announcement" : lines.get(0), 120));
+        out.put("bodyAr", cut(transcript, 1000));
+        out.put("bodyEn", cut(transcript, 1000));
+        var cell = CELL.matcher(cells);
+        if (cell.find()) out.putObject("audience").put("curriculum", cell.group(1)).put("grade", Integer.parseInt(cell.group(2)));
+        var day = ISO_DAY.matcher(transcript);
+        if (day.find()) out.put("expiresOn", day.group());
+        return new Result(out.toString(), 700, 400);
+    }
+
+    /** One audience line of {@link Prompts#userE}: `curriculum "british", grade 1`. */
+    private static final java.util.regex.Pattern CELL = java.util.regex.Pattern.compile("curriculum \"([a-z]+)\", grade (\\d+)");
+    private static final java.util.regex.Pattern ISO_DAY = java.util.regex.Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
 
     private static String cut(String s, int max) { return s.length() <= max ? s : s.substring(0, max).strip(); }
 

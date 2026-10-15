@@ -66,10 +66,18 @@ public final class FlagKeys {
      */
     public static final String TODAY_HOME = "todayHome";
 
+    /**
+     * Feature 22: a leader's voice note becomes a formal bilingual announcement she reviews and sends
+     * (`POST /management/broadcasts/voice-drafts`). Speech to text runs on her device; the server takes text only.
+     * Seeded off by V44.
+     */
+    public static final String VOICE_ANNOUNCEMENT = "voiceAnnouncement";
+
     public static final List<String> ALL = List.of(
             LESSONS_PDF, LESSONS_SLIDES, LESSONS_IMAGES, LESSONS_MANUAL, LEVELS_THREE, RETELL_RECORDING,
             OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, COMPLAINTS, ANNOUNCEMENTS, TEACHER_QUESTIONS,
             STICKERS_TREASURE_CHEST, PROGRESS_WEEKLY_EMAIL, CERTIFICATES,
             MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST,
-            CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, FLOOR_SUPERVISOR, TODAY_HOME);
+            CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, FLOOR_SUPERVISOR, TODAY_HOME,
+            VOICE_ANNOUNCEMENT);
 }

@@ -5,20 +5,31 @@ import quest.api.ApiException
 import quest.api.DEFAULT_FLAGS
 import quest.api.dto.ApiError
 import quest.api.dto.AttachmentRef
+import quest.api.dto.BroadcastAudience
+import quest.api.dto.BroadcastView
 import quest.api.dto.ChatMessage
 import quest.api.dto.ChatPeerRole
 import quest.api.dto.ChatReadReceipt
 import quest.api.dto.ChatSender
 import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatThread
+import quest.api.dto.CreateBroadcastRequest
+import quest.api.dto.CreateVoiceDraftRequest
+import quest.api.dto.Curriculum
 import quest.api.dto.NotificationKind
 import quest.api.dto.NotificationView
 import quest.api.dto.RegisterDeviceRequest
 import quest.api.dto.SendChatMessageRequest
 import quest.api.dto.UnreadCount
+import quest.api.dto.VoiceDraft
+import quest.api.dto.VoiceDraftAudience
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import quest.api.dashboard.CoordinatorClass
+import quest.api.dashboard.ManagementGradeGroup
+import quest.api.dto.Subject
+import quest.api.dashboard.WeekLessonStatus
 import quest.api.staff.AttendanceRequestList
 import quest.api.staff.AttendanceRequestStatus
 import quest.api.staff.AttendanceRequestView
@@ -38,6 +49,7 @@ import quest.core.platform.Ids
 import quest.core.platform.Today
 import quest.feature.chat.domain.StagedUpload
 import quest.feature.staff.domain.StaffGateway
+import quest.feature.staff.domain.VoiceAnnouncementGateway
 
 /**
  * The in-app stand-in for `/staff`, so a build with no server still signs a teacher in and draws her tabs — the same
@@ -46,7 +58,7 @@ import quest.feature.staff.domain.StaffGateway
  * It answers one teacher with two conversations, one of them a parent's, and keeps whatever is sent into them, so the
  * Messages tab, its unread badges and the read receipts all behave.
  */
-class FakeStaffApi(private val delayMillis: Long = 250) : StaffGateway {
+class FakeStaffApi(private val delayMillis: Long = 250) : StaffGateway, VoiceAnnouncementGateway {
 
     /** What `FakeAuth`'s staff half is: whichever login signed in, as a teacher of the default school. */
     var login: String = "teacher@school.test"
@@ -68,7 +80,12 @@ class FakeStaffApi(private val delayMillis: Long = 250) : StaffGateway {
             schoolId = "school-fake", schoolName = "Learning International School",
             // Features 15 and 19 are on in the fake school, so a build with no server still draws the check-in card
             // and the after-hours switch.
-            flags = DEFAULT_FLAGS + mapOf("chat" to true, "staffMobileApp" to flagsOn, "staffAttendance" to flagsOn, "chatOfficeHours" to flagsOn),
+            // Features 15, 19 and 22 are on in the fake school, so an ADMIN or MANAGERIAL login also draws the voice
+            // announcement card; the role itself still decides, as on the server.
+            flags = DEFAULT_FLAGS + mapOf(
+                "chat" to true, "staffMobileApp" to flagsOn, "staffAttendance" to flagsOn, "chatOfficeHours" to flagsOn,
+                "announcements" to flagsOn, "voiceAnnouncement" to flagsOn,
+            ),
             afterHoursAlerts = afterHoursAlerts,
         )
     }
@@ -235,6 +252,60 @@ class FakeStaffApi(private val delayMillis: Long = 250) : StaffGateway {
         val decided = requests[index].copy(status = status, decidedBy = "Mr Adel", decidedAt = Today.epochMillis())
         requests[index] = decided
         return decided
+    }
+
+    // ---------------------------------------------------------------- feature 22: voice note to announcement
+
+    /** Every draft this fake prepared, and the broadcasts Send actually posted — a build with no server still shows
+     * that nothing goes out until she presses it. */
+    val drafts = mutableListOf<VoiceDraft>()
+    val posted = mutableListOf<CreateBroadcastRequest>()
+
+    override suspend fun managementClasses(): List<ManagementGradeGroup> {
+        net()
+        return listOf(Curriculum.BRITISH, Curriculum.AMERICAN).flatMap { track ->
+            (1..3).map { grade ->
+                ManagementGradeGroup(
+                    curriculum = track, grade = grade, sections = 1, children = 22,
+                    classes = listOf(
+                        CoordinatorClass(
+                            classId = "sec-${track.name.lowercase()}-$grade", className = "$grade" + "A",
+                            curriculum = track, grade = grade, subject = Subject.MATH,
+                            teacherId = ME, teacherName = "Ms Noor", childrenCount = 22,
+                            todayStatus = WeekLessonStatus.NONE,
+                        ),
+                    ),
+                )
+            }
+        }
+    }
+
+    override suspend fun voiceDraft(request: CreateVoiceDraftRequest): VoiceDraft {
+        net()
+        if (request.transcript.isBlank()) throw ApiException(ApiError(ApiError.BAD_REQUEST, "transcript"))
+        val draft = VoiceDraft(
+            id = Ids.random(),
+            title = "رحلة الصف الثالث",
+            bodyAr = "نحيط أولياء أمور طلاب الصف الثالث علمًا بأن الرحلة المدرسية غدًا، ونرجو تزويد الطالب بوجبة خفيفة وماء.",
+            bodyEn = "Dear parents of Grade 3, the school trip is tomorrow. Please send a light snack and water with your child.",
+            audience = VoiceDraftAudience(curriculum = Curriculum.BRITISH, grade = 3),
+            expiresAt = Today.epochMillis() + 2 * 24 * 3_600_000L,
+            transcript = request.transcript,
+        )
+        drafts += draft
+        return draft
+    }
+
+    override suspend fun createBroadcast(request: CreateBroadcastRequest): BroadcastView {
+        net()
+        posted += request
+        return BroadcastView(
+            id = Ids.random(), kind = request.kind, authorId = ME, authorName = "Ms Noor",
+            authorRole = ChatStaffRole.MANAGERIAL, title = request.title, bodyEn = request.bodyEn.orEmpty(),
+            bodyAr = request.bodyAr, grade = request.grade, sectionIds = request.sectionIds,
+            audience = request.audience.ifEmpty { listOf(BroadcastAudience.PARENTS) },
+            expiresAt = request.expiresAt, createdAt = Today.epochMillis(),
+        )
     }
 
     private fun clock(): String {

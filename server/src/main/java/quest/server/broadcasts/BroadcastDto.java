@@ -30,12 +30,17 @@ public final class BroadcastDto {
      * is "the week and an uploaded image", so `bodyEn` and `title` are optional there and the server writes both. On
      * the other two kinds `bodyEn` is still required; the validation is in {@link BroadcastService} because it depends
      * on the kind, which bean validation cannot see.
+     *
+     * <p>Feature 22: `voiceDraftId` is the {@link VoiceDraftDto.View} this announcement is being sent from, and it
+     * changes nothing else — the title, the bodies and the audience are whatever this request carries, her edits
+     * included. It only links the transcript to what went out, and it is why a draft can be sent exactly once.
      */
     @Schema(name = "CreateBroadcastRequest")
     public record CreateRequest(@NotBlank String kind, @Size(max = 1000) String bodyEn,
                                 @Size(max = 120) String title, @Size(max = 1000) String bodyAr, String weekStart,
                                 Integer grade, List<String> audience, List<String> sectionIds, Attachment attachment,
-                                @Size(max = 64) String attachmentId, Long expiresAt) {}
+                                @Size(max = 64) String attachmentId, Long expiresAt,
+                                @Size(max = 64) String voiceDraftId) {}
 
     /** One row of a feed or of a composer's list; `read` is the caller's own flag, never another recipient's. */
     @Schema(name = "BroadcastView")

@@ -60,6 +60,10 @@ export const FLAGS = {
   // (`GET /me/today`). Off until an Admin turns it on, and the old counts-first Home is what
   // the screen falls back to — the flag empties a section of Home, it never takes Home away.
   todayHome: 'todayHome',
+  // Feature 22: a leader's voice note becomes a formal bilingual announcement she reviews and
+  // sends. Off until an Admin turns it on — it rides on `announcements`, which is the feed it
+  // writes into, so a school needs both.
+  voiceAnnouncement: 'voiceAnnouncement',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];

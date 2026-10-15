@@ -39,16 +39,18 @@ export interface BroadcastDraft {
   /** The manager's choice; a coordinator's audience is always the parents of her classes. */
   readonly audience: readonly AudienceRole[];
   /**
-   * MG2b: one grade of her department, or `null` for every grade of it.
+   * MG2b: one grade of the department she is writing for, or `null` for every grade of it.
    *
-   * The server's rule, not a preference: `grade` is refused beside `sectionIds`, and a request
-   * with no `sectionIds` is refused for a manager who holds two departments (`BroadcastService.one`
-   * — "name the sections this is for"). The two together mean a **two-department manager cannot
-   * send `grade` at all**, which {@link composeErrors} says in words rather than letting the sheet
-   * post a 400.
+   * **Two ways on the wire, one question on the sheet** (feature 22). The server takes `grade`
+   * only on a row that names no section, and it refuses a row with no sections at all from an
+   * author who spans two departments (`BroadcastService.one` — "name the sections this is for").
+   * So one grade of one department is sent as `grade` by an author who holds that department
+   * alone, and as **that grade's `sectionIds`** by one who holds more than it — which is the same
+   * audience said the only way the server will accept it. {@link requestOf} is where that is
+   * decided, and it is the reason the Admin (whose scope is every academy) can name a grade at all.
    */
   readonly grade: number | null;
-  /** The department a two-department manager is writing for; `''` when she holds only one. */
+  /** The department a multi-department author is writing for; `''` when she holds only one. */
   readonly department: string;
   /** An optional narrowing to some of her sections. Empty is "all of them". */
   readonly sectionIds: readonly string[];
@@ -113,6 +115,19 @@ export function endOfDayIn(day: string, zone: string): number {
   const asUtc = Date.parse(`${day}T23:59:59Z`);
   if (Number.isNaN(asUtc)) return NaN;
   return asUtc - zoneOffset(asUtc, zone);
+}
+
+/**
+ * The inverse of {@link endOfDayIn}: the calendar day an instant falls on **in the school's
+ * zone**, as `YYYY-MM-DD` — which is what the date input on the sheet speaks.
+ *
+ * Feature 22: the server answers a suggested expiry as epoch millis (the end of a day in the
+ * school's zone), and `new Date(ms).toISOString().slice(0, 10)` would read that back as the day it
+ * was in Greenwich — one day early for every evening in Riyadh. `en-CA` is the one locale that
+ * formats as `YYYY-MM-DD`, which is also how `announcements.page.ts` reads today.
+ */
+export function dayIn(at: number, zone: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: zone }).format(new Date(at));
 }
 
 /** The zone's offset from UTC at that instant, in millis — DST included, because `Intl` knows. */
@@ -188,14 +203,17 @@ export function gradeOptions(draft: BroadcastDraft, ctx: ComposeContext): readon
 }
 
 /**
- * Whether a grade may be named at all: only the manager, and only when she holds one department.
+ * Whether a grade may be named at all: the manager's composer, and not the coordinator's — whose
+ * classes *are* her audience, which is the same question one level down.
  *
- * See {@link BroadcastDraft.grade} — the server accepts `grade` only on a row that names no
- * section, and a two-department manager's row must name sections to say which department it is
- * for. So the choice is hidden rather than offered and refused.
+ * Feature 22 widened this. It used to be the manager of **one** department only, because `grade`
+ * on the wire is refused beside named sections and a two-department row must name sections; the
+ * answer to that is to say the grade *as* those sections ({@link requestOf}), not to take the
+ * choice away. Without it the Admin — whose scope is every academy of the school — could not name
+ * a grade at all, and the audience the voice assistant suggests could not be followed.
  */
 export function canChooseGrade(ctx: ComposeContext): boolean {
-  return ctx.role === 'manager' && ctx.departments.length === 1;
+  return ctx.role === 'manager';
 }
 
 export function composeErrors(draft: BroadcastDraft, ctx: ComposeContext): ComposeErrors {
@@ -229,12 +247,18 @@ export function composeErrors(draft: BroadcastDraft, ctx: ComposeContext): Compo
   };
 }
 
-/** The four ways a grade is refused, in the order the server refuses them. */
+/**
+ * The three ways a grade is refused, in the order the server refuses them.
+ *
+ * "A manager of two departments may not name a grade" is no longer one of them: that row names the
+ * grade's sections instead ({@link requestOf}), which is the shape the server asked for. What
+ * stays is the pair that are genuinely a contradiction — a grade beside a hand-picked class list —
+ * and a grade with no class of hers in it, which the server answers 400 to either way.
+ */
 function gradeError(draft: BroadcastDraft, ctx: ComposeContext): string | null {
   if (draft.grade === null) return null;
   if (ctx.role !== 'manager') return 'broadcasts.errors.gradeManagerOnly';
   if (draft.sectionIds.length > 0) return 'broadcasts.errors.gradeWithSections';
-  if (ctx.departments.length > 1) return 'broadcasts.errors.gradeOneDepartment';
   return gradeOptions(draft, ctx).includes(draft.grade) ? null : 'broadcasts.errors.gradeUnmanaged';
 }
 
@@ -252,6 +276,9 @@ export function requestOf(draft: BroadcastDraft, ctx: ComposeContext): CreateBro
   const bodyAr = draft.bodyAr.trim();
   const expiresAt = draft.expires === '' ? NaN : endOfDayIn(draft.expires, ctx.zone);
   const sectionIds = sectionsOf(draft, ctx);
+  // "Name the sections or the grade, not both": the sections already say which grade is meant, so
+  // a row that names them drops the field rather than sending the same fact twice.
+  const named = sectionIds.length > 0;
   return {
     kind: draft.kind,
     title: draft.title.trim(),
@@ -260,24 +287,29 @@ export function requestOf(draft: BroadcastDraft, ctx: ComposeContext): CreateBro
     // A coordinator's audience is the parents of her classes and the server does not read the
     // field at all; sending one would be a promise the screen cannot keep.
     ...(ctx.role === 'manager' ? { audience: [...draft.audience] } : {}),
-    ...(draft.grade === null ? {} : { grade: draft.grade }),
-    ...(sectionIds.length === 0 ? {} : { sectionIds }),
+    ...(draft.grade === null || named ? {} : { grade: draft.grade }),
+    ...(named ? { sectionIds } : {}),
     ...(Number.isNaN(expiresAt) ? {} : { expiresAt }),
   };
 }
 
 /**
  * The sections the row names: the writer's own subset when she picked one, otherwise the chosen
- * department's — which is how a two-department manager says "the British track" on a wire that
- * has no field for it. One department and no subset names nothing, and the server reads that as
- * the whole of it.
+ * department's — which is how an author of more than one says "the British track" on a wire that
+ * has no field for it, and, with a grade, "grade 3 of the British track".
+ *
+ * **One department names nothing.** The server reads her scope off her own account and takes
+ * `grade` directly, so an empty list is "the whole of it" and the narrower statement stays the
+ * field it was (feature 22 changed nothing for her).
  */
 function sectionsOf(draft: BroadcastDraft, ctx: ComposeContext): string[] {
-  // A grade and a section list are mutually exclusive on the wire, and the grade is the narrower
-  // statement: it is only ever set by a manager of one department, whose row names nothing anyway.
-  if (draft.grade !== null) return [];
   if (draft.sectionIds.length > 0) return [...draft.sectionIds];
+  if (ctx.departments.length <= 1) return [];
   const department = departmentOf(draft, ctx);
-  if (department === null || ctx.departments.length <= 1) return [];
-  return ctx.sections.filter((row) => row.curriculum === department).map((row) => row.classId);
+  // Not yet chosen: `composeErrors` is already asking her which department, so there is nothing
+  // this could name that would not be a guess at her audience.
+  if (department === null) return [];
+  return ctx.sections
+    .filter((row) => row.curriculum === department && (draft.grade === null || row.grade === draft.grade))
+    .map((row) => row.classId);
 }

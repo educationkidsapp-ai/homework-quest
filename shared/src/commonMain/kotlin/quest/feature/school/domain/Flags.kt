@@ -46,10 +46,17 @@ object Flags {
      */
     const val CHAT_OFFICE_HOURS = "chatOfficeHours"
 
+    /**
+     * Feature 22: a leader turns a spoken note into an announcement. It rides **beside** [ANNOUNCEMENTS] rather than
+     * replacing it — the announcement it prepares is an ordinary announcement, so a school that has not bought
+     * announcements at all cannot have the voice shortcut either, and both must be on for the card to appear.
+     */
+    const val VOICE_ANNOUNCEMENT = "voiceAnnouncement"
+
     /** Every key this app gates on. */
     val used = listOf(
         RETELL_RECORDING, OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, CERTIFICATES, LEVEL_THREE, CHAT, ANNOUNCEMENTS,
-        EXAMS, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS,
+        EXAMS, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, VOICE_ANNOUNCEMENT,
     )
 
     /** True when the platform defines [key] at all — the contract's `DEFAULT_FLAGS` is the list of what exists. */

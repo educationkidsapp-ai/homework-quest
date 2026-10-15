@@ -21,6 +21,7 @@ export const WRITE_PERMISSIONS: ReadonlySet<string> = new Set([
   'auth.resetPassword',
   'auth.signIn',
   'auth.signOut',
+  'broadcast.voice',
   'broadcast.write',
   'child.broadcast.write',
   'child.chat',
