@@ -89,6 +89,8 @@ class IsolationTest extends ApiTestSupport {
     @Autowired quest.server.ai.AiCallRepository aiCalls;
     @Autowired quest.server.brief.MorningBriefRepository morningBriefs;
     @Autowired quest.server.documents.DocumentSummaryRepository documentSummaries;
+    @Autowired quest.server.chat.ChatThreadRepository chatThreads;
+    @Autowired quest.server.chat.ComplaintTriageRepository complaintTriage;
     @Autowired quest.server.children.EveningCardRepository eveningCards;
 
     @BeforeEach void seedTwoSchools() {
@@ -879,5 +881,39 @@ class IsolationTest extends ApiTestSupport {
         l.setDate(date); l.setStatus("published"); l.setVersion(1); l.setTitle("Lesson of " + schoolId); l.setSource("pdf");
         l.setCreatedAt(Instant.now()); l.setUpdatedAt(Instant.now()); l.setPublishedAt(Instant.now());
         lessons.save(l);
+    }
+
+    /**
+     * Feature 27's tenant table. A triage is a working note about one family's complaint — what the school thinks it
+     * is about, how urgent it is and what it might answer — so it is filtered like every other tenant table: a
+     * principal of A finds neither the row nor the complaint it belongs to, and asking for B's own complaint by id
+     * answers nothing either.
+     */
+    @Test void feature_27s_complaint_triage_stays_in_its_school() {
+        var complaint = new quest.server.chat.Entities.ChatThreadEntity();
+        complaint.setId("iso-complaint-b"); complaint.setSchoolId(B); complaint.setChildId("iso-child-b");
+        complaint.setTeacherId("iso-teacher-b"); complaint.setStaffRole("TEACHER"); complaint.setTopic("complaint");
+        complaint.setStatus("open"); complaint.setThreadKey("iso-complaint-b"); complaint.setTitle("The bus is late");
+        complaint.setCreatedAt(Instant.now());
+        chatThreads.save(complaint);
+        var row = new quest.server.chat.Entities.ComplaintTriageEntity();
+        row.setComplaintId("iso-complaint-b"); row.setSchoolId(B); row.setCategory("transport"); row.setUrgency("high");
+        row.setSummaryAr("الحافلة تتأخر"); row.setSummaryEn("The bus is late every morning.");
+        row.setReplyAr("شكرًا لتواصلكم."); row.setReplyEn("Thank you for telling us.");
+        row.setCreatedAt(Instant.now());
+        complaintTriage.save(row);
+        try {
+            tenant.set("MANAGERIAL", A, null);
+            assertThat(complaintTriage.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(complaintTriage.findByComplaintIdIn(List.of("iso-complaint-b"))).as("not A's, whoever she names").isEmpty();
+            assertThat(chatThreads.findOneById("iso-complaint-b")).as("nor the complaint it is about").isEmpty();
+            tenant.set("MANAGERIAL", B, null);
+            assertThat(complaintTriage.findByComplaintIdIn(List.of("iso-complaint-b")))
+                    .extracting(r -> r.getUrgency()).containsExactly("high");
+        } finally {
+            tenant.clear();
+            complaintTriage.deleteById("iso-complaint-b");
+            chatThreads.deleteById("iso-complaint-b");
+        }
     }
 }

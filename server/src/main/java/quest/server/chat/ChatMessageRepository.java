@@ -19,6 +19,10 @@ public interface ChatMessageRepository extends JpaRepository<Entities.ChatMessag
     @Query("select m from ChatMessageEntity m where m.threadId = :threadId order by m.createdAt desc, m.id desc")
     List<Entities.ChatMessageEntity> newest(@Param("threadId") String threadId, Pageable page);
 
+    /** Feature 27: the other end of the same page — a complaint's first message, which is all the triage is given. */
+    @Query("select m from ChatMessageEntity m where m.threadId = :threadId order by m.createdAt asc, m.id asc")
+    List<Entities.ChatMessageEntity> oldest(@Param("threadId") String threadId, Pageable page);
+
     @Query("select m from ChatMessageEntity m where m.threadId = :threadId and (m.createdAt < :at or (m.createdAt = :at and m.id < :id)) order by m.createdAt desc, m.id desc")
     List<Entities.ChatMessageEntity> before(@Param("threadId") String threadId, @Param("at") Instant at, @Param("id") String id, Pageable page);
 

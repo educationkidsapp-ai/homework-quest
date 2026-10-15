@@ -482,6 +482,21 @@ public class NotificationService {
     }
 
     /**
+     * Feature 27: the AI read a new complaint as <strong>high urgency</strong>, so the manager of the child's
+     * department hears about it as well as the person it was addressed to. B6's `complaint.new` kind, link and page —
+     * the escalation is who is told, not a new kind of thing to be told — with a title that says why she is being
+     * told. One row, because a complaint is triaged once ({@code complaint_triage.complaint_id} is its primary key).
+     *
+     * <p>Never fails anything: the triage runs after the complaint has committed and on a task thread, and a bell
+     * that cannot be written is logged there and nowhere else.
+     */
+    public void complaintEscalated(String schoolId, String userId, String complaintId, String complaintTitle) {
+        if (userId == null || complaintId == null) return;
+        notify(schoolId, userId, NotificationKind.COMPLAINT_NEW, "Urgent complaint needs attention", complaintTitle,
+                complaintsLink(roleOf(userId), complaintId), complaintId);
+    }
+
+    /**
      * B6: the parent wrote in a complaint — T1's one unread row per conversation, on the recipient's bell, linked to her
      * Complaints page. Never fails the send, as {@link #chatMessage} never does.
      */

@@ -2839,6 +2839,27 @@
     "reply": "Reply",
     "replyPlaceholder": "Write your reply to the parent",
     "send": "Send reply",
+    "triage": {
+      "panel": "Suggested by the assistant",
+      "note": "Nothing is sent until you press Send.",
+      "use": "Use suggested reply",
+      "categoryOf": "What it is about: {{label}}",
+      "urgencyOf": "Urgency: {{label}}",
+      "category": {
+        "academic": "Academic",
+        "behaviour": "Behaviour",
+        "transport": "Transport",
+        "fees": "Fees",
+        "facilities": "Facilities",
+        "staff": "Staff",
+        "other": "Other"
+      },
+      "urgency": {
+        "low": "Low",
+        "normal": "Normal",
+        "high": "Urgent"
+      }
+    },
     "resolve": "Mark resolved",
     "reopen": "Reopen",
     "readOnly": {

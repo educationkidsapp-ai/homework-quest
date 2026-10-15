@@ -97,6 +97,11 @@ object ComplaintContract {
         val messages: List<TimelineItem.Message> = emptyList(),
         val events: List<ComplaintEvent> = emptyList(),
         val input: String = "",
+        /**
+         * Feature 27: when the server says she may expect an answer (epoch ms), from her own complaint detail. Null
+         * whenever the school promises nothing, and drawn only while the complaint is open.
+         */
+        val expectedReplyBy: Long? = null,
         val reopening: Boolean = false,
         /** The last Reopen did not reach the server: said in a band above the conversation, nothing else changed. */
         val reopenFailed: Boolean = false,
@@ -182,7 +187,10 @@ class ComplaintViewModel(
     private fun show(detail: ComplaintDetail) = reduce {
         val confirmed = detail.messages.map { TimelineItem.Message(it) }
         val unsent = messages.filter { (it.pending || it.failed) && confirmed.none { c -> c.message.id == it.message.id } }
-        copy(loading = false, gone = false, errorMessage = null, complaint = detail.complaint, messages = confirmed + unsent, events = detail.events)
+        copy(
+            loading = false, gone = false, errorMessage = null, complaint = detail.complaint,
+            messages = confirmed + unsent, events = detail.events, expectedReplyBy = detail.expectedReplyBy,
+        )
     }
 
     private suspend fun markRead() {
@@ -307,6 +315,15 @@ fun ComplaintScreen(state: ComplaintContract.State, strings: Strings, dispatch: 
                 )
                 Spacer(Modifier.width(Dimens.s8))
                 ComplaintStatusChip(complaint.status, strings)
+            }
+            // Feature 27: one calm line, and nothing at all when the school promises no time or the complaint is done.
+            expectedReplyLine(state.expectedReplyBy, complaint.status, strings)?.let { line ->
+                Text(
+                    line,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = DashboardTokens.inkSoft,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = Dimens.s16, vertical = Dimens.s4),
+                )
             }
         }
         if (state.resolved) {
