@@ -270,22 +270,38 @@ public final class Entities {
         public Instant getSentAt() { return sentAt; } public void setSentAt(Instant v) { sentAt = v; }
     }
 
-    /** Feature 18: a day the Admin declared remote, for the whole school ({@code academy} null) or one academy (V40). */
-    @Entity(name = "AttendanceRemoteDayEntity") @Table(name = "attendance_remote_days")
+    /**
+     * Feature 23 (V46): a day the Admin declared a <strong>remote study day</strong> — the whole school
+     * ({@code academy} and {@code gradesJson} both null), one academy, chosen grades, or one academy's chosen grades.
+     * It replaces feature 18's `attendance_remote_days`, whose rows V46 copied here and which is mapped by nothing
+     * any more.
+     *
+     * <p>The two narrow different people: staff are in scope by {@code academy} alone, because a grade does not say
+     * who teaches it, while children and their parents are in scope by the academy <em>and</em> the grade.
+     * {@code gradesJson} is a JSON array of the school's real grades, null for every grade.
+     *
+     * <p>{@code broadcastId} is the parents' announcement, posted with the day and expired when it is deleted; null
+     * when no class of the school was in scope and there was nobody to tell.
+     */
+    @Entity(name = "RemoteStudyDayEntity") @Table(name = "remote_study_days")
     @Filter(name = "school", condition = "school_id = :schoolId")
-    public static class AttendanceRemoteDayEntity {
+    public static class RemoteStudyDayEntity {
         @Id private String id;
         @Column(name = "school_id", nullable = false) private String schoolId;
-        @Column(name = "work_day", nullable = false) private LocalDate day;
+        @Column(name = "study_day", nullable = false) private LocalDate day;
         @Column private String academy;
+        @Column(name = "grades_json") private String gradesJson;
         @Column(nullable = false) private String reason;
+        @Column(name = "broadcast_id") private String broadcastId;
         @Column(name = "created_by", nullable = false) private String createdBy;
         @Column(name = "created_at", nullable = false) private Instant createdAt;
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
         public LocalDate getDay() { return day; } public void setDay(LocalDate v) { day = v; }
         public String getAcademy() { return academy; } public void setAcademy(String v) { academy = v; }
+        public String getGradesJson() { return gradesJson; } public void setGradesJson(String v) { gradesJson = v; }
         public String getReason() { return reason; } public void setReason(String v) { reason = v; }
+        public String getBroadcastId() { return broadcastId; } public void setBroadcastId(String v) { broadcastId = v; }
         public String getCreatedBy() { return createdBy; } public void setCreatedBy(String v) { createdBy = v; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
     }

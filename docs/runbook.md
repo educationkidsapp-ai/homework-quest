@@ -2304,19 +2304,39 @@ A reminder opens the app's Attendance tab; alerts and the digest open the notifi
 timer only ticks while an instance is up and serving. Until a Cloud Scheduler job calls the server every five minutes,
 reminders can be late on a quiet morning; the startup pass catches up whatever fell due while nothing ran.
 
-## Remote days and corrections (feature 18)
+## Remote study days and corrections (features 18 and 23)
 
-Spec: [docs/features/18-remote-days-corrections.md](features/18-remote-days-corrections.md). Behind `staffAttendance`
-(and `staffMobileApp` for the `/staff` routes). Tables in V40.
+Specs: [docs/features/18-remote-days-corrections.md](features/18-remote-days-corrections.md) and
+[docs/features/23-remote-study-days.md](features/23-remote-study-days.md). Behind `staffAttendance` (and
+`staffMobileApp` for the `/staff` routes), with the remote study days themselves behind `remoteStudyDays`. Tables in
+V40 and V46.
 
-- **Remote days.** `GET`/`POST /admin/attendance/remote-days`, `DELETE …/{id}` (`attendance.settings.read`/`write`),
-  `RemoteDayService`. A day is for the whole school (`academy` null) or one academy, a curriculum such as `british`
-  (`DirectManagerResolver.academies`: a teacher's curriculum, a coordinator's scopes, a manager's department; workers
-  belong to none). On a remote day for her scope, or on a day her own remote-day request was approved, `CheckInService` skips
-  the accuracy, pin and distance checks and writes `mode = remote`. The device and mock checks still apply. Everyone
-  in scope gets `attendance.remote_day`: at once when the day is today or tomorrow, otherwise from the attendance job
-  at 18:00 the evening before. It is claimed once per employee and day (`staff_attendance_alerts`, type
-  `REMOTE_DAY`). The morning digest's `remote` count is the day's `mode = remote` check-ins.
+- **Remote study days (feature 23, replaces feature 18's remote days).**
+  `GET`/`POST /admin/remote-study-days`, `DELETE …/{id}` (`attendance.settings.read`/`write`), behind
+  `remoteStudyDays`; `RemoteStudyDayService`, table `remote_study_days` in V46, which copied feature 18's
+  `attendance_remote_days` rows over with no grades. Feature 18's `/admin/attendance/remote-days` routes and its
+  dashboard card are **gone**. A day carries `academy` (a curriculum such as `british`, null for every academy) and
+  `grades` (empty for every grade), and `reason`, 1–200 characters — an academy or a grade the school does not teach
+  is 400. **The two scopes narrow different people:** staff by the academy alone (`DirectManagerResolver.academies`:
+  a teacher's curriculum, a coordinator's scopes, a manager's department; workers belong to none), children and their
+  parents by the academy *and* the grade.
+  - *Staff.* On a remote study day for her scope, or on a day her own remote-day request was approved,
+    `CheckInService` skips the accuracy, pin and distance checks and writes `mode = remote`; the device and mock
+    checks still apply. Everyone in scope gets `attendance.remote_day`: at once when the day is today or tomorrow,
+    otherwise from the attendance job at 18:00 the evening before, claimed once per employee and day
+    (`staff_attendance_alerts`, type `REMOTE_DAY`). The morning digest's `remote` count is the day's
+    `mode = remote` check-ins, and feature 17's board still shows one as "عن بعد".
+  - *Parents.* Creating a day posts **one bilingual announcement** to the parents of every class in scope through the
+    ordinary `BroadcastService` fan-out, with the push every announcement carries; it expires at the end of that day
+    in the school's zone, so it leaves the feed by itself, and the row keeps its `broadcast_id`. A day that reaches
+    no section posts nothing. **Deleting a day expires that announcement now and pushes nothing new** — a parent is
+    never told twice, and never pushed about a cancellation she cannot act on. Parents of another academy, or of
+    another grade of the same academy, get nothing.
+  - *What reads it.* `GET /children/{id}/attendance/today` and the teacher's class attendance carry
+    `remoteStudyDay: true` for that day; the dashboard draws the Admin's "Remote study days" card on Attendance
+    settings (its academies and grades come from `GET /management/classes`, never a hard-coded list) and a calm
+    notice on the teacher's class attendance. With the flag off the routes answer 404, no day applies to a check-in,
+    no notice goes out, and the card is absent.
 - **Requests.** The employee: `POST`/`GET /staff/attendance/requests`, and `POST /staff/attendance/attachments` for a
   correction's photo or PDF (`attendance.self`; purpose `attendance`, EXIF stripped, kept by the orphan sweep). The
   decider: `GET /attendance/requests?status=`, `POST /attendance/requests/{id}/approve` and `/reject`

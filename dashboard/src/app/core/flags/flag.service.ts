@@ -64,6 +64,10 @@ export const FLAGS = {
   // sends. Off until an Admin turns it on — it rides on `announcements`, which is the feed it
   // writes into, so a school needs both.
   voiceAnnouncement: 'voiceAnnouncement',
+  // Feature 23: the school, one academy or chosen grades study from home for a day. Off until an
+  // Admin turns it on — with it off the routes answer 404 and the Admin's card is absent, because
+  // it replaced feature 18's school-wide remote day rather than sitting beside it.
+  remoteStudyDays: 'remoteStudyDays',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];

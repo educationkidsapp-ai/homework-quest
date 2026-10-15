@@ -101,6 +101,19 @@
       </hq-card>
     }
   } @else {
+    <!-- Feature 23: a remote study day. A calm notice rather than a warning — nothing has gone
+         wrong, the children are simply at home, and she is being told why the roster is quiet. -->
+    @if (remoteStudyDay()) {
+      <hq-band
+        variant="notice"
+        [open]="true"
+        [dismissible]="false"
+        [title]="'attendance.remoteStudyDay' | transloco"
+      >
+        {{ 'attendance.remoteStudyDayBody' | transloco }}
+      </hq-band>
+    }
+
     <!-- Date Navigation & Controls -->
     <div class="attendance__controls">
       <div class="attendance__date-nav">
@@ -192,7 +205,9 @@
               <div class="attendance__student">
                 <span
                   class="attendance__avatar"
-                  [style.--avatar-bg]="'var(--hq-color-' + (student.avatarColor || 'sky') + ', var(--hq-color-brand-400))'"
+                  [style.--avatar-bg]="
+                    'var(--hq-color-' + (student.avatarColor || 'sky') + ', var(--hq-color-brand-400))'
+                  "
                   aria-hidden="true"
                 >
                   {{ student.childName ? student.childName.charAt(0).toUpperCase() : 'S' }}

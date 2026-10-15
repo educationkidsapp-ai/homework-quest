@@ -79,7 +79,7 @@ class IsolationTest extends ApiTestSupport {
     @Autowired quest.server.push.StaffDeviceRepository staffDevices;
     @Autowired quest.server.staffattendance.StaffAttendanceDayRepository attendanceDays;
     @Autowired quest.server.staffattendance.StaffAttendanceAlertRepository attendanceAlerts;
-    @Autowired quest.server.staffattendance.AttendanceRemoteDayRepository remoteDays;
+    @Autowired quest.server.staffattendance.RemoteStudyDayRepository remoteDays;
     @Autowired quest.server.staffattendance.StaffAttendanceRequestRepository attendanceRequests;
     @Autowired quest.server.chat.ChatAfterHoursRepository afterHours;
     @Autowired quest.server.floors.FloorRepository floors;
@@ -187,10 +187,17 @@ class IsolationTest extends ApiTestSupport {
         }
     }
 
-    @Test void feature_18s_remote_days_and_requests_stay_in_their_school() {
+    /**
+     * Feature 18's requests and feature 23's remote study days, which replaced its school-wide remote day. A
+     * principal of A finds neither B's declared day nor B's request, and naming B's school herself answers nothing:
+     * `remote_study_days` is read by the attendance job with no request behind it, so every query names a school
+     * <em>and</em> the filter is on.
+     */
+    @Test void feature_18s_requests_and_feature_23s_remote_study_days_stay_in_their_school() {
         var now = java.time.Instant.now();
-        var remote = new quest.server.staffattendance.Entities.AttendanceRemoteDayEntity();
+        var remote = new quest.server.staffattendance.Entities.RemoteStudyDayEntity();
         remote.setId("iso-remote-b"); remote.setSchoolId(B); remote.setDay(DATE_B); remote.setReason("Rain");
+        remote.setAcademy("british"); remote.setGradesJson("[1]");
         remote.setCreatedBy("admin"); remote.setCreatedAt(now);
         var request = new quest.server.staffattendance.Entities.StaffAttendanceRequestEntity();
         request.setId("iso-request-b"); request.setSchoolId(B); request.setStaffKind("USER"); request.setStaffId("teacher-b");
@@ -202,10 +209,14 @@ class IsolationTest extends ApiTestSupport {
             assertThat(remoteDays.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
             assertThat(attendanceRequests.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
             assertThat(remoteDays.findBySchoolIdAndDay(A, DATE_B)).isEmpty();
+            assertThat(remoteDays.findBySchoolIdAndDay(B, DATE_B)).as("and B's own school is not hers to ask about").isEmpty();
+            assertThat(remoteDays.findOneBySchoolIdAndId(B, "iso-remote-b")).isEmpty();
+            assertThat(remoteDays.findBySchoolIdAndDayBetweenOrderByDayAsc(B, DATE_B, DATE_B)).isEmpty();
             assertThat(attendanceRequests.findOneBySchoolIdAndId(A, "iso-request-b")).isEmpty();
             tenant.set("MANAGERIAL", B, null);
             assertThat(attendanceRequests.findAll()).anyMatch(r -> "iso-request-b".equals(r.getId()));
             assertThat(remoteDays.findAll()).anyMatch(r -> "iso-remote-b".equals(r.getId()));
+            assertThat(remoteDays.findOneBySchoolIdAndId(B, "iso-remote-b")).isPresent();
         } finally {
             tenant.clear();
             remoteDays.deleteById("iso-remote-b"); attendanceRequests.deleteById("iso-request-b");
@@ -388,8 +399,9 @@ class IsolationTest extends ApiTestSupport {
                         Arguments.of("GET", "/staff/attendance/today"),
                         Arguments.of("GET", "/staff/attendance/month"),
                         Arguments.of("GET", "/admin/staff/USER/teacher-a/attendance-device"),
-                        // Feature 18: remote days, an employee's own requests and the decider's inbox.
-                        Arguments.of("GET", "/admin/attendance/remote-days"),
+                        // Feature 18: an employee's own requests and the decider's inbox. Feature 23: the Admin's
+                        // remote study days, which replaced feature 18's school-wide remote day.
+                        Arguments.of("GET", "/admin/remote-study-days"),
                         Arguments.of("GET", "/staff/attendance/requests"),
                         Arguments.of("GET", "/attendance/requests"),
                         Arguments.of("POST", "/attendance/requests/no-such-request/approve")),

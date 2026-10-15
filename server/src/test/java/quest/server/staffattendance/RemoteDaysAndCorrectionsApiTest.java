@@ -39,9 +39,13 @@ import quest.server.tenancy.TenantContext;
 import quest.server.workers.WorkerRepository;
 
 /**
- * Feature 18, end to end: remote days skip the geofence only for the people in scope, and a correction reaches the
- * record only through the direct manager's or the Admin's approval — with its audit, the originals kept, and the day's
- * statuses recomputed.
+ * Feature 18, end to end: an employee's <strong>own</strong> remote day skips the geofence once her manager has
+ * approved it, and a correction reaches the record only through the direct manager's or the Admin's approval — with
+ * its audit, the originals kept, and the day's statuses recomputed.
+ *
+ * <p>The Admin's school-wide remote day moved to feature 23 ({@link RemoteStudyDaysApiTest}) and `remoteStudyDays` is
+ * deliberately <strong>off</strong> here, which is how this file now also proves that the personal path owes nothing
+ * to feature 23's flag.
  *
  * <p>{@link #SCHOOL} is in Asia/Riyadh, teaches two academies (`british`, `american`) and has its pin at
  * {@link #LAT}/{@link #LON} with a 200 m radius. {@link #FAR} is a degree north — about 111 km, "from home". The
@@ -51,7 +55,7 @@ import quest.server.workers.WorkerRepository;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class RemoteDaysAndCorrectionsApiTest extends ApiTestSupport {
     private static final String SCHOOL = "rd18-school", OTHER = "rd18-other";
-    private static final String HOME = "rd18-home", BRITISH = "rd18-british", AMERICAN = "rd18-american",
+    private static final String HOME = "rd18-home", BRITISH = "rd18-british",
             ASKER = "rd18-asker", LATE = "rd18-late", ABSENT = "rd18-absent", REFUSED = "rd18-refused",
             DIRECT = "rd18-direct", MANAGER = "rd18-manager", OTHER_MANAGER = "rd18-other-manager",
             ADMIN = "rd18-admin", WORKER_ACCOUNT = "rd18-worker-user", OTHER_TEACHER = "rd18-other-teacher";
@@ -71,7 +75,6 @@ class RemoteDaysAndCorrectionsApiTest extends ApiTestSupport {
     @Autowired StaffCheckInAttemptRepository attempts;
     @Autowired StaffAttendanceDayRepository days;
     @Autowired StaffAttendanceRequestRepository requests;
-    @Autowired StaffAttendanceJob job;
     @Autowired AdminJwtService jwt;
     @Autowired JdbcTemplate jdbc;
 
@@ -80,7 +83,6 @@ class RemoteDaysAndCorrectionsApiTest extends ApiTestSupport {
         flags(SCHOOL); flags(OTHER);
         pin(SCHOOL); pin(OTHER);
         for (String id : List.of(HOME, BRITISH, ASKER, LATE, ABSENT, REFUSED, DIRECT)) teacher(id, SCHOOL, "british");
-        teacher(AMERICAN, SCHOOL, "american");
         user(MANAGER, SCHOOL, "MANAGERIAL");
         user(OTHER_MANAGER, SCHOOL, "MANAGERIAL");
         user(ADMIN, null, "ADMIN");
@@ -91,64 +93,6 @@ class RemoteDaysAndCorrectionsApiTest extends ApiTestSupport {
     }
 
     @AfterEach void unpin() { clock.release(); }
-
-    // ---------------------------------------------------------------- remote days skip the geofence for those in scope
-
-    @Test void on_a_school_wide_remote_day_a_teacher_checks_in_from_home_and_the_record_says_remote() throws Exception {
-        clock.pinTo(at("2026-10-19", "15:00"));                                  // the day before, in the afternoon
-        var created = ok(scoped(post("/admin/attendance/remote-days").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"date\":\"2026-10-20\",\"reason\":\"Rain day\"}"), admin(), SCHOOL));
-        assertThat(!created.has("academy") || created.get("academy").isNull()).as("the whole school").isTrue();
-        assertThat(notifications(HOME, "attendance.remote_day", "2026-10-20")).as("tomorrow: announced at once").isEqualTo(1);
-
-        clock.pinTo(at("2026-10-20", "07:05"));
-        var result = checkIn(token(HOME, "TEACHER"), FAR, "home-phone");
-        assertThat(result.get("result").asText()).isEqualTo("RECORDED");
-        assertThat(record(HOME, "2026-10-20").getMode()).isEqualTo("remote");
-
-        var month = ok(bearer(get("/staff/attendance/month?month=2026-10"), token(HOME, "TEACHER")));
-        assertThat(day(month, "2026-10-20").get("mode").asText()).isEqualTo("remote");
-    }
-
-    @Test void a_remote_day_for_one_academy_does_not_reach_the_other() throws Exception {
-        clock.pinTo(at("2026-10-18", "10:00"));
-        ok(scoped(post("/admin/attendance/remote-days").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"date\":\"2026-10-19\",\"academy\":\"American\",\"reason\":\"Academy trip\"}"), admin(), SCHOOL));
-        assertThat(notifications(AMERICAN, "attendance.remote_day", "2026-10-19")).isEqualTo(1);
-        assertThat(notifications(BRITISH, "attendance.remote_day", "2026-10-19")).isZero();
-
-        clock.pinTo(at("2026-10-19", "06:50"));
-        assertThat(checkIn(token(AMERICAN, "TEACHER"), FAR, "american-phone").get("result").asText()).isEqualTo("RECORDED");
-        assertThat(record(AMERICAN, "2026-10-19").getMode()).isEqualTo("remote");
-
-        var british = checkIn(token(BRITISH, "TEACHER"), FAR, "british-phone");
-        assertThat(british.get("result").asText()).isEqualTo("REFUSED");
-        assertThat(british.get("reason").asText()).isEqualTo("OUTSIDE");
-    }
-
-    @Test void a_later_remote_day_is_announced_the_evening_before_and_only_once() throws Exception {
-        clock.pinTo(at("2026-10-22", "10:00"));
-        ok(scoped(post("/admin/attendance/remote-days").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"date\":\"2026-10-25\",\"reason\":\"Marking day\"}"), admin(), SCHOOL));
-        assertThat(notifications(HOME, "attendance.remote_day", "2026-10-25")).as("three days ahead: not yet").isZero();
-
-        clock.pinTo(at("2026-10-24", "17:59"));
-        job.run(SCHOOL);
-        assertThat(notifications(HOME, "attendance.remote_day", "2026-10-25")).isZero();
-
-        clock.pinTo(at("2026-10-24", "18:00"));
-        job.run(SCHOOL);
-        job.run(SCHOOL);
-        assertThat(notifications(HOME, "attendance.remote_day", "2026-10-25")).isEqualTo(1);
-        assertThat(notifications(AMERICAN, "attendance.remote_day", "2026-10-25")).as("the whole school").isEqualTo(1);
-    }
-
-    @Test void an_academy_that_is_not_one_of_the_school_s_is_refused() throws Exception {
-        clock.pinTo(at("2026-10-18", "10:00"));
-        mvc.perform(scoped(post("/admin/attendance/remote-days").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"date\":\"2026-10-25\",\"academy\":\"french\",\"reason\":\"x\"}"), admin(), SCHOOL))
-                .andExpect(status().isBadRequest());
-    }
 
     // ---------------------------------------------------------------- a personal remote day, approved by the manager
 
@@ -308,7 +252,6 @@ class RemoteDaysAndCorrectionsApiTest extends ApiTestSupport {
         mvc.perform(bearer(post("/attendance/requests/" + id + "/approve"), foreign)).andExpect(status().isNotFound());
         assertThat(ids(ok(bearer(get("/attendance/requests"), foreign)))).doesNotContain(id);
         assertThat(ids(ok(scoped(get("/attendance/requests"), admin(), OTHER)))).doesNotContain(id);
-        assertThat(ok(scoped(get("/admin/attendance/remote-days"), admin(), OTHER)).get("days")).isEmpty();
         var mine = ok(bearer(get("/staff/attendance/requests"), token(OTHER_TEACHER, "TEACHER", OTHER)));
         assertThat(mine.get("requests")).isEmpty();
     }
@@ -338,8 +281,6 @@ class RemoteDaysAndCorrectionsApiTest extends ApiTestSupport {
     private Entities.StaffCheckInEntity record(String userId, String date) {
         return records.findOneBySchoolIdAndStaffKindAndStaffIdAndDay(SCHOOL, "USER", userId, LocalDate.parse(date)).orElseThrow();
     }
-
-    private int notifications(String userId, String kind) { return notifications(userId, kind, ""); }
 
     /** Notifications of one kind whose link names {@code date} (empty: any). */
     private int notifications(String userId, String kind, String date) {

@@ -86,10 +86,12 @@ async function renderSignedIn(permissions = ADMIN_PERMISSIONS, user = ADMIN_USER
   backend.expectOne('/admin/attendance-settings').flush(SETTINGS);
   backend.expectOne('/admin/staff/attendance-profiles').flush(STAFF);
   await settle(rendered);
-  // Feature 18: the Remote days card is drawn once the settings have landed, and reads its own
-  // rows with its own GET (`remote-days-card.component.spec.ts` covers the card itself).
-  backend.expectOne('/admin/attendance/remote-days').flush({ days: [] });
-  await settle(rendered);
+  // Feature 23: the Remote study days card replaced feature 18's remote-days card and asks the
+  // `remoteStudyDays` flag itself. No flag map is fetched here, so the flag reads off and the card
+  // draws nothing and reads nothing — `remote-study-days-card.component.spec.ts` covers it with
+  // the flag on.
+  backend.expectNone('/admin/remote-study-days');
+  backend.expectNone('/admin/attendance/remote-days');
   return { rendered, backend };
 }
 
