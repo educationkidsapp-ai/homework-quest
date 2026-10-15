@@ -1724,7 +1724,8 @@
     "attendanceSettings": "Attendance settings",
     "attendanceRequests": "Attendance requests",
     "floors": "Floors",
-    "floorSupervisors": "Floor supervisors"
+    "floorSupervisors": "Floor supervisors",
+    "documents": "Document reader"
   },
   "notifications": {
     "title": "Notifications",
@@ -1813,6 +1814,12 @@
         "remote_day": {
           "title": "Remote day",
           "body": "A remote working day was announced."
+        }
+      },
+      "morning": {
+        "brief": {
+          "title": "Your morning brief",
+          "body": "Today's brief is ready on your Home."
         }
       }
     },
@@ -3063,6 +3070,12 @@
       "openMessages": "Open Messages"
     }
   },
+  "morningBrief": {
+    "greeting": "Good morning",
+    "byAssistant": "Written by the assistant",
+    "show": "Show",
+    "hide": "Hide"
+  },
   "voice": {
     "record": "Record a voice note",
     "hint": "Say your announcement out loud, in Arabic. It is written out on this device and never uploaded as audio.",
@@ -3077,6 +3090,38 @@
       "rephrase": "That could not be turned into an announcement. Say it again, a little more clearly, and name who it is for.",
       "model": "The assistant did not answer. Nothing was sent — try again in a moment.",
       "alreadySent": "That voice note has already been sent as an announcement."
+    }
+  },
+  "documents": {
+    "subtitle": "Upload a circular and read what it says — in Arabic and in English, with the dates it names and what the school has to do.",
+    "notEnabled": "The document reader is not switched on for this school.",
+    "notEnabledHint": "An administrator turns it on in the school’s feature settings.",
+    "pick": "Choose a document",
+    "pickHint": "Drag a PDF, a Word file or a photograph in, or choose one. One file at a time, under 10 MB and at most {{pages}} pages.",
+    "privacy": "The file is deleted right after it is read. Only the summary is kept.",
+    "reading": "Reading your document…",
+    "summary": "Summary",
+    "pageCount": "{{count}} pages",
+    "readArabic": "Read it in Arabic",
+    "readEnglish": "Read it in English",
+    "keyDates": "Key dates",
+    "noKeyDates": "No dates were named.",
+    "actions": "What the school has to do",
+    "noActions": "Nothing was asked of the school.",
+    "draft": "Draft an announcement",
+    "review": "Review the announcement",
+    "recent": "Recent",
+    "open": "Open",
+    "noRecent": "Nothing read yet",
+    "noRecentHint": "The circulars you read appear here, newest first.",
+    "errors": {
+      "tooLarge": "That file is larger than 10 MB. Nothing was uploaded — send a smaller scan, or the PDF instead of the photograph.",
+      "tooLong": "That document is longer than 20 pages. Upload the pages that matter, or the circular on its own.",
+      "unreadable": "No text could be read from that file. Photograph the page again, straight on and in better light, or upload the PDF.",
+      "rephrase": "That document could not be summarised. Nothing was kept — try the PDF instead of the photograph, or a clearer scan.",
+      "model": "The assistant did not answer. Nothing was kept — try again in a moment.",
+      "badType": "That kind of file cannot be read. Upload a PDF, a Word file, or a JPEG, PNG or WebP photograph.",
+      "recent": "Your recent summaries could not be read."
     }
   }
 }

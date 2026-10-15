@@ -252,6 +252,23 @@ public class BroadcastService {
         return view(row, displayName(row.getAuthorUserId()), true);
     }
 
+    /**
+     * Feature 25: how many events are live for this leader today — {@link #forStaff}'s very predicate, narrowed to
+     * {@link #EVENT}, so the number in her brief is the number of event cards on her own feed.
+     *
+     * <p><strong>An event has no date of its own</strong> (V22 gives `week_start` to the weekly plan and nothing to
+     * the event), so "today's events" means exactly the events that have not expired: what she would see if she
+     * opened Announcements this morning. A real event date would narrow it, and is its own migration.
+     */
+    @Transactional(readOnly = true)
+    public int liveEventsFor(Principals.User caller) {
+        String schoolId = tenant.writeSchoolId();
+        var mine = reach(caller);
+        return (int) rows.live(schoolId, clock.instant(), PageRequest.of(0, PAGE)).stream()
+                .filter(b -> EVENT.equals(b.getKind()))
+                .filter(b -> caller.userId().equals(b.getAuthorUserId()) || mine.sees(b)).count();
+    }
+
     // ---------------------------------------------------------------- MG1: the weekly-plan archive
 
     /**

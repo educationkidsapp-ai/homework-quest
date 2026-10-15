@@ -81,6 +81,20 @@ public final class FlagKeys {
     public static final String REMOTE_STUDY_DAYS = "remoteStudyDays";
 
     /**
+     * Feature 25: the Admin's and the department manager's Home opens with a short bilingual brief of yesterday and
+     * today (`GET /me/morning-brief`), written once a school morning by `MorningBriefJob`. The server counts the
+     * facts and the AI only phrases them. Seeded off by V47.
+     */
+    public static final String MORNING_BRIEF = "morningBrief";
+
+    /**
+     * Feature 26: the Admin and a department manager upload a circular — a PDF, a Word file or a photograph — and
+     * read what it says in both languages, with its dates and actions (`/management/documents/**`). The file itself
+     * is never stored. Seeded off by V48.
+     */
+    public static final String DOCUMENT_READER = "documentReader";
+
+    /**
      * Feature 30: teacher-approved hints on every question and one short practice set per weak skill, both written
      * only by the lesson's `HINTS` pipeline step at build time (`/teacher/lessons/{id}/smart-hints`). Seeded off by
      * V52, and nothing of it is published until the teacher has approved it.
@@ -93,5 +107,5 @@ public final class FlagKeys {
             STICKERS_TREASURE_CHEST, PROGRESS_WEEKLY_EMAIL, CERTIFICATES,
             MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST,
             CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, FLOOR_SUPERVISOR, TODAY_HOME,
-            VOICE_ANNOUNCEMENT, REMOTE_STUDY_DAYS, SMART_HINTS);
+            VOICE_ANNOUNCEMENT, REMOTE_STUDY_DAYS, MORNING_BRIEF, DOCUMENT_READER, SMART_HINTS);
 }

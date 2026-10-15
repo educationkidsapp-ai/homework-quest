@@ -45,6 +45,10 @@ export const DEFAULT_FLAGS: Readonly<Record<string, boolean>> = {
   voiceAnnouncement: false,
   // V46 (feature 23): off until an Admin turns it on per school.
   remoteStudyDays: false,
+  // V47 (feature 25): off until an Admin turns it on per school.
+  morningBrief: false,
+  // V48 (feature 26): off until an Admin turns it on per school.
+  documentReader: false,
   // V52 (feature 30): off until an Admin turns it on per school.
   smartHints: false,
 };

@@ -62,10 +62,10 @@ class ConversionServiceTest {
         assertThat(errorCodeFor("anydoc: io error: disk full")).isEqualTo("io");
         assertThat(errorCodeFor("anydoc: something new we have never seen")).isEqualTo("malformed");
         // the exact strings the image's binary writes, as `docs/runbook.md` records them
-        assertThat(ConversionService.codeOf("anydoc: unsupported input: application/vnd.oasis.opendocument.text")).isEqualTo("unsupported");
-        assertThat(ConversionService.codeOf("anydoc: malformed document: xref table broken")).isEqualTo("malformed");
-        assertThat(ConversionService.codeOf("anydoc: document is encrypted")).isEqualTo("encrypted");
-        assertThat(ConversionService.codeOf("anydoc: io error: disk full")).isEqualTo("io");
+        assertThat(DocumentText.codeOf("anydoc: unsupported input: application/vnd.oasis.opendocument.text")).isEqualTo("unsupported");
+        assertThat(DocumentText.codeOf("anydoc: malformed document: xref table broken")).isEqualTo("malformed");
+        assertThat(DocumentText.codeOf("anydoc: document is encrypted")).isEqualTo("encrypted");
+        assertThat(DocumentText.codeOf("anydoc: io error: disk full")).isEqualTo("io");
     }
 
     private String errorCodeFor(String stderr) {
@@ -106,9 +106,9 @@ class ConversionServiceTest {
     }
 
     @Test void the_stderr_grammar_is_read_the_way_anydoc_writes_it() {
-        assertThat(ConversionService.pagesNeedingOcr("anydoc: page 1 of 1 needs OCR")).containsExactly(1);
-        assertThat(ConversionService.pagesNeedingOcr("anydoc: pages 2, 3 of 10 need OCR")).containsExactly(2, 3);
-        assertThat(ConversionService.pagesNeedingOcr("anydoc: all 5 pages need OCR")).isEmpty();
+        assertThat(DocumentText.pagesNeedingOcr("anydoc: page 1 of 1 needs OCR")).containsExactly(1);
+        assertThat(DocumentText.pagesNeedingOcr("anydoc: pages 2, 3 of 10 need OCR")).containsExactly(2, 3);
+        assertThat(DocumentText.pagesNeedingOcr("anydoc: all 5 pages need OCR")).isEmpty();
     }
 
     // ---------------------------------------------------------------- the limits and the cache
@@ -304,7 +304,9 @@ class ConversionServiceTest {
             });
             var env = new org.springframework.mock.env.MockEnvironment();
             env.setActiveProfiles(profile);
-            return new ConversionService(repo, lessonRepo, store, new SlideProcessor(), runner, "anydoc", "tesseract", 120, 20, maxChars, builtinFallback, env);
+            // Feature 26 moved the extraction into `DocumentText`; the converter still owns the row and the bucket.
+            var text = new DocumentText(new SlideProcessor(), runner, "anydoc", "tesseract", 120, 20, builtinFallback, env);
+            return new ConversionService(repo, lessonRepo, store, text, maxChars);
         }
 
         SourceFileEntity file(String name, String kind, String mime) { return file(name, kind, mime, ("bytes of " + kind).getBytes(StandardCharsets.UTF_8)); }

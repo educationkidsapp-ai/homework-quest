@@ -251,6 +251,16 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.announcements,
         permission: 'broadcast.read',
       },
+      // Feature 26: **Document reader**, under Announcements because that is what it feeds — a
+      // ministry circular in, and the compose sheet one tap later with the announcement in it.
+      // Her own flag, not the feed's: a school may read its circulars without posting a thing.
+      {
+        id: 'documents',
+        path: 'documents',
+        labelKey: 'nav.documents',
+        flag: FLAGS.documentReader,
+        permission: 'document.read',
+      },
       // lessons (P3.2c/d): the new-lesson wizard and the review page. Neither has a `labelKey`
       // — the wizard is a quick action on her Home and the review page is what the Home's
       // "needs you" rows and the bell's notifications open, not rail items of their own. The
@@ -473,6 +483,16 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         permission: 'broadcast.read',
       },
       { id: 'broadcasts', path: 'broadcasts', redirectTo: 'announcements' },
+      // Feature 26: the same Document reader the Admin has, on the same key — `document.read` is
+      // hers too (`permissions.json`), and a circular from the ministry reaches a department
+      // manager as often as it reaches the office.
+      {
+        id: 'documents',
+        path: 'documents',
+        labelKey: 'nav.documents',
+        flag: FLAGS.documentReader,
+        permission: 'document.read',
+      },
       // RM3b: her real inbox, on RM2's `GET /management/chat/threads` — parents of her
       // department, her coordinators and the admin.
       {

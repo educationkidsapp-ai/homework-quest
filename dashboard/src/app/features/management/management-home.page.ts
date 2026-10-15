@@ -20,6 +20,7 @@ import {
   SkeletonComponent,
   TableComponent,
 } from '../../ui';
+import { MorningBriefComponent } from '../home/morning-brief.component';
 import { TodayComponent } from '../home/today.component';
 import { CoordinatorReadFailedComponent } from '../coordinator/read-failed.component';
 import { StaffScopeService } from '../coordinator/staff-scope.service';
@@ -53,6 +54,7 @@ import {
     CountUpDirective,
     EmptyStateComponent,
     InputComponent,
+    MorningBriefComponent,
     NgTemplateOutlet,
     PageComponent,
     RouterLink,
@@ -70,6 +72,13 @@ import {
         <hq-coordinator-read-failed (retry)="staff.reload()" />
       } @else {
         <div class="em-dashboard">
+          <!-- Feature 25: her academy's morning brief, above everything else and whether or not
+               feature 21 is on. Absent on a non-teaching day, and absent when the call failed —
+               a Home must not depend on it. -->
+          @if (briefOn()) {
+            <hq-morning-brief />
+          }
+
           <!-- Feature 21: the same "what needs me today?" cards the Admin gets, scoped by the
                server to her academy. The counts move under the statistics when it is on. -->
           @if (todayOn()) {
@@ -245,6 +254,9 @@ export class ManagementHomePage {
 
   /** Feature 21: `<hq-today>` above her statistics, and her four counts in a strip beneath them. */
   protected readonly todayOn = computed(() => this.flags.isOn(FLAGS.todayHome));
+
+  /** Feature 25: the brief above both. This screen is a manager's only, so the flag is the gate. */
+  protected readonly briefOn = computed(() => this.flags.isOn(FLAGS.morningBrief));
 
   /**
    * Today **where the school is**, not where the laptop is set.
