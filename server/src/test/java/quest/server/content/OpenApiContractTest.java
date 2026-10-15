@@ -73,6 +73,16 @@ class OpenApiContractTest extends ApiTestSupport {
             "/children/{id}/teacher-questions/{questionId}", "/children/{id}/teacher-questions/{questionId}/answers");
 
     /**
+     * Feature 30 (`quest.api.dashboard.SmartHints.kt`): the hints and the practice sets the teacher approves before a
+     * child sees them. Behind `smartHints` at run time and still in the document, for the reason every flagged area
+     * is: `server/openapi.json` describes the API the server can serve rather than what one school has switched on.
+     */
+    static final List<String> SMART_HINTS_API = List.of(
+            "/teacher/lessons/{id}/smart-hints", "/teacher/lessons/{id}/smart-hints/{stopId}",
+            "/teacher/lessons/{id}/smart-hints/approve",
+            "/teacher/lessons/{id}/practice/{playId}/approve", "/teacher/lessons/{id}/practice/{playId}/reject");
+
+    /**
      * N4.1: results, marking, release, the gradebook and the child page (`quest.api.dashboard.Grading.kt`,
      * `docs/teacher-flow.md` step 9). All of it is behind the `gradebook` flag at run time, and the exports are
      * behind it too; they are still in the document, because `server/openapi.json` describes the API the server can
@@ -307,6 +317,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(BROADCASTS_API);
         assertThat(paths).containsAll(PUBLIC_API);
         assertThat(paths).containsAll(STAFF_ATTENDANCE_API);
+        assertThat(paths).containsAll(SMART_HINTS_API);
         // MH1: the upload and the download of a broadcast attachment — the app and the dashboard both call them.
         assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}", "/media/attachments", "/media/attachments/{id}", "/media/chat-attachments",
                 "/children/{id}/chat/attachments");

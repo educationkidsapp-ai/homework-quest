@@ -79,5 +79,8 @@ class JourneyFlowTest {
         val review = map.islands.filter { it.kind == IslandKind.REVIEW }
         assertEquals(1, review.size); assertEquals(IslandKind.REVIEW, map.islands.first().kind)
         assertEquals("The sh sound", review.first().title)
+        // Feature 30: the island plays this skill's approved practice set, which the fake API serves with the lesson.
+        assertEquals("${quest.api.samples.PhonicsSeed.LESSON_ID}:1:${quest.api.dto.Play.PRACTICE_VARIANT}", review.first().playId)
+        assertEquals(4, lesson.practice.single().play.stops.size)
     }
 }

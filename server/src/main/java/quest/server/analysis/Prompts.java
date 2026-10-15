@@ -272,5 +272,111 @@ public final class Prompts {
         """.formatted(today, cells.isEmpty() ? "- (none: write no \"audience\")" : "- " + String.join("\n- ", cells), transcript);
     }
 
+    // ------------------------------------------------------------------ Smart hints (feature 30)
+    /**
+     * Feature 30: two graded hints for every answerable stop of a lesson, written once when the lesson is built and
+     * never at play time. The system turn is the whole contract — the shape, the two limits and the one rule that
+     * matters — so {@link #userSmartHints} carries nothing but the questions.
+     *
+     * <p>No {@code %s} in it, for {@link SampleLlmClient}'s sake: the fake provider matches this prompt by equality.
+     */
+    public static final String SMART_HINTS = """
+        You help a child aged 5–8 who has just answered a practice question wrongly and is about to try again. For
+        each question you write two hints: the first a gentle nudge towards the method her teacher used, the second a
+        stronger pointer that says where to look or what to do first. Everything is read aloud to her, so each hint
+        is one short, warm sentence a first grader can hear and act on.
+        You never give the answer away — not the correct option's words, not the number, not "true" or "false", not
+        the sign. A hint that contains the answer is worse than no hint at all.
+        You answer with one JSON object only — no prose, no markdown fences:
+        { "hints": [ { "stopId": "<copied exactly from the question>", "hints": ["the nudge", "the stronger pointer"] } ] }
+        Exactly two hints per question, in that order, each at most 90 characters, and one entry for every question
+        you are given. Never write null: write the hint.
+        """;
+
+    /**
+     * The questions, as little of each as a hint needs: what the child is asked, the skill and method it practises,
+     * and — stated outright — the words this stop's hints may not contain.
+     *
+     * <p><strong>{@code doNotSay} is the prompt half of the validator.</strong> `HintRules` rejects a hint that
+     * contains any of those words whatever the model was told, but telling it first is what makes the first attempt
+     * usually right; the lists are the stop's own answer, which the model is holding anyway because the question
+     * came from the same play.
+     */
+    public static String userSmartHints(String skillsJson, String questionsJson) {
+        return """
+        THE SKILLS THIS LESSON TEACHES (point at these methods, never at the answer):
+        %s
+
+        THE QUESTIONS (write two hints for every one of them, keyed by "stopId"):
+        %s
+        """.formatted(skillsJson, questionsJson);
+    }
+
+    // ------------------------------------------------------------------ Targeted practice (feature 30)
+    /**
+     * Feature 30: one short practice set for one skill, in the shape Prompt B writes a level in — the same stop
+     * types, the same limits, the same validator — but 4–5 stops, every one of them answerable, no pages to read,
+     * no exit ticket and nothing but that one skill.
+     */
+    public static final String TARGETED_PRACTICE = """
+        You design one short practice set for a child aged 5–8 who found one skill hard and is coming back to it
+        alone on a phone. Four or five questions, all on that skill, easiest first. Everything a child sees is spoken
+        aloud, so every string is short, warm and readable by a first grader. You practise the skill exactly as the
+        teacher taught it and you invent no new method. Wrong answers are never punished: hints point at the method.
+        You answer with one JSON object only — no prose, no markdown fences.
+        """;
+
+    /**
+     * Prompt B's own stop catalogue, narrowed to the answerable types a practice set is made of. The excluded ids are
+     * the lesson's existing stops: a practice set the child has already played is not practice.
+     */
+    public static String userTargetedPractice(int variant, String skillJson, String analysisJson, List<String> excludedIds) {
+        return """
+        THE ONE SKILL TO PRACTISE (the method is the teacher's; keep it):
+        %s
+
+        SOURCE ANALYSIS of the lesson this skill comes from (for the numbers, words and story it may use):
+        %s
+
+        Produce one Play as JSON (limits in brackets are hard limits):
+        { "level": 1, "variant": %d, "kind": <same kind as the analysis>,
+          "theme": { "potName": "e.g. Soup Pot [≤ 20]", "dishName": "e.g. Hot Soup [≤ 30]", "potEmoji": "one emoji", "servedText": "what the child hears when the dish is served [≤ 60]" },
+          "stops": [ ...4 or 5 stops, every one answerable, easiest first, NO exitTicket and NO page reading... ] }
+
+        Every stop has: "type", "id" (short, unique in this play, e.g. "p1"), "title" [≤ 40], "speak" (what Pip says aloud) [≤ 90],
+        "ingredient": {"emoji": "one food emoji", "name": "[≤ 20]"}, "parentTip": {"en": "one sentence for the parent [≤ 200]", "ar": "the same in Arabic [≤ 200]"}.
+        The only types allowed here, with their extra fields:
+        SINGLE ANSWER (options 2–4, ids "a".."d", exactly one correct; "hint" [≤ 90] points to the method, never to the answer):
+          choice        { hint, question [≤ 90], options:[{id,label [≤ 40]} or {id,illustrationKey}], correctOptionId }
+          trueFalse     { hint, statement [≤ 90], answer: true|false }
+          sequence      { hint, chips:[3–6 numbers with exactly one null gap], options:[{id,label [≤ 12]}], correctOptionId, numberLine:{from,to,step ≥ 1,highlight:[…]} }
+          count         { hint, objectKey (illustration), groupSizes:[1–6 groups of 1–5], options:[{id,label}], correctOptionId, numberLine:{…} } — the correct label must equal the sum of groupSizes
+          compare       { hint, left, right, options:[exactly 3: {"id":"a","label":"<"},{"id":"b","label":">"},{"id":"c","label":"="}], correctOptionId, numberLine:{…} }
+          sound         { hint, illustrationKey, options:[{id,label: the sound e.g. "sh"}], correctOptionId }
+          word          { hint, spokenWord [≤ 12], options:[{id,label}], correctOptionId } — spokenWord must match the label of the option specified by correctOptionId
+          readTap       { hint, word [≤ 12], options:[{id, illustrationKey}], correctOptionId }
+          writeSentence { frame ("Alan ___ soup." [≤ 90]), answer, options:[3 words ≤ 16 chars], free:false }
+          trace         { text: a letter, digraph or short word, hint }
+        MULTI ANSWER:
+          multiSelect   { prompt, options:[3–8 tiles {id,label|illustrationKey}], correctIds:[2–3], pick: 2 or 3 (= number of correctIds) }
+          selectAll     { prompt, options:[tiles], correctIds:[…] }
+          match         { prompt, pairs:[2–5 of {id, left:{id,label|illustrationKey}, right:{id,label|illustrationKey}}] }
+          order         { prompt, items:[3–6 of {id,text,illustrationKey?}], correctOrder:[the ids in the right order] }
+        Semantic rules the validator enforces: choice/sound/word/readTap correctOptionId must be an option id; word: the spokenWord must be identical to the label of the option specified by correctOptionId;
+        readTap: the correct option's illustrationKey equals the word; count: the correct label equals the sum of groupSizes; sequence: exactly one null chip and the correct label is the missing number;
+        compare: correct is "<" when left < right, ">" when left > right, "=" when equal; multiSelect: pick == number of correctIds and at least one wrong option; order: correctOrder is a permutation of the item ids;
+        writeSentence: frame contains "___" and answer is one of the options.
+
+        Rules:
+        - Every question practises THAT skill and nothing else, with the teacher's method and the slides' numbers and words.
+        - No readPage, storyPieces, wordCards, move, explain, retell, openAnswer, free writeSentence and no exitTicket: this set is practice only.
+        - Use only these illustration keys, spelled exactly (never invent one — if nothing fits, leave illustrationKey out and use a label): %s. Tiles and options need a label or a known illustrationKey.
+        - Every child-facing string is short and uses the words the slides use. No percentages, no "wrong", no "fail".
+        - Do not reuse any of these stop ids, and do not repeat the questions they ask: %s
+        - Stop ids must be unique across the play. Never write null for any field: omit optional keys instead.
+        - Arabic parentTip is Modern Standard Arabic, written for a parent in the UAE.
+        """.formatted(skillJson, analysisJson, variant, ILLUSTRATIONS, String.join(", ", excludedIds));
+    }
+
     static String join(List<String> xs) { return xs.stream().collect(Collectors.joining(", ")); }
 }

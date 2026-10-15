@@ -5,6 +5,7 @@ import quest.api.dto.IslandState
 import quest.api.dto.IslandKind
 import quest.api.dto.Island
 import quest.api.samples.MathSeed
+import quest.api.samples.PhonicsSeed
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -37,6 +38,8 @@ import quest.api.dto.MapResponse
 import quest.api.dto.MediaKind
 import quest.api.dto.MediaRef
 import quest.api.dto.PlatformSettings
+import quest.api.dto.Play
+import quest.api.dto.PracticePlay
 import quest.api.dto.ProgressResponse
 import quest.api.dto.PublishedLesson
 import quest.api.dto.SchoolTheme
@@ -55,6 +58,10 @@ import quest.api.progress.Band
 import quest.api.progress.ProgressBands
 import quest.api.samples.Seeds
 import quest.api.samples.summary
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import quest.core.json.AppJson
 import quest.core.platform.Ids
 import quest.core.platform.Today
 import quest.api.dto.NotificationKind
@@ -146,8 +153,10 @@ class FakeContentApi(
         // One review island per weak lesson (its Level-1 variant); attempts are recorded per stop, so bands are per lesson skill set.
         val review = weak.mapNotNull { (skillId, name) ->
             val lesson = Seeds.lessons.firstOrNull { l -> l.skills.any { it.id == skillId } } ?: return@mapNotNull null
-            if (completions.any { it.lessonId == lesson.id && it.level == 1 && it.variant == 1 }) return@mapNotNull null
-            MapAssembler.ReviewCandidate(skillId, name, lesson.id, "${lesson.id}:1:1")
+            // Done once — the Again play or feature 30's practice set for the same skill — and the island is off the map.
+            if (completions.any { it.lessonId == lesson.id && it.level == 1 && it.variant >= 1 }) return@mapNotNull null
+            // Feature 30, as `MapService`: the island plays this skill's approved practice set when there is one.
+            MapAssembler.ReviewCandidate(skillId, name, lesson.id, FakeSmartHints.reviewPlayId(lesson.id, skillId))
         }.distinctBy { it.lessonId }
         val assembled = MapAssembler.assemble(child, Seeds.summaries, completions.map { LessonCompletionInfo(it.lessonId, it.level, it.stars, it.total, it.mostTwo) }, review, emptyMap(), from, to, today())
         // As `MapService.withExamWindows`: the exam is on the map only while this child may sit it, and carries the
@@ -163,7 +172,8 @@ class FakeContentApi(
     override suspend fun lesson(id: String, version: Int?): PublishedLesson {
         net()
         // B3 parity: the exam is never released on the fake server, so its paper always arrives sealed.
-        return Seeds.byId(id) ?: FakeExam.lesson.takeIf { it.id == id }?.sealedForChild() ?: throw ApiException(ApiError(ApiError.NOT_FOUND, "No lesson $id"))
+        // Feature 30: the body a child downloads carries the hints and the practice set the teacher approved.
+        return Seeds.byId(id)?.let { FakeSmartHints.decorate(it) } ?: FakeExam.lesson.takeIf { it.id == id }?.sealedForChild() ?: throw ApiException(ApiError(ApiError.NOT_FOUND, "No lesson $id"))
     }
 
     override suspend fun uploadAttempts(childId: String, attempts: List<AttemptUpload>): AttemptAck {
@@ -219,7 +229,8 @@ class FakeContentApi(
     private suspend fun completions(childId: String): List<Completion> {
         val mine = allAttempts(childId)
         return Seeds.lessons.flatMap { lesson ->
-            (lesson.plays + lesson.variant).mapNotNull { play ->
+            // Feature 30: a finished practice set counts as its own completion, the way the Again variant does.
+            (lesson.plays + lesson.variant + FakeSmartHints.decorate(lesson).practice.map { it.play }).mapNotNull { play ->
                 val done = play.stops.map { stop -> mine.filter { it.stopId == stop.id && it.lessonId == lesson.id && it.level == play.level }.maxByOrNull { it.stars } }
                 if (done.any { it == null }) null else {
                     val stars = done.sumOf { it!!.stars }
@@ -561,4 +572,55 @@ class FakeContentApi(
 object FakeExam {
     const val LESSON_ID = "lesson-fake-exam"
     val lesson: PublishedLesson = MathSeed.lesson.copy(id = LESSON_ID, title = "Counting exam", type = "exam", hintsOff = true, numbersOff = true, examPlay = MathSeed.lesson.plays[0])
+}
+
+/**
+ * Feature 30 on the fake API: what a published lesson looks like once a teacher has approved hints and a practice set,
+ * so the app plays the whole of the feature with no server behind it. The seed lessons in `shared-api` carry neither —
+ * their `smartHints` and `practice` are empty, as every lesson's are until a teacher approves something — so the fake
+ * adds them here, to the one lesson whose weak skill puts a review island on the map.
+ *
+ * Nothing here is generated: these are fixed strings, exactly as the published body only ever carries what the teacher
+ * read and approved. The app never asks a model for a hint (see the spec's "Out of scope").
+ */
+object FakeSmartHints {
+    /** The practice set's variant, the first one a practice play may take. */
+    const val VARIANT = Play.PRACTICE_VARIANT
+    private const val SKILL = "sh-sound"
+
+    /** Two graded hints — a nudge, then a stronger pointer that still stops short of the answer. */
+    private val hints: Map<String, List<String>> = mapOf(
+        "p1-s1" to listOf("Say the word slowly. What is the very first sound you hear?", "Put a finger on your lips and make the quiet sound at the start."),
+        "p1-w1" to listOf("Press Listen again and say the word with it.", "The word starts like shhh — listen to the first sound only."),
+        "p1v-s1" to listOf("Say the word slowly, sound by sound.", "Listen to the first sound: is it quiet like shhh, or sharp?"),
+    )
+
+    /** The teacher's practice set: four answerable stops from the Again variant, under ids of their own. */
+    private val play: Play = PhonicsSeed.level1Variant.let { again ->
+        Play(1, VARIANT, again.kind, again.theme, again.stops.filter { it.category == StopCategory.SINGLE }.take(Play.PRACTICE_STOPS.first).map { renamed(it, "-pr") })
+    }
+
+    private val practice = PracticePlay(SKILL, "The sh sound", play)
+
+    /** The lesson as a child downloads it: the approved hints and the approved practice set, and nothing unapproved. */
+    fun decorate(lesson: PublishedLesson): PublishedLesson =
+        if (lesson.id != PhonicsSeed.LESSON_ID) lesson
+        else lesson.copy(smartHints = hints.filterKeys { id -> lesson.plays.any { p -> answerable(p, id) } || answerable(lesson.variant, id) }, practice = listOf(practice))
+
+    /** The `playId` a weak skill's review island carries: the practice set when there is one, the Again play when not. */
+    fun reviewPlayId(lessonId: String, skillId: String): String =
+        if (lessonId == PhonicsSeed.LESSON_ID && skillId == SKILL) "$lessonId:1:$VARIANT" else "$lessonId:1:1"
+
+    private fun answerable(play: Play, stopId: String): Boolean =
+        play.stops.any { it.id == stopId || (it is Stop.ExitTicket && it.questions.any { q -> q.id == stopId }) }
+
+    /**
+     * The same stop under another id. A practice set is its own play, so its stops need ids of their own: shared ones
+     * would make one child's stars on the practice count as the Again play's, which is keyed by stop id alone.
+     * Re-encoding is how a `Stop` is copied without a branch per kind — [Stop] is a sealed hierarchy of 20-odd shapes.
+     */
+    private fun renamed(stop: Stop, suffix: String): Stop {
+        val body = AppJson.encodeToJsonElement(Stop.serializer(), stop).jsonObject
+        return AppJson.decodeFromJsonElement(Stop.serializer(), JsonObject(body + ("id" to JsonPrimitive(stop.id + suffix))))
+    }
 }

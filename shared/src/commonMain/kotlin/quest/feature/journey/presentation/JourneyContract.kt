@@ -17,6 +17,12 @@ object JourneyContract {
         val stopStars: Map<String, Int> = emptyMap(), val childName: String = "", val error: String? = null,
         /** §8: an exam is one play with no level chooser, no hints and no way back into an answered question. */
         val exam: Boolean = false,
+        /**
+         * Feature 30: the skill this play practises, when the play is a targeted practice set
+         * ([Play.PRACTICE_VARIANT] and up) rather than a level or the Again variant. It names the one skill on the
+         * screen and takes the level chooser away: a practice set is not a level and there is nothing to choose.
+         */
+        val practiceSkill: String? = null,
     ) : MviState {
         val stops: List<Stop> get() = play?.stops.orEmpty()
         val nodeStates: List<NodeState> get() { val firstOpen = stops.indexOfFirst { it.id !in stopStars }; return stops.mapIndexed { i, s -> when { s.id in stopStars -> NodeState.DONE; i == firstOpen -> NodeState.CURRENT; else -> NodeState.LOCKED } } }
@@ -87,4 +93,25 @@ val PublishedLesson.isExam: Boolean get() = type == "exam" && examPlay != null
  * [PublishedLesson.examPlay] and ignores `plays` and `variant`" — so the overview, the player and the result all agree
  * on the same questions and the answers land on the play the teacher's scorer reads.
  */
-fun PublishedLesson.playFor(level: Int, variant: Int): Play = examPlay?.takeIf { isExam } ?: play(level, variant) ?: plays.first()
+fun PublishedLesson.playFor(level: Int, variant: Int): Play = examPlay?.takeIf { isExam }
+    ?: play(level, variant)
+    // Feature 30: a practice set the review island named and this body does not carry — the teacher withdrew it, or
+    // the map is newer than the lesson on this device. The island's own fallback is the Again play, so the child gets
+    // the review she tapped and never the whole lesson again.
+    ?: variant.takeIf { it >= Play.PRACTICE_VARIANT }?.let { play(1, 1) }
+    ?: plays.first()
+
+/**
+ * Feature 30: the hint one wrong try has earned, or null when this lesson has no approved hints for the stop and the
+ * stop's own single [Stop.hint] stands as before.
+ *
+ * The first wrong try gets the nudge, the second the stronger pointer, and a third and later try keeps the last one —
+ * there is nothing after it, and the child is never left without help she already had. An exam has neither: it carries
+ * no hints at all ([PublishedLesson.hintsOff]), which is checked here as well as by the player.
+ */
+fun PublishedLesson.smartHint(stopId: String, attempt: Int): String? {
+    if (isExam || hintsOff) return null
+    val hints = smartHints[stopId]?.filter { it.isNotBlank() }.orEmpty()
+    if (hints.isEmpty()) return null
+    return hints[(attempt - 1).coerceIn(hints.indices)]
+}

@@ -25,10 +25,14 @@ import quest.server.config.Json;
 public class LessonStore {
     private final LessonRepository lessons; private final SkillRepository skills; private final PlayRepository plays; private final StopRepository stops;
     private final ParentPanelRepository panels; private final PageImageRepository pageImages; private final Json json; private final String publicUrl;
+    /** Feature 30: read-only here, and only ever the approved rows — see {@link #assemble}. */
+    private final quest.server.hints.StopHintsRepository hints; private final quest.server.hints.PracticePlayRepository practice;
 
-    public LessonStore(LessonRepository lessons, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, PageImageRepository pageImages, Json json, quest.server.config.QuestProperties props) {
+    public LessonStore(LessonRepository lessons, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, PageImageRepository pageImages, Json json, quest.server.config.QuestProperties props,
+                       quest.server.hints.StopHintsRepository hints, quest.server.hints.PracticePlayRepository practice) {
         this.lessons = lessons; this.skills = skills; this.plays = plays; this.stops = stops; this.panels = panels; this.pageImages = pageImages; this.json = json;
         this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl();
+        this.hints = hints; this.practice = practice;
     }
 
     /**
@@ -44,12 +48,19 @@ public class LessonStore {
     public Entities.PlayEntity savePlay(String lessonId, Play play, String promptVersion, int seed) {
         var existing = plays.findByLessonIdAndLevelAndVariant(lessonId, play.getLevel(), play.getVariant());
         var keptText = new java.util.HashMap<String, Entities.StopEntity>();
+        var gone = new java.util.HashSet<String>();
         existing.ifPresent(e -> {
             var old = stops.findByPlayIdOrderByPosition(e.getId());
             for (var se : old) if (se.getText() != null) keptText.put(se.getId() + "\u0000" + se.getContentJson(), se);
+            gone.addAll(answerableIds(json.decodeShared(e.getPlayJson(), Play.Companion.serializer())));
             stops.deleteAll(old); plays.delete(e);
         });
         Play stored = StopKt.withoutTeacherText(play);
+        // Feature 30: the hints of a question this rewrite has taken away. They described *that* question, so leaving
+        // them would publish help for a stop that no longer exists — and `stop_hints` has no foreign key into `stops`
+        // to do it for us, because an exitTicket's questions have no row there at all (V52).
+        gone.removeAll(answerableIds(stored));
+        gone.forEach(hints::deleteById);
         var e = new Entities.PlayEntity();
         e.setId(existing.map(Entities.PlayEntity::getId).orElse(UUID.randomUUID().toString()));
         e.setLessonId(lessonId); e.setLevel(stored.getLevel()); e.setVariant(stored.getVariant());
@@ -93,6 +104,16 @@ public class LessonStore {
         panels.save(e);
     }
 
+    /** Every stop id of a play that a child answers, the three inside an exitTicket included — what can carry hints. */
+    private static java.util.Set<String> answerableIds(Play play) {
+        var out = new java.util.HashSet<String>();
+        for (Stop s : play.getStops()) {
+            out.add(s.getId());
+            if (s instanceof Stop.ExitTicket et) for (Stop q : et.getQuestions()) out.add(q.getId());
+        }
+        return out;
+    }
+
     public Play play(Entities.PlayEntity e) { return json.decodeShared(e.getPlayJson(), Play.Companion.serializer()); }
     public List<Entities.PlayEntity> plays(String lessonId) { return plays.findByLessonIdOrderByLevelAscVariantAsc(lessonId); }
 
@@ -100,7 +121,9 @@ public class LessonStore {
     public PublishedLesson assemble(Entities.LessonEntity lesson) {
         var all = plays(lesson.getId());
         List<Play> levels = new ArrayList<>(); Play variant = null;
-        for (var p : all) { var play = play(p); if (p.getVariant() == 0) levels.add(play); else if (p.getLevel() == 1) variant = play; }
+        // Feature 30: variant 2 and up is a targeted practice set, which is published separately and only when it is
+        // approved — reading it as "the Again variant" would have handed every child a practice set instead.
+        for (var p : all) { var play = play(p); if (p.getVariant() == 0) levels.add(play); else if (p.getLevel() == 1 && p.getVariant() == 1) variant = play; }
         if (levels.size() < 3 || variant == null) return null;
         var panelJson = panels.findById(lesson.getId()).map(Entities.ParentPanelEntity::getPanelJson).orElse(null);
         if (panelJson == null) return null;
@@ -117,7 +140,37 @@ public class LessonStore {
         // and `ExamPlays.decorate` fills them for the one caller that serves a lesson to a child.
         return new PublishedLesson(lesson.getId(), Math.max(1, lesson.getVersion()), course, Subject.valueOf(lesson.getSubject().toUpperCase()), date,
                 lesson.getTitle() == null ? "Lesson" : lesson.getTitle(), kind, theme, skillRefs, levels, variant, panel, images,
-                "homework", false, false, null);
+                "homework", false, false, null, approvedHints(lesson.getId()), approvedPractice(lesson.getId(), all, skillRefs));
+    }
+
+    /**
+     * Feature 30: the hints a teacher has approved, by stop id — and nothing else. An unapproved row is work in
+     * progress on her screen and must never be in a body a child's phone can download, which is why this reads
+     * `approvedAt` rather than the row's existence.
+     */
+    private java.util.Map<String, List<String>> approvedHints(String lessonId) {
+        var out = new java.util.LinkedHashMap<String, List<String>>();
+        for (var row : hints.findByLessonId(lessonId))
+            if (row.isApproved()) out.put(row.getStopId(), json.strings(row.getHintsJson()));
+        return out;
+    }
+
+    /** Feature 30: the approved practice sets, each with the confirmed skill it practises. */
+    private List<quest.api.dto.PracticePlay> approvedPractice(String lessonId, List<Entities.PlayEntity> all, List<SkillRef> skillRefs) {
+        var rows = practice.findByLessonIdOrderBySkillIdAsc(lessonId).stream().filter(quest.server.hints.Entities.PracticePlayEntity::isApproved).toList();
+        if (rows.isEmpty()) return List.of();
+        var byId = new java.util.HashMap<String, Entities.PlayEntity>();
+        for (var p : all) byId.put(p.getId(), p);
+        var names = new java.util.HashMap<String, String>();
+        for (var s : skillRefs) names.put(s.getId(), s.getName());
+        var out = new ArrayList<quest.api.dto.PracticePlay>();
+        for (var row : rows) {
+            var entity = byId.get(row.getPlayId());
+            if (entity == null) continue;                       // the play was deleted and the cascade has not run yet
+            out.add(new quest.api.dto.PracticePlay(row.getSkillId(), names.getOrDefault(row.getSkillId(), "Practice"), play(entity)));
+        }
+        out.sort(java.util.Comparator.comparingInt(p -> p.getPlay().getVariant()));
+        return out;
     }
 
     public String assembleJson(Entities.LessonEntity lesson) {

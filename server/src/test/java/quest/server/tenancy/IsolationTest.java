@@ -87,6 +87,9 @@ class IsolationTest extends ApiTestSupport {
     @Autowired quest.server.floors.FloorSupervisorRepository floorSupervisors;
     @Autowired quest.server.broadcasts.AnnouncementDraftRepository drafts;
     @Autowired quest.server.ai.AiCallRepository aiCalls;
+    @Autowired quest.server.hints.StopHintsRepository stopHints;
+    @Autowired quest.server.hints.PracticePlayRepository practicePlays;
+    @Autowired quest.server.content.PlayRepository playRows;
 
     @BeforeEach void seedTwoSchools() {
         school(A, "Alpha Academy", "SCHLAA"); school(B, "Beta School", "SCHLBB");
@@ -334,6 +337,37 @@ class IsolationTest extends ApiTestSupport {
         } finally {
             tenant.clear();
             aiCalls.deleteById("iso-ai-call-b");
+        }
+    }
+
+    @Test void feature_30s_hints_and_practice_sets_stay_in_their_school() {
+        var hint = new quest.server.hints.Entities.StopHintsEntity();
+        hint.setStopId("iso-stop-of-b"); hint.setLessonId(LESSON_B); hint.setSchoolId(B);
+        hint.setHintsJson("[\"Look again.\",\"Count them first.\"]"); hint.setCreatedAt(Instant.now());
+        stopHints.save(hint);
+        // the practice row keys into `plays` (V52), so B gets a real practice play of its own to point at
+        var playRow = new quest.server.content.Entities.PlayEntity();
+        playRow.setId("iso-play-of-b"); playRow.setLessonId(LESSON_B); playRow.setLevel(1); playRow.setVariant(2);
+        playRow.setPlayJson("{}"); playRow.setPromptVersion("v1"); playRow.setSeed(0); playRow.setGeneratedAt(Instant.now());
+        playRows.save(playRow);
+        var play = new quest.server.hints.Entities.PracticePlayEntity();
+        play.setPlayId("iso-play-of-b"); play.setLessonId(LESSON_B); play.setSchoolId(B); play.setSkillId("iso-skill");
+        play.setCreatedAt(Instant.now());
+        practicePlays.save(play);
+        try {
+            tenant.set("MANAGERIAL", A, null);
+            assertThat(stopHints.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(stopHints.findByLessonId(LESSON_B)).as("not A's lesson, so not A's hints").isEmpty();
+            assertThat(stopHints.findByLessonIdIn(java.util.List.of(LESSON_A, LESSON_B))).isEmpty();
+            assertThat(practicePlays.findByLessonIdOrderBySkillIdAsc(LESSON_B)).isEmpty();
+            assertThat(practicePlays.approvedByLesson(java.util.List.of(LESSON_B))).isEmpty();
+            tenant.set("MANAGERIAL", B, null);
+            assertThat(stopHints.findByLessonId(LESSON_B)).extracting(r -> r.getStopId()).containsExactly("iso-stop-of-b");
+        } finally {
+            tenant.clear();
+            stopHints.deleteById("iso-stop-of-b");
+            practicePlays.findById("iso-play-of-b").ifPresent(practicePlays::delete);
+            playRows.findById("iso-play-of-b").ifPresent(playRows::delete);
         }
     }
 

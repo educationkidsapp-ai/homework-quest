@@ -11,7 +11,7 @@
  * reshape, not a transform, everywhere but the stop union, which needs one cast because the
  * generator flattens the 22 variants into one interface (`stop.model.ts` keeps them apart).
  */
-import type { AdminPlay, PlayStopsInner, Stop as ApiStop } from '../../api';
+import type { AdminPlay, Play as ApiPlay, PlayStopsInner, Stop as ApiStop } from '../../api';
 import type { Play, Stop } from '../../ui/phone-preview';
 
 export function toPreviewStop(inner: PlayStopsInner): Stop {
@@ -32,7 +32,17 @@ export function toInnerStop(stop: ApiStop): PlayStopsInner {
 }
 
 export function toPreviewPlay(adminPlay: AdminPlay): Play {
-  const { play } = adminPlay;
+  return toPreviewPlayOf(adminPlay.play);
+}
+
+/**
+ * The same reshape from the contract's `Play` alone.
+ *
+ * Feature 30's practice sets arrive as `PracticePlayView.play` — the document without the
+ * `AdminPlay` envelope around it — so the Hints and practice section previews them through this
+ * rather than inventing an envelope to satisfy {@link toPreviewPlay}.
+ */
+export function toPreviewPlayOf(play: ApiPlay): Play {
   return {
     id: play.id,
     level: play.level,

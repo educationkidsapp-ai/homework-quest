@@ -20,10 +20,9 @@
    ]
   },
   "variant": {
-   "enum": [
-    0,
-    1
-   ]
+   "type": "integer",
+   "minimum": 0,
+   "maximum": 5
   },
   "kind": {
    "enum": [
@@ -72,7 +71,7 @@
   },
   "stops": {
    "type": "array",
-   "minItems": 6,
+   "minItems": 4,
    "maxItems": 9,
    "items": {
     "$ref": "#/$defs/stop"

@@ -38,6 +38,8 @@ data class LessonStrings(
     val finishLesson: String = "Finish lesson",
     val stepsCompleted: String = "{done} of {total} steps completed",
     val stepOf: String = "Step {n} of {total}",
+    /** Feature 30: a targeted practice set, named by the one skill it practises. */
+    val practiceOf: String = "Practice: {skill}",
     // player
     val hint: String = "Hint",
     val tryAgain: String = "Try again",
@@ -133,6 +135,7 @@ data class LessonStrings(
             finishLesson = "إنهاء الدرس",
             stepsCompleted = "اكتمل {done} من {total} خطوات",
             stepOf = "الخطوة {n} من {total}",
+            practiceOf = "تدريب: {skill}",
             hint = "تلميح",
             tryAgain = "حاول مرة أخرى",
             praises = listOf("إجابة صحيحة", "أحسنت", "هذا صحيح"),

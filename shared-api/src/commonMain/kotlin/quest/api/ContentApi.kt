@@ -287,6 +287,8 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "voiceAnnouncement" to false,
     // Feature 23: a remote study day for the school, one academy or chosen grades (V46).
     "remoteStudyDays" to false,
+    // Feature 30: teacher-approved hints and a practice set per weak skill, written at build time only (V52).
+    "smartHints" to false,
 )
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */
