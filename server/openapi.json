@@ -8303,6 +8303,147 @@
         "required" : [ "id" ],
         "type" : "object"
       },
+      "TodayAttendance" : {
+        "properties" : {
+          "counts" : {
+            "$ref" : "#/components/schemas/BoardCounts"
+          },
+          "scope" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "TodayComplaint" : {
+        "properties" : {
+          "ageHours" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "childName" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "openedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "recipientName" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "TodayComplaints" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TodayComplaint"
+            },
+            "type" : "array"
+          },
+          "total" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "TodayDeviceBlock" : {
+        "properties" : {
+          "fullName" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "lastAttemptAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "TodayHome" : {
+        "properties" : {
+          "attendance" : {
+            "$ref" : "#/components/schemas/TodayAttendance"
+          },
+          "counts" : {
+            "items" : {
+              "$ref" : "#/components/schemas/HomeCard"
+            },
+            "type" : "array"
+          },
+          "day" : {
+            "type" : "string"
+          },
+          "overdueComplaints" : {
+            "$ref" : "#/components/schemas/TodayComplaints"
+          },
+          "timeZone" : {
+            "type" : "string"
+          },
+          "unread" : {
+            "$ref" : "#/components/schemas/TodayUnread"
+          },
+          "waiting" : {
+            "$ref" : "#/components/schemas/TodayWaiting"
+          }
+        },
+        "type" : "object"
+      },
+      "TodaySender" : {
+        "properties" : {
+          "name" : {
+            "type" : "string"
+          },
+          "threadId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "TodayUnread" : {
+        "properties" : {
+          "count" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "senders" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TodaySender"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "TodayWaiting" : {
+        "properties" : {
+          "devices" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TodayDeviceBlock"
+            },
+            "type" : "array"
+          },
+          "requests" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AttendanceRequestView"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
       "TokenPair" : {
         "properties" : {
           "expiresAt" : {
@@ -17164,6 +17305,24 @@
         "tags" : [ "Auth" ]
       }
     },
+    "/me/today" : {
+      "get" : {
+        "operationId" : "todayHome",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TodayHome"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Today" ]
+      }
+    },
     "/me/weekly-plans" : {
       "get" : {
         "operationId" : "myWeeklyPlans",
@@ -21001,6 +21160,9 @@
   }, {
     "description" : "Teacher class attendance taking and parent attendance reflection",
     "name" : "Attendance"
+  }, {
+    "description" : "What needs the Admin or the department manager today (feature 21)",
+    "name" : "Today"
   }, {
     "description" : "A subject coordinator's read-only view of the school she supervises",
     "name" : "Coordinator"

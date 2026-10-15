@@ -56,6 +56,10 @@ export const FLAGS = {
   // Feature 20: the floor supervisor — her whole area, the Admin's Floors and Floor supervisors
   // screens, and every `/floor/**` and `/admin/floor*` route behind it on the server.
   floorSupervisor: 'floorSupervisor',
+  // Feature 21: the Admin's and the manager's Home leads with what needs a decision today
+  // (`GET /me/today`). Off until an Admin turns it on, and the old counts-first Home is what
+  // the screen falls back to — the flag empties a section of Home, it never takes Home away.
+  todayHome: 'todayHome',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];

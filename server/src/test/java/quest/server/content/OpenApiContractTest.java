@@ -39,6 +39,8 @@ class OpenApiContractTest extends ApiTestSupport {
     /** P3.0: what the Angular Homes, School page, usage screens and New school wizard call (§6 screens 2, 4–6, 10, 19–20). */
     static final List<String> DASHBOARD_DATA_API = List.of(
             "/me/home",
+            // Feature 21: the Admin's and the manager's "what needs me today?" Home, behind `todayHome`.
+            "/me/today",
             "/admin/schools/wizard",
             "/admin/schools/{id}/classes", "/admin/schools/{id}/classes/{classId}",
             "/admin/schools/{id}/usage", "/admin/schools/{id}/billing",

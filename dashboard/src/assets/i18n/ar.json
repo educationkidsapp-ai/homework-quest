@@ -2996,5 +2996,27 @@
         "floor": "الدور"
       }
     }
+  },
+  "today": {
+    "loading": "جارٍ تحميل ما يحتاجك",
+    "allClear": "لا شيء يحتاجك الآن",
+    "ageHours": "{{hours}} س",
+    "ageDays": "{{days}} يوم",
+    "attendance": {
+      "title": "حضور اليوم"
+    },
+    "waiting": {
+      "title": "بانتظار موافقتك",
+      "deviceBlocked": "رُفض تسجيل حضور اليوم — الجوال ليس الجهاز المعتمد لها."
+    },
+    "complaints": {
+      "title": "شكاوى متأخرة",
+      "more": "+{{count}} أخرى"
+    },
+    "unread": {
+      "title": "رسائل غير مقروءة",
+      "count": "{{count}} غير مقروءة",
+      "openMessages": "فتح الرسائل"
+    }
   }
 }

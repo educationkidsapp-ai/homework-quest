@@ -142,7 +142,8 @@
     "attendance.device.reset": ["ADMIN"],
     "attendance.requests.decide": ["ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "FLOOR_SUPERVISOR"],
     "attendance.correction.write": ["ADMIN"],
-    "attendance.board": ["ADMIN", "MANAGERIAL", "COORDINATOR", "TEACHER", "FLOOR_SUPERVISOR"]
+    "attendance.board": ["ADMIN", "MANAGERIAL", "COORDINATOR", "TEACHER", "FLOOR_SUPERVISOR"],
+    "home.today": ["ADMIN", "MANAGERIAL"]
   },
   "endpoints": [
     { "method": "GET", "path": "/health", "permission": "health.read" },
@@ -172,6 +173,7 @@
     { "method": "PATCH", "path": "/parent/me", "permission": "parent.me.write" },
     { "method": "GET", "path": "/me/permissions", "permission": "me.permissions" },
     { "method": "GET", "path": "/me/home", "permission": "me.home" },
+    { "method": "GET", "path": "/me/today", "permission": "home.today" },
 
     { "method": "GET", "path": "/children", "permission": "child.read" },
     { "method": "POST", "path": "/children", "permission": "child.write" },

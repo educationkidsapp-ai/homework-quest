@@ -7,10 +7,12 @@ import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { HomeApi, HomeResponse, NeedsYouItem, TeacherClassInfo } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
+import { FLAGS, FlagService } from '../../core/flags/flag.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import { PermissionService } from '../../core/permissions/permission.service';
 import { SchoolCardComponent } from '../admin/school-card.component';
 import { BandComponent, ButtonComponent, CountUpDirective, PageComponent, SkeletonComponent } from '../../ui';
+import { TodayComponent } from './today.component';
 
 /**
  * MA2: the Admin's count → the screen behind it, with the key that screen's row is gated by.
@@ -62,6 +64,7 @@ interface QuickActionItem {
     BandComponent,
     ButtonComponent,
     RouterLink,
+    TodayComponent,
     TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -92,26 +95,41 @@ interface QuickActionItem {
         </div>
       } @else {
         <div class="em-dashboard">
+          <!-- Feature 21: what needs a decision today, above everything else. The counts stay
+               exactly where they were while the switch is off — a flag may empty a section of
+               Home, never reorder a screen a school has not asked to change. -->
+          @if (todayOn()) {
+            <hq-today />
+          } @else {
+            <ng-container [ngTemplateOutlet]="countsSection" />
+          }
+
           <!-- =========== 1. The counts, each a door to the screen behind it =========== -->
-          <section class="em-stats-grid" [attr.aria-label]="'home.cardsLabel' | transloco">
-            @for (card of cards(); track card.key) {
-              @if (cardLink(card.key); as link) {
-                <a class="em-stat-card em-stat-card--link" [routerLink]="link" data-hq-card-link>
-                  <ng-container
-                    [ngTemplateOutlet]="statCard"
-                    [ngTemplateOutletContext]="{ $implicit: card }"
-                  />
-                </a>
-              } @else {
-                <div class="em-stat-card">
-                  <ng-container
-                    [ngTemplateOutlet]="statCard"
-                    [ngTemplateOutletContext]="{ $implicit: card }"
-                  />
-                </div>
+          <ng-template #countsSection>
+            <section
+              class="em-stats-grid"
+              [class.em-stats-grid--strip]="todayOn()"
+              [attr.aria-label]="'home.cardsLabel' | transloco"
+            >
+              @for (card of cards(); track card.key) {
+                @if (cardLink(card.key); as link) {
+                  <a class="em-stat-card em-stat-card--link" [routerLink]="link" data-hq-card-link>
+                    <ng-container
+                      [ngTemplateOutlet]="statCard"
+                      [ngTemplateOutletContext]="{ $implicit: card }"
+                    />
+                  </a>
+                } @else {
+                  <div class="em-stat-card">
+                    <ng-container
+                      [ngTemplateOutlet]="statCard"
+                      [ngTemplateOutletContext]="{ $implicit: card }"
+                    />
+                  </div>
+                }
               }
-            }
-          </section>
+            </section>
+          </ng-template>
 
           <!-- MA2: one card body, drawn inside a link when the count has a screen of its own
                (managers, coordinators, teachers, children, classes, workers) and inside a plain
@@ -353,6 +371,11 @@ interface QuickActionItem {
                   </div>
                 </section>
               }
+
+              <!-- Feature 21: the counts she used to land on, in a strip at the bottom. -->
+              @if (todayOn()) {
+                <ng-container [ngTemplateOutlet]="countsSection" />
+              }
         </div>
       }
     </hq-page>
@@ -389,6 +412,25 @@ interface QuickActionItem {
       }
       @include m.below(600px) {
         grid-template-columns: 1fr;
+      }
+    }
+
+    /* Feature 21: the same cards, read rather than acted on — six across, a tighter box and a
+       smaller number, so the strip reads as a footnote under what needs her. */
+    .em-stats-grid--strip {
+      grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+      gap: var(--hq-space-12);
+
+      .em-stat-card {
+        padding: var(--hq-space-12);
+      }
+
+      .em-stat-value {
+        font-size: var(--hq-text-theme-xl);
+      }
+
+      .em-stat-icon-tile {
+        display: none;
       }
     }
 
@@ -697,11 +739,21 @@ export class HomePage {
   protected readonly transloco = inject(TranslocoService);
   private readonly api = inject(HomeApi);
   private readonly permissions = inject(PermissionService);
+  private readonly flags = inject(FlagService);
 
   private readonly lang = activeLang();
 
   protected readonly isTeacher = computed(() => this.auth.role() === 'TEACHER');
   protected readonly isAdmin = computed(() => this.auth.role() === 'ADMIN');
+
+  /**
+   * Feature 21: `<hq-today>` on top and the counts in a strip beneath, for the two roles whose
+   * Home `GET /me/today` answers. A teacher's Home is untouched — she has no decisions on it,
+   * and the endpoint would refuse her.
+   */
+  protected readonly todayOn = computed(
+    () => this.flags.isOn(FLAGS.todayHome) && this.auth.role() === 'ADMIN',
+  );
 
   protected readonly home = rxResource<HomeResponse, string | undefined>({
     params: () => (this.auth.signedIn() ? (this.auth.effectiveSchoolId() ?? 'all') : undefined),

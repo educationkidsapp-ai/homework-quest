@@ -39,4 +39,6 @@ export const DEFAULT_FLAGS: Readonly<Record<string, boolean>> = {
   chatOfficeHours: false,
   // V42 (feature 20): off until an Admin turns it on per school.
   floorSupervisor: false,
+  // V43 (feature 21): off until an Admin turns it on per school.
+  todayHome: false,
 };

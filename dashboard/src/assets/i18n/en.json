@@ -2996,5 +2996,27 @@
         "floor": "Floor"
       }
     }
+  },
+  "today": {
+    "loading": "Loading what needs you",
+    "allClear": "Nothing needs you right now",
+    "ageHours": "{{hours}} h",
+    "ageDays": "{{days}} days",
+    "attendance": {
+      "title": "Today's attendance"
+    },
+    "waiting": {
+      "title": "Waiting for you",
+      "deviceBlocked": "A check-in was refused today — the phone is not the one approved for her."
+    },
+    "complaints": {
+      "title": "Overdue complaints",
+      "more": "+{{count}} more"
+    },
+    "unread": {
+      "title": "Unread messages",
+      "count": "{{count}} unread",
+      "openMessages": "Open Messages"
+    }
   }
 }

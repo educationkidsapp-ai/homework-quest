@@ -1,11 +1,13 @@
 /* hq-flag: none (shell) — a role's Home. It is gated by `management.read`, the key RM1 puts on
    `GET /management/me` and `GET /management/stats` themselves; a flag that could empty it would
    leave `/` with nowhere to send her. Same reasoning as `features/home/home.page.ts`. */
+import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, linkedSignal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { ManagementApi } from '../../api';
+import { FLAGS, FlagService } from '../../core/flags/flag.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import { PlatformService } from '../../core/platform/platform.service';
 import {
@@ -18,6 +20,7 @@ import {
   SkeletonComponent,
   TableComponent,
 } from '../../ui';
+import { TodayComponent } from '../home/today.component';
 import { CoordinatorReadFailedComponent } from '../coordinator/read-failed.component';
 import { StaffScopeService } from '../coordinator/staff-scope.service';
 import { scopeLabel } from '../coordinator/coordinator.labels';
@@ -50,10 +53,12 @@ import {
     CountUpDirective,
     EmptyStateComponent,
     InputComponent,
+    NgTemplateOutlet,
     PageComponent,
     RouterLink,
     SkeletonComponent,
     TableComponent,
+    TodayComponent,
     TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -65,19 +70,30 @@ import {
         <hq-coordinator-read-failed (retry)="staff.reload()" />
       } @else {
         <div class="em-dashboard">
-          <section
-            class="em-stats-grid"
-            [attr.aria-label]="'home.cardsLabel' | transloco"
-          >
-            @for (card of cards(); track card.key) {
-              <div class="em-stat-card">
-                <div class="em-stat-info">
-                  <p class="em-stat-label">{{ 'management.count.' + card.key | transloco }}</p>
-                  <h3 class="em-stat-value"><span [hqCountUp]="card.value"></span></h3>
+          <!-- Feature 21: the same "what needs me today?" cards the Admin gets, scoped by the
+               server to her academy. The counts move under the statistics when it is on. -->
+          @if (todayOn()) {
+            <hq-today />
+          } @else {
+            <ng-container [ngTemplateOutlet]="countsSection" />
+          }
+
+          <ng-template #countsSection>
+            <section
+              class="em-stats-grid"
+              [class.em-stats-grid--strip]="todayOn()"
+              [attr.aria-label]="'home.cardsLabel' | transloco"
+            >
+              @for (card of cards(); track card.key) {
+                <div class="em-stat-card">
+                  <div class="em-stat-info">
+                    <p class="em-stat-label">{{ 'management.count.' + card.key | transloco }}</p>
+                    <h3 class="em-stat-value"><span [hqCountUp]="card.value"></span></h3>
+                  </div>
                 </div>
-              </div>
-            }
-          </section>
+              }
+            </section>
+          </ng-template>
 
           <hq-card [title]="'management.stats.title' | transloco">
             <div class="mg-filters">
@@ -140,6 +156,11 @@ import {
               </ul>
             }
           </hq-card>
+
+          <!-- Feature 21: the counts she used to land on, in a strip at the bottom. -->
+          @if (todayOn()) {
+            <ng-container [ngTemplateOutlet]="countsSection" />
+          }
         </div>
       }
 
@@ -171,6 +192,20 @@ import {
     </hq-page>
   `,
   styles: `
+    /* Feature 21: her counts, read rather than acted on, under what needs her today. */
+    .em-stats-grid--strip {
+      grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+      gap: var(--hq-space-12);
+
+      .em-stat-card {
+        padding: var(--hq-space-12);
+      }
+
+      .em-stat-value {
+        font-size: var(--hq-text-theme-xl);
+      }
+    }
+
     .mg-filters {
       display: flex;
       flex-wrap: wrap;
@@ -205,7 +240,11 @@ export class ManagementHomePage {
   private readonly api = inject(ManagementApi);
   private readonly platform = inject(PlatformService);
   private readonly transloco = inject(TranslocoService);
+  private readonly flags = inject(FlagService);
   private readonly lang = activeLang();
+
+  /** Feature 21: `<hq-today>` above her statistics, and her four counts in a strip beneath them. */
+  protected readonly todayOn = computed(() => this.flags.isOn(FLAGS.todayHome));
 
   /**
    * Today **where the school is**, not where the laptop is set.

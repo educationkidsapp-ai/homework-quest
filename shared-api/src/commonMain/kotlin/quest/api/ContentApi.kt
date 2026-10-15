@@ -281,6 +281,8 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "chatOfficeHours" to false,
     // Feature 20: the floor supervisor role — her area, her Messages and the Admin's Floors pages (V42).
     "floorSupervisor" to false,
+    // Feature 21: the Admin's and the manager's Home leads with what needs a decision today (V43).
+    "todayHome" to false,
 )
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */

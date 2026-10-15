@@ -2,6 +2,10 @@ package quest.server.staffattendance;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -32,11 +36,53 @@ import quest.server.tenancy.TenantContext;
 @Service
 public class AttendanceDeviceService {
     private final StaffAttendanceDeviceRepository devices; private final AttendanceStaff staff;
-    private final TenantContext tenant; private final AuditService audit; private final Clock clock;
+    private final StaffCheckInAttemptRepository attempts; private final TenantContext tenant;
+    private final AuditService audit; private final Clock clock;
 
-    public AttendanceDeviceService(StaffAttendanceDeviceRepository devices, AttendanceStaff staff, TenantContext tenant,
+    public AttendanceDeviceService(StaffAttendanceDeviceRepository devices, AttendanceStaff staff,
+                                   StaffCheckInAttemptRepository attempts, TenantContext tenant,
                                    AuditService audit, Clock clock) {
-        this.devices = devices; this.staff = staff; this.tenant = tenant; this.audit = audit; this.clock = clock;
+        this.devices = devices; this.staff = staff; this.attempts = attempts; this.tenant = tenant;
+        this.audit = audit; this.clock = clock;
+    }
+
+    // ---------------------------------------------------------------- feature 21: who is waiting for a reset
+
+    /** An employee whose phone was refused, named for the Admin's Home; {@code lastAttemptAt} is her latest try. */
+    public record DeviceBlock(String kind, String id, String fullName, Instant lastAttemptAt) {}
+
+    /**
+     * Feature 21: the employees whose check-in was refused between {@code from} and {@code to} because the phone in
+     * their hand is not the bound one, one row each at their latest attempt, in the directory's name order.
+     *
+     * <p>There is no "reset request" to read — a refusal <em>is</em> the request — so the only thing that says the
+     * Admin has already dealt with it is the binding: a person whose row was reset after her last refused attempt is
+     * left out, because her next check-in will bind the phone she is holding. Three statements whatever the school's
+     * size: the refusals, the reset bindings, and the directory.
+     */
+    @Transactional(readOnly = true)
+    public List<DeviceBlock> blockedBetween(String schoolId, Instant from, Instant to) {
+        var latest = new LinkedHashMap<String, Instant>();
+        for (var a : attempts.findBySchoolIdAndReasonAndServerAtBetweenOrderByServerAtDesc(
+                schoolId, quest.api.staff.CheckInRefusal.DEVICE_NOT_APPROVED, from, to))
+            latest.putIfAbsent(BoardScope.key(a.getStaffKind(), a.getStaffId()), a.getServerAt());
+        if (latest.isEmpty()) return List.of();
+
+        var reset = new HashMap<String, Instant>();
+        for (var row : devices.findBySchoolIdAndResetAtIsNotNull(schoolId))
+            reset.merge(BoardScope.key(row.getStaffKind(), row.getStaffId()), row.getResetAt(),
+                    (a, b) -> a.isAfter(b) ? a : b);
+
+        var out = new ArrayList<DeviceBlock>();
+        for (var employee : staff.all(schoolId)) {
+            String key = BoardScope.key(employee.kind(), employee.id());
+            Instant at = latest.get(key);
+            if (at == null) continue;
+            Instant cleared = reset.get(key);
+            if (cleared != null && cleared.isAfter(at)) continue;
+            out.add(new DeviceBlock(employee.kind(), employee.id(), employee.fullName(), at));
+        }
+        return List.copyOf(out);
     }
 
     /** The live binding, or empty when the employee has never checked in or her phone was just reset. */
