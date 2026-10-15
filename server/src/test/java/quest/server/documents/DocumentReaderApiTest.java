@@ -92,6 +92,7 @@ class DocumentReaderApiTest extends ApiTestSupport {
     @Autowired SchoolRepository schools;
     @Autowired UserRepository users;
     @Autowired DocumentSummaryRepository summaries;
+    @Autowired quest.server.tenancy.StaffScopeRepository staffScopes;
     @Autowired DocumentRetention retention;
     @Autowired quest.server.ai.AiCallRepository aiCalls;
     @Autowired quest.server.flags.SchoolFlagRepository schoolFlags;
@@ -106,12 +107,17 @@ class DocumentReaderApiTest extends ApiTestSupport {
         staff(TEACHER, SCHOOL, "Ms Reem", "TEACHER"); staff(COORDINATOR, SCHOOL, "Ms Ohoud", "COORDINATOR");
         staff(SUPERVISOR, SCHOOL, "Mr Majed", "FLOOR_SUPERVISOR");
         staff(FAR_AWAY, OTHER, "Mrs Salma", "MANAGERIAL");
+        // A department row is `subject NULL, curriculum = <track>`: Nada speaks for the British academy, and that is
+        // what `ManagerScope.departments` hands the prompt as the audience any suggested announcement is addressed to.
+        department("dr-scope-nada", SCHOOL, NADA, "british");
+        department("dr-scope-salma", OTHER, FAR_AWAY, "american");
         for (String school : List.of(SCHOOL, OTHER)) flag(school, FlagKeys.DOCUMENT_READER, true);
     }
 
     @AfterAll void takeItBackOut() {
         summaries.deleteAll(summaries.findAll().stream().filter(d -> d.getSchoolId().startsWith("dr-")).toList());
         aiCalls.deleteAll(aiCalls.findAll().stream().filter(c -> c.getSchoolId() != null && c.getSchoolId().startsWith("dr-")).toList());
+        staffScopes.deleteAll(staffScopes.findAll().stream().filter(r -> r.getSchoolId().startsWith("dr-")).toList());
         var staff = new ArrayList<UserEntity>(users.findBySchoolId(SCHOOL));
         staff.addAll(users.findBySchoolId(OTHER));
         users.deleteAll(staff);
@@ -265,6 +271,8 @@ class DocumentReaderApiTest extends ApiTestSupport {
         assertThat(sent).doesNotContain("0551234567").doesNotContain("circulars@example.edu")
                 .contains(quest.server.ai.AiInputGuard.PHONE_MASK).contains(quest.server.ai.AiInputGuard.EMAIL_MASK);
         assertThat(sent).as("the dates the circular really gives are not masked away with them").contains("2027-03-08");
+        // `ManagerScope.departments` is what tells the model whose parents she speaks for: hers, and no other academy's.
+        assertThat(sent).contains("british").doesNotContain("american");
     }
 
     // ---------------------------------------------------------------- who may ask, and when
@@ -446,6 +454,15 @@ class DocumentReaderApiTest extends ApiTestSupport {
         if (u.getCreatedAt() == null) u.setCreatedAt(Instant.now());
         u.setUpdatedAt(Instant.now());
         users.save(u);
+    }
+
+    /** A manager's scope row: no subject, one curriculum — her department. */
+    private void department(String id, String schoolId, String userId, String curriculum) {
+        var row = staffScopes.findById(id).orElseGet(quest.server.tenancy.Entities.StaffScopeEntity::new);
+        row.setId(id); row.setSchoolId(schoolId); row.setUserId(userId);
+        row.setSubject(null); row.setCurriculum(curriculum);
+        if (row.getCreatedAt() == null) row.setCreatedAt(Instant.now());
+        staffScopes.save(row);
     }
 
     private void flag(String schoolId, String key, boolean enabled) {

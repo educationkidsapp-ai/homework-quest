@@ -350,22 +350,28 @@ public final class Prompts {
         """;
 
     /**
-     * What the model is given and all it is given: today's date in the school's own zone, the file's name, and the
-     * extracted text.
+     * What the model is given and all it is given: today's date in the school's own zone, the departments this
+     * leader speaks for, the file's name, and the extracted text.
+     *
+     * <p>The departments are {@link quest.server.tenancy.ManagerScope#departments}' own words, and they are what makes
+     * the suggested announcement hers: a manager of the British academy reading a circular about the British
+     * timetable must not be handed a draft addressed to the whole school, and the Admin's list is the school.
      *
      * <p>E-mail addresses and telephone numbers in that text are masked before it is sent
      * ({@link quest.server.ai.AiInputGuard}). A circular may name anybody, so the guard is a floor and not a promise:
      * what it does promise is that the contact details a document carries do not travel to the provider.
      */
-    public static String userDocumentReader(String today, String fileName, String markdown) {
+    public static String userDocumentReader(String today, List<String> departments, String fileName, String markdown) {
         return """
         TODAY, IN THE SCHOOL'S OWN TIME ZONE: %s
+
+        THE PARENTS THIS LEADER SPEAKS FOR (address any suggested announcement to them, and to nobody else): %s
 
         THE FILE: %s
 
         WHAT THE DOCUMENT SAYS (extracted by machine; `## Page N` headings are ours):
         %s
-        """.formatted(today, fileName, markdown);
+        """.formatted(today, departments.isEmpty() ? "(her whole school)" : join(departments), fileName, markdown);
     }
 
     static String join(List<String> xs) { return xs.stream().collect(Collectors.joining(", ")); }

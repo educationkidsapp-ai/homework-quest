@@ -28,6 +28,7 @@ import quest.server.config.Json;
 import quest.server.documents.Entities.DocumentSummaryEntity;
 import quest.server.files.AttachmentService;
 import quest.server.platform.SchoolCalendar;
+import quest.server.tenancy.ManagerScope;
 import quest.server.tenancy.TenantContext;
 
 /**
@@ -65,13 +66,14 @@ public class DocumentReaderService {
     private static final int MAX_TITLE = 120, MAX_SUMMARY = 1200, MAX_BODY = 1000, MAX_LABEL = 200, MAX_ACTION = 300, MAX_LIST = 10;
 
     private final DocumentSummaryRepository summaries; private final DocumentText text; private final AiService ai;
-    private final SchoolCalendar calendar; private final Json json; private final TenantContext tenant;
-    private final Clock clock; private final TransactionTemplate tx;
+    private final ManagerScope managers; private final SchoolCalendar calendar; private final Json json;
+    private final TenantContext tenant; private final Clock clock; private final TransactionTemplate tx;
 
     public DocumentReaderService(DocumentSummaryRepository summaries, DocumentText text, AiService ai,
-                                 SchoolCalendar calendar, Json json, TenantContext tenant, Clock clock,
-                                 PlatformTransactionManager transactions) {
-        this.summaries = summaries; this.text = text; this.ai = ai; this.calendar = calendar; this.json = json;
+                                 ManagerScope managers, SchoolCalendar calendar, Json json, TenantContext tenant,
+                                 Clock clock, PlatformTransactionManager transactions) {
+        this.summaries = summaries; this.text = text; this.ai = ai; this.managers = managers;
+        this.calendar = calendar; this.json = json;
         this.tenant = tenant; this.clock = clock; this.tx = new TransactionTemplate(transactions);
     }
 
@@ -105,7 +107,7 @@ public class DocumentReaderService {
         tooLongIf(pages);
         if (markdown.length() > MAX_MARKDOWN) markdown = markdown.substring(0, MAX_MARKDOWN);
 
-        var answer = summarise(schoolId, fileName, markdown);
+        var answer = summarise(schoolId, managers.departments(caller), fileName, markdown);
         var row = new DocumentSummaryEntity();
         row.setId(UUID.randomUUID().toString()); row.setSchoolId(schoolId); row.setAuthorId(caller.userId());
         row.setFileName(fileName); row.setPages(pages);
@@ -130,11 +132,11 @@ public class DocumentReaderService {
     // ---------------------------------------------------------------- the model and its answer
 
     /** The validated answer, or the caller's error: 422 `rephrase` after two tries, 502 `model_failed` otherwise. */
-    private JsonNode summarise(String schoolId, String fileName, String markdown) {
+    private JsonNode summarise(String schoolId, List<String> departments, String fileName, String markdown) {
         String today = LocalDate.now(clock.withZone(calendar.of(schoolId).zone())).toString();
         try {
             return ai.run(AiTask.of("documentReader", "F-" + schoolId, schoolId, Prompts.DOCUMENT_READER,
-                            Prompts.userDocumentReader(today, fileName, markdown))
+                            Prompts.userDocumentReader(today, departments, fileName, markdown))
                     .guardedBy(AiInputGuard.numbersOnly())
                     .reading((raw, attempt) -> {
                         JsonNode candidate;
