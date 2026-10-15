@@ -88,6 +88,10 @@ class ManagerScopeArchitectureTest {
     private static final Set<String> ALLOWED_WRITES = Set.of(
             "PUT /management/staff-attendance",
             "POST /management/broadcasts",
+            // Feature 22: the same manager speaking, one step earlier. It writes one `announcement_drafts` row — her
+            // own unsent text — tells nobody, and posts nothing; Send is `POST /management/broadcasts` above. Behind
+            // the `voiceAnnouncement` flag and `broadcast.voice`, and its cells come from `ManagerScope.reach`.
+            "POST /management/broadcasts/voice-drafts",
             "POST /management/chat/threads",
             "POST /management/chat/threads/{id}/messages",
             "POST /management/chat/threads/{id}/read",

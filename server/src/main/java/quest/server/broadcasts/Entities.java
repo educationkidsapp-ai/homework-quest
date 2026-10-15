@@ -90,4 +90,47 @@ public final class Entities {
         public String getReaderId() { return readerId; } public void setReaderId(String v) { readerId = v; }
         public Instant getReadAt() { return readAt; } public void setReadAt(Instant v) { readAt = v; }
     }
+
+    /**
+     * V44 (feature 22): one announcement the assistant prepared from a leader's voice note, <strong>stored
+     * unsent</strong>. Written by {@link VoiceDraftService} and read only by its own author — `schoolId` is
+     * {@link quest.server.tenancy.TenantContext#writeSchoolId()} and `authorId` is the caller's own user id, so a
+     * draft is never addressed by a client that did not create it.
+     *
+     * <p>`transcript` is what her device transcribed: <strong>speech to text runs on the device</strong>, so there is
+     * no audio row here to delete and the spec's "the audio is gone after transcription" needs no sweep of its own.
+     *
+     * <p>`curriculum` and `grade` are the suggested audience and both null means "the author's whole scope" — the
+     * server keeps a suggestion only when it matches one of her real cells. `broadcastId` is null until she presses
+     * Send: it is what makes "a draft posts nothing", "one draft sends once" ({@code 409 already_sent}) and
+     * {@link VoiceDraftRetention}'s seven-day sweep of unsent drafts all read the same column.
+     */
+    @Entity(name = "AnnouncementDraftEntity") @Table(name = "announcement_drafts")
+    @Filter(name = "school", condition = "school_id = :schoolId")
+    public static class AnnouncementDraftEntity {
+        @Id private String id;
+        @Column(name = "school_id", nullable = false) private String schoolId;
+        @Column(name = "author_id", nullable = false) private String authorId;
+        @Column(nullable = false) private String transcript;
+        @Column(nullable = false) private String title;
+        @Column(name = "body_ar", nullable = false) private String bodyAr;
+        @Column(name = "body_en", nullable = false) private String bodyEn;
+        @Column private String curriculum;
+        @Column private Integer grade;
+        @Column(name = "expires_at") private Instant expiresAt;
+        @Column(name = "broadcast_id") private String broadcastId;
+        @Column(name = "created_at", nullable = false) private Instant createdAt;
+        public String getId() { return id; } public void setId(String v) { id = v; }
+        public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
+        public String getAuthorId() { return authorId; } public void setAuthorId(String v) { authorId = v; }
+        public String getTranscript() { return transcript; } public void setTranscript(String v) { transcript = v; }
+        public String getTitle() { return title; } public void setTitle(String v) { title = v; }
+        public String getBodyAr() { return bodyAr; } public void setBodyAr(String v) { bodyAr = v; }
+        public String getBodyEn() { return bodyEn; } public void setBodyEn(String v) { bodyEn = v; }
+        public String getCurriculum() { return curriculum; } public void setCurriculum(String v) { curriculum = v; }
+        public Integer getGrade() { return grade; } public void setGrade(Integer v) { grade = v; }
+        public Instant getExpiresAt() { return expiresAt; } public void setExpiresAt(Instant v) { expiresAt = v; }
+        public String getBroadcastId() { return broadcastId; } public void setBroadcastId(String v) { broadcastId = v; }
+        public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
+    }
 }

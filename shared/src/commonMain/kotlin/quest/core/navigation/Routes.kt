@@ -112,4 +112,10 @@ object Routes {
 
     /** Feature 15: "سجلي / My record" — her own month of check-ins, behind `staffAttendance`. */
     @Serializable object StaffMyRecord
+
+    /**
+     * Feature 22: "سجّل رسالة صوتية" — a leader's spoken note turned into an announcement she reviews and sends.
+     * Behind `announcements` **and** `voiceAnnouncement`, and only for the Admin and a department manager.
+     */
+    @Serializable object StaffVoiceAnnouncement
 }

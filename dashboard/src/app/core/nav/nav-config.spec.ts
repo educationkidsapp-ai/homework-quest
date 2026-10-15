@@ -42,6 +42,9 @@ describe('the nav switch', () => {
       'staff-attendance',
       'messages',
       'complaints',
+      // Feature 22: the one screen all three staff roles read, hers at last — it is a school
+      // screen rather than a platform one, so this switch does not touch it either.
+      'announcements',
     ]);
   });
 
@@ -52,7 +55,12 @@ describe('the nav switch', () => {
   it('leaves the routes declared either way: hidden, not removed', () => {
     const paths = AREAS.ADMIN.screens.map((screen) => linkOf(AREAS.ADMIN, screen));
     expect(paths).toEqual(
-      expect.arrayContaining(['/admin/schools', '/admin/schools/:id', '/admin/schools/:id/users', '/admin/users']),
+      expect.arrayContaining([
+        '/admin/schools',
+        '/admin/schools/:id',
+        '/admin/schools/:id/users',
+        '/admin/users',
+      ]),
     );
   });
 

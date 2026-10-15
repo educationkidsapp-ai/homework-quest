@@ -2501,6 +2501,11 @@
             "minLength" : 0,
             "type" : "string"
           },
+          "voiceDraftId" : {
+            "maxLength" : 64,
+            "minLength" : 0,
+            "type" : "string"
+          },
           "weekStart" : {
             "type" : "string"
           }
@@ -2902,6 +2907,17 @@
           }
         },
         "required" : [ "email", "password", "role" ],
+        "type" : "object"
+      },
+      "CreateVoiceDraftRequest" : {
+        "properties" : {
+          "transcript" : {
+            "maxLength" : 4000,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "transcript" ],
         "type" : "object"
       },
       "CreateWorkerRequest" : {
@@ -9046,6 +9062,45 @@
           }
         },
         "required" : [ "illustrationKey", "meaning", "sentence", "word" ],
+        "type" : "object"
+      },
+      "VoiceDraft" : {
+        "properties" : {
+          "audience" : {
+            "$ref" : "#/components/schemas/VoiceDraftAudience"
+          },
+          "bodyAr" : {
+            "type" : "string"
+          },
+          "bodyEn" : {
+            "type" : "string"
+          },
+          "expiresAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "transcript" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "VoiceDraftAudience" : {
+        "properties" : {
+          "curriculum" : {
+            "type" : "string"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
         "type" : "object"
       },
       "WeakSkill" : {
@@ -15921,6 +15976,34 @@
         "tags" : [ "Broadcasts" ]
       }
     },
+    "/management/broadcasts/voice-drafts" : {
+      "post" : {
+        "operationId" : "createVoiceDraft",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateVoiceDraftRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VoiceDraft"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Voice announcements" ]
+      }
+    },
     "/management/calendar" : {
       "get" : {
         "operationId" : "managementCalendar",
@@ -21232,5 +21315,8 @@
   }, {
     "description" : "Staff mode in the mobile app: the signed-in member of staff, and her messages",
     "name" : "Staff app"
+  }, {
+    "description" : "Feature 22: a leader's transcribed voice note prepared as a bilingual announcement she reviews and sends",
+    "name" : "Voice announcements"
   } ]
 }

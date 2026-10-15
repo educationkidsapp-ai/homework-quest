@@ -23,6 +23,7 @@ import {
   canChooseGrade,
   canPost,
   composeErrors,
+  departmentOf,
   gradeOptions,
   kindsFor,
   requestOf,
@@ -133,6 +134,9 @@ export interface ComposeSection extends ComposableSection {
           }
         </fieldset>
 
+        <!-- Which academy, for an author who holds more than one — the Admin always does
+             (feature 22). It is reset with the grade, because a grade belongs to the department
+             it was picked in. -->
         @if (ctx().departments.length > 1) {
           <hq-select
             [label]="'broadcasts.department' | transloco"
@@ -144,19 +148,18 @@ export interface ComposeSection extends ComposableSection {
             [error]="errorFor('department')"
             (valueChange)="patch({ department: $event, sectionIds: [], grade: null })"
           />
-          <!-- The server's rule, said once: a grade may not travel with named sections, and a row
-               that names none cannot say which of her two departments it is for. -->
-          <p class="hq-muted">{{ 'broadcasts.gradeTwoDepartments' | transloco }}</p>
-        } @else {
-          <hq-select
-            [label]="'broadcasts.audienceScope' | transloco"
-            [hint]="'broadcasts.audienceScopeHint' | transloco"
-            [options]="gradeChoices()"
-            [value]="gradeValue()"
-            [error]="errorFor('grade')"
-            (valueChange)="setGrade($event)"
-          />
         }
+        <!-- The whole department, or one grade of it. Offered whichever number of departments she
+             holds: the rules send the grade as the field or as that grade's sections, which is
+             the one shape the server accepts from an author who spans two. -->
+        <hq-select
+          [label]="'broadcasts.audienceScope' | transloco"
+          [hint]="'broadcasts.audienceScopeHint' | transloco"
+          [options]="gradeChoices()"
+          [value]="gradeValue()"
+          [error]="errorFor('grade')"
+          (valueChange)="setGrade($event)"
+        />
       } @else {
         <p class="hq-muted">{{ 'broadcasts.audienceFixed' | transloco }}</p>
       }
@@ -186,6 +189,11 @@ export interface ComposeSection extends ComposableSection {
         [error]="errorFor('expires')"
         (valueChange)="patch({ expires: $event })"
       />
+
+      <!-- Feature 22: whatever the caller wants read *under* the fields rather than typed into
+           them — the voice note's transcript, which is the one thing on that sheet she can only
+           check and never edit. Empty on every other screen. -->
+      <ng-content />
     </hq-dialog>
   `,
   styles: `
@@ -252,14 +260,29 @@ export class BroadcastComposeComponent {
     })),
   );
 
-  /** The whole department first — which is what a row with no `grade` and no `sectionIds` is. */
+  /**
+   * The whole department first — which is what a row with no `grade` and no `sectionIds` is —
+   * then the grades of the department she is writing for.
+   *
+   * Nothing but the first option until that department is settled: an author of two who has not
+   * chosen one would otherwise be offered both academies' grades in one list, and "grade 3" would
+   * mean whichever academy the sheet guessed.
+   */
   protected readonly gradeChoices = computed<readonly SelectOption[]>(() => [
     { value: '', label: this.transloco.translate<string>('broadcasts.wholeDepartment') },
-    ...(canChooseGrade(this.ctx()) ? gradeOptions(this.draft(), this.ctx()) : []).map((grade) => ({
+    ...(canChooseGrade(this.ctx()) && this.departmentSettled()
+      ? gradeOptions(this.draft(), this.ctx())
+      : []
+    ).map((grade) => ({
       value: String(grade),
       label: this.transloco.translate<string>('broadcasts.gradeN', { grade }),
     })),
   ]);
+
+  /** One department needs no choosing; more than one has to have been chosen. */
+  private readonly departmentSettled = computed(
+    () => this.ctx().departments.length <= 1 || departmentOf(this.draft(), this.ctx()) !== null,
+  );
 
   protected readonly gradeValue = computed(() => {
     const grade = this.draft().grade;

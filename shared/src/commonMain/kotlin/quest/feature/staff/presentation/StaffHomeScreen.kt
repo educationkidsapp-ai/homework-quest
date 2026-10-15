@@ -40,6 +40,7 @@ fun StaffHomeRoute(
     onNotifications: () -> Unit,
     onAccount: () -> Unit,
     onParentSide: () -> Unit,
+    onVoiceAnnouncement: () -> Unit,
 ) {
     val session: StaffSessionView = koinInject()
     val badges: StaffBadges = koinInject()
@@ -61,7 +62,9 @@ fun StaffHomeRoute(
             strings = s,
             unreadMessages = counts.messages,
             hasChat = profile?.hasChat ?: true,
+            canVoiceAnnounce = profile?.canVoiceAnnounce == true,
             onMessages = onMessages,
+            onVoiceAnnouncement = onVoiceAnnouncement,
             today = { CheckInCard(onMyRecord = onMyRecord) },
             switch = { SideSwitch(onSwitched = { onParentSide() }) },
         )
@@ -73,7 +76,13 @@ fun StaffHomeScreen(
     strings: StaffStrings,
     unreadMessages: Int,
     hasChat: Boolean,
+    /**
+     * Feature 22: she is the Admin or a department manager and her school has both switches on. The role is checked
+     * here and the flag again by the gate below, because the card is the only door to the recorder on this phone.
+     */
+    canVoiceAnnounce: Boolean = false,
     onMessages: () -> Unit,
+    onVoiceAnnouncement: () -> Unit = {},
     /** Feature 15's check-in card, as a slot for the same reason the switch is one: it reads Koin for its view model. */
     today: @Composable () -> Unit,
     /**
@@ -88,6 +97,20 @@ fun StaffHomeScreen(
             switch()
             SectionTitle(strings.today)
             today()
+            if (canVoiceAnnounce) {
+                FeatureGate(Flags.VOICE_ANNOUNCEMENT) {
+                    SectionTitle(strings.voiceAnnouncement)
+                    ParentCard(onClick = onVoiceAnnouncement) {
+                        Text(
+                            strings.voiceRecordHint,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = DashboardTokens.inkSoft,
+                        )
+                        Spacer(Modifier.height(Dimens.s8))
+                        ParentButton(strings.voiceRecord, onVoiceAnnouncement, primary = false, icon = "🎙")
+                    }
+                }
+            }
             if (hasChat) {
                 SectionTitle(strings.messages)
                 ParentCard(onClick = onMessages) {

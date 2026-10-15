@@ -41,4 +41,6 @@ export const DEFAULT_FLAGS: Readonly<Record<string, boolean>> = {
   floorSupervisor: false,
   // V43 (feature 21): off until an Admin turns it on per school.
   todayHome: false,
+  // V44 (feature 22): off until an Admin turns it on per school.
+  voiceAnnouncement: false,
 };

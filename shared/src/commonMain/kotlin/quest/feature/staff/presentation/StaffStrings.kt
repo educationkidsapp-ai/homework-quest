@@ -136,6 +136,35 @@ data class StaffStrings(
     val afterHoursSummaryTwo: String,
     val afterHoursSummaryFew: String,
     val afterHoursSummaryMany: String,
+    // ---- feature 22: voice note to announcement
+    val voiceAnnouncement: String,
+    val voiceRecordHint: String,
+    val voiceRecord: String,
+    val voiceStop: String,
+    val voiceListening: String,
+    val voiceTimeLeft: String,
+    val voicePreparing: String,
+    val voicePreview: String,
+    val voiceTitle: String,
+    val voiceBodyAr: String,
+    val voiceBodyEn: String,
+    val voiceAudience: String,
+    val voiceEveryAcademy: String,
+    val voiceEveryGrade: String,
+    val voiceExpiry: String,
+    val voiceTranscript: String,
+    val voiceSend: String,
+    val voiceAgain: String,
+    val voiceSent: String,
+    val voiceNotAllowed: String,
+    val voiceNothingHeard: String,
+    val voiceNoRecogniser: String,
+    val voiceRephrase: String,
+    val voiceFailed: String,
+    val voiceOffline: String,
+    val voiceExpiryInvalid: String,
+    val academyNames: Map<String, String>,
+    val gradeName: String,
     val roleNames: Map<String, String>,
 ) {
     fun roleName(wire: String): String = roleNames[wire.uppercase()] ?: wire
@@ -171,6 +200,20 @@ data class StaffStrings(
         RequestMessage.DateNotPast -> requestDateNotPast
         RequestMessage.DateNotFuture -> requestDateNotFuture
         RequestMessage.TimeNeeded -> requestTimeNeeded
+    }
+
+    /**
+     * Feature 22's one line on the voice screen. Same rule as feature 15's and 18's: the view model holds the
+     * outcome and this holds the words.
+     */
+    fun voiceMessage(message: VoiceMessage): String = when (message) {
+        VoiceMessage.NothingHeard -> voiceNothingHeard
+        VoiceMessage.NoRecogniser -> voiceNoRecogniser
+        VoiceMessage.Rephrase -> voiceRephrase
+        VoiceMessage.Failed -> voiceFailed
+        VoiceMessage.Offline -> voiceOffline
+        VoiceMessage.ExpiryInvalid -> voiceExpiryInvalid
+        VoiceMessage.Sent -> voiceSent
     }
 
     /**
@@ -328,6 +371,34 @@ data class StaffStrings(
             afterHoursSummaryTwo = "You got {n} messages after hours",
             afterHoursSummaryFew = "You got {n} messages after hours",
             afterHoursSummaryMany = "You got {n} messages after hours",
+            voiceAnnouncement = "Voice announcement",
+            voiceRecordHint = "Speak your announcement — up to two minutes. The words are turned into text on this phone; the recording is never saved or sent.",
+            voiceRecord = "Record a voice note",
+            voiceStop = "Stop",
+            voiceListening = "Listening…",
+            voiceTimeLeft = "{time} left",
+            voicePreparing = "Preparing your announcement…",
+            voicePreview = "Review before sending",
+            voiceTitle = "Title",
+            voiceBodyAr = "Arabic",
+            voiceBodyEn = "English",
+            voiceAudience = "Who it is for",
+            voiceEveryAcademy = "Every academy",
+            voiceEveryGrade = "Every grade",
+            voiceExpiry = "Show until (YYYY-MM-DD, optional)",
+            voiceTranscript = "What you said",
+            voiceSend = "Send to parents",
+            voiceAgain = "Record again",
+            voiceSent = "Your announcement was sent to parents.",
+            voiceNotAllowed = "Voice announcements are not part of your account.",
+            voiceNothingHeard = "We did not catch anything. Try again.",
+            voiceNoRecogniser = "This phone cannot turn speech into text. Write the announcement on the dashboard instead.",
+            voiceRephrase = "Please say it again more clearly.",
+            voiceFailed = "We could not prepare it. Try again.",
+            voiceOffline = "You need an internet connection.",
+            voiceExpiryInvalid = "Use a date like 2026-11-30, today or later.",
+            academyNames = mapOf("british" to "British academy", "american" to "American academy"),
+            gradeName = "Grade {n}",
             roleNames = mapOf(
                 "ADMIN" to "Administrator", "TEACHER" to "Teacher", "MANAGERIAL" to "Department manager",
                 "COORDINATOR" to "Subject coordinator", "WORKER" to "Staff member",
@@ -472,6 +543,34 @@ data class StaffStrings(
             afterHoursSummaryTwo = "وصلتك رسالتان خارج الدوام",
             afterHoursSummaryFew = "وصلتك {n} رسائل خارج الدوام",
             afterHoursSummaryMany = "وصلتك {n} رسالة خارج الدوام",
+            voiceAnnouncement = "إعلان صوتي",
+            voiceRecordHint = "اذكر إعلانك بصوتك — حتى دقيقتين. يُحوّل الكلام إلى نص على هذا الجهاز، ولا يُحفظ التسجيل ولا يُرسل.",
+            voiceRecord = "سجّل رسالة صوتية",
+            voiceStop = "إيقاف",
+            voiceListening = "جارٍ الاستماع…",
+            voiceTimeLeft = "تبقّى {time}",
+            voicePreparing = "جارٍ تحضير الإعلان…",
+            voicePreview = "راجعي الإعلان قبل الإرسال",
+            voiceTitle = "العنوان",
+            voiceBodyAr = "العربية",
+            voiceBodyEn = "الإنجليزية",
+            voiceAudience = "الموجّه إليهم",
+            voiceEveryAcademy = "كل الأكاديميات",
+            voiceEveryGrade = "كل الصفوف",
+            voiceExpiry = "يُعرض حتى (YYYY-MM-DD، اختياري)",
+            voiceTranscript = "ما قلته",
+            voiceSend = "إرسال إلى أولياء الأمور",
+            voiceAgain = "تسجيل من جديد",
+            voiceSent = "أُرسل الإعلان إلى أولياء الأمور.",
+            voiceNotAllowed = "الإعلان الصوتي غير متاح لحسابك.",
+            voiceNothingHeard = "لم نسمع شيئًا. حاولي مرة أخرى.",
+            voiceNoRecogniser = "هذا الجهاز لا يحوّل الكلام إلى نص. اكتبي الإعلان من لوحة التحكم.",
+            voiceRephrase = "قوليها مرة أخرى بشكل أوضح.",
+            voiceFailed = "لم نتمكّن من تحضيره. حاولي مرة أخرى.",
+            voiceOffline = "تحتاجين إلى اتصال بالإنترنت.",
+            voiceExpiryInvalid = "اكتبي تاريخًا مثل 2026-11-30، اليوم أو بعده.",
+            academyNames = mapOf("british" to "الأكاديمية البريطانية", "american" to "الأكاديمية الأمريكية"),
+            gradeName = "الصف {n}",
             roleNames = mapOf(
                 "ADMIN" to "مدير النظام", "TEACHER" to "معلّم", "MANAGERIAL" to "مدير قسم",
                 "COORDINATOR" to "منسّق مادة", "WORKER" to "موظف",

@@ -253,6 +253,8 @@ class OpenApiContractTest extends ApiTestSupport {
      */
     static final List<String> BROADCASTS_API = List.of(
             "/management/broadcasts", "/coordinator/broadcasts",
+            // Feature 22: the transcript her device produced, prepared as an announcement she reviews and sends.
+            "/management/broadcasts/voice-drafts",
             "/me/broadcasts", "/me/broadcasts/{id}/read",
             "/children/{id}/broadcasts", "/children/{id}/broadcasts/{broadcastId}/read",
             "/management/chat/threads", "/management/chat/threads/{id}/messages",

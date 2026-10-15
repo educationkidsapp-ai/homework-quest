@@ -1,6 +1,8 @@
 package quest.feature.staff.domain
 
+import quest.api.DEFAULT_FLAGS
 import quest.api.staff.StaffMe
+import quest.feature.school.domain.Flags
 
 /**
  * Feature 13: the roles that sign in to the **app**. The wire words are the server's (`permissions.json`,
@@ -52,6 +54,20 @@ data class StaffProfile(
     val afterHoursAlerts: Boolean = false,
 ) {
     val hasChat: Boolean get() = role?.hasChat ?: true
+
+    /**
+     * Feature 22: may she turn a voice note into an announcement? A leader of the school — the Admin or a department
+     * manager, which is `broadcast.voice` on the server — with **both** switches on.
+     *
+     * Spelled once because two places ask it: the card on Home and the view model, which refuses every intent without
+     * it so a deep link or a flag flipped mid-screen cannot reach the recorder either.
+     */
+    val canVoiceAnnounce: Boolean
+        get() = (role == StaffRole.ADMIN || role == StaffRole.MANAGERIAL) &&
+            flag(Flags.ANNOUNCEMENTS) && flag(Flags.VOICE_ANNOUNCEMENT)
+
+    /** Her school's value, falling back to what a school with no row of its own gets. */
+    private fun flag(key: String): Boolean = flags[key] ?: DEFAULT_FLAGS[key] ?: false
 
     companion object {
         fun of(me: StaffMe): StaffProfile = StaffProfile(

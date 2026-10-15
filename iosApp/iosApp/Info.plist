@@ -14,7 +14,8 @@
 	<key>LSRequiresIPhoneOS</key><true/>
 	<key>CADisableMinimumFrameDurationOnPhone</key><true/>
 	<key>NSFaceIDUsageDescription</key><string>Unlock MySchool with Face ID instead of your password.</string>
-	<key>NSMicrophoneUsageDescription</key><string>Record your child retelling the story.</string>
+	<key>NSMicrophoneUsageDescription</key><string>Records your voice for a retelling or a voice announcement.</string>
+	<key>NSSpeechRecognitionUsageDescription</key><string>Turns a spoken announcement into text on this device. The recording is never saved or uploaded.</string>
 	<key>NSCameraUsageDescription</key><string>Take a photo to send to the school in Messages.</string>
 	<key>NSLocationWhenInUseUsageDescription</key><string>Staff check in and out at the school. We read your location only at the moment of check-in and do not keep it.</string>
 	<key>NSSupportsLiveActivities</key><true/>

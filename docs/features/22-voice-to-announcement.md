@@ -1,7 +1,31 @@
 # Feature 22 — Voice note to announcement (stretch)
 
-**Status:** Not started · **Area:** dashboard and mobile app (Admin, Manager), server · **Depends on:** — ·
-**Feature switch:** `voice_announcement`
+**Status:** Done · **Area:** dashboard and mobile app (Admin, Manager), server · **Depends on:** — ·
+**Feature switch:** `voiceAnnouncement` (camelCase, like the other switches). The button also needs `announcements`.
+
+**Decision:** speech to text runs **on the device**, as the owner chose.
+- **Dashboard:** the browser's speech recognition.
+- **Android:** `SpeechRecognizer`.
+- **iPhone:** `SFSpeechRecognizer`.
+
+All three use `ar-SA`. The server receives text only. No audio file is ever created or uploaded, so nothing needs
+deleting.
+
+**Leftovers:**
+- **Nothing has run on a real phone yet.** That covers the Android recogniser's restarts through two minutes, the
+  microphone and speech permission prompts, and the iPhone path. All of it is checked by build and unit tests only.
+- **"Under 20 seconds" and dialect quality are not measured.** They need real devices and the real AI model on QA.
+  Recognition quality also varies by phone and browser.
+- **Browser limits.** Chrome sends the speech to Google's servers for recognition; our code uploads no audio.
+  Firefox has no speech recognition, so the button is hidden there.
+- **The Admin picks one academy per announcement.** The composer now lists the school's real academies and grades
+  for her. A manager who covers two academies can pick a grade too. There is no "All academies" choice yet; the
+  server would accept one if every class were named.
+- **The app has no date picker.** The expiry is typed as `yyyy-MM-dd` and checked.
+- **The transcript itself can name a child.** No child or parent data goes to the AI from the school's records, but
+  whatever the leader says is in the transcript. Unsent drafts and their transcripts are deleted after 7 days.
+- **Not deployed yet.** The QA deploy follows the merge into `develop`. The switch is off until the school turns it
+  on.
 
 ## Goal
 

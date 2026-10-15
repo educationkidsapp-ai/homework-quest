@@ -226,5 +226,51 @@ public final class Prompts {
         """.formatted(currentJson, text, stopType, stopId, ILLUSTRATIONS);
     }
 
+    // ------------------------------------------------------------------ Prompt E (feature 22)
+    /**
+     * Feature 22: a leader's spoken note, transcribed on her own device, into a formal bilingual announcement. The
+     * system turn is the whole contract — one JSON object, the limits, and the rule that the audience may only be
+     * copied from the lines the server offers — so {@link #userE} carries nothing but facts.
+     *
+     * <p>No {@code %s}: the schema is small enough to state, which is what lets {@code SampleLlmClient} match this
+     * prompt by equality and answer it without a network.
+     */
+    public static final String SYSTEM_E = """
+        You write a school's announcements. A leader has spoken a short note in Saudi dialect and her phone has
+        transcribed it. You turn that into a formal announcement to parents: a title and the same announcement twice,
+        once in Modern Standard Arabic and once in English. You keep every fact she gave — dates, times, places,
+        what parents must do — and you add none. No dialect, no emoji, no greetings that name a person.
+        You answer with one JSON object only — no prose, no markdown fences:
+        { "title": "a formal title in Modern Standard Arabic [required, <= 120 characters]",
+          "bodyAr": "the announcement in Modern Standard Arabic [required, <= 1000 characters]",
+          "bodyEn": "the same announcement in English [required, <= 1000 characters]",
+          "audience": { "curriculum": "<copied from one of the lines you are given>", "grade": <its number> },
+          "expiresOn": "yyyy-MM-dd" }
+        "audience" is optional: include it only when she said whom the note is for, and only by copying one of the
+        lines you are given — never a curriculum or a grade that is not on them. Leave it out for the whole school.
+        "expiresOn" is optional: include it only when she named a day the note stops mattering, as a date, never as
+        "next week". Never write null for any field: leave the field out instead.
+        """;
+
+    /**
+     * What the model is given and all it is given: the day the note was spoken (in the school's own zone, so "next
+     * Thursday" resolves where the school is), the audience cells the caller actually reaches, and the transcript.
+     *
+     * <p><strong>No child, parent or employee is named here.</strong> A cell is an academy and a grade — the labels
+     * the leader herself would read on the preview — and the transcript is her own words, so nothing about a family
+     * leaves the school unless she said it out loud.
+     */
+    public static String userE(String today, List<String> cells, String transcript) {
+        return """
+        TODAY, IN THE SCHOOL'S OWN TIME ZONE: %s
+
+        THE AUDIENCES THIS LEADER MAY ADDRESS (copy one of these lines into "audience", or leave "audience" out for all of them):
+        %s
+
+        WHAT SHE SAID (transcribed on her own phone, Saudi dialect, punctuation may be missing):
+        %s
+        """.formatted(today, cells.isEmpty() ? "- (none: write no \"audience\")" : "- " + String.join("\n- ", cells), transcript);
+    }
+
     static String join(List<String> xs) { return xs.stream().collect(Collectors.joining(", ")); }
 }

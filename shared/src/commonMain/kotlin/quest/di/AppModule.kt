@@ -133,6 +133,7 @@ import quest.feature.staff.data.StaffSession
 import quest.feature.staff.data.StaffThreadsImpl
 import quest.feature.staff.domain.StaffBadges
 import quest.feature.staff.domain.StaffGateway
+import quest.feature.staff.domain.VoiceAnnouncementGateway
 import quest.feature.staff.domain.StaffSessionView
 import quest.feature.staff.domain.STAFF_CONVERSATION
 import quest.feature.staff.domain.StaffThreadKey
@@ -140,6 +141,7 @@ import quest.feature.staff.domain.StaffThreads
 import quest.feature.staff.data.SettingsCheckInPrefs
 import quest.feature.staff.domain.CheckInPrefs
 import quest.feature.staff.presentation.AttendanceRequestsViewModel
+import quest.feature.staff.presentation.VoiceAnnouncementViewModel
 import quest.feature.staff.presentation.CheckInViewModel
 import quest.feature.staff.presentation.MyRecordViewModel
 import quest.feature.staff.presentation.StaffAccountViewModel
@@ -387,8 +389,17 @@ fun staffModule(config: ApiConfig): Module = module {
     single { SessionAuth(get<AuthProvider>(), get<StaffAuth>()) }
     when (config) {
         // Parity with `FakeContentApi`: a build with no server still signs a teacher in and draws her tabs.
-        ApiConfig.Fake -> single<StaffGateway> { FakeStaffApi() }
-        is ApiConfig.Server -> single<StaffGateway> { RemoteStaffApi(baseUrl, get(), get()) }
+        ApiConfig.Fake -> {
+            single { FakeStaffApi() }
+            single<StaffGateway> { get<FakeStaffApi>() }
+            // Feature 22's three `/management` routes are their own port, so no other feature's fake has to grow.
+            single<VoiceAnnouncementGateway> { get<FakeStaffApi>() }
+        }
+        is ApiConfig.Server -> {
+            single { RemoteStaffApi(baseUrl, get(), get()) }
+            single<StaffGateway> { get<RemoteStaffApi>() }
+            single<VoiceAnnouncementGateway> { get<RemoteStaffApi>() }
+        }
     }
     single { StaffSession(get()) }
     single<StaffSessionView> { get<StaffSession>() }
@@ -421,6 +432,8 @@ fun staffModule(config: ApiConfig): Module = module {
     viewModel { MyRecordViewModel(get()) }
     // Feature 18: her remote-day and correction requests, with M7's staging under the one file a correction carries.
     viewModel { AttendanceRequestsViewModel(get(), get()) }
+    // Feature 22: her voice note, the prepared draft and Send. The role gate reads her own `GET /staff/me`.
+    viewModel { VoiceAnnouncementViewModel(get(), get<StaffSession>().profile) }
     // Her end of a conversation: the parent's view model, with the `/staff/chat` source under it.
     viewModel(named(STAFF_CONVERSATION)) { (key: StaffThreadKey) ->
         ChatConversationViewModel(StaffConversationSource(key, get(), get(named(STAFF_SOCKET))), key.staffConversationState(), get())

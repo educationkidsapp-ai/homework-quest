@@ -6,12 +6,17 @@ import java.time.Instant;
 import java.util.List;
 import org.slf4j.LoggerFactory;
 
-/** Rejected model answers are written to `data/llm-failures/` so a prompt can be tuned against what the model actually wrote. */
-final class LlmFailures {
+/**
+ * Rejected model answers are written to `data/llm-failures/` so a prompt can be tuned against what the model actually wrote.
+ *
+ * <p>Public since feature 22: the second prompt that validates its own answer and retries ({@code VoiceDraftService})
+ * lives beside the feature it belongs to rather than in this package, and it keeps its rejects the same way.
+ */
+public final class LlmFailures {
     private LlmFailures() {}
     static final Path DIR = Path.of(System.getProperty("quest.failures.dir", "data/llm-failures"));
 
-    static void keep(String prompt, String text, List<String> errors) {
+    public static void keep(String prompt, String text, List<String> errors) {
         try {
             Files.createDirectories(DIR);
             Path f = DIR.resolve(prompt + "-" + Instant.now().toEpochMilli() + ".txt");

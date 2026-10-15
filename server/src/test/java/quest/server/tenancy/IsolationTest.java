@@ -85,6 +85,7 @@ class IsolationTest extends ApiTestSupport {
     @Autowired quest.server.floors.FloorRepository floors;
     @Autowired quest.server.floors.FloorClassRepository floorClasses;
     @Autowired quest.server.floors.FloorSupervisorRepository floorSupervisors;
+    @Autowired quest.server.broadcasts.AnnouncementDraftRepository drafts;
 
     @BeforeEach void seedTwoSchools() {
         school(A, "Alpha Academy", "SCHLAA"); school(B, "Beta School", "SCHLBB");
@@ -268,6 +269,35 @@ class IsolationTest extends ApiTestSupport {
             tenant.clear();
             floorSupervisors.deleteById("iso-floor-sup-b"); floorClasses.deleteById("iso-floor-class-b");
             floors.deleteById("iso-floor-b");
+        }
+    }
+
+    /**
+     * Feature 22's tenant table. A draft is the most private row the platform holds — a leader's own words, prepared
+     * and not yet sent — so it is scoped twice: by the `school` filter, and by the author inside it. A principal of A
+     * finds neither B's draft nor B's author's, and naming B's school herself answers nothing either; the sweep is the
+     * one unscoped read and names no school at all, which is why it is asserted from B's own side.
+     */
+    @Test void feature_22s_announcement_drafts_stay_in_their_school_and_with_their_author() {
+        var row = new quest.server.broadcasts.Entities.AnnouncementDraftEntity();
+        row.setId("iso-draft-b"); row.setSchoolId(B); row.setAuthorId("manager-b");
+        row.setTranscript("Parents of grade one, the trip is on Thursday.");
+        row.setTitle("Grade one trip"); row.setBodyAr("رحلة الصف الأول"); row.setBodyEn("The grade one trip is on Thursday.");
+        row.setCreatedAt(Instant.now());
+        drafts.save(row);
+        try {
+            tenant.set("MANAGERIAL", A, null);
+            assertThat(drafts.findAll()).noneMatch(d -> B.equals(d.getSchoolId()));
+            assertThat(drafts.findOneOfAuthor(A, "iso-draft-b", "manager-b")).as("not A's, whoever she names").isEmpty();
+            assertThat(drafts.findOneOfAuthor(B, "iso-draft-b", "manager-b")).as("and B's own school is not hers to ask about").isEmpty();
+            assertThat(drafts.byAuthor(A, "manager-b", org.springframework.data.domain.PageRequest.of(0, 20))).isEmpty();
+            tenant.set("MANAGERIAL", B, null);
+            assertThat(drafts.findOneOfAuthor(B, "iso-draft-b", "manager-b")).isPresent();
+            assertThat(drafts.findOneOfAuthor(B, "iso-draft-b", "teacher-b")).as("another author of the same school is a 404 too").isEmpty();
+            assertThat(drafts.byAuthor(B, "manager-b", org.springframework.data.domain.PageRequest.of(0, 20))).hasSize(1);
+        } finally {
+            tenant.clear();
+            drafts.deleteById("iso-draft-b");
         }
     }
 

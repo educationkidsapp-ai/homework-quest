@@ -283,6 +283,8 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "floorSupervisor" to false,
     // Feature 21: the Admin's and the manager's Home leads with what needs a decision today (V43).
     "todayHome" to false,
+    // Feature 22: a leader's voice note becomes a formal bilingual announcement she reviews and sends (V44).
+    "voiceAnnouncement" to false,
 )
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */

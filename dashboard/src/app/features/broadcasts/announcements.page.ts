@@ -21,9 +21,11 @@ import {
   type BroadcastView,
   type CreateBroadcastRequest,
   BroadcastsApi,
+  ManagementApi,
 } from '../../api';
 import { type BroadcastDraft, type ComposeContext, EMPTY_DRAFT } from '../../core/broadcasts/broadcast.rules';
 import { planWeeks as weeksOf, readerBodies } from '../../core/broadcasts/plan-archive';
+import { AuthService } from '../../core/auth/auth.service';
 import { StaffAreaService } from '../../core/auth/staff-area';
 import { FeatureDirective } from '../../core/flags/feature.directive';
 import { activeLang } from '../../core/i18n/active-lang';
@@ -41,8 +43,9 @@ import {
   TabsComponent,
   ToastComponent,
 } from '../../ui';
-import { BroadcastComposeComponent } from './compose-sheet.component';
+import { BroadcastComposeComponent, type ComposeSection } from './compose-sheet.component';
 import { PlanWeeksComponent } from './plan-weeks.component';
+import { VoiceNoteComponent } from './voice-note.component';
 import { StaffScopeService } from '../coordinator/staff-scope.service';
 
 type Panel = 'received' | 'posted' | 'plans';
@@ -85,6 +88,7 @@ type Panel = 'received' | 'posted' | 'plans';
     TabsComponent,
     ToastComponent,
     TranslocoPipe,
+    VoiceNoteComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -112,6 +116,12 @@ type Panel = 'received' | 'posted' | 'plans';
           >
             {{ 'broadcasts.postFailed' | transloco }}
           </hq-band>
+        }
+
+        <!-- Feature 22: the leader's voice note. Its own flag inside, so a school with the feed
+             and not the assistant sees exactly the screen it had. -->
+        @if (composer() === 'manager') {
+          <hq-voice-note [ctx]="ctx()" [sections]="composableSections()" (posted)="afterPost()" />
         }
 
         @if (tabs().length > 1) {
@@ -289,18 +299,30 @@ type Panel = 'received' | 'posted' | 'plans';
 })
 export class AnnouncementsPage {
   private readonly api = inject(BroadcastsApi);
+  private readonly management = inject(ManagementApi);
   private readonly router = inject(Router);
   private readonly flags = inject(FlagService);
   private readonly transloco = inject(TranslocoService);
   private readonly platform = inject(PlatformService);
   private readonly area = inject(StaffAreaService);
+  private readonly auth = inject(AuthService);
   private readonly lang = activeLang();
   protected readonly scope = inject(StaffScopeService);
 
   protected readonly enabled = computed(() => this.flags.isOn(FLAGS.announcements));
 
-  /** `null` for a teacher: she reads the feed and writes nothing (DR6). */
+  /**
+   * `null` for a teacher: she reads the feed and writes nothing (DR6).
+   *
+   * **Feature 22: the Admin is the manager's composer, over the whole school.** She holds
+   * `management.broadcast` (`permissions.json`) and always did; what she had no way to do was
+   * write one, because she reads the shared screens through `/teacher/**`
+   * (`core/auth/staff-area.ts`) and this screen asked that question of the area rather than of the
+   * role. She has no department list of her own, so her row names no section and the server reads
+   * that as every parent of the school — which is her scope.
+   */
   protected readonly composer = computed(() => {
+    if (this.auth.role() === 'ADMIN') return 'manager' as const;
     const area = this.area.area();
     if (area === 'management') return 'manager' as const;
     return area === 'coordinator' ? ('coordinator' as const) : null;
@@ -410,20 +432,67 @@ export class AnnouncementsPage {
     ),
   );
 
+  /**
+   * **The Admin's cells: every academy and grade of the school** (feature 22).
+   *
+   * `GET /management/classes`, which `ManagerScope` answers with the whole school for the platform
+   * Admin (D6) and with one department for a manager. It is read *here* rather than in
+   * `StaffScopeService`, which deliberately asks nothing for her — she reads every other shared
+   * screen through `/teacher/**`, and widening that service would change five screens to fix one
+   * sheet. `management.read` includes ADMIN, so this is her own namespace and not a borrowed one.
+   *
+   * It is what makes the suggested audience real: the composer can only offer an academy and a
+   * grade it knows exist, and the server refuses any other.
+   */
+  private readonly adminClasses = rxResource({
+    params: () => (this.enabled() && this.adminComposer() ? true : undefined),
+    stream: () => this.management.managementClasses(),
+    defaultValue: [],
+  });
+
+  /**
+   * The Admin: the manager's composer with none of `StaffScopeService`'s reads behind it.
+   *
+   * Asked of the composer and the area rather than of the role, so the one decision about who
+   * writes as a manager ({@link composer}) stays in one place.
+   */
+  private readonly adminComposer = computed(
+    () => this.composer() === 'manager' && this.area.area() !== 'management',
+  );
+
+  private readonly adminSections = computed<readonly ComposeSection[]>(() =>
+    this.adminClasses
+      .value()
+      .flatMap((group) =>
+        (group.classes ?? []).map((row) => ({
+          classId: row.classId ?? '',
+          className: row.className ?? '',
+          // A group *is* an academy and a grade, so it answers for a class row that left either out.
+          curriculum: row.curriculum ?? group.curriculum ?? '',
+          grade: row.grade ?? group.grade ?? 0,
+        })),
+      )
+      .filter((row) => row.classId !== '' && row.curriculum !== ''),
+  );
+
   protected readonly departments = computed<readonly string[]>(() =>
-    this.scope
-      .scopes()
-      .map((chip) => chip.curriculum)
-      .filter((curriculum): curriculum is string => curriculum !== null),
+    this.adminComposer()
+      ? [...new Set(this.adminSections().map((row) => row.curriculum))].sort()
+      : this.scope
+          .scopes()
+          .map((chip) => chip.curriculum)
+          .filter((curriculum): curriculum is string => curriculum !== null),
   );
 
   /** Every class of her scope; the sheet narrows them to the department she picks inside it. */
-  protected readonly composableSections = computed(() => this.scope.classes());
+  protected readonly composableSections = computed<readonly ComposeSection[]>(() =>
+    this.adminComposer() ? this.adminSections() : this.scope.classes(),
+  );
 
   protected readonly ctx = computed<ComposeContext>(() => ({
     role: this.composer() ?? 'coordinator',
     departments: this.departments(),
-    sections: this.scope.classes(),
+    sections: this.composableSections(),
     today: this.today(),
     zone: this.platform.timezone(),
   }));
@@ -549,6 +618,19 @@ export class AnnouncementsPage {
     });
   }
 
+  /**
+   * One announcement went out, by whichever composer wrote it: say so, and refetch both lists.
+   *
+   * Feature 22 gave the voice note its own sheet and its own `POST /management/broadcasts`, so
+   * this is the one place that knows what a successful post means to the *screen* — the toast and
+   * the two lists — rather than two copies of it that would drift.
+   */
+  protected afterPost(): void {
+    this.posted.set(true);
+    this.posts.reload();
+    this.feed.reload();
+  }
+
   protected post(body: CreateBroadcastRequest): void {
     const role = this.composer();
     if (role === null) return;
@@ -562,9 +644,7 @@ export class AnnouncementsPage {
         tap(() => {
           this.posting.set(false);
           this.composing.set(false);
-          this.posted.set(true);
-          this.posts.reload();
-          this.feed.reload();
+          this.afterPost();
         }),
         catchError(() => {
           this.posting.set(false);

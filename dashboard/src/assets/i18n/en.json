@@ -2676,7 +2676,6 @@
       "departmentRequired": "Choose which of your departments this is for.",
       "expiredAlready": "Pick today or a later day.",
       "gradeWithSections": "Choose a grade or choose classes, not both.",
-      "gradeOneDepartment": "A grade can only be named by a manager of one department.",
       "gradeUnmanaged": "You manage no class in that grade."
     },
     "grade": "Which grade",
@@ -3017,6 +3016,22 @@
       "title": "Unread messages",
       "count": "{{count}} unread",
       "openMessages": "Open Messages"
+    }
+  },
+  "voice": {
+    "record": "Record a voice note",
+    "hint": "Say your announcement out loud, in Arabic. It is written out on this device and never uploaded as audio.",
+    "listening": "Listening…",
+    "stop": "Stop and prepare it",
+    "preparing": "Preparing your announcement…",
+    "review": "Review the announcement",
+    "transcript": "What you said",
+    "errors": {
+      "device": "This device could not listen. Check that the microphone is allowed and try again.",
+      "silent": "Nothing was heard. Try again, a little closer to the microphone.",
+      "rephrase": "That could not be turned into an announcement. Say it again, a little more clearly, and name who it is for.",
+      "model": "The assistant did not answer. Nothing was sent — try again in a moment.",
+      "alreadySent": "That voice note has already been sent as an announcement."
     }
   }
 }
