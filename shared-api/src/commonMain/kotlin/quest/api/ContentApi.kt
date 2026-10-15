@@ -289,6 +289,8 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "remoteStudyDays" to false,
     // Feature 25: the Admin's and the manager's morning brief, above feature 21's cards (V47).
     "morningBrief" to false,
+    // Feature 26: a leader uploads a circular and reads what it says, in both languages (V48).
+    "documentReader" to false,
 )
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */

@@ -257,6 +257,8 @@ class OpenApiContractTest extends ApiTestSupport {
             "/management/broadcasts", "/coordinator/broadcasts",
             // Feature 22: the transcript her device produced, prepared as an announcement she reviews and sends.
             "/management/broadcasts/voice-drafts",
+            // Feature 26: a circular read into a bilingual summary, whose "Draft announcement" pre-fills the composer.
+            "/management/documents/read", "/management/documents", "/management/documents/{id}",
             "/me/broadcasts", "/me/broadcasts/{id}/read",
             "/children/{id}/broadcasts", "/children/{id}/broadcasts/{broadcastId}/read",
             "/management/chat/threads", "/management/chat/threads/{id}/messages",

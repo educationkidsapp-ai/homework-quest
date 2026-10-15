@@ -147,6 +147,13 @@ function componentFor(screen: Screen, role: Role) {
   // everyone — the namespace it does *not* vary by is the whole reason it is one component.
   if (screen.id === 'announcements')
     return import('../../features/broadcasts/announcements.page').then((m) => m.AnnouncementsPage);
+  // Feature 26: the Document reader, the Admin's and the manager's alike. One component for both,
+  // because the three routes it calls are `/management/documents/**` for either of them — it is
+  // named here for the Admin and again under `supervisorComponentFor` for the manager, the way
+  // Attendance settings is, rather than smuggled into `SHARED_WITH_TEACHER`: no teacher, no
+  // coordinator and no floor supervisor holds `document.read`.
+  if (screen.id === 'documents')
+    return import('../../features/documents/document-reader.page').then((m) => m.DocumentReaderPage);
   // D5: one Complaints page for all four areas; `ComplaintsService` picks the routes by role.
   if (screen.id === 'complaints')
     return import('../../features/complaints/complaints.page').then((m) => m.ComplaintsPage);
@@ -224,6 +231,9 @@ function supervisorComponentFor(screen: Screen, role: Role) {
     // Feature 14: the Admin's Attendance settings, read-only for her.
     if (screen.id === 'attendance-settings')
       return import('../../features/admin/attendance-settings.page').then((m) => m.AttendanceSettingsPage);
+    // Feature 26: the Document reader, hers on the same routes as the Admin's.
+    if (screen.id === 'documents')
+      return import('../../features/documents/document-reader.page').then((m) => m.DocumentReaderPage);
     // MG2b: the weekly plan per grade, with the archive (`GET /management/weekly-plans`).
     if (screen.id === 'weekly-plans')
       return import('../../features/management/weekly-plans.page').then((m) => m.WeeklyPlansPage);

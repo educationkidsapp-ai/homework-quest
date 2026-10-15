@@ -52,6 +52,22 @@ class ManagerScopeArchitectureTest {
                 .isEmpty();
     }
 
+    /**
+     * The one shape of handler {@link #CHECKS} cannot speak for: a read of rows keyed by
+     * <strong>`(school_id, author_id)`</strong> — the leader's own, nobody else's. A department check on these would
+     * not narrow them, it would <em>widen</em> them: it would let the other manager of the same department read what
+     * this one uploaded, which is the opposite of what feature 26 promises. So they are named here one line each, and
+     * the exemption is <em>proved</em> rather than trusted — {@link #author_scoped_reads_really_are_keyed_by_author}
+     * fails unless each of them reaches an author-keyed query. Nothing else is excused.
+     */
+    private static final Set<String> AUTHOR_SCOPED_READS = Set.of(
+            // Feature 26: her own last twenty document summaries, and one of them.
+            "DocumentReaderController#myDocumentSummaries",
+            "DocumentReaderController#documentSummary");
+
+    /** The queries that make an {@link #AUTHOR_SCOPED_READS} entry true: both name the author beside the school. */
+    private static final Set<String> AUTHOR_KEYED_QUERIES = Set.of("findOneOfAuthor", "byAuthor");
+
     @Test void every_management_handler_reaches_a_scope_check() {
         var missing = new ArrayList<String>();
         int handlers = 0;
@@ -59,11 +75,36 @@ class ManagerScopeArchitectureTest {
             for (JavaMethod method : controller.getMethods()) {
                 if (routes(controller, method).isEmpty()) continue;
                 handlers++;
-                if (!reachesACheck(method)) missing.add(controller.getSimpleName() + "#" + method.getName());
+                String handler = controller.getSimpleName() + "#" + method.getName();
+                if (AUTHOR_SCOPED_READS.contains(handler)) continue;
+                if (!reachesACheck(method)) missing.add(handler);
             }
         assertThat(handlers).as("the sweep must actually find the /management handlers").isGreaterThanOrEqualTo(15);
         assertThat(missing).as("a /management handler must resolve its scope through ManagerScope (%s) — "
                 + "ManagerScope.require only checks that somebody is signed in", CHECKS).isEmpty();
+    }
+
+    /**
+     * What {@link #AUTHOR_SCOPED_READS} claims, checked: each exempted handler really does reach a query that names
+     * the author, so "narrower than any department" is a fact about the code and not a sentence in a comment. An
+     * entry added to that list for a handler that reads by school alone fails here.
+     */
+    @Test void author_scoped_reads_really_are_keyed_by_author() {
+        var unproved = new ArrayList<String>();
+        for (JavaClass controller : managementControllers())
+            for (JavaMethod method : controller.getMethods()) {
+                String handler = controller.getSimpleName() + "#" + method.getName();
+                if (!AUTHOR_SCOPED_READS.contains(handler)) continue;
+                for (String route : routes(controller, method))
+                    if (!route.startsWith("GET ")) unproved.add(handler + " is a write (" + route + "), not a read");
+                if (!reachesAny(method, AUTHOR_KEYED_QUERIES)) unproved.add(handler + " reaches no author-keyed query");
+            }
+        assertThat(unproved).as("an exempted handler must be a GET that reads by author (%s)", AUTHOR_KEYED_QUERIES).isEmpty();
+        var handlers = new ArrayList<String>();
+        for (JavaClass controller : managementControllers())
+            for (JavaMethod method : controller.getMethods())
+                if (!routes(controller, method).isEmpty()) handlers.add(controller.getSimpleName() + "#" + method.getName());
+        assertThat(handlers).as("an exempted handler was renamed or removed: update AUTHOR_SCOPED_READS").containsAll(AUTHOR_SCOPED_READS);
     }
 
     /**
@@ -92,6 +133,10 @@ class ManagerScopeArchitectureTest {
             // own unsent text — tells nobody, and posts nothing; Send is `POST /management/broadcasts` above. Behind
             // the `voiceAnnouncement` flag and `broadcast.voice`, and its cells come from `ManagerScope.reach`.
             "POST /management/broadcasts/voice-drafts",
+            // Feature 26: she uploads a circular and one `document_summaries` row — her own read of it — is stored.
+            // It delivers nothing, writes nothing a teacher owns, keeps no copy of the file, and the announcement it
+            // suggests is addressed to `ManagerScope.departments`; Send is `POST /management/broadcasts` above.
+            "POST /management/documents/read",
             "POST /management/chat/threads",
             "POST /management/chat/threads/{id}/messages",
             "POST /management/chat/threads/{id}/read",
@@ -144,14 +189,19 @@ class ManagerScopeArchitectureTest {
     }
 
     /** Breadth-first over the call graph inside `quest.server`, looking for one of {@link #CHECKS}. */
-    private static boolean reachesACheck(JavaMethod from) {
+    private static boolean reachesACheck(JavaMethod from) { return reaches(from, SCOPE, CHECKS); }
+
+    /** The same walk, for a method of any owner — what {@link #AUTHOR_SCOPED_READS} is checked with. */
+    private static boolean reachesAny(JavaMethod from, Set<String> names) { return reaches(from, null, names); }
+
+    private static boolean reaches(JavaMethod from, String owner, Set<String> names) {
         Set<String> seen = new LinkedHashSet<>();
         var queue = new ArrayDeque<JavaMethod>();
         queue.add(from);
         while (!queue.isEmpty()) {
             var current = queue.poll();
             if (!seen.add(current.getFullName())) continue;
-            if (current.getOwner().getName().equals(SCOPE) && CHECKS.contains(current.getName())) return true;
+            if ((owner == null || current.getOwner().getName().equals(owner)) && names.contains(current.getName())) return true;
             for (var call : current.getMethodCallsFromSelf()) {
                 if (!call.getTargetOwner().getPackageName().startsWith("quest.server")) continue;
                 call.getTarget().resolveMember().ifPresent(target -> { if (!seen.contains(target.getFullName())) queue.add(target); });
