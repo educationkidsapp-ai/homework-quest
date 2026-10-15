@@ -13,14 +13,14 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
-import quest.server.analysis.LlmClient;
-import quest.server.analysis.LlmFailures;
+import quest.server.ai.AiFailure;
+import quest.server.ai.AiService;
+import quest.server.ai.AiTask;
+import quest.server.ai.AiVerdict;
 import quest.server.analysis.Prompts;
 import quest.server.auth.Principals;
 import quest.server.broadcasts.Entities.AnnouncementDraftEntity;
@@ -58,7 +58,6 @@ import quest.server.tenancy.TenantContext;
  */
 @Service
 public class VoiceDraftService {
-    private static final Logger log = LoggerFactory.getLogger(VoiceDraftService.class);
     /** Two minutes of speech is a few hundred words; this is the ceiling a pasted essay hits. */
     public static final int MAX_TRANSCRIPT = 4000;
     /** `{ "code": "rephrase" }` — the assistant could not produce an announcement that fits, twice. */
@@ -67,13 +66,13 @@ public class VoiceDraftService {
     private static final int MAX_TITLE = 120, MAX_BODY = 1000, MAX_LIFETIME_DAYS = 400;
 
     private final AnnouncementDraftRepository drafts; private final ManagerScope managers;
-    private final SchoolCalendar calendar; private final LlmClient llm; private final Json json;
+    private final SchoolCalendar calendar; private final AiService ai; private final Json json;
     private final TenantContext tenant; private final Clock clock; private final TransactionTemplate tx;
 
     public VoiceDraftService(AnnouncementDraftRepository drafts, ManagerScope managers, SchoolCalendar calendar,
-                             LlmClient llm, Json json, TenantContext tenant, Clock clock,
+                             AiService ai, Json json, TenantContext tenant, Clock clock,
                              PlatformTransactionManager transactions) {
-        this.drafts = drafts; this.managers = managers; this.calendar = calendar; this.llm = llm; this.json = json;
+        this.drafts = drafts; this.managers = managers; this.calendar = calendar; this.ai = ai; this.json = json;
         this.tenant = tenant; this.clock = clock; this.tx = new TransactionTemplate(transactions);
     }
 
@@ -87,26 +86,27 @@ public class VoiceDraftService {
         var week = calendar.of(schoolId);
         var cells = cellsOf(caller);
 
-        String system = Prompts.SYSTEM_E;
         // One `schools` read for both the day and the expiry: `SchoolCalendar.today` would ask for the week again.
         String user = Prompts.userE(LocalDate.now(clock.withZone(week.zone())).toString(), labels(cells), transcript);
-        List<String> errors = List.of(); JsonNode accepted = null;
-        for (int attempt = 0; attempt < 2 && accepted == null; attempt++) {
-            String turn = attempt == 0 ? user
-                    : user + "\n\nYour previous answer was rejected by the validator:\n- " + String.join("\n- ", errors)
-                            + "\nAnswer again with corrected JSON only.";
-            LlmClient.Result answer = call(system, turn);
-            JsonNode candidate;
-            try { candidate = json.tree(answer.text()); }
-            catch (RuntimeException e) { errors = List.of("the answer was not JSON at all"); continue; }
-            errors = problems(candidate);
-            if (errors.isEmpty()) { accepted = candidate; break; }
-            log.warn("Prompt E attempt {} invalid: {}", attempt + 1, errors);
-            LlmFailures.keep("E-" + schoolId, answer.text(), errors);
+        JsonNode accepted;
+        try {
+            accepted = ai.run(AiTask.of("voiceAnnouncement", "E-" + schoolId, schoolId, Prompts.SYSTEM_E, user)
+                    .reading((raw, attempt) -> {
+                        JsonNode candidate;
+                        try { candidate = json.tree(raw); }
+                        catch (RuntimeException e) { return AiVerdict.rejected("the answer was not JSON at all"); }
+                        var wrong = problems(candidate);
+                        return wrong.isEmpty() ? AiVerdict.ok(candidate) : AiVerdict.rejected(wrong);
+                    })
+                    .keepingRejects()).json();
+        } catch (AiFailure f) {
+            if (f.kind() == AiFailure.Kind.INVALID)
+                throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, REPHRASE,
+                        "Couldn't write that announcement, please say it again. " + String.join("; ", f.errors()));
+            if (f.isTransient()) throw new ApiException(HttpStatus.BAD_GATEWAY, quest.api.dto.ApiError.MODEL_FAILED,
+                    "The AI is busy — try that again in a moment.");
+            throw new ApiException(HttpStatus.BAD_GATEWAY, quest.api.dto.ApiError.MODEL_FAILED, f.getMessage());
         }
-        if (accepted == null)
-            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, REPHRASE,
-                    "Couldn't write that announcement, please say it again. " + String.join("; ", errors));
 
         var row = new AnnouncementDraftEntity();
         row.setId(UUID.randomUUID().toString()); row.setSchoolId(schoolId); row.setAuthorId(caller.userId());
@@ -200,15 +200,6 @@ public class VoiceDraftService {
     }
 
     // ---------------------------------------------------------------- the model and its answer
-
-    private LlmClient.Result call(String system, String user) {
-        try { return llm.complete(system, user, List.of()); }
-        catch (LlmClient.LlmException e) {
-            if (e.isTransient()) throw new ApiException(HttpStatus.BAD_GATEWAY, quest.api.dto.ApiError.MODEL_FAILED,
-                    "The AI is busy — try that again in a moment.");
-            throw new ApiException(HttpStatus.BAD_GATEWAY, quest.api.dto.ApiError.MODEL_FAILED, e.getMessage());
-        }
-    }
 
     /** Everything wrong with one answer, in the words the second attempt is given. Empty means it may be stored. */
     private static List<String> problems(JsonNode answer) {

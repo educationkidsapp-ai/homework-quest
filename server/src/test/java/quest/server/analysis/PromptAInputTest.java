@@ -88,6 +88,6 @@ class PromptAInputTest {
         Mockito.when(conversion.markdown(Mockito.any())).thenReturn(markdown);
 
         return new AnalysisService(lessons, sourceFiles, pageImages, skills, cache, Mockito.mock(FileStore.class), new SlideProcessor(),
-                conversion, llm, new Json(new ObjectMapper()), Mockito.mock(LessonState.class));
+                conversion, quest.server.ai.AiService.withoutLedger(llm), new Json(new ObjectMapper()), Mockito.mock(LessonState.class));
     }
 }

@@ -14,6 +14,10 @@ import quest.api.dto.SourceAnalysis;
 import quest.api.dto.Subject;
 import quest.api.validation.SchemaValidator;
 import quest.api.validation.Sha256;
+import quest.server.ai.AiFailure;
+import quest.server.ai.AiService;
+import quest.server.ai.AiTask;
+import quest.server.ai.AiVerdict;
 import quest.server.config.ApiException;
 import quest.server.config.Json;
 import quest.server.content.Entities.LessonEntity;
@@ -38,10 +42,10 @@ public class AnalysisService {
     private static final Logger log = LoggerFactory.getLogger(AnalysisService.class);
 
     private final LessonRepository lessons; private final SourceFileRepository sourceFiles; private final PageImageRepository pageImages; private final SkillRepository skills;
-    private final AnalysisCacheRepository cache; private final FileStore files; private final SlideProcessor slides; private final ConversionService conversion; private final LlmClient llm; private final Json json; private final LessonState state;
+    private final AnalysisCacheRepository cache; private final FileStore files; private final SlideProcessor slides; private final ConversionService conversion; private final AiService ai; private final Json json; private final LessonState state;
 
-    public AnalysisService(LessonRepository lessons, SourceFileRepository sourceFiles, PageImageRepository pageImages, SkillRepository skills, AnalysisCacheRepository cache, FileStore files, SlideProcessor slides, ConversionService conversion, LlmClient llm, Json json, LessonState state) {
-        this.lessons = lessons; this.sourceFiles = sourceFiles; this.pageImages = pageImages; this.skills = skills; this.cache = cache; this.files = files; this.slides = slides; this.conversion = conversion; this.llm = llm; this.json = json; this.state = state;
+    public AnalysisService(LessonRepository lessons, SourceFileRepository sourceFiles, PageImageRepository pageImages, SkillRepository skills, AnalysisCacheRepository cache, FileStore files, SlideProcessor slides, ConversionService conversion, AiService ai, Json json, LessonState state) {
+        this.lessons = lessons; this.sourceFiles = sourceFiles; this.pageImages = pageImages; this.skills = skills; this.cache = cache; this.files = files; this.slides = slides; this.conversion = conversion; this.ai = ai; this.json = json; this.state = state;
     }
 
     public record Upload(String fileName, String mimeType, byte[] bytes) {}
@@ -162,31 +166,36 @@ public class AnalysisService {
     private String promptA(LessonEntity lesson, String sourceText, boolean markdown, String hash, String key) {
         String[] course = lesson.getCourseId().split("/");
         String user = Prompts.userA(course[0], Integer.parseInt(course[1]), lesson.getSubject(), lesson.getNotes(), sourceText, markdown);
-        long used = 0; String text = null; List<String> errors = List.of();
         // Whatever the model has already been paid for is booked on the way out too. A second attempt that ends in a
         // transient failure, or a step abandoned at its deadline, used to drop the first attempt's tokens on the
-        // floor: the bill arrived from DeepSeek and the lesson's `token_usage` never heard about it.
+        // floor: the bill arrived from DeepSeek and the lesson's `token_usage` never heard about it. `AiService` hands
+        // over each answered attempt's tokens as it gets them, which is what keeps that true through the loop it owns.
+        long[] used = {0};
+        String text;
         try {
-            for (int attempt = 0; attempt < 2; attempt++) {
-                String u = attempt == 0 ? user : user + "\n\nYour previous answer was rejected by the validator:\n- " + String.join("\n- ", errors) + "\nAnswer again with corrected JSON only.";
-                LlmClient.Result r;
-                try { r = llm.complete(Prompts.SYSTEM_A, u, List.of()); }
-                catch (LlmClient.LlmException e) { if (e.isTransient()) throw new LessonSteps.TransientFailure(e.getMessage(), e); throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY, "model_failed", e.getMessage()); }
-                used += r.total();
-                JsonNode probe = tryTree(r.text());
-                if (probe != null && "no_teaching_content".equals(probe.path("error").asText(null))) throw new ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY, "no_teaching_content", "These slides don't contain anything to practise.");
-                String cleaned = LlmJson.cleanIllustrations(r.text());
-                var result = SchemaValidator.INSTANCE.validateAnalysisJson(cleaned);
-                if (result.getErrors().isEmpty()) { text = cleaned; break; }
-                errors = result.getErrors(); log.warn("Prompt A attempt {} invalid: {}", attempt + 1, errors);
-                LlmFailures.keep("A", r.text(), errors);
+            text = ai.run(AiTask.of("lessonAnalysis", "A", lesson.getSchoolId(), Prompts.SYSTEM_A, user)
+                    .reading((raw, attempt) -> {
+                        JsonNode probe = tryTree(raw);
+                        if (probe != null && "no_teaching_content".equals(probe.path("error").asText(null))) throw new ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY, "no_teaching_content", "These slides don't contain anything to practise.");
+                        String cleaned = LlmJson.cleanIllustrations(raw);
+                        var result = SchemaValidator.INSTANCE.validateAnalysisJson(cleaned);
+                        return result.getErrors().isEmpty() ? AiVerdict.ok(cleaned) : AiVerdict.rejected(result.getErrors());
+                    })
+                    .keepingRejects()
+                    .billing((in, out) -> used[0] += in + out)).text();
+        } catch (AiFailure f) {
+            if (f.kind() == AiFailure.Kind.INVALID) {
+                state.addUsage(lesson.getId(), used[0], 0);
+                throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY, "model_failed", "The model's analysis didn't match the schema: " + f.errorsJoined(5));
             }
-        } catch (RuntimeException e) { if (used > 0) state.addUsage(lesson.getId(), used, 0); throw e; }
-        state.addUsage(lesson.getId(), used, 0);
-        if (text == null) throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY, "model_failed", "The model's analysis didn't match the schema: " + String.join("; ", errors.subList(0, Math.min(5, errors.size()))));
+            if (used[0] > 0) state.addUsage(lesson.getId(), used[0], 0);
+            if (f.isTransient()) throw new LessonSteps.TransientFailure(f.getMessage(), f.getCause());
+            throw new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY, "model_failed", f.getMessage());
+        } catch (RuntimeException e) { if (used[0] > 0) state.addUsage(lesson.getId(), used[0], 0); throw e; }
+        state.addUsage(lesson.getId(), used[0], 0);
         var e = new CacheEntities.AnalysisCacheEntity();
         e.setCacheKey(key); e.setSourceHash(hash); e.setCurriculum(course[0]); e.setGrade(Integer.parseInt(course[1])); e.setSubject(lesson.getSubject()); e.setPromptVersion(CacheKeys.PROMPT_A_VERSION);
-        e.setAnalysisJson(text); e.setTokenUsage(used); e.setHits(0); e.setCreatedAt(Instant.now());
+        e.setAnalysisJson(text); e.setTokenUsage(used[0]); e.setHits(0); e.setCreatedAt(Instant.now());
         cache.save(e);
         return text;
     }

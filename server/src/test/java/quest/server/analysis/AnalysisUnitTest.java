@@ -181,7 +181,7 @@ class AnalysisUnitTest {
         Mockito.when(skills.findByLessonIdAndConfirmedTrueOrderByPosition(Mockito.anyString())).thenReturn(List.of(skill));
         var store = Mockito.mock(LessonStore.class);
         var lesson = new LessonEntity(); lesson.setId("abcdef12-3456"); lesson.setSourceHash("hash"); lesson.setPracticeLength(7);
-        var service = new GenerationService(cache, analyses, skills, store, llm, new Json(mapper), Mockito.mock(LessonState.class), Mockito.mock(AnalysisService.class), Mockito.mock(ParentPanelRepository.class));
+        var service = new GenerationService(cache, analyses, skills, store, quest.server.ai.AiService.withoutLedger(llm), new Json(mapper), Mockito.mock(LessonState.class), Mockito.mock(AnalysisService.class), Mockito.mock(ParentPanelRepository.class));
 
         service.generatePlay(lesson, 1, 0);
 
