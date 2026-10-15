@@ -87,6 +87,7 @@ class IsolationTest extends ApiTestSupport {
     @Autowired quest.server.floors.FloorSupervisorRepository floorSupervisors;
     @Autowired quest.server.broadcasts.AnnouncementDraftRepository drafts;
     @Autowired quest.server.ai.AiCallRepository aiCalls;
+    @Autowired quest.server.brief.MorningBriefRepository morningBriefs;
 
     @BeforeEach void seedTwoSchools() {
         school(A, "Alpha Academy", "SCHLAA"); school(B, "Beta School", "SCHLBB");
@@ -334,6 +335,37 @@ class IsolationTest extends ApiTestSupport {
         } finally {
             tenant.clear();
             aiCalls.deleteById("iso-ai-call-b");
+        }
+    }
+
+    /**
+     * Feature 25's tenant table. A brief holds a school's own numbers and the wording written from them, per leader
+     * and per day, so it is scoped by the `school` filter like every other tenant table and by the leader inside it.
+     * A principal of A finds neither B's brief nor B's leader's, and naming B's school herself answers nothing
+     * either — which is also what makes the job's claim safe: it names the school it is running for.
+     */
+    @Test void feature_25s_morning_briefs_stay_in_their_school_and_with_their_leader() {
+        var row = new quest.server.brief.Entities.MorningBriefEntity();
+        row.setId("iso-brief-b"); row.setSchoolId(B); row.setUserId("director-b");
+        row.setDay(LocalDate.of(2027, 4, 7));
+        row.setFactsJson("{\"scope\":\"ACADEMY\",\"yesterday\":\"2027-04-06\",\"lateYesterday\":2}");
+        row.setTextAr("أمس: 2 متأخرون"); row.setTextEn("Yesterday: 2 late");
+        row.setSource("template"); row.setCreatedAt(Instant.now());
+        morningBriefs.save(row);
+        try {
+            tenant.set("MANAGERIAL", A, null);
+            assertThat(morningBriefs.findAll()).noneMatch(b -> B.equals(b.getSchoolId()));
+            assertThat(morningBriefs.findOneBySchoolIdAndUserIdAndDay(A, "director-b", LocalDate.of(2027, 4, 7)))
+                    .as("not A's, whoever she names").isEmpty();
+            assertThat(morningBriefs.findOneBySchoolIdAndUserIdAndDay(B, "director-b", LocalDate.of(2027, 4, 7)))
+                    .as("and B's own school is not hers to ask about").isEmpty();
+            tenant.set("MANAGERIAL", B, null);
+            assertThat(morningBriefs.findOneBySchoolIdAndUserIdAndDay(B, "director-b", LocalDate.of(2027, 4, 7))).isPresent();
+            assertThat(morningBriefs.findOneBySchoolIdAndUserIdAndDay(B, "teacher-b", LocalDate.of(2027, 4, 7)))
+                    .as("another leader of the same school has her own brief, not this one").isEmpty();
+        } finally {
+            tenant.clear();
+            morningBriefs.deleteById("iso-brief-b");
         }
     }
 

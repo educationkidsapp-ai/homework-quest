@@ -28,6 +28,7 @@ public class SampleLlmClient implements LlmClient {
         }
         if (system.startsWith(PROMPT_D)) return stopFromText(user);
         if (system.equals(Prompts.SYSTEM_E)) return announcementFromTranscript(user);
+        if (system.equals(Prompts.SYSTEM_F)) return briefFromFacts(user);
         if (user.startsWith("Here is a Play you wrote earlier")) {
             int i = user.indexOf("different content:\n") + "different content:\n".length();
             String stop = user.substring(i, user.indexOf("\n\nDo not reuse", i)).trim();
@@ -80,6 +81,29 @@ public class SampleLlmClient implements LlmClient {
         var day = ISO_DAY.matcher(transcript);
         if (day.find()) out.put("expiresOn", day.group());
         return new Result(out.toString(), 700, 400);
+    }
+
+    /**
+     * Feature 25's turn without a model: the first three to five fact lines the server offered become the brief,
+     * word for word, in both lists. Deterministic, and it is deliberately the <em>dullest</em> possible answer —
+     * every number in it came from the facts, so the local H2 run and the API test exercise the accepting path of
+     * the validator, while a test that wants the rejecting path mocks {@code LlmClient} and invents a number.
+     *
+     * <p>The Arabic list is the same lines with the school's own label in front, because the sample client has no
+     * translator and a brief whose two lists disagreed in <em>length</em> would be rejected rather than merely
+     * untranslated — which would make the fallback, not the accepting path, what the local run exercises.
+     */
+    private Result briefFromFacts(String user) {
+        String block = between(user, "only numbers you may write):\n", "\n\nYour previous answer");
+        List<String> facts = block.lines().map(String::strip).filter(l -> l.startsWith("- ")).map(l -> l.substring(2).strip())
+                .filter(l -> !l.isEmpty()).limit(5).toList();
+        if (facts.isEmpty()) facts = List.of("nothing needs her today");
+        var out = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+        var ar = out.putArray("linesAr");
+        var en = out.putArray("linesEn");
+        for (String fact : facts) { en.add(cut(fact, 110)); ar.add(cut("الموجز: " + fact, 110)); }
+        while (en.size() < 3) { en.add("Nothing else needs you now."); ar.add("لا شيء آخر يحتاجك الآن"); }
+        return new Result(out.toString(), 600, 300);
     }
 
     /** One audience line of {@link Prompts#userE}: `curriculum "british", grade 1`. */

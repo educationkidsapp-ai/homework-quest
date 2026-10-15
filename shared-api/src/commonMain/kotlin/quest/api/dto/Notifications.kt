@@ -134,6 +134,12 @@ enum class NotificationKind {
      * word the row in the reader's language.
      */
     @SerialName("chat.after_hours_summary") CHAT_AFTER_HOURS_SUMMARY,
+    /**
+     * Feature 25, to an Admin or a department manager each school morning: her brief is ready.
+     * [NotificationView.link] is her Home, where `GET /me/morning-brief` is read; the row carries no number of its
+     * own, so the lines are never duplicated into a push that cannot be kept in step with the brief.
+     */
+    @SerialName("morning.brief") MORNING_BRIEF,
 }
 
 /**
