@@ -373,6 +373,18 @@ public class BroadcastService {
         return view(row, displayName(row.getAuthorUserId()), true);
     }
 
+    /**
+     * Feature 29: one broadcast by id, but only one <strong>this child's feed shows</strong> — {@link #forChild}, the
+     * very predicate `GET /children/{id}/broadcasts` filters with, so a row her feed does not have is a 404 and never
+     * a translation. The caller has already proved the child is hers ({@code ChildService.owned}), and the school is
+     * the child's own, as it is on every parent route here.
+     */
+    public BroadcastEntity readableByParent(ChildEntity kid, String broadcastId) {
+        return rows.findOneById(broadcastId)
+                .filter(b -> kid.getClassId() != null && b.getSchoolId().equals(kid.getSchoolId()) && forChild(b, kid))
+                .orElseThrow(() -> ApiException.notFound("broadcast"));
+    }
+
     // ---------------------------------------------------------------- writing
 
     private BroadcastEntity write(String schoolId, String authorId, String authorRole, BroadcastDto.CreateRequest request,

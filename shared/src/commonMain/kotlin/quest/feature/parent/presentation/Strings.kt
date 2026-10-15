@@ -229,6 +229,11 @@ data class Strings(
      * It is a domain table ([OfficeHoursWords]) so the banner itself stays pure and testable without a screen.
      */
     val officeHours: OfficeHoursWords = OfficeHoursWords.en,
+    /**
+     * Feature 29: the Translate action's own words — the "Machine-translated" label, "Show original" and the Reading
+     * language setting. The app's interface stays English or Arabic; only the content of a message is translated.
+     */
+    val translate: quest.feature.translate.presentation.TranslateStrings = quest.feature.translate.presentation.TranslateStrings.en,
 ) {
     fun accuracy(words: String) = accuracyWords[words] ?: words
 
@@ -430,6 +435,7 @@ data class Strings(
             lesson = LessonStrings.ar,
             complaints = ComplaintStrings.ar,
             officeHours = OfficeHoursWords.ar,
+            translate = quest.feature.translate.presentation.TranslateStrings.ar,
         )
 
         fun forLanguage(code: String) = if (code == "ar") ar else en

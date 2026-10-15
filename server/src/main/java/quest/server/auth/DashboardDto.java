@@ -58,12 +58,23 @@ public final class DashboardDto {
     /**
      * MH1: a parent's own account as the app sees it (`GET`/`PATCH /parent/me`). She has no `users` row — she is a
      * `parents` row created from her Firebase identity — so this is the whole of it: the address she signed up with
-     * and the mobile number the department manager reaches her on. `phone` is the only field she may change.
+     * and the mobile number the department manager reaches her on. `phone` is the only field she may change here.
+     *
+     * <p>Feature 29: `readingLanguage` is the language she reads the school's messages in, one of
+     * {@link quest.server.translate.ReadingLanguages}' eight codes and null until she picks one. It has a route of
+     * its own (`PUT /parent/me/reading-language`) because it belongs to the language bridge's switch rather than to
+     * her contact details, and it is read back here so one request gives the app her whole account.
      */
-    public record ParentProfile(String parentId, String email, String phone) {}
+    public record ParentProfile(String parentId, String email, String phone, String readingLanguage) {}
 
     /** `PATCH /parent/me`: an empty `phone` clears the number, which is how she takes it back off the directory. */
     public record UpdateParentRequest(@Size(max = PHONE) String phone) {}
+
+    /**
+     * Feature 29 `PUT /parent/me/reading-language`: one of ar, en, ur, hi, bn, fil, fr and id. Anything else is a
+     * 400 — a language nobody has reviewed the wording of is worse for her than the English she already had.
+     */
+    public record UpdateReadingLanguageRequest(@Size(max = 8) String lang) {}
 
     public static DashboardUser of(Entities.UserEntity u, String impersonatedBy) { return of(u, impersonatedBy, null, null); }
 

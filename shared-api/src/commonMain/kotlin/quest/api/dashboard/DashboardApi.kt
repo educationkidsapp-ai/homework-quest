@@ -292,11 +292,20 @@ data class UpdateMeRequest(
 
 /**
  * MH1: a **parent's** own account (`GET`/`PATCH /parent/me`). She has no dashboard [DashboardUser] — she is a Firebase
- * identity with a `parents` row — so this is the whole of it, and [phone] is the only field she may change: the manager
- * reaches her on it from the Children directory (`DirectoryChild.parentPhone`).
+ * identity with a `parents` row — so this is the whole of it, and [phone] is the only field she may change here: the
+ * manager reaches her on it from the Children directory (`DirectoryChild.parentPhone`).
+ *
+ * Feature 29: [readingLanguage] is the language she reads the school's messages in, changed with its own route
+ * (`PUT /parent/me/reading-language`) because it belongs to the language bridge's switch and not to her contact
+ * details. `null` means "the app's own language", which is what every family had before that feature.
  */
 @Serializable
-data class ParentProfile(val parentId: String, val email: String, val phone: String? = null)
+data class ParentProfile(
+    val parentId: String,
+    val email: String,
+    val phone: String? = null,
+    val readingLanguage: quest.api.dto.ReadingLanguage? = null,
+)
 
 /** `PATCH /parent/me`: an empty [phone] clears the number, which is how she takes it off the directory. */
 @Serializable

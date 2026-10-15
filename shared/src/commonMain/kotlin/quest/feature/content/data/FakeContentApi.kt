@@ -344,15 +344,49 @@ class FakeContentApi(
     /** MH1 `GET|PATCH /parent/me` — one profile for the fake's single signed-in parent. */
     private var fakePhone: String? = "+971501234567"
 
+    /** Feature 29: her reading language, null until she picks one — which is what every family had before it. */
+    private var fakeReadingLanguage: quest.api.dto.ReadingLanguage? = null
+
+    private fun fakeProfile() =
+        quest.api.dashboard.ParentProfile("p-fake", "parent@example.com", fakePhone, fakeReadingLanguage)
+
     override suspend fun parentProfile(): quest.api.dashboard.ParentProfile {
         net()
-        return quest.api.dashboard.ParentProfile("p-fake", "parent@example.com", fakePhone)
+        return fakeProfile()
     }
 
     override suspend fun updateParentProfile(phone: String?): quest.api.dashboard.ParentProfile {
         net()
         fakePhone = phone?.takeIf { it.isNotBlank() }
-        return quest.api.dashboard.ParentProfile("p-fake", "parent@example.com", fakePhone)
+        return fakeProfile()
+    }
+
+    /** Feature 29 `PUT /parent/me/reading-language` — kept for the session, so the picker reads back what she chose. */
+    override suspend fun setReadingLanguage(lang: quest.api.dto.ReadingLanguage): quest.api.dashboard.ParentProfile {
+        net()
+        fakeReadingLanguage = lang
+        return fakeProfile()
+    }
+
+    /**
+     * Feature 29 `POST /children/{id}/translate`. There is no model here, so the fake says so **in the language that
+     * was asked for** rather than echoing the original back as if it had been translated — the label and the "Show
+     * original" beside it are what a build without a server is there to exercise. [Translation.original] is the
+     * source text, untouched, exactly as the server returns it.
+     */
+    override suspend fun translate(childId: String, request: quest.api.dto.TranslateRequest): quest.api.dto.Translation {
+        net()
+        if (request.id.isBlank()) throw ApiException(ApiError(ApiError.NOT_FOUND, "no such message"))
+        val original = fakeMessages.values.flatten().firstOrNull { it.id == request.id }?.body
+            ?: fakeBroadcasts().firstOrNull { it.id == request.id }?.bodyEn
+            ?: ""
+        return quest.api.dto.Translation(
+            text = FAKE_TRANSLATIONS.getValue(request.lang),
+            lang = request.lang,
+            original = original,
+            sourceKind = request.kind,
+            sourceId = request.id,
+        )
     }
 
     private fun fakeBroadcasts(): List<BroadcastView> {
@@ -551,6 +585,22 @@ class FakeContentApi(
 
         /** What `GET /platform-settings` answers without a backend. */
         val platformDefaults = PlatformSettings(name = "MySchool", shortName = "MySchool")
+
+        /**
+         * Feature 29: what the fake answers a translation request with. One sentence per language, saying in that
+         * language that there is no model behind this build — honest, and enough to see the label, the direction and
+         * "Show original" working without a server.
+         */
+        private val FAKE_TRANSLATIONS: Map<quest.api.dto.ReadingLanguage, String> = mapOf(
+            quest.api.dto.ReadingLanguage.AR to "هذه ترجمة تجريبية بلا خادم، والنص الأصلي محفوظ كما هو.",
+            quest.api.dto.ReadingLanguage.EN to "This is a sample translation with no server behind it; the original is kept as it is.",
+            quest.api.dto.ReadingLanguage.UR to "یہ بغیر سرور کے ایک نمونہ ترجمہ ہے، اصل متن جوں کا توں محفوظ ہے۔",
+            quest.api.dto.ReadingLanguage.HI to "यह बिना सर्वर का एक नमूना अनुवाद है; मूल संदेश जैसा था वैसा ही रखा गया है।",
+            quest.api.dto.ReadingLanguage.BN to "এটি সার্ভার ছাড়া একটি নমুনা অনুবাদ; মূল লেখাটি অপরিবর্তিত রাখা হয়েছে।",
+            quest.api.dto.ReadingLanguage.FIL to "Ito ay isang halimbawang salin na walang server; nananatiling buo ang orihinal.",
+            quest.api.dto.ReadingLanguage.FR to "Ceci est un exemple de traduction sans serveur ; le message d'origine est conservé tel quel.",
+            quest.api.dto.ReadingLanguage.ID to "Ini contoh terjemahan tanpa server; pesan aslinya tetap seperti semula.",
+        )
     }
 }
 

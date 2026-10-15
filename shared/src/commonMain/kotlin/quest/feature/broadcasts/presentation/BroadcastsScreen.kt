@@ -4,6 +4,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.platform.testTag
 import quest.core.text.isolate
+import quest.api.dto.TranslationSource
+import quest.feature.broadcasts.domain.broadcastBodyLanguage
+import quest.feature.translate.presentation.TranslateBlock
 import quest.ui.design.DashboardTokens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,6 +39,7 @@ import kotlinx.datetime.LocalDate
 import org.koin.compose.viewmodel.koinViewModel
 import quest.api.ApiException
 import quest.api.dto.ApiError
+import quest.api.dto.BroadcastKind
 import quest.api.dto.BroadcastView
 import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatFrame
@@ -99,6 +103,8 @@ object BroadcastsContract {
         val focusBroadcast: String? = null,
         val focusRow: String? = null,
         val gone: Boolean = false,
+        /** Feature 29: whose feed this is — a translation is asked for per child (`POST /children/{id}/translate`). */
+        val childId: String = "",
     ) : MviState {
         val isEmpty: Boolean get() = groups.isEmpty && updates.isEmpty()
     }
@@ -150,7 +156,7 @@ class BroadcastsViewModel(
             reduce { copy(loading = false, refreshing = false, groups = BroadcastGroups()) }
             return
         }
-        reduce { copy(refreshing = refresh, loading = !refresh && isEmpty) }
+        reduce { copy(refreshing = refresh, loading = !refresh && isEmpty, childId = child.id) }
         // Best effort and independent of the feed: an older server without parent rows simply has none.
         val updates = notifications?.let { repo -> runCatching { repo.rows(child.id) }.getOrNull() } ?: current.updates
         reduce { copy(updates = updates) }
@@ -304,15 +310,15 @@ fun BroadcastsScreen(
             if (focusedRow != null || focusedBroadcast != null) {
                 SectionTitle(strings.notices.fromYourNotification)
                 focusedRow?.let { row -> NotificationRowCard(row, strings, focused = true) { onOpenUpdate(row) } }
-                focusedBroadcast?.let { view -> BroadcastCard(view, strings, focused = true) { onOpen(view) } }
+                focusedBroadcast?.let { view -> BroadcastCard(view, strings, focused = true, childId = state.childId) { onOpen(view) } }
             }
             val updates = state.updates.filter { it.id != focusedRow?.id }
             if (updates.isNotEmpty()) {
                 SectionTitle(strings.updatesGroup)
                 updates.forEach { row -> NotificationRowCard(row, strings) { onOpenUpdate(row) } }
             }
-            BroadcastGroupSection(strings.announcementsGroup, state.groups.announcements.filter { it.id != focusedBroadcast?.id }, strings, onOpen)
-            BroadcastGroupSection(strings.eventsGroup, state.groups.events.filter { it.id != focusedBroadcast?.id }, strings, onOpen)
+            BroadcastGroupSection(strings.announcementsGroup, state.groups.announcements.filter { it.id != focusedBroadcast?.id }, strings, onOpen, state.childId)
+            BroadcastGroupSection(strings.eventsGroup, state.groups.events.filter { it.id != focusedBroadcast?.id }, strings, onOpen, state.childId)
             Spacer(Modifier.height(Dimens.s24))
         }
     }
@@ -324,10 +330,11 @@ private fun BroadcastGroupSection(
     rows: List<BroadcastView>,
     strings: Strings,
     onOpen: (BroadcastView) -> Unit,
+    childId: String = "",
 ) {
     if (rows.isEmpty()) return
     SectionTitle(title)
-    rows.forEach { row -> BroadcastCard(row, strings) { onOpen(row) } }
+    rows.forEach { row -> BroadcastCard(row, strings, childId = childId) { onOpen(row) } }
 }
 
 /** M4 (D5): one of her notification rows — what it is, what it says, and whether it is new. Tapping follows it. */
@@ -416,6 +423,8 @@ fun BroadcastCard(
     view: BroadcastView,
     strings: Strings,
     focused: Boolean = false,
+    /** Feature 29: blank until the feed knows whose child it is, and then no Translate action is offered. */
+    childId: String = "",
     onOpen: () -> Unit = {},
 ) {
     val uriHandler = LocalUriHandler.current
@@ -442,7 +451,19 @@ fun BroadcastCard(
         Text(authorLine(view, strings), style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
 
         Spacer(Modifier.height(Dimens.s8))
-        Text(isolate(broadcastBody(view, strings.isRtl)), style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.ink)
+        val body = broadcastBody(view, strings.isRtl)
+        Text(isolate(body), style = MaterialTheme.typography.bodyLarge, color = DashboardTokens.ink)
+
+        // Feature 29: the school's own words stay exactly as they are above; a translation is added under them. The
+        // body's language is known here — which of `bodyAr`/`bodyEn` was drawn — so no script has to be guessed.
+        if (childId.isNotBlank()) TranslateBlock(
+            childId = childId,
+            kind = if (view.kind == BroadcastKind.ANNOUNCEMENT) TranslationSource.ANNOUNCEMENT else TranslationSource.BROADCAST,
+            sourceId = view.id,
+            original = body,
+            strings = strings.translate,
+            sourceLang = broadcastBodyLanguage(view, strings.isRtl),
+        )
 
         // MH3: an image is drawn here, off `GET /media/attachments/{id}` with the parent's bearer — the route is
         // authenticated, so the system viewer would land on a 401 and the bytes come through the app's own client.

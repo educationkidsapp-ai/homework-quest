@@ -43,6 +43,8 @@ import quest.api.dto.Complaint
 import quest.api.dto.ComplaintActor
 import quest.api.dto.ComplaintEvent
 import quest.core.text.isolate
+import quest.api.dto.TranslationSource
+import quest.feature.translate.presentation.TranslateBlock
 import quest.feature.chat.presentation.avatarInitial
 import quest.feature.chat.presentation.staffLabel
 import quest.feature.chat.presentation.MessageAttachments
@@ -182,7 +184,13 @@ fun ComplaintEventLine(event: ComplaintEvent, strings: Strings) {
 
 /** One message in a complaint: hers on the end side in the brand colour, the staff member's on the start side. */
 @Composable
-fun ComplaintBubble(item: TimelineItem.Message, strings: Strings, onRetry: (String) -> Unit) {
+fun ComplaintBubble(
+    item: TimelineItem.Message,
+    strings: Strings,
+    /** Feature 29: whose complaint this is, for the Translate action under a staff member's reply. */
+    childId: String = "",
+    onRetry: (String) -> Unit,
+) {
     val mine = item.message.sender == ChatSender.PARENT
     val shape = if (mine) RoundedCornerShape(12.dp, 12.dp, 2.dp, 12.dp) else RoundedCornerShape(12.dp, 12.dp, 12.dp, 2.dp)
     val textColor = if (mine) MaterialTheme.colorScheme.onPrimary else DashboardTokens.ink
@@ -198,6 +206,17 @@ fun ComplaintBubble(item: TimelineItem.Message, strings: Strings, onRetry: (Stri
                 MessageAttachments(it, strings, Modifier.padding(bottom = if (item.message.body.isBlank()) 0.dp else Dimens.s8), ownBubble = mine)
             }
             if (item.message.body.isNotBlank()) Text(isolate(item.message.body), style = MaterialTheme.typography.bodyLarge, color = textColor)
+
+            // Feature 29: only the staff member's replies, and only as an addition — her own reply needs no
+            // translating, and the reply above is the record whatever the bridge says.
+            if (!mine && childId.isNotBlank() && item.message.body.isNotBlank()) TranslateBlock(
+                childId = childId,
+                kind = TranslationSource.COMPLAINT,
+                sourceId = item.message.id,
+                original = item.message.body,
+                strings = strings.translate,
+                textColor = textColor,
+            )
             Spacer(Modifier.height(Dimens.s4))
             Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {
                 when {

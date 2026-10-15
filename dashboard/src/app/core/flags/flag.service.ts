@@ -68,6 +68,10 @@ export const FLAGS = {
   // Admin turns it on — with it off the routes answer 404 and the Admin's card is absent, because
   // it replaced feature 18's school-wide remote day rather than sitting beside it.
   remoteStudyDays: 'remoteStudyDays',
+  // Feature 29: the parent language bridge. On a staff screen it adds one action under a
+  // parent's own message — "Translate to English" / «ترجم إلى العربية» — and nothing else:
+  // the original is always what is stored and always what is shown.
+  languageBridge: 'languageBridge',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];

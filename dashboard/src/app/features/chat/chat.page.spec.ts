@@ -3,7 +3,8 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
-import { BehaviorSubject, map, of } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
+import { BehaviorSubject, map, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { scrollIntoView } from '../../../testing/intersection';
 import { renderHq } from '../../../testing/render';
@@ -17,11 +18,13 @@ import {
   ChatThreadTopicEnum,
   FloorSupervisorApi,
   FloorSupervisorChatApi,
+  LanguageBridgeApi,
   ManagementApi,
   ManagementChatApi,
   ManagersApi,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
+import { BandService } from '../../core/band/band.service';
 import { LocalMessage } from '../../core/chat/chat.models';
 import { ChatService } from '../../core/chat/chat.service';
 import { FlagService } from '../../core/flags/flag.service';
@@ -107,6 +110,9 @@ describe('ChatPage', () => {
     };
   });
 
+  /** Feature 29: one answer from `POST /staff/translate`, counted per test. */
+  const translateForStaff = vi.fn();
+
   const PIXEL = 'data:image/png;base64,iVBORw0KGgo=';
   /** D4: every upload is accepted at once as `att-9`. */
   const uploadChatAttachment = vi.fn(() => of({ id: 'att-9' }));
@@ -163,6 +169,8 @@ describe('ChatPage', () => {
           useValue: { role: signal(role), user: signal({ id: 'u-sara' }) },
         },
         { provide: FlagService, useValue: mockFlags },
+        // Feature 29: `POST /staff/translate`, through the generated client.
+        { provide: LanguageBridgeApi, useValue: { translateForStaff } },
         // D4: the bubbles read files through the media cache and the composer uploads through the client.
         {
           provide: MediaService,
@@ -709,6 +717,118 @@ describe('ChatPage', () => {
       // The list, then the row: a thread this press created is not in the list yet.
       expect(mockChatService.loadThreads).toHaveBeenCalled();
       expect(mockChatService.selectThread).toHaveBeenCalledWith('th-7');
+    });
+  });
+  /**
+   * Feature 29, the staff half: a parent writes in her own language and the teacher reads it in
+   * the one this dashboard is in. The owner's rule is the whole test — *the original text is
+   * always stored and shown as the record* — so every assertion below also checks that the
+   * parent's own words are still on screen, untouched, above the translation.
+   */
+  describe('the parent language bridge (feature 29)', () => {
+    const PARENT_MESSAGE: LocalMessage = {
+      id: 'msg-ur',
+      threadId: 'th-1',
+      sender: ChatMessageSenderEnum.PARENT,
+      senderId: 'parent-1',
+      body: 'لیلیٰ کل اسکول نہیں آئے گی',
+      createdAt: 1700000000000,
+    };
+    const MINE: LocalMessage = {
+      id: 'msg-mine',
+      threadId: 'th-1',
+      sender: ChatMessageSenderEnum.TEACHER,
+      senderId: 'u-sara',
+      body: 'Noted, thank you',
+      createdAt: 1700000000001,
+    };
+
+    beforeEach(() => {
+      activeKeySig.set('ch-1');
+      activeThreadSig.set(sampleThread);
+      messagesSig.set([PARENT_MESSAGE, MINE]);
+      translateForStaff.mockReset();
+      translateForStaff.mockReturnValue(
+        of({
+          text: 'Layla will not come to school tomorrow',
+          lang: 'en',
+          machine: true,
+          original: PARENT_MESSAGE.body,
+          sourceKind: 'chat',
+          sourceId: PARENT_MESSAGE.id,
+        }),
+      );
+    });
+
+    it('offers the action on the parent’s message only, and only while the switch is on', async () => {
+      await renderPage();
+
+      // One action in the stream, and it is in the parent's bubble — not under her own reply.
+      const actions = screen.getAllByRole('button', { name: 'Translate to English' });
+      expect(actions).toHaveLength(1);
+      expect(actions[0]!.closest('.message-row')?.className).toContain('message-row--parent');
+    });
+
+    it('draws no action at all with `languageBridge` off', async () => {
+      mockFlags.isOn = vi.fn((key: string) => key !== 'languageBridge');
+      await renderPage();
+
+      expect(screen.queryByRole('button', { name: 'Translate to English' })).toBeNull();
+      expect(screen.getByText(PARENT_MESSAGE.body)).toBeTruthy();
+    });
+
+    it('shows the translation under the untouched original, labelled as a machine’s', async () => {
+      const rendered = await renderPage();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Translate to English' }));
+      rendered.fixture.detectChanges();
+
+      expect(translateForStaff).toHaveBeenCalledWith(
+        { kind: 'chat', id: 'msg-ur', lang: 'en' },
+        'body',
+        false,
+        expect.anything(),
+      );
+      // Both, in this order: her words are the record, the translation is the addition.
+      const bubble = screen.getByText(PARENT_MESSAGE.body).closest('.message-bubble')!;
+      expect(bubble.textContent).toContain(PARENT_MESSAGE.body);
+      expect(bubble.textContent).toContain('Machine-translated');
+      expect(bubble.textContent).toContain('Layla will not come to school tomorrow');
+    });
+
+    it('puts the translation away again, and the second ask costs no call', async () => {
+      const rendered = await renderPage();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Translate to English' }));
+      rendered.fixture.detectChanges();
+      await userEvent.click(screen.getByRole('button', { name: 'Show original only' }));
+      rendered.fixture.detectChanges();
+
+      // Away, and the message is exactly what it was.
+      expect(screen.queryByText('Machine-translated')).toBeNull();
+      expect(screen.getByText(PARENT_MESSAGE.body)).toBeTruthy();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Translate to English' }));
+      rendered.fixture.detectChanges();
+
+      expect(screen.getByText('Layla will not come to school tomorrow')).toBeTruthy();
+      expect(translateForStaff).toHaveBeenCalledTimes(1);
+    });
+
+    it('says what to do about the rate limit, in the red band', async () => {
+      translateForStaff.mockReturnValue(
+        throwError(() => new HttpErrorResponse({ status: 429, statusText: 'Too Many Requests' })),
+      );
+      const rendered = await renderPage();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Translate to English' }));
+      rendered.fixture.detectChanges();
+
+      expect(TestBed.inject(BandService).current()?.message).toBe('Too many translations, try again later');
+      // Nothing was added, and nothing was taken away.
+      expect(screen.queryByText('Machine-translated')).toBeNull();
+      expect(screen.getByText(PARENT_MESSAGE.body)).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Translate to English' })).toBeTruthy();
     });
   });
 });

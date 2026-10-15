@@ -53,10 +53,17 @@ object Flags {
      */
     const val VOICE_ANNOUNCEMENT = "voiceAnnouncement"
 
+    /**
+     * Feature 29: the parent reads the school's messages in her own language. It gates the Reading language setting
+     * and the Translate action under a staff message, a broadcast, an announcement and a complaint reply — never the
+     * original, which is the record and is always drawn whatever this flag says.
+     */
+    const val LANGUAGE_BRIDGE = "languageBridge"
+
     /** Every key this app gates on. */
     val used = listOf(
         RETELL_RECORDING, OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, CERTIFICATES, LEVEL_THREE, CHAT, ANNOUNCEMENTS,
-        EXAMS, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, VOICE_ANNOUNCEMENT,
+        EXAMS, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, VOICE_ANNOUNCEMENT, LANGUAGE_BRIDGE,
     )
 
     /** True when the platform defines [key] at all — the contract's `DEFAULT_FLAGS` is the list of what exists. */

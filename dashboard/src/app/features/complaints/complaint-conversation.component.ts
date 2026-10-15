@@ -24,6 +24,7 @@ import {
   type ComplaintEvent,
   ChatMessageSenderEnum,
   ComplaintStatusEnum,
+  TranslateRequestKindEnum,
   apiErrorCodeOf,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
@@ -35,9 +36,11 @@ import {
   type ComplaintStatus,
 } from '../../core/complaints/complaints.service';
 import { activeLang } from '../../core/i18n/active-lang';
+import type { StaffSource } from '../../core/translate/staff-translation.service';
 import { PermissionService } from '../../core/permissions/permission.service';
 import { ChatAttachmentsComponent } from '../chat/chat-attachments.component';
 import { ChatStagedFilesComponent } from '../chat/chat-staged-files.component';
+import { TranslateMessageComponent } from '../translate/translate-message.component';
 import {
   BandComponent,
   ButtonComponent,
@@ -78,6 +81,7 @@ interface LocalMessage extends ChatMessage {
     ListStaggerDirective,
     SkeletonComponent,
     TextareaComponent,
+    TranslateMessageComponent,
     TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -180,6 +184,14 @@ interface LocalMessage extends ChatMessage {
                 @if (files.length > 0) {
                   <hq-chat-attachments class="complaint__files" [attachments]="files" />
                 }
+                <!-- Feature 29: her complaint is kept and shown exactly as she wrote it; the
+                     translation is an addition under it, labelled as a machine's. -->
+                <hq-translate-message
+                  [kind]="complaintSource"
+                  [messageId]="line.message.id"
+                  [fromParent]="line.message.sender === senderParent"
+                  [hasBody]="!!line.message.body"
+                />
                 <span class="complaint__time">
                   {{ day(line.at) }} {{ time(line.at) }}
                   @if (line.message.pending) {
@@ -400,6 +412,9 @@ export class ComplaintConversationComponent {
   protected readonly acceptedTypes = CHAT_ACCEPT;
   protected readonly maxFiles = CHAT_MAX_ATTACHMENTS;
   protected readonly attachmentsOf = attachmentsOf;
+  /** Feature 29: only a parent's own message carries the Translate action, and only as `complaint`. */
+  protected readonly senderParent = ChatMessageSenderEnum.PARENT;
+  protected readonly complaintSource: StaffSource = TranslateRequestKindEnum.COMPLAINT;
 
   /** The page that was read stopped at {@link COMPLAINT_PAGE}: there may be earlier messages. */
   protected readonly hasOlder = signal(false);

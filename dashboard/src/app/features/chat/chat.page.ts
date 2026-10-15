@@ -29,6 +29,7 @@ import {
   ManagementApi,
   ManagementChatApi,
   ManagersApi,
+  TranslateRequestKindEnum,
 } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
 import {
@@ -41,6 +42,8 @@ import { ChatUploads } from '../../core/chat/chat-uploads';
 import { ChatService } from '../../core/chat/chat.service';
 import { FeatureDirective } from '../../core/flags/feature.directive';
 import { FLAGS } from '../../core/flags/flag.service';
+import type { StaffSource } from '../../core/translate/staff-translation.service';
+import { TranslateMessageComponent } from '../translate/translate-message.component';
 import { ChatAttachmentsComponent } from './chat-attachments.component';
 import { ChatStagedFilesComponent } from './chat-staged-files.component';
 import {
@@ -217,6 +220,7 @@ interface ChatPreview {
     ChatStagedFilesComponent,
     SelectComponent,
     TabsComponent,
+    TranslateMessageComponent,
     TranslocoPipe,
   ],
   // D4: the composer's staged files live and die with the screen.
@@ -439,6 +443,14 @@ interface ChatPreview {
                       @if (msg.body) {
                         <div class="message-bubble__body">{{ msg.body }}</div>
                       }
+                      <!-- Feature 29: her words stay exactly as she wrote them; the translation
+                           is a line under them, labelled as a machine's. -->
+                      <hq-translate-message
+                        [kind]="chatSource"
+                        [messageId]="msg.id"
+                        [fromParent]="msg.sender === senderParent"
+                        [hasBody]="!!msg.body"
+                      />
 
                       <div class="message-bubble__meta">
                         <span class="message-bubble__time">{{ msg.createdAt | date: 'shortTime' }}</span>
@@ -1695,6 +1707,9 @@ export class ChatPage implements AfterViewChecked {
 
   readonly flag = FLAGS.chat;
   readonly senderTeacher = ChatMessageSenderEnum.TEACHER;
+  /** Feature 29: who wrote it decides whether there is a Translate action, and what source it is. */
+  readonly senderParent = ChatMessageSenderEnum.PARENT;
+  readonly chatSource: StaffSource = TranslateRequestKindEnum.CHAT;
 
   /**
    * **What the header's pill says**, or `null` for no pill (T2 item d).

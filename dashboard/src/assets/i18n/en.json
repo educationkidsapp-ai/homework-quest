@@ -3043,5 +3043,13 @@
       "model": "The assistant did not answer. Nothing was sent — try again in a moment.",
       "alreadySent": "That voice note has already been sent as an announcement."
     }
+  },
+  "translate": {
+    "action": "Translate to English",
+    "working": "Translating…",
+    "machine": "Machine-translated",
+    "showOriginal": "Show original only",
+    "tooMany": "Too many translations, try again later",
+    "failed": "That message could not be translated. Try again in a moment."
   }
 }

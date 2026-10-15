@@ -31,6 +31,8 @@ class OpenApiContractTest extends ApiTestSupport {
     static final List<String> DASHBOARD_API = List.of(
             "/auth/sign-in", "/auth/refresh", "/auth/sign-out", "/auth/forgot-password", "/auth/reset-password", "/auth/change-password",
             "/me", "/me/permissions", "/parent/me",
+            // Feature 29: her reading language, beside the rest of her account and behind no flag.
+            "/parent/me/reading-language",
             "/admin/schools", "/admin/schools/{id}", "/admin/schools/{id}/invites", "/admin/schools/{id}/users",
             "/admin/users", "/admin/users/{id}", "/admin/users/{id}/reset-password", "/admin/users/{id}/impersonate",
             "/invites/{token}", "/invites/{token}/accept", "/schools/by-code/{code}",
@@ -281,6 +283,14 @@ class OpenApiContractTest extends ApiTestSupport {
             // 18's `/admin/attendance/remote-days`. Same page, same permissions, its own flag.
             "/admin/remote-study-days", "/admin/remote-study-days/{id}");
 
+    /**
+     * Feature 29: the language bridge (`quest.api.dto.Translation.kt`, `ContentApi.translate`,
+     * `StaffApi.staffTranslate`). Behind the `languageBridge` flag at run time and still in the document, for the
+     * reason every flagged area is: `server/openapi.json` describes the API the server can serve, not what one
+     * school has switched on. Her reading language is in {@link #DASHBOARD_API}, with the rest of `/parent/me`.
+     */
+    static final List<String> LANGUAGE_BRIDGE_API = List.of("/children/{id}/translate", "/staff/translate");
+
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */
     static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings",
             "/schools/logo", "/classes/lookup", "/schools/{id}/logo");
@@ -307,6 +317,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(BROADCASTS_API);
         assertThat(paths).containsAll(PUBLIC_API);
         assertThat(paths).containsAll(STAFF_ATTENDANCE_API);
+        assertThat(paths).containsAll(LANGUAGE_BRIDGE_API);
         // MH1: the upload and the download of a broadcast attachment — the app and the dashboard both call them.
         assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}", "/media/attachments", "/media/attachments/{id}", "/media/chat-attachments",
                 "/children/{id}/chat/attachments");

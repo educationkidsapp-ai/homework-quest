@@ -346,7 +346,7 @@ fun ComplaintScreen(state: ComplaintContract.State, strings: Strings, dispatch: 
                     item { Spacer(Modifier.height(Dimens.s4)) }
                     items(items, key = { it.key }) { item ->
                         when (item) {
-                            is TimelineItem.Message -> ComplaintBubble(item, strings) { dispatch(ComplaintContract.Intent.Retry(it)) }
+                            is TimelineItem.Message -> ComplaintBubble(item, strings, state.childId) { dispatch(ComplaintContract.Intent.Retry(it)) }
                             is TimelineItem.Event -> ComplaintEventLine(item.event, strings)
                         }
                     }

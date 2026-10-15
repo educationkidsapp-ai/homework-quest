@@ -11,6 +11,7 @@ import { ADMIN_USER, COORDINATOR_USER, TEACHER_USER } from '../../../testing/fix
 import { renderHq } from '../../../testing/render';
 import { type Complaint, type ComplaintDetail, type DashboardUser, BASE_PATH } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
+import { BandService } from '../../core/band/band.service';
 import { SchoolScopeStore } from '../../core/auth/school-scope.store';
 import { ComplaintFrames } from '../../core/complaints/complaint-frames';
 import { FlagService } from '../../core/flags/flag.service';
@@ -595,6 +596,87 @@ describe('the Complaints page', () => {
     expect(document.body.textContent).toContain('أحد ملفات هذا الرد أُرسل مع رسالة أخرى');
     expect(document.body.textContent).not.toContain('That file was already sent');
     expect(document.querySelector('hq-chat-staged-files ul')).toBeNull();
+  });
+  /**
+   * Feature 29: the complaint half of the parent language bridge. The owner's rule is what is
+   * asserted — *the original text is always stored and shown as the record* — so her sentence is
+   * still on screen, word for word, with the machine translation under it and nothing in its place.
+   */
+  describe('the parent language bridge (feature 29)', () => {
+    const ENGLISH = 'Nobody marked it for two weeks';
+
+    async function openWithTranslation() {
+      const { backend } = await render(TEACHER_USER, 'teacher.complaints');
+      lists(backend, '/teacher/complaints', [COMPLAINT]);
+      await open('c-1');
+      detailOf(backend, '/teacher/complaints/c-1').flush({
+        ...DETAIL,
+        complaint: { ...COMPLAINT, unread: 0 },
+        messages: [{ ...COMPLAINT.lastMessage!, body: 'لم يصحّح أحد الواجب لأسبوعين' }],
+      });
+      await settle();
+      return backend;
+    }
+
+    it('translates the parent’s message under the untouched original, and caches the answer', async () => {
+      const backend = await openWithTranslation();
+      // A parent's message carries the action; the Arabic of it is hers, and it stays hers.
+      expect(screen.getByText('لم يصحّح أحد الواجب لأسبوعين')).toBeTruthy();
+
+      screen.getByRole('button', { name: 'Translate to English' }).click();
+      await settle();
+
+      const post = backend.expectOne('/staff/translate');
+      expect(post.request.method).toBe('POST');
+      expect(post.request.body).toEqual({ kind: 'complaint', id: 'm-1', lang: 'en' });
+      post.flush({
+        text: ENGLISH,
+        lang: 'en',
+        machine: true,
+        original: 'لم يصحّح أحد الواجب لأسبوعين',
+        sourceKind: 'complaint',
+        sourceId: 'm-1',
+      });
+      await settle();
+
+      const stream = screen.getByRole('list', { name: 'Conversation' });
+      expect(stream.textContent).toContain('لم يصحّح أحد الواجب لأسبوعين');
+      expect(stream.textContent).toContain('Machine-translated');
+      expect(stream.textContent).toContain(ENGLISH);
+
+      // Away again, and the message is exactly what the server sent.
+      screen.getByRole('button', { name: 'Show original only' }).click();
+      await settle();
+      expect(screen.getByRole('list', { name: 'Conversation' }).textContent).not.toContain(
+        'Machine-translated',
+      );
+      expect(screen.getByText('لم يصحّح أحد الواجب لأسبوعين')).toBeTruthy();
+
+      // The second ask is this session's cache: one HTTP call for this message and language.
+      screen.getByRole('button', { name: 'Translate to English' }).click();
+      await settle();
+      backend.expectNone('/staff/translate');
+      expect(screen.getByRole('list', { name: 'Conversation' }).textContent).toContain(ENGLISH);
+    });
+
+    it('says what to do about the rate limit, in the red band, and adds nothing', async () => {
+      const backend = await openWithTranslation();
+
+      screen.getByRole('button', { name: 'Translate to English' }).click();
+      await settle();
+      backend
+        .expectOne('/staff/translate')
+        .flush(
+          { code: 'rate_limited', message: 'Too many translations' },
+          { status: 429, statusText: 'Too Many' },
+        );
+      await settle();
+
+      expect(TestBed.inject(BandService).current()?.message).toBe('Too many translations, try again later');
+      const stream = screen.getByRole('list', { name: 'Conversation' });
+      expect(stream.textContent).not.toContain('Machine-translated');
+      expect(stream.textContent).toContain('لم يصحّح أحد الواجب لأسبوعين');
+    });
   });
 });
 

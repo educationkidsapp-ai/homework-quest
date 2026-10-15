@@ -17,6 +17,7 @@ import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
@@ -203,6 +204,22 @@ class RemoteContentApi(private val baseUrl: String, private val auth: AuthProvid
         call {
             client.patch("$baseUrl/parent/me") {
                 authed(); contentType(ContentType.Application.Json); setBody(quest.api.dashboard.UpdateParentRequest(phone))
+            }
+        }
+
+    // ---- Feature 29: the language bridge. The original is never written to; a translation is its own answer.
+
+    override suspend fun setReadingLanguage(lang: quest.api.dto.ReadingLanguage): quest.api.dashboard.ParentProfile =
+        call {
+            client.put("$baseUrl/parent/me/reading-language") {
+                authed(); contentType(ContentType.Application.Json); setBody(quest.api.dto.UpdateReadingLanguageRequest(lang))
+            }
+        }
+
+    override suspend fun translate(childId: String, request: quest.api.dto.TranslateRequest): quest.api.dto.Translation =
+        call {
+            client.post("$baseUrl/children/$childId/translate") {
+                authed(); contentType(ContentType.Application.Json); setBody(request)
             }
         }
 

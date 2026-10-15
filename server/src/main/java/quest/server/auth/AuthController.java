@@ -9,6 +9,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -123,13 +124,32 @@ public class AuthController {
         return profile(parents.save(row));
     }
 
+    /**
+     * Feature 29: the language she reads the school's messages in — one of ar, en, ur, hi, bn, fil, fr and id, and a
+     * 400 for anything else ({@link quest.server.translate.ReadingLanguages}).
+     *
+     * <p>Its own route rather than a field on `PATCH /parent/me`, because it is the language bridge's setting and not
+     * one of her contact details — and <strong>no flag</strong>, deliberately: the choice is hers to keep whether or
+     * not the school has the bridge switched on today, and a preference she could not change back when a flag went
+     * off would be the one setting that strands her. It changes nothing she is <em>sent</em>; the original text stays
+     * the record, and translating is `POST /children/{id}/translate`, which is flagged.
+     */
+    @PutMapping(value = "/parent/me/reading-language", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@permit.has('parent.me.write')")
+    public DashboardDto.ParentProfile setReadingLanguage(@AuthenticationPrincipal Principals.Parent parent,
+                                                         @RequestBody @Valid DashboardDto.UpdateReadingLanguageRequest body) {
+        var row = parentRow(parent);
+        row.setReadingLanguage(quest.server.translate.ReadingLanguages.require(body.lang()));
+        return profile(parents.save(row));
+    }
+
     private Entities.ParentEntity parentRow(Principals.Parent parent) {
         if (parent == null) throw ApiException.unauthorized("Sign in first.");
         return parents.findById(parent.parentId()).orElseThrow(() -> ApiException.notFound("parent"));
     }
 
     private static DashboardDto.ParentProfile profile(Entities.ParentEntity row) {
-        return new DashboardDto.ParentProfile(row.getId(), row.getEmail(), row.getPhone());
+        return new DashboardDto.ParentProfile(row.getId(), row.getEmail(), row.getPhone(), row.getReadingLanguage());
     }
 
     /** The keys of `permissions.json` the caller's role holds; the dashboard hides what the server would refuse. */

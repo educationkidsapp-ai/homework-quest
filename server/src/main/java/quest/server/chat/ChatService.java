@@ -877,6 +877,38 @@ public class ChatService {
 
     private static boolean parentThread(ChatThreadEntity t) { return t.getPeerUserId() == null && t.getChildId() != null; }
 
+    /**
+     * Feature 29: whether this dashboard user may read this Messages thread — answered by the very checks her own
+     * role's read route applies, so a translation reaches exactly the messages she can already open and not one
+     * more. {@link ComplaintService#mayRead} is the same question for a complaint, and the two together are the
+     * whole of {@code TranslationService}'s staff side.
+     *
+     * <p>The branches are the ones {@link #staffMessages} and {@link #teacherThreadMessages} dispatch on, with one
+     * thing said out loud that paging left implicit: on a parent thread a teacher must be <em>its</em>
+     * {@code teacherId}, not merely a teacher of that child. Sara and Noor both teach 1A, and what Maya's mother
+     * wrote to Noor is not Sara's to read.
+     *
+     * <p>A refusal is a {@code false} rather than an exception, because the caller turns it into one 404 whatever
+     * the reason — another school's thread, another person's, another department's, or the `chat` flag being off at
+     * this school ({@link #requireOn}, which every branch goes through).
+     */
+    public boolean mayReadThread(ChatThreadEntity t, Principals.User caller) {
+        if (caller == null || t == null || COMPLAINT.equals(t.getTopic())) return false;
+        try {
+            if (ROLE_TEACHER.equals(caller.role())) {
+                if (!parentThread(t)) { ownTeacherThread(caller, t.getId()); return true; }
+                var teacher = TeacherScope.require(caller);
+                childOf(teacher, t.getChildId());
+                return teacher.userId().equals(t.getTeacherId());
+            }
+            if (CoordinatorScope.ROLE.equals(caller.role())) { ownThread(CoordinatorScope.require(caller), t.getId()); return true; }
+            if (FLOOR_SUPERVISOR.equals(caller.role())) { ownFloorThread(caller, t.getId()); return true; }
+            if (MANAGERIAL.equals(caller.role())) { ownManagerThread(caller, t.getId()); return true; }
+            if (ADMIN.equals(caller.role())) { ownAdminThread(caller, t.getId()); return true; }
+            return false;
+        } catch (ApiException refused) { return false; }
+    }
+
     @Transactional
     public ChatReadReceipt staffRead(Principals.User caller, String threadId) {
         if (CoordinatorScope.ROLE.equals(caller.role())) return coordinatorRead(caller, threadId);

@@ -66,9 +66,13 @@ class SettingsPhoneTest {
         Api(FakeContentApi(FakeAuth(settings), delayMillis = 0), stored, onUpdate)
 
     private fun viewModel(api: ContentApi, authenticator: BiometricAuthenticator = quest.core.platform.platformBiometricAuthenticator()) =
-        SettingsViewModel(ParentRepositoryImpl(settings), api, quest.feature.lock.domain.AppLock(
-            FakeAuth(settings), quest.feature.lock.data.BiometricPreferencesImpl(settings), authenticator, signOut = {}, elapsed = { 0L },
-        )).also { built.add(it) }
+        SettingsViewModel(
+            ParentRepositoryImpl(settings), api,
+            quest.feature.lock.domain.AppLock(
+                FakeAuth(settings), quest.feature.lock.data.BiometricPreferencesImpl(settings), authenticator, signOut = {}, elapsed = { 0L },
+            ),
+            quest.feature.translate.domain.TranslationStore(api),
+        ).also { built.add(it) }
 
     /** M6: what the phone can unlock with, as the test sets it; the prompt is never reached here. */
     private class Device(var kind: BiometricKind?, override val lockToSetUp: BiometricKind? = BiometricKind.SCREEN_LOCK) : BiometricAuthenticator {

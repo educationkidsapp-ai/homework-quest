@@ -100,6 +100,7 @@ import quest.feature.journey.presentation.ExamResultViewModel
 import quest.feature.journey.presentation.StopPlayerViewModel
 import quest.feature.map.presentation.MapViewModel
 import quest.feature.parent.data.ParentRepositoryImpl
+import quest.feature.translate.domain.TranslationStore
 import quest.feature.parent.domain.CalendarUseCase
 import quest.feature.parent.domain.ParentRepository
 import quest.feature.parent.domain.ProgressReportUseCase
@@ -297,7 +298,10 @@ val parentModule = module {
     viewModel { ParentHomeViewModel(get(), get(), get(), get(), get(), UndeliveredExamAnswersUseCase(get(), get())) }
     viewModel { CalendarViewModel(get(), get(), get()) }
     viewModel { ProgressViewModel(get(), get(), get(), get()) }
-    viewModel { SettingsViewModel(get(), get(), get()) }
+    viewModel { SettingsViewModel(get(), get(), get(), get()) }
+    // Feature 29: one store for the whole session — her reading language, and every translation she has asked for,
+    // cached per item and language so asking twice costs nothing.
+    single { TranslationStore(get()) }
 }
 
 val chatModule = module {
