@@ -285,6 +285,8 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "todayHome" to false,
     // Feature 22: a leader's voice note becomes a formal bilingual announcement she reviews and sends (V44).
     "voiceAnnouncement" to false,
+    // Feature 26: a leader uploads a circular and reads what it says, in both languages (V48).
+    "documentReader" to false,
 )
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */

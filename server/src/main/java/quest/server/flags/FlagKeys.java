@@ -73,11 +73,18 @@ public final class FlagKeys {
      */
     public static final String VOICE_ANNOUNCEMENT = "voiceAnnouncement";
 
+    /**
+     * Feature 26: the Admin and a department manager upload a circular — a PDF, a Word file or a photograph — and
+     * read what it says in both languages, with its dates and actions (`/management/documents/**`). The file itself
+     * is never stored. Seeded off by V48.
+     */
+    public static final String DOCUMENT_READER = "documentReader";
+
     public static final List<String> ALL = List.of(
             LESSONS_PDF, LESSONS_SLIDES, LESSONS_IMAGES, LESSONS_MANUAL, LEVELS_THREE, RETELL_RECORDING,
             OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, COMPLAINTS, ANNOUNCEMENTS, TEACHER_QUESTIONS,
             STICKERS_TREASURE_CHEST, PROGRESS_WEEKLY_EMAIL, CERTIFICATES,
             MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST,
             CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, FLOOR_SUPERVISOR, TODAY_HOME,
-            VOICE_ANNOUNCEMENT);
+            VOICE_ANNOUNCEMENT, DOCUMENT_READER);
 }

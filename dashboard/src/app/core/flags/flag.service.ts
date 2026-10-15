@@ -64,6 +64,11 @@ export const FLAGS = {
   // sends. Off until an Admin turns it on — it rides on `announcements`, which is the feed it
   // writes into, so a school needs both.
   voiceAnnouncement: 'voiceAnnouncement',
+  // Feature 26: the Admin's and a department manager's Document reader — a circular in, what it
+  // says in both languages out. Off until an Admin turns it on, and it rides on nothing: the
+  // screen reads a file and stores a summary, and only the "Draft an announcement" button needs
+  // the feed, which is why that button is the one thing on it behind `announcements` as well.
+  documentReader: 'documentReader',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];

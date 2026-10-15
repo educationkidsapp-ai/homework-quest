@@ -28,6 +28,7 @@ public class SampleLlmClient implements LlmClient {
         }
         if (system.startsWith(PROMPT_D)) return stopFromText(user);
         if (system.equals(Prompts.SYSTEM_E)) return announcementFromTranscript(user);
+        if (system.equals(Prompts.SYSTEM_F)) return summaryFromDocument(user);
         if (user.startsWith("Here is a Play you wrote earlier")) {
             int i = user.indexOf("different content:\n") + "different content:\n".length();
             String stop = user.substring(i, user.indexOf("\n\nDo not reuse", i)).trim();
@@ -80,6 +81,41 @@ public class SampleLlmClient implements LlmClient {
         var day = ISO_DAY.matcher(transcript);
         if (day.find()) out.put("expiresOn", day.group());
         return new Result(out.toString(), 700, 400);
+    }
+
+    /**
+     * Feature 26's turn without a model: the first line of the extracted text becomes the title, the whole text
+     * becomes both summaries, every ISO date written in it becomes a key date, and every line that begins with a `-`
+     * becomes an action. Deterministic, which is what lets the API test and the local H2 run upload a circular and
+     * assert on what comes back — and it exercises the real checks either way, because the server still has to find
+     * those dates parseable and the whole answer inside its limits.
+     *
+     * <p>An announcement is suggested only when the text says "parents", which is as close as a client with no model
+     * can come to the prompt's own rule and is enough for the dashboard's "Draft announcement" to have something to
+     * open with.
+     */
+    private Result summaryFromDocument(String user) {
+        String fileName = between(user, "\nTHE FILE: ", "\n");
+        String body = between(user, "headings are ours):\n", "\n\nYour previous answer").strip();
+        List<String> lines = body.lines().map(String::strip).filter(l -> !l.isEmpty() && !l.startsWith("## Page")).toList();
+        var out = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+        out.put("title", cut(lines.isEmpty() ? fileName : lines.get(0), 120));
+        out.put("summaryAr", cut(body, 1200));
+        out.put("summaryEn", cut(body, 1200));
+        var dates = out.putArray("keyDates");
+        var day = ISO_DAY.matcher(body);
+        while (day.find() && dates.size() < 10)
+            dates.addObject().put("date", day.group()).put("labelAr", "موعد").put("labelEn", "A date in " + fileName);
+        var ar = out.putArray("actionsAr"); var en = out.putArray("actionsEn");
+        for (String line : lines) {
+            if (!line.startsWith("-") || ar.size() >= 10) continue;
+            String action = cut(line.substring(1).strip(), 200);
+            ar.add(action); en.add(action);
+        }
+        if (body.toLowerCase().contains("parent") || body.contains("أولياء"))
+            out.putObject("announcement").put("title", out.get("title").asText())
+                    .put("bodyAr", cut(body, 1000)).put("bodyEn", cut(body, 1000));
+        return new Result(out.toString(), 1100, 500);
     }
 
     /** One audience line of {@link Prompts#userE}: `curriculum "british", grade 1`. */
