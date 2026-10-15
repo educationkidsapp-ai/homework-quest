@@ -272,6 +272,108 @@ public final class Prompts {
         """.formatted(today, cells.isEmpty() ? "- (none: write no \"audience\")" : "- " + String.join("\n- ", cells), transcript);
     }
 
+    /**
+     * Feature 25, Prompt F: the morning brief's <strong>wording only</strong>.
+     *
+     * <p>Everything the model is told is a number the server counted and a label the school already shows. It adds no
+     * fact, and the one rule that is checked rather than asked for is the numbers: `MorningBriefService` rejects an
+     * answer carrying a number the facts do not hold, and falls back to a plain template built from those same facts.
+     * So the worst a model can do here is be unhelpful.
+     */
+    public static final String SYSTEM_F = """
+        You write the short morning brief a school's leader reads before her day starts. You are given the facts as
+        numbers and labels, already counted by the school's own system. You turn them into three to five very short
+        lines — one fact per line, nothing else — in Modern Standard Arabic and in English.
+        You answer with one JSON object only — no prose, no markdown fences:
+        { "linesAr": ["a line in Modern Standard Arabic", "..."],
+          "linesEn": ["the same line in English", "..."] }
+        Rules:
+        - Three to five lines in each list, and the two lists say the same things in the same order.
+        - Each line is one short sentence of at most 110 characters. No emoji, no greeting, no name, no advice.
+        - Every number you write must be one of the numbers you were given. Never add a number, never round one,
+          never add them up, and never write a number for a fact that is not on the list.
+        - A fact you were not given does not exist. Say nothing about it.
+        - If you are given more than five facts, leave out the ones that carry a zero: they are the ones a leader
+          does not need to read.
+        - Never write null and never leave a list out: write the lines.
+        """;
+
+    /**
+     * What Prompt F is given and all it is given: the day, how wide this leader's view is, and the counted facts.
+     *
+     * <p><strong>Nobody is named here.</strong> The facts are counts — how many arrived late, how many requests wait,
+     * how many complaints are old — so no child, parent or employee travels to the provider even though the brief is
+     * about them. The lines are the labels the leader herself reads on her own screens.
+     */
+    public static String userF(String today, String scope, List<String> facts) {
+        return """
+        TODAY, IN THE SCHOOL'S OWN TIME ZONE: %s
+
+        WHOSE PEOPLE THIS BRIEF IS ABOUT: %s
+
+        THE FACTS, ALREADY COUNTED (these are the only numbers you may write):
+        %s
+        """.formatted(today, scope, facts.isEmpty() ? "- (nothing needs her today)" : "- " + String.join("\n- ", facts));
+    }
+
+    // ------------------------------------------------------------------ Prompt DOCUMENT_READER (feature 26)
+    /**
+     * Feature 26: a circular — a ministry letter, a note from the owner, a photograph of a page pinned to a wall —
+     * into what the school actually has to know. The system turn is the whole contract: one JSON object, the limits
+     * {@code DocumentReaderService} validates, and the two rules that make the answer usable rather than decorative —
+     * a date is a date, and an announcement is suggested only when parents are really the audience.
+     *
+     * <p>No {@code %s}, for {@link #SYSTEM_E}'s reason: the schema is small enough to state, which is what lets
+     * {@code SampleLlmClient} match this prompt by equality and answer it without a network.
+     */
+    public static final String DOCUMENT_READER = """
+        You read a school's incoming documents — ministry circulars, letters from the owner, notices — and you report
+        what the school has to know. You keep every fact the document gives, you add none, and you never guess at a
+        date, a number or a name that is not written there. The text you are given was extracted by machine, so it may
+        have broken words, wrong line breaks and OCR mistakes; read through them.
+        You answer with one JSON object only — no prose, no markdown fences:
+        { "title": "what this document is, in Arabic [required, <= 120 characters]",
+          "summaryAr": "what it says, in Modern Standard Arabic [required, <= 1200 characters]",
+          "summaryEn": "the same summary in English [required, <= 1200 characters]",
+          "keyDates": [ { "date": "yyyy-MM-dd", "labelAr": "what happens that day", "labelEn": "the same in English" } ],
+          "actionsAr": ["what the school must do, one line each"],
+          "actionsEn": ["the same actions in English"],
+          "announcement": { "title": "...", "bodyAr": "...", "bodyEn": "..." } }
+        "keyDates" holds at most 10 entries, each a real calendar date written exactly yyyy-MM-dd: write a day only
+        when the document gives one that can be written that way, never "next week" and never a date you worked out
+        yourself. "actionsAr" and "actionsEn" hold at most 10 lines each and say the same things in the same order;
+        leave both empty when the document asks for nothing.
+        "announcement" is optional: include it only when this document is something parents must be told, as a formal
+        announcement in Modern Standard Arabic and in English (<= 1000 characters each) — no dialect, no emoji, no
+        greeting that names a person. Leave it out for anything internal to the staff.
+        Never write null for any field: leave the field out, or write an empty list.
+        """;
+
+    /**
+     * What the model is given and all it is given: today's date in the school's own zone, the departments this
+     * leader speaks for, the file's name, and the extracted text.
+     *
+     * <p>The departments are {@link quest.server.tenancy.ManagerScope#departments}' own words, and they are what makes
+     * the suggested announcement hers: a manager of the British academy reading a circular about the British
+     * timetable must not be handed a draft addressed to the whole school, and the Admin's list is the school.
+     *
+     * <p>E-mail addresses and telephone numbers in that text are masked before it is sent
+     * ({@link quest.server.ai.AiInputGuard}). A circular may name anybody, so the guard is a floor and not a promise:
+     * what it does promise is that the contact details a document carries do not travel to the provider.
+     */
+    public static String userDocumentReader(String today, List<String> departments, String fileName, String markdown) {
+        return """
+        TODAY, IN THE SCHOOL'S OWN TIME ZONE: %s
+
+        THE PARENTS THIS LEADER SPEAKS FOR (address any suggested announcement to them, and to nobody else): %s
+
+        THE FILE: %s
+
+        WHAT THE DOCUMENT SAYS (extracted by machine; `## Page N` headings are ours):
+        %s
+        """.formatted(today, departments.isEmpty() ? "(her whole school)" : join(departments), fileName, markdown);
+    }
+
     // ------------------------------------------------------------------ the evening card (feature 28)
     /**
      * Feature 28: today's homework and one child's own results become two or three sentences a parent reads in the

@@ -24,7 +24,7 @@ class FlagAdminTest extends ApiTestSupport {
     @Test void the_flags_are_seeded_exactly_as_the_code_lists_them() {
         assertThat(definitions.findAllByOrderByKeyAsc()).extracting(Entities.FeatureFlagEntity::getKey)
                 .containsExactlyInAnyOrderElementsOf(FlagKeys.ALL);
-        assertThat(FlagKeys.ALL).hasSize(30);
+        assertThat(FlagKeys.ALL).hasSize(32);
 
         var on = definitions.findAllByOrderByKeyAsc().stream().filter(Entities.FeatureFlagEntity::isDefaultOn)
                 .map(Entities.FeatureFlagEntity::getKey).toList();
@@ -57,6 +57,10 @@ class FlagAdminTest extends ApiTestSupport {
                         // Feature 23: the remote study day, off until a school switches it on — and with it off, a
                         // school-wide remote day does not exist there at all.
                         FlagKeys.REMOTE_STUDY_DAYS,
+                        // Feature 25: the morning brief, off until a school switches it on.
+                        FlagKeys.MORNING_BRIEF,
+                        // Feature 26: the document reader, off until a school switches it on.
+                        FlagKeys.DOCUMENT_READER,
                         // Feature 28: the parent's evening card, off until a school switches it on.
                         FlagKeys.PARENT_EVENING_CARD);
         assertThat(definitions.findAllByOrderByKeyAsc()).allSatisfy(f ->

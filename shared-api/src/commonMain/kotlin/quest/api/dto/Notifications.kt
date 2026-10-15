@@ -135,6 +135,13 @@ enum class NotificationKind {
      */
     @SerialName("chat.after_hours_summary") CHAT_AFTER_HOURS_SUMMARY,
     /**
+     * Feature 25, to an Admin or a department manager each school morning: her brief is ready.
+     * [NotificationView.link] is her Home, where `GET /me/morning-brief` is read; the row carries no number of its
+     * own, so the lines are never duplicated into a push that cannot be kept in step with the brief.
+     */
+    @SerialName("morning.brief") MORNING_BRIEF,
+
+    /**
      * Feature 28 (parents only): the evening card about one child's day is ready. [NotificationView.title] is "Today
      * with &lt;her name&gt;" — the **push** may name her, because nothing of her ever reached the model that wrote the
      * card ([EveningCard]) — [NotificationView.childId] is that child and [NotificationView.link]

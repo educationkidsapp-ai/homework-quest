@@ -132,7 +132,7 @@ public class NotificationService {
             case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS,
                  COMPLAINT_NEW, COMPLAINT_MESSAGE, ATTENDANCE_REMINDER, ATTENDANCE_ALERT, ATTENDANCE_DIGEST,
                  ATTENDANCE_REQUEST, ATTENDANCE_DECISION, ATTENDANCE_REMOTE_DAY,
-                 CHAT_AFTER_HOURS_SUMMARY, EVENING_CARD
+                 CHAT_AFTER_HOURS_SUMMARY, MORNING_BRIEF, EVENING_CARD
                  -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         String name = lesson.getTitle() == null || lesson.getTitle().isBlank() ? "Your lesson" : lesson.getTitle().trim();
@@ -143,7 +143,7 @@ public class NotificationService {
             case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS,
                  COMPLAINT_NEW, COMPLAINT_MESSAGE, ATTENDANCE_REMINDER, ATTENDANCE_ALERT, ATTENDANCE_DIGEST,
                  ATTENDANCE_REQUEST, ATTENDANCE_DECISION, ATTENDANCE_REMOTE_DAY,
-                 CHAT_AFTER_HOURS_SUMMARY, EVENING_CARD
+                 CHAT_AFTER_HOURS_SUMMARY, MORNING_BRIEF, EVENING_CARD
                  -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         try {
@@ -714,6 +714,13 @@ public class NotificationService {
      * coordinator or a manager, and {@link #area} names each one's dashboard.
      */
     public static String complaintsLink(String role, String complaintId) { return "/" + area(role) + "/complaints?open=" + complaintId; }
+
+    /**
+     * Feature 25 `morning.brief`: her own Home, where the brief sits above feature 21's cards. The dashboard sends
+     * every signed-in user to her role's Home from `/` ({@code HomeController}), so one path serves both roles and
+     * there is nothing to open on it — the brief is the first thing on the screen.
+     */
+    public static String morningBriefLink() { return "/"; }
 
     /** `teacher.message`: the manager's Messages screen, on the thread the message was appended to (MG1). */
     public static String threadLink(String threadId) {

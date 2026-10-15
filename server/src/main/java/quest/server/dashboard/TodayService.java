@@ -94,6 +94,20 @@ public class TodayService {
                 home.home(caller).cards());
     }
 
+    /**
+     * Feature 25: how many complaints the caller reaches have been open for more than {@link #OVERDUE} — the one
+     * number of card 3, for the morning brief. It is read from here rather than counted again there for this class's
+     * own reason: "overdue" is an interpretation (the newest re-open, else when the parent wrote it), and a brief
+     * that said four while the card below it said three would be worse than no brief. With `chat` off there are no
+     * complaints at all, as on the card.
+     */
+    @Transactional(readOnly = true)
+    public int overdueComplaints(Principals.User caller) {
+        if (caller == null) throw ApiException.unauthorized("Sign in first.");
+        if (!flags.isOn(tenant.writeSchoolId(), FlagKeys.CHAT)) return 0;
+        return overdueComplaints(caller, ChatService.ADMIN.equals(caller.role()), clock.instant()).total();
+    }
+
     // ---------------------------------------------------------------- 1. today's attendance
 
     private TodayDto.TodayAttendance attendance(Principals.User caller) {
