@@ -490,6 +490,12 @@ interface DashboardApi {
      */
     suspend fun todayHome(): TodayHome
 
+    /**
+     * Feature 25: `GET /me/morning-brief` — the three to five lines above feature 21's cards (`brief.read`, behind
+     * `morningBrief`). Null on a day the school does not teach, which is the route's `204 No Content`.
+     */
+    suspend fun morningBrief(): MorningBrief?
+
     /** Puts an app-registered child on a section's roster, and takes her off it again; both answer the child. */
     suspend fun attachChildToClass(classId: String, request: AttachChildRequest): RosterChild
     suspend fun detachChildFromClass(classId: String, childId: String): RosterChild
@@ -999,6 +1005,23 @@ interface DashboardApi {
      * announcement, 502 `model_failed` when the provider is unreachable.
      */
     suspend fun createVoiceDraft(request: quest.api.dto.CreateVoiceDraftRequest): quest.api.dto.VoiceDraft
+
+    /**
+     * Feature 26 `POST /management/documents/read` (multipart `file`) — one circular as a PDF, a DOCX or a JPEG, PNG
+     * or WebP photograph, at most 10 MB (413 `too_large`) and 20 pages (422 `too_long`), read into a bilingual
+     * summary with its key dates and action items. **The file itself is never stored**, so there is nothing to
+     * download afterwards, and the suggested [quest.api.dto.DocumentSummary.announcement] only pre-fills the compose
+     * sheet: Send is still `createManagementBroadcast`. Behind the `documentReader` flag and `document.read`;
+     * 422 `unreadable_file` when no text comes out, 422 `rephrase` when the assistant cannot summarise it, and
+     * 502 `model_failed` when the provider is unreachable.
+     */
+    suspend fun readDocument(file: quest.api.UploadFile): quest.api.dto.DocumentSummary
+
+    /** Feature 26 `GET /management/documents` — the caller's own last twenty summaries, newest first. */
+    suspend fun myDocumentSummaries(): List<quest.api.dto.DocumentSummary>
+
+    /** Feature 26 `GET /management/documents/{id}` — one of hers; another author's and another school's are 404. */
+    suspend fun documentSummary(id: String): quest.api.dto.DocumentSummary
 
     /**
      * MG1 `GET /management/weekly-plans?from&to&grade` — every weekly plan of her department(s) in the window, newest

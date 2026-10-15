@@ -1,23 +1,12 @@
 package quest.server.analysis;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.env.Environment;
-import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import quest.api.dto.ApiError;
@@ -45,51 +34,28 @@ import quest.server.files.FileStore;
  * is prose a teacher typed, which may say anything and belongs to her lesson. The copy is a real one: uploads are
  * swept after 24 hours, and pointing two rows at one path would make the second lose its text when the first goes.
  *
- * <p><strong>No binaries, no pipeline?</strong> Only where that is declared, and the declaration is the profile
- * rather than an environment variable: the built-in fallback needs both
- * `quest.pipeline.convert.allow-builtin-fallback` and an active `h2` or `test` profile, so no value set on a QA or
- * production Cloud Run service can switch it on. Where it does apply, a missing binary falls back to the PDFBox/POI
- * text extraction {@link SlideProcessor} already does, recorded honestly as method `text`, and an e2e run needs
- * neither Node nor Tesseract. Everywhere else a missing binary is an operator error naming the variable to set.
+ * <p><strong>The extraction itself is {@link DocumentText}'s</strong> since feature 26, binaries, timeouts,
+ * built-in fallback and all — unchanged, and now shared with the leaders' document reader, which has no lesson and
+ * stores no file. What stays here is everything that makes a conversion a *lesson's*: the `source_files` row and its
+ * terminal state, the per-school reuse above, and the Markdown written beside the original in the bucket.
  */
 @Service
 public class ConversionService {
     private static final Logger log = LoggerFactory.getLogger(ConversionService.class);
-    /** The document types §4 names; anything else is `unsupported` before a process is started. */
-    static final Set<String> ANYDOC_TYPES = Set.of("pdf", "pptx", "ppt", "docx", "doc", "pptm", "ppsx", "xlsx", "csv");
-    static final Set<String> IMAGE_TYPES = Set.of("jpg", "jpeg", "png", "webp");
-    /** `anydoc: pages 2, 3 of 10 need OCR` / `anydoc: page 1 of 1 needs OCR`. */
-    private static final Pattern PAGES_NEEDING_OCR = Pattern.compile("pages?\\s+([0-9][0-9,\\s]*)\\s+of\\s+\\d+");
-
     /** Output another file may inherit. `text` is the teacher's own prose and is hers alone. */
     static final Set<String> REUSABLE_METHODS = Set.of("anydoc", "ocr");
-    /** The only profiles in which a missing binary may fall back to PDFBox/POI instead of failing the step. */
-    private static final Profiles FALLBACK_PROFILES = Profiles.of("h2", "test");
 
-    private final SourceFileRepository sourceFiles; private final LessonRepository lessons; private final FileStore files; private final SlideProcessor slides; private final ProcessRunner runner;
-    private final String anydocBin; private final String tesseractBin; private final Duration timeout; private final Duration pageTimeout; private final int maxChars; private final boolean builtinFallback;
+    private final SourceFileRepository sourceFiles; private final LessonRepository lessons; private final FileStore files; private final DocumentText text;
+    private final int maxChars;
 
-    public ConversionService(SourceFileRepository sourceFiles, LessonRepository lessons, FileStore files, SlideProcessor slides, ProcessRunner runner,
-                             @Value("${quest.pipeline.convert.anydoc-bin:anydoc}") String anydocBin,
-                             @Value("${quest.pipeline.convert.tesseract-bin:tesseract}") String tesseractBin,
-                             @Value("${quest.pipeline.convert.timeout-seconds:120}") long timeoutSeconds,
-                             @Value("${quest.pipeline.convert.ocr-page-timeout-seconds:20}") long pageTimeoutSeconds,
-                             @Value("${quest.pipeline.convert.max-markdown-chars:400000}") int maxChars,
-                             @Value("${quest.pipeline.convert.allow-builtin-fallback:false}") boolean allowBuiltinFallback,
-                             Environment env) {
-        this.sourceFiles = sourceFiles; this.lessons = lessons; this.files = files; this.slides = slides; this.runner = runner;
-        this.anydocBin = anydocBin; this.tesseractBin = tesseractBin; this.timeout = Duration.ofSeconds(timeoutSeconds);
-        this.pageTimeout = Duration.ofSeconds(pageTimeoutSeconds); this.maxChars = maxChars;
-        // Both, never either: the property says what this deployment wants and the profile says what it is allowed
-        // to want. `qa` and `prod` cannot turn it on however their environment is written.
-        this.builtinFallback = allowBuiltinFallback && env.acceptsProfiles(FALLBACK_PROFILES);
+    public ConversionService(SourceFileRepository sourceFiles, LessonRepository lessons, FileStore files, DocumentText text,
+                             @Value("${quest.pipeline.convert.max-markdown-chars:400000}") int maxChars) {
+        this.sourceFiles = sourceFiles; this.lessons = lessons; this.files = files; this.text = text;
+        this.maxChars = maxChars;
     }
 
     /** What one conversion produced: the Markdown, the way it was produced, and whether another file had it already. */
     public record Converted(String markdown, String method, boolean cacheHit) {}
-
-    /** Raised inside a conversion when the binary is not installed; caught here, never by a caller. */
-    private static final class ToolMissing extends RuntimeException { ToolMissing(String m) { super(m); } }
 
     // ---------------------------------------------------------------- the Convert step
 
@@ -136,10 +102,7 @@ public class ConversionService {
 
     static boolean ocrRequested(SourceFileEntity f) { return "converting".equals(f.getConvertStatus()) && "ocr".equals(f.getConvertMethod()); }
 
-    private Converted ocrOnly(SourceFileEntity f) {
-        try { return new Converted(ocrPages(f.getFileName(), f.getMimeType(), blob(f).bytes(), List.of()), "ocr", false); }
-        catch (ToolMissing e) { throw new ApiException(HttpStatus.BAD_GATEWAY, ApiError.TOOL_MISSING, e.getMessage()); }
-    }
+    private Converted ocrOnly(SourceFileEntity f) { return produced(text.ocrEverything(f.getFileName(), f.getMimeType(), blob(f).bytes())); }
 
     /**
      * No conversion may leave the row at `converting`. An {@link ApiException} carries its own code; anything else —
@@ -191,95 +154,12 @@ public class ConversionService {
      */
     private String schoolOf(String lessonId) { return lessons.findById(lessonId).map(LessonEntity::getSchoolId).orElse(null); }
 
+    /** The file's own text, from {@link DocumentText}; which route it takes is its type's business, not a lesson's. */
     private Converted produce(SourceFileEntity f, String type) {
-        byte[] bytes = blob(f).bytes();
-        try {
-            if (IMAGE_TYPES.contains(type)) return new Converted(ocrImage(type, bytes), "ocr", false);
-            if (ANYDOC_TYPES.contains(type)) return anydoc(f, type, bytes);
-            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, ApiError.UNSUPPORTED, "a ." + type + " file");
-        } catch (ToolMissing e) {
-            if (!builtinFallback) throw new ApiException(HttpStatus.BAD_GATEWAY, ApiError.TOOL_MISSING, e.getMessage());
-            log.warn("{} — using the built-in text extractor for {} (quest.pipeline.convert.allow-builtin-fallback)", e.getMessage(), f.getFileName());
-            return new Converted(builtin(f, bytes), "text", false);
-        }
+        return produced(text.extract(f.getFileName(), f.getMimeType(), type, blob(f).bytes()));
     }
 
-    private Converted anydoc(SourceFileEntity f, String type, byte[] bytes) {
-        Path dir = temp("quest-anydoc");
-        try {
-            Path in = dir.resolve("source." + type); Files.write(in, bytes);
-            Path out = dir.resolve("out.md");
-            var command = new ArrayList<>(List.of(anydocBin, in.toString(), "-o", out.toString()));
-            if ("csv".equals(type)) { command.add("--format"); command.add("csv"); }   // never `--ocr`: exit 3 tells us which pages need it
-            var ran = launch(command, dir, anydocBin, "QUEST_ANYDOC_BIN", timeout);
-            return switch (ran.exitCode()) {
-                case 0 -> new Converted(Files.exists(out) ? Files.readString(out, StandardCharsets.UTF_8) : "", "anydoc", false);
-                case 3 -> new Converted(ocrPages(f.getFileName(), f.getMimeType(), bytes, pagesNeedingOcr(ran.stderr())), "ocr", false);
-                case 1 -> throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, codeOf(ran.stderr()), ran.firstErrorLine());
-                default -> throw new ApiException(HttpStatus.BAD_GATEWAY, ApiError.IO, "anydoc exited " + ran.exitCode() + ": " + ran.firstErrorLine());
-            };
-        } catch (IOException e) { throw new ApiException(HttpStatus.BAD_GATEWAY, ApiError.IO, e.getMessage());
-        } finally { wipe(dir); }
-    }
-
-    /** One image straight through Tesseract — no page headings, because there is one page. */
-    private String ocrImage(String type, byte[] bytes) {
-        Path dir = temp("quest-ocr");
-        try { Path in = dir.resolve("page." + type); Files.write(in, bytes); return tesseract(dir, in, pageTimeout); }
-        catch (IOException e) { throw new ApiException(HttpStatus.BAD_GATEWAY, ApiError.IO, e.getMessage()); }
-        finally { wipe(dir); }
-    }
-
-    /**
-     * The scanned-PDF path: the pages {@link SlideProcessor} already renders for the child's player go through
-     * Tesseract one by one. {@code wanted} is what anydoc's exit 3 named; empty means every page.
-     *
-     * <p>Two boxes, because one is not enough: {@code ocr-page-timeout-seconds} stops one unreadable page from
-     * eating the whole budget, and {@code timeout-seconds} is the budget for the file, so a forty-page scan cannot
-     * turn forty page boxes into forty times the wait. Running out is `io` — "press Retry", not "your file is bad".
-     */
-    private String ocrPages(String fileName, String mimeType, byte[] bytes, List<Integer> wanted) {
-        List<SlideProcessor.Page> pages;
-        try { pages = slides.process(fileName, mimeType, bytes).pages(); }
-        catch (ApiException e) { throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, ApiError.OCR_FAILED, e.error().message()); }
-        var sb = new StringBuilder();
-        Path dir = temp("quest-ocr");
-        var deadline = java.time.Instant.now().plus(timeout);
-        try {
-            for (var p : pages) {
-                if (!wanted.isEmpty() && !wanted.contains(p.number())) continue;
-                Duration left = Duration.between(java.time.Instant.now(), deadline);
-                if (!left.isPositive()) throw new ApiException(HttpStatus.GATEWAY_TIMEOUT, ApiError.IO,
-                        "reading " + fileName + " with OCR ran past its " + timeout.toSeconds() + "s");
-                Path in = dir.resolve("page-" + p.number() + ".png"); Files.write(in, p.png());
-                sb.append("## Page ").append(p.number()).append("\n\n").append(tesseract(dir, in, min(pageTimeout, left)).strip()).append("\n\n");
-            }
-        } catch (IOException e) { throw new ApiException(HttpStatus.BAD_GATEWAY, ApiError.IO, e.getMessage());
-        } finally { wipe(dir); }
-        return sb.toString();
-    }
-
-    private static Duration min(Duration a, Duration b) { return a.compareTo(b) <= 0 ? a : b; }
-
-    private String tesseract(Path dir, Path image, Duration box) {
-        var ran = launch(List.of(tesseractBin, image.toString(), "stdout", "-l", "eng+ara"), dir, tesseractBin, "QUEST_TESSERACT_BIN", box);
-        if (ran.exitCode() != 0) throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, ApiError.OCR_FAILED, ran.firstErrorLine());
-        return ran.stdout();
-    }
-
-    /** PDFBox / POI text extraction, headed per page the same way OCR is — the local e2e's way through. */
-    private String builtin(SourceFileEntity f, byte[] bytes) {
-        var sb = new StringBuilder();
-        for (var p : slides.process(f.getFileName(), f.getMimeType(), bytes).pages())
-            sb.append("## Page ").append(p.number()).append("\n\n").append(p.text().strip()).append("\n\n");
-        return sb.toString();
-    }
-
-    private ProcessRunner.Ran launch(List<String> command, Path dir, String bin, String envVar, Duration box) {
-        try { return runner.run(command, dir, box); }
-        catch (ProcessRunner.Timeout e) { throw new ApiException(HttpStatus.GATEWAY_TIMEOUT, ApiError.IO, e.getMessage()); }
-        catch (IOException e) { throw new ToolMissing(bin + " could not be started — set " + envVar + " to its path or put it on PATH (" + e.getMessage() + ")"); }
-    }
+    private static Converted produced(DocumentText.Extracted e) { return new Converted(e.markdown(), e.method(), false); }
 
     // ---------------------------------------------------------------- storing the result
 
@@ -309,28 +189,6 @@ public class ConversionService {
         return files.get(f.getStoragePath()).orElseThrow(() -> new ApiException(HttpStatus.GONE, ApiError.UNREADABLE_FILE, "The uploaded file has expired (files are kept 24 hours). Upload it again."));
     }
 
-    // ---------------------------------------------------------------- reading what the tools said
-
-    /** anydoc's exit-1 stderr, which names the refusal before the colon; anything unrecognised reads as malformed. */
-    static String codeOf(String stderr) {
-        String s = stderr == null ? "" : stderr.toLowerCase(Locale.ROOT);
-        if (s.contains("encrypted")) return ApiError.ENCRYPTED;
-        if (s.contains("unsupported input")) return ApiError.UNSUPPORTED;
-        if (s.contains("io error")) return ApiError.IO;
-        return ApiError.MALFORMED;
-    }
-
-    /** `page 1 of 1 needs OCR` → [1]; `all 5 pages need OCR` → [] (every page). */
-    static List<Integer> pagesNeedingOcr(String stderr) {
-        String s = stderr == null ? "" : stderr.toLowerCase(Locale.ROOT);
-        if (s.contains("all ")) return List.of();
-        Matcher m = PAGES_NEEDING_OCR.matcher(s);
-        if (!m.find()) return List.of();
-        List<Integer> out = new ArrayList<>();
-        for (String part : m.group(1).split("[,\\s]+")) if (!part.isBlank()) out.add(Integer.parseInt(part));
-        return out;
-    }
-
     /** The file's type: its extension, or what {@link SlideProcessor} called it when the name carries none. */
     static String extensionOf(SourceFileEntity f) {
         String name = f.getFileName() == null ? "" : f.getFileName().toLowerCase(Locale.ROOT);
@@ -338,13 +196,5 @@ public class ConversionService {
         String ext = dot < 0 || dot == name.length() - 1 ? "" : name.substring(dot + 1);
         if (!ext.isBlank()) return ext;
         return switch (f.getKind() == null ? "" : f.getKind()) { case "pdf" -> "pdf"; case "pptx" -> "pptx"; case "image" -> "png"; default -> ext; };
-    }
-
-    private static Path temp(String prefix) {
-        try { return Files.createTempDirectory(prefix); } catch (IOException e) { throw new ApiException(HttpStatus.BAD_GATEWAY, ApiError.IO, e.getMessage()); }
-    }
-
-    private static void wipe(Path dir) {
-        try (var s = Files.walk(dir)) { s.sorted(Comparator.reverseOrder()).forEach(p -> p.toFile().delete()); } catch (IOException ignored) { /* a temp directory */ }
     }
 }

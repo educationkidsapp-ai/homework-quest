@@ -43,6 +43,8 @@ class OpenApiContractTest extends ApiTestSupport {
             "/me/home",
             // Feature 21: the Admin's and the manager's "what needs me today?" Home, behind `todayHome`.
             "/me/today",
+            // Feature 25: the morning brief above those cards, behind `morningBrief`.
+            "/me/morning-brief",
             "/admin/schools/wizard",
             "/admin/schools/{id}/classes", "/admin/schools/{id}/classes/{classId}",
             "/admin/schools/{id}/usage", "/admin/schools/{id}/billing",
@@ -257,6 +259,8 @@ class OpenApiContractTest extends ApiTestSupport {
             "/management/broadcasts", "/coordinator/broadcasts",
             // Feature 22: the transcript her device produced, prepared as an announcement she reviews and sends.
             "/management/broadcasts/voice-drafts",
+            // Feature 26: a circular read into a bilingual summary, whose "Draft announcement" pre-fills the composer.
+            "/management/documents/read", "/management/documents", "/management/documents/{id}",
             "/me/broadcasts", "/me/broadcasts/{id}/read",
             "/children/{id}/broadcasts", "/children/{id}/broadcasts/{broadcastId}/read",
             "/management/chat/threads", "/management/chat/threads/{id}/messages",

@@ -52,15 +52,15 @@ public class RemoteStudyDayService {
     private final RemoteStudyDayRepository days; private final RemoteDayService remoteDays;
     private final BroadcastService broadcasts; private final SchoolRepository schools;
     private final ClassRepository classes; private final SchoolCalendar calendar;
-    private final FeatureFlags flags; private final TenantContext tenant; private final Json json;
-    private final Clock clock;
+    private final FeatureFlags flags; private final ManagerScope managers; private final TenantContext tenant;
+    private final Json json; private final Clock clock;
 
     public RemoteStudyDayService(RemoteStudyDayRepository days, RemoteDayService remoteDays, BroadcastService broadcasts,
                                  SchoolRepository schools, ClassRepository classes, SchoolCalendar calendar,
-                                 FeatureFlags flags, TenantContext tenant, Json json, Clock clock) {
+                                 FeatureFlags flags, ManagerScope managers, TenantContext tenant, Json json, Clock clock) {
         this.days = days; this.remoteDays = remoteDays; this.broadcasts = broadcasts; this.schools = schools;
-        this.classes = classes; this.calendar = calendar; this.flags = flags; this.tenant = tenant; this.json = json;
-        this.clock = clock;
+        this.classes = classes; this.calendar = calendar; this.flags = flags; this.managers = managers;
+        this.tenant = tenant; this.json = json; this.clock = clock;
     }
 
     // ---------------------------------------------------------------- the Admin's list
@@ -127,6 +127,34 @@ public class RemoteStudyDayService {
         for (var d : days.findBySchoolIdAndDayBetweenOrderByDayAsc(schoolId, from, to))
             if (inChildScope(d, curriculum, grade)) out.add(d.getDay());
         return out;
+    }
+
+    /** Feature 25: today's remote study day as one leader sees it, and why it was declared. */
+    public record LeaderDay(boolean on, String reason) {
+        static final LeaderDay NONE = new LeaderDay(false, null);
+    }
+
+    /**
+     * Feature 25: whether a remote study day covers any academy this leader reaches on {@code date}.
+     *
+     * <p><strong>A leader is staff, so the scope is the academy alone</strong> — the grades narrow children and
+     * parents, never the people who run the place ({@link RemoteDayService#appliesTo}'s rule, and this class's own
+     * "two audiences, two scopes"). A day declared for the whole school ({@code academy} null) is everybody's, and a
+     * manager's own departments are {@link ManagerScope#departments}; the Admin reaches all of them. The reason comes
+     * back with it, because "the whole school studies from home today" is the one line of a brief that would be
+     * useless without its why.
+     *
+     * <p>Flag-gated here rather than at the caller, as {@link #covers} is: with `remoteStudyDays` off a remote study
+     * day does not exist at all.
+     */
+    @Transactional(readOnly = true)
+    public LeaderDay forLeader(String schoolId, Principals.User caller, LocalDate date) {
+        if (!flags.isOn(schoolId, FlagKeys.REMOTE_STUDY_DAYS)) return LeaderDay.NONE;
+        Set<String> mine = managers.isManager(caller) ? Set.copyOf(managers.departments(caller)) : null;
+        for (var day : days.findBySchoolIdAndDay(schoolId, date))
+            if (mine == null || day.getAcademy() == null || mine.contains(day.getAcademy()))
+                return new LeaderDay(true, day.getReason());
+        return LeaderDay.NONE;
     }
 
     private boolean inChildScope(RemoteStudyDayEntity day, String curriculum, int grade) {

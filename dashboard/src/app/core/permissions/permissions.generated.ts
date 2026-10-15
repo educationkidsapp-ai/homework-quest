@@ -38,6 +38,7 @@ export const WRITE_PERMISSIONS: ReadonlySet<string> = new Set([
   'coordinator.complaints',
   'coordinator.manage',
   'device.register',
+  'document.read',
   'flag.write',
   'floor.chat',
   'floor.manage',
