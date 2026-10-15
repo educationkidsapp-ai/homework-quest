@@ -126,13 +126,13 @@ describe('filterComplaints', () => {
 describe('the Complaints page', () => {
   let query: BehaviorSubject<Record<string, string>>;
   let readOnly: ReturnType<typeof signal<boolean>>;
-  /** Which flags are on: `complaintTriage` (feature 27) is flipped mid-suite. */
+  /** Which flags are on: `complaintTriage` (feature 27) is flipped mid-suite; `languageBridge` (feature 29) stays on. */
   let flagsOn: ReturnType<typeof signal<readonly string[]>>;
 
   beforeEach(() => {
     query = new BehaviorSubject<Record<string, string>>({});
     readOnly = signal(false);
-    flagsOn = signal<readonly string[]>(['chat', 'complaintTriage']);
+    flagsOn = signal<readonly string[]>(['chat', 'complaintTriage', 'languageBridge']);
   });
 
   afterEach(() => TestBed.inject(HttpTestingController).verify());
