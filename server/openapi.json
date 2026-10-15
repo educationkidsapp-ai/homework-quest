@@ -1115,7 +1115,7 @@
             "type" : "boolean"
           },
           "peerRole" : {
-            "enum" : [ "TEACHER", "COORDINATOR", "MANAGERIAL", "ADMIN", "PARENT" ],
+            "enum" : [ "TEACHER", "COORDINATOR", "MANAGERIAL", "ADMIN", "PARENT", "FLOOR_SUPERVISOR" ],
             "type" : "string"
           },
           "resolvedAt" : {
@@ -1123,7 +1123,7 @@
             "type" : "integer"
           },
           "staffRole" : {
-            "enum" : [ "TEACHER", "COORDINATOR", "MANAGERIAL" ],
+            "enum" : [ "TEACHER", "COORDINATOR", "MANAGERIAL", "FLOOR_SUPERVISOR" ],
             "type" : "string"
           },
           "status" : {
@@ -2007,7 +2007,7 @@
             "type" : "string"
           },
           "recipientRole" : {
-            "enum" : [ "TEACHER", "COORDINATOR", "MANAGERIAL", "ADMIN", "PARENT" ],
+            "enum" : [ "TEACHER", "COORDINATOR", "MANAGERIAL", "ADMIN", "PARENT", "FLOOR_SUPERVISOR" ],
             "type" : "string"
           },
           "resolvedAt" : {
@@ -2106,7 +2106,7 @@
             "type" : "string"
           },
           "peerRole" : {
-            "enum" : [ "TEACHER", "COORDINATOR", "MANAGERIAL", "ADMIN", "PARENT" ],
+            "enum" : [ "TEACHER", "COORDINATOR", "MANAGERIAL", "ADMIN", "PARENT", "FLOOR_SUPERVISOR" ],
             "type" : "string"
           },
           "staffId" : {
@@ -2623,6 +2623,59 @@
           }
         },
         "required" : [ "closesAt", "opensAt", "title" ],
+        "type" : "object"
+      },
+      "CreateFloorRequest" : {
+        "properties" : {
+          "academy" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "classIds" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "name" : {
+            "maxLength" : 80,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "supervisorIds" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "academy", "name" ],
+        "type" : "object"
+      },
+      "CreateFloorSupervisorRequest" : {
+        "properties" : {
+          "email" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "floorIds" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "fullName" : {
+            "maxLength" : 80,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "phone" : {
+            "maxLength" : 30,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "email", "fullName" ],
         "type" : "object"
       },
       "CreateInviteRequest" : {
@@ -3631,6 +3684,311 @@
               "$ref" : "#/components/schemas/SchoolFlags"
             },
             "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "Floor" : {
+        "properties" : {
+          "academy" : {
+            "type" : "string"
+          },
+          "classes" : {
+            "items" : {
+              "$ref" : "#/components/schemas/FloorClass"
+            },
+            "type" : "array"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "supervisors" : {
+            "items" : {
+              "$ref" : "#/components/schemas/FloorSupervisorRef"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "FloorChatPeers" : {
+        "properties" : {
+          "admins" : {
+            "items" : {
+              "$ref" : "#/components/schemas/FloorPerson"
+            },
+            "type" : "array"
+          },
+          "managers" : {
+            "items" : {
+              "$ref" : "#/components/schemas/FloorPerson"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "FloorChild" : {
+        "properties" : {
+          "avatarColor" : {
+            "type" : "string"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "floorId" : {
+            "type" : "string"
+          },
+          "floorName" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "FloorClass" : {
+        "properties" : {
+          "childrenCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "curriculum" : {
+            "type" : "string"
+          },
+          "floorId" : {
+            "type" : "string"
+          },
+          "floorName" : {
+            "type" : "string"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "FloorClassAttendance" : {
+        "properties" : {
+          "absent" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "children" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "curriculum" : {
+            "type" : "string"
+          },
+          "excused" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "floorId" : {
+            "type" : "string"
+          },
+          "floorName" : {
+            "type" : "string"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "late" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "notMarked" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "present" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "FloorHome" : {
+        "properties" : {
+          "board" : {
+            "$ref" : "#/components/schemas/AttendanceBoard"
+          },
+          "classes" : {
+            "items" : {
+              "$ref" : "#/components/schemas/FloorClassAttendance"
+            },
+            "type" : "array"
+          },
+          "day" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "FloorMe" : {
+        "properties" : {
+          "children" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "classes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "displayName" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "floors" : {
+            "items" : {
+              "$ref" : "#/components/schemas/FloorRef"
+            },
+            "type" : "array"
+          },
+          "teachers" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "userId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "FloorPerson" : {
+        "properties" : {
+          "displayName" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "role" : {
+            "type" : "string"
+          },
+          "userId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "FloorRef" : {
+        "properties" : {
+          "academy" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "FloorSupervisorAccount" : {
+        "properties" : {
+          "email" : {
+            "type" : "string"
+          },
+          "floors" : {
+            "items" : {
+              "$ref" : "#/components/schemas/FloorRef"
+            },
+            "type" : "array"
+          },
+          "fullName" : {
+            "type" : "string"
+          },
+          "phone" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "userId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "FloorSupervisorCreated" : {
+        "properties" : {
+          "supervisor" : {
+            "$ref" : "#/components/schemas/FloorSupervisorAccount"
+          },
+          "temporaryPassword" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "FloorSupervisorRef" : {
+        "properties" : {
+          "displayName" : {
+            "type" : "string"
+          },
+          "userId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "FloorTeacher" : {
+        "properties" : {
+          "displayName" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "phone" : {
+            "type" : "string"
+          },
+          "photoUrl" : {
+            "type" : "string"
+          },
+          "sections" : {
+            "items" : {
+              "$ref" : "#/components/schemas/FloorClass"
+            },
+            "type" : "array"
+          },
+          "subjects" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "userId" : {
+            "type" : "string"
           }
         },
         "type" : "object"
@@ -4940,6 +5298,23 @@
         } ],
         "required" : [ "id", "ingredient", "mode", "modelAnswer", "parentTip", "prompt", "speak", "title", "type" ]
       },
+      "OpenFloorThreadRequest" : {
+        "properties" : {
+          "adminUserId" : {
+            "type" : "string"
+          },
+          "childId" : {
+            "type" : "string"
+          },
+          "managerUserId" : {
+            "type" : "string"
+          },
+          "teacherUserId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "OpenManagerThreadRequest" : {
         "properties" : {
           "managerUserId" : {
@@ -5040,7 +5415,7 @@
       "ParentAnnouncement" : {
         "properties" : {
           "authorRole" : {
-            "enum" : [ "TEACHER", "COORDINATOR", "MANAGERIAL" ],
+            "enum" : [ "TEACHER", "COORDINATOR", "MANAGERIAL", "FLOOR_SUPERVISOR" ],
             "type" : "string"
           },
           "bodyAr" : {
@@ -8127,6 +8502,55 @@
         "required" : [ "enabled" ],
         "type" : "object"
       },
+      "UpdateFloorRequest" : {
+        "properties" : {
+          "academy" : {
+            "type" : "string"
+          },
+          "classIds" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "name" : {
+            "maxLength" : 80,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "supervisorIds" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "UpdateFloorSupervisorRequest" : {
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "floorIds" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "fullName" : {
+            "maxLength" : 80,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "phone" : {
+            "maxLength" : 30,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "UpdateManagerRequest" : {
         "properties" : {
           "active" : {
@@ -10136,6 +10560,215 @@
           }
         },
         "tags" : [ "Feature flags" ]
+      }
+    },
+    "/admin/floor-supervisors" : {
+      "get" : {
+        "operationId" : "floorSupervisors",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/FloorSupervisorAccount"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Floors" ]
+      },
+      "post" : {
+        "operationId" : "createFloorSupervisor",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateFloorSupervisorRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FloorSupervisorCreated"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Floors" ]
+      }
+    },
+    "/admin/floor-supervisors/{id}" : {
+      "patch" : {
+        "operationId" : "updateFloorSupervisor",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateFloorSupervisorRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FloorSupervisorAccount"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Floors" ]
+      }
+    },
+    "/admin/floor-supervisors/{id}/reset-password" : {
+      "post" : {
+        "operationId" : "resetFloorSupervisorPassword",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TemporaryPassword"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Floors" ]
+      }
+    },
+    "/admin/floors" : {
+      "get" : {
+        "operationId" : "floors",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/Floor"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Floors" ]
+      },
+      "post" : {
+        "operationId" : "createFloor",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateFloorRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Floor"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Floors" ]
+      }
+    },
+    "/admin/floors/{id}" : {
+      "delete" : {
+        "operationId" : "deleteFloor",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "tags" : [ "Floors" ]
+      },
+      "patch" : {
+        "operationId" : "updateFloor",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateFloorRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Floor"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Floors" ]
       }
     },
     "/admin/lessons" : {
@@ -14636,6 +15269,323 @@
           }
         },
         "tags" : [ "Coordinator" ]
+      }
+    },
+    "/floor/chat/peers" : {
+      "get" : {
+        "operationId" : "floorChatPeers",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FloorChatPeers"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Floor supervisor chat" ]
+      }
+    },
+    "/floor/chat/threads" : {
+      "get" : {
+        "operationId" : "floorChatThreads",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChatThread"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Floor supervisor chat" ]
+      },
+      "post" : {
+        "operationId" : "floorChatThread",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/OpenFloorThreadRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatThread"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Floor supervisor chat" ]
+      }
+    },
+    "/floor/chat/threads/{id}/messages" : {
+      "get" : {
+        "operationId" : "floorChatMessages",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "before",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "since",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChatMessage"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Floor supervisor chat" ]
+      },
+      "post" : {
+        "operationId" : "floorSendChatMessage",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SendChatMessageRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatMessage"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Floor supervisor chat" ]
+      }
+    },
+    "/floor/chat/threads/{id}/read" : {
+      "post" : {
+        "operationId" : "floorMarkChatRead",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChatReadReceipt"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Floor supervisor chat" ]
+      }
+    },
+    "/floor/children" : {
+      "get" : {
+        "operationId" : "floorChildren",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "q",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/FloorChild"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Floor supervisor" ]
+      }
+    },
+    "/floor/children/{id}" : {
+      "get" : {
+        "operationId" : "floorChild",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChildReport"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Floor supervisor" ]
+      }
+    },
+    "/floor/classes" : {
+      "get" : {
+        "operationId" : "floorClasses",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/FloorClass"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Floor supervisor" ]
+      }
+    },
+    "/floor/home" : {
+      "get" : {
+        "operationId" : "floorHome",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FloorHome"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Floor supervisor" ]
+      }
+    },
+    "/floor/me" : {
+      "get" : {
+        "operationId" : "floorMe",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FloorMe"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Floor supervisor" ]
+      }
+    },
+    "/floor/teachers" : {
+      "get" : {
+        "operationId" : "floorTeachers",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/FloorTeacher"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Floor supervisor" ]
       }
     },
     "/health" : {
@@ -19974,8 +20924,8 @@
     "description" : "Children created together with their parents' accounts",
     "name" : "Children and parents"
   }, {
-    "description" : "Teacher class attendance taking and parent attendance reflection",
-    "name" : "Attendance"
+    "description" : "A floor supervisor's view of the classes, staff and children of her floors",
+    "name" : "Floor supervisor"
   }, {
     "description" : "Exam settings, windows, sittings, results and the printable sheet",
     "name" : "Exams"
@@ -19992,6 +20942,66 @@
     "description" : "Coordinator accounts and the subjects and tracks they supervise",
     "name" : "Coordinators"
   }, {
+    "description" : "Teacher accounts and teaching assignments",
+    "name" : "Teachers"
+  }, {
+    "description" : "The teacher's attendance, gradebook and exam numbers, read through a coordinator's scope",
+    "name" : "Coordinator results"
+  }, {
+    "description" : "A department manager's read-only view of every grade she manages",
+    "name" : "Management"
+  }, {
+    "description" : "Classes, school usage, billing, teachers and platform cost",
+    "name" : "Dashboard data"
+  }, {
+    "description" : "A teacher's own lessons: create, move, copy, publish and the pipeline",
+    "name" : "Teacher lessons"
+  }, {
+    "description" : "School pin, staff hours, holidays, rules and direct managers",
+    "name" : "Staff attendance settings"
+  }, {
+    "description" : "The school's non-teaching staff (no accounts)",
+    "name" : "Workers"
+  }, {
+    "description" : "Questions a teacher sends to her students, and the answers",
+    "name" : "Teacher questions"
+  }, {
+    "description" : "Remote days and attendance corrections, and their approval",
+    "name" : "Attendance requests"
+  }, {
+    "description" : "Dashboard accounts, invites and View as…",
+    "name" : "Dashboard users"
+  }, {
+    "description" : "Department manager accounts and the departments they manage",
+    "name" : "Managers"
+  }, {
+    "description" : "The role-specific dashboard home (§6 screen 2)",
+    "name" : "Home"
+  }, {
+    "description" : "Parent and teacher chat: threads, message pages, sending and read receipts",
+    "name" : "Chat"
+  }, {
+    "description" : "Notes a coordinator posts to the parents of the classes in her scope",
+    "name" : "Coordinator announcements"
+  }, {
+    "description" : "Teacher profile, lesson chooser options, calendar and students",
+    "name" : "Teacher"
+  }, {
+    "description" : "Geofenced check-in and check-out from the staff app, and the employee's own record",
+    "name" : "Staff check-in"
+  }, {
+    "description" : "Lesson pipeline, plays and stops",
+    "name" : "Admin lessons"
+  }, {
+    "description" : "A floor supervisor's threads with the parents, teachers, managers and Admin of her floors",
+    "name" : "Floor supervisor chat"
+  }, {
+    "description" : "Floors, the classes on them and the supervisors who hold them",
+    "name" : "Floors"
+  }, {
+    "description" : "Teacher class attendance taking and parent attendance reflection",
+    "name" : "Attendance"
+  }, {
     "description" : "A subject coordinator's read-only view of the school she supervises",
     "name" : "Coordinator"
   }, {
@@ -20001,35 +21011,20 @@
     "description" : "The platform's own name, logo and default theme (§A)",
     "name" : "Platform settings"
   }, {
-    "description" : "Teacher accounts and teaching assignments",
-    "name" : "Teachers"
-  }, {
     "description" : "The dashboard bell and the parent app's notifications: the caller's own rows, unread count and read marks",
     "name" : "Notifications"
   }, {
     "description" : "Complaints as their own conversations: the parent's, the teacher's and support's",
     "name" : "Complaints"
   }, {
-    "description" : "The teacher's attendance, gradebook and exam numbers, read through a coordinator's scope",
-    "name" : "Coordinator results"
-  }, {
     "description" : "The teacher's gradebook and exam numbers, read through a manager's department",
     "name" : "Management results"
-  }, {
-    "description" : "A department manager's read-only view of every grade she manages",
-    "name" : "Management"
   }, {
     "description" : "Cache, usage and calendar",
     "name" : "Admin reports"
   }, {
-    "description" : "Classes, school usage, billing, teachers and platform cost",
-    "name" : "Dashboard data"
-  }, {
     "description" : "Dashboard sign-in",
     "name" : "Auth"
-  }, {
-    "description" : "A teacher's own lessons: create, move, copy, publish and the pipeline",
-    "name" : "Teacher lessons"
   }, {
     "description" : "Dashboard sign-in, sessions and passwords",
     "name" : "Auth"
@@ -20046,29 +21041,14 @@
     "description" : "Published lesson content for the app",
     "name" : "Lessons"
   }, {
-    "description" : "School pin, staff hours, holidays, rules and direct managers",
-    "name" : "Staff attendance settings"
-  }, {
     "description" : "Sections, join codes and class rosters",
     "name" : "Classes"
-  }, {
-    "description" : "The school's non-teaching staff (no accounts)",
-    "name" : "Workers"
-  }, {
-    "description" : "Questions a teacher sends to her students, and the answers",
-    "name" : "Teacher questions"
   }, {
     "description" : "A coordinator's threads with parents and her manager, and her Complaints inbox",
     "name" : "Coordinator chat"
   }, {
-    "description" : "Remote days and attendance corrections, and their approval",
-    "name" : "Attendance requests"
-  }, {
     "description" : "Per-school white label (§3)",
     "name" : "Themes"
-  }, {
-    "description" : "Dashboard accounts, invites and View as…",
-    "name" : "Dashboard users"
   }, {
     "description" : "The weekly plan, announcements and events: composing them and the feeds that receive them",
     "name" : "Broadcasts"
@@ -20079,23 +21059,8 @@
     "description" : "A department manager's staff register and her people directory",
     "name" : "Management people"
   }, {
-    "description" : "Department manager accounts and the departments they manage",
-    "name" : "Managers"
-  }, {
-    "description" : "The role-specific dashboard home (§6 screen 2)",
-    "name" : "Home"
-  }, {
-    "description" : "Parent and teacher chat: threads, message pages, sending and read receipts",
-    "name" : "Chat"
-  }, {
-    "description" : "Notes a coordinator posts to the parents of the classes in her scope",
-    "name" : "Coordinator announcements"
-  }, {
     "description" : "Liveness and version",
     "name" : "Health"
-  }, {
-    "description" : "Teacher profile, lesson chooser options, calendar and students",
-    "name" : "Teacher"
   }, {
     "description" : "A manager's threads with the parents of her department, her coordinators and the admin",
     "name" : "Management chat"
@@ -20103,13 +21068,7 @@
     "description" : "Parent-owned children, map, attempts and progress",
     "name" : "Children"
   }, {
-    "description" : "Geofenced check-in and check-out from the staff app, and the employee's own record",
-    "name" : "Staff check-in"
-  }, {
     "description" : "Staff mode in the mobile app: the signed-in member of staff, and her messages",
     "name" : "Staff app"
-  }, {
-    "description" : "Lesson pipeline, plays and stops",
-    "name" : "Admin lessons"
   } ]
 }

@@ -44,20 +44,20 @@ public class SecurityConfig {
                 .requestMatchers("/ws/chat").permitAll()
                 // B3 (D5): the one `/me` area a parent shares — her own notifications, resolved from her principal.
                 // Feature 13 adds WORKER: the app's Notifications tab is the one `/me` area she has.
-                .requestMatchers("/me/notifications", "/me/notifications/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "WORKER", "PARENT")
+                .requestMatchers("/me/notifications", "/me/notifications/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "FLOOR_SUPERVISOR", "WORKER", "PARENT")
                 // B4: the phones for push. Feature 13: staff are pushed too, into `staff_devices` rather than
                 // `parent_devices` — one route, the principal decides the table (`DeviceService`).
-                .requestMatchers("/me/devices", "/me/devices/**").hasAnyRole("PARENT", "ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "WORKER")
-                .requestMatchers("/me", "/me/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR")
+                .requestMatchers("/me/devices", "/me/devices/**").hasAnyRole("PARENT", "ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "FLOOR_SUPERVISOR", "WORKER")
+                .requestMatchers("/me", "/me/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "FLOOR_SUPERVISOR")
                 // Feature 13: the staff app's own facade, the only path a WORKER reaches besides her notifications
                 // and her phone. Every other dashboard matcher below leaves her out, so a worker's token on the
                 // dashboard is 403 rather than a half-drawn shell; what each role may do inside is the
                 // `@PreAuthorize` on the route and the scope the service it delegates to already applies.
-                .requestMatchers("/staff/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "WORKER")
+                .requestMatchers("/staff/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "FLOOR_SUPERVISOR", "WORKER")
                 // Feature 18: the approval inbox of whoever can be a direct manager, from the dashboard or the push.
-                .requestMatchers("/attendance/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR")
+                .requestMatchers("/attendance/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "FLOOR_SUPERVISOR")
                 // Feature 17: the leaders' attendance board — anyone who may be a direct manager; never a worker or a parent.
-                .requestMatchers("/staff-attendance/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR")
+                .requestMatchers("/staff-attendance/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "FLOOR_SUPERVISOR")
                 // §6 screens 19–20: "my own school", with no school id in the path. Dashboard roles only; which of
                 // them may read what is the `@PreAuthorize` on each route, as everywhere else.
                 .requestMatchers("/school/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")
@@ -75,10 +75,16 @@ public class SecurityConfig {
                 // a COORDINATOR is stopped here rather than by a permission. What she may read inside is the
                 // `@PreAuthorize` on each route, as everywhere else.
                 .requestMatchers("/management/**").hasAnyRole("ADMIN", "MANAGERIAL")
+                // Feature 20: the floor supervisor's own area, the same shape `/coordinator/**` has — no school and no
+                // floor in the path. Only the role itself and the platform ADMIN may knock; a TEACHER, a COORDINATOR or
+                // a MANAGERIAL is stopped here rather than by a permission, and she is kept out of `/teacher/**`,
+                // `/admin/**`, `/coordinator/**` and `/management/**` by their matchers above. What she may read inside
+                // is the `@PreAuthorize` on each route, as everywhere else, and the `floorSupervisor` flag on the class.
+                .requestMatchers("/floor/**").hasAnyRole("ADMIN", "FLOOR_SUPERVISOR")
                 // MH1: the parent's own account (`/parent/me`), the parent-side sibling of `/me` above. Her role and
                 // nobody else's: a dashboard user has `/me` and no business in a `parents` row.
                 .requestMatchers("/children/**", "/lessons/**", "/parent/**").hasRole("PARENT")
-                .requestMatchers("/media/**").hasAnyRole("PARENT", "ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR")
+                .requestMatchers("/media/**").hasAnyRole("PARENT", "ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "FLOOR_SUPERVISOR")
                 .anyRequest().authenticated())
             .addFilterBefore(firebase, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(adminJwt, UsernamePasswordAuthenticationFilter.class)

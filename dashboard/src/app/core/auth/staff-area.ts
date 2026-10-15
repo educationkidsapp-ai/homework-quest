@@ -11,13 +11,14 @@ import { AuthService, type Role } from './auth.service';
  * "am I a coordinator?" and a fourth reader added later is one line here rather than a new
  * branch in six services.
  */
-export type StaffArea = 'teacher' | 'coordinator' | 'management';
+export type StaffArea = 'teacher' | 'coordinator' | 'management' | 'floor';
 
 /** The URL every link out of a shared screen belongs to — a child, a lesson, an exam. */
 export const AREA_BASE: Readonly<Record<StaffArea, string>> = {
   teacher: '/teacher',
   coordinator: '/coordinator',
   management: '/management',
+  floor: '/floor',
 };
 
 /**
@@ -28,6 +29,9 @@ export const AREA_BASE: Readonly<Record<StaffArea, string>> = {
 export function staffAreaOf(role: Role | null): StaffArea {
   if (role === 'COORDINATOR') return 'coordinator';
   if (role === 'MANAGERIAL') return 'management';
+  // Feature 20: `/floor/**` is the fourth reader of the same shapes — the child report is the one
+  // shared screen she opens, and it reads it through her own namespace (`ResultsApiService`).
+  if (role === 'FLOOR_SUPERVISOR') return 'floor';
   return 'teacher';
 }
 

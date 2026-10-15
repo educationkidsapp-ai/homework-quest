@@ -139,7 +139,11 @@ export class StaffScopeService {
    */
   private readingArea(): 'coordinator' | 'management' | undefined {
     const area = this.area();
-    return area === 'teacher' ? undefined : area;
+    // Feature 20 added a fourth area that reads neither of these two namespaces: the floor
+    // supervisor opens none of the screens this service feeds, so she is `undefined` the way a
+    // teacher is — idle, rather than firing `/coordinator/**` at an account it would refuse.
+    if (area === 'coordinator' || area === 'management') return area;
+    return undefined;
   }
   /** RM3a: the department manager, for the screens only she has. */
   readonly isManager = computed(() => this.area() === 'management');

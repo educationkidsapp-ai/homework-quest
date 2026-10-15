@@ -56,14 +56,17 @@ data class ChatPeer(
  * Who is on the other end — the person on the thread ([ChatPeer.peerRole]), or, from a server older than N1, the staff
  * side's role; the admin is named as the school administration. M7 names who is typing by it.
  */
-enum class Resolver { TEACHER, COORDINATOR, MANAGER, ADMIN }
+enum class Resolver { TEACHER, COORDINATOR, MANAGER, ADMIN, FLOOR_SUPERVISOR }
 
 fun resolverOf(peerRole: ChatPeerRole?, staffRole: ChatStaffRole, withAdmin: Boolean): Resolver = when {
     withAdmin || peerRole == ChatPeerRole.ADMIN -> Resolver.ADMIN
     peerRole == ChatPeerRole.TEACHER -> Resolver.TEACHER
     peerRole == ChatPeerRole.COORDINATOR -> Resolver.COORDINATOR
     peerRole == ChatPeerRole.MANAGERIAL -> Resolver.MANAGER
+    // Feature 20: she is her own role on both sides of the wire, so "who is typing" names her rather than a manager.
+    peerRole == ChatPeerRole.FLOOR_SUPERVISOR -> Resolver.FLOOR_SUPERVISOR
     staffRole == ChatStaffRole.TEACHER -> Resolver.TEACHER
     staffRole == ChatStaffRole.COORDINATOR -> Resolver.COORDINATOR
+    staffRole == ChatStaffRole.FLOOR_SUPERVISOR -> Resolver.FLOOR_SUPERVISOR
     else -> Resolver.MANAGER
 }

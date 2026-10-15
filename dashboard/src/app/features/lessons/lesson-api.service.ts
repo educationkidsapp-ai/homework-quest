@@ -84,7 +84,12 @@ export class LessonApiService {
    */
   readonly isAdmin = computed(() => {
     const role = this.auth.role();
-    return role !== 'TEACHER' && role !== 'COORDINATOR' && role !== 'MANAGERIAL';
+    // Feature 20's floor supervisor is the fifth role the comment above warned about: she holds no
+    // `lesson.*` key and has no lesson route of her own, so she is excluded here rather than
+    // inheriting `/admin/lessons/**` by being none of the three.
+    return (
+      role !== 'TEACHER' && role !== 'COORDINATOR' && role !== 'MANAGERIAL' && role !== 'FLOOR_SUPERVISOR'
+    );
   });
 
   /**

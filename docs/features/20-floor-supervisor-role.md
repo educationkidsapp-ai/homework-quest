@@ -1,7 +1,26 @@
 # Feature 20 — Floor supervisor role (stretch)
 
-**Status:** Not started · **Area:** dashboard, mobile app (staff), server · **Depends on:** 14 ·
-**Feature switch:** `floor_supervisor`
+**Status:** Done · **Area:** dashboard, mobile app (staff), server · **Depends on:** 14 ·
+**Feature switch:** `floorSupervisor` (camelCase, like the other switches)
+
+**Leftovers:**
+- **Keep the switch off until the new Android build is on parents' phones.** An older app cannot read a
+  conversation from a floor supervisor.
+- **The two questions for the school are still open.** Does "الدور" mean a floor or a stage, and what are her daily
+  duties? The model, a named group of classes, works for both.
+- **Parents cannot start a conversation with her.** She starts it from Children → "Message parent", and the parent
+  replies. The app's "New message" still lists teachers, coordinators and managers only.
+- **The Admin's Floor supervisors list has no "Message" button.** The Admin's thread request has no field for a floor
+  supervisor yet. The Admin can still reply when she writes first.
+- **She is created only from Admin → Floor supervisors.** She is not in the general invite and "View as" roles, the
+  same as coordinators.
+- **Complaints are out of scope.** She has no Complaints page.
+- **No Teachers or Classes pages of her own.** Her teachers appear on her Home board and in the "New message"
+  chooser. The `/floor/classes` route exists for later.
+- **Her child page follows `floorSupervisor` only, not `gradebook`.**
+- **An older app fails to sign in with any future new role.** It shows an error rather than crashing. A tolerant
+  role in the shared contract would fix it.
+- **Not deployed yet.** The QA deploy follows the merge into `develop`, and feature 21's V43 merges after this V42.
 
 ## Goal
 

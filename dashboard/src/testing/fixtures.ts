@@ -62,6 +62,20 @@ export const COORDINATOR_USER: DashboardUser = {
   platformName: 'Al Noor',
 };
 
+/** Feature 20: the floor supervisor — one floor of the pilot school's British academy. */
+export const FLOOR_SUPERVISOR_USER: DashboardUser = {
+  id: 'u-mona',
+  email: 'floor2@alnoor.test',
+  role: 'FLOOR_SUPERVISOR',
+  schoolId: 'school-a',
+  schoolName: 'Al Noor School',
+  status: 'active',
+  displayName: 'Mona Saeed',
+  mustChangePassword: false,
+  createdAt: 0,
+  platformName: 'Al Noor',
+};
+
 export const ADMIN_HOME: HomeResponse = {
   role: 'ADMIN',
   displayName: 'Platform Admin',

@@ -125,6 +125,7 @@ public class StaffService {
         switch (caller.role() == null ? "" : caller.role()) {
             case "TEACHER" -> { rows.addAll(chat.teacherThreads(caller)); rows.addAll(chat.teacherStaffThreads(caller)); }
             case "COORDINATOR" -> rows.addAll(chat.coordinatorThreads(caller, null));
+            case quest.server.tenancy.FloorScope.ROLE -> rows.addAll(chat.floorThreads(caller, null));
             case "MANAGERIAL" -> rows.addAll(chat.managerThreads(caller, null));
             case "ADMIN" -> rows.addAll(chat.adminThreads(caller));
             default -> { }                                                      // WORKER: nobody to talk to yet

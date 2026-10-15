@@ -143,5 +143,6 @@ internal fun ChatConversationContract.State.staffLabelled(
 private fun StaffThreadKey.staffRole(): ChatStaffRole = when (peerRole) {
     ChatPeerRole.COORDINATOR -> ChatStaffRole.COORDINATOR
     ChatPeerRole.MANAGERIAL, ChatPeerRole.ADMIN -> ChatStaffRole.MANAGERIAL
+    ChatPeerRole.FLOOR_SUPERVISOR -> ChatStaffRole.FLOOR_SUPERVISOR   // feature 20: the supervisor of her floor
     else -> ChatStaffRole.TEACHER
 }

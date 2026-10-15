@@ -1,5 +1,5 @@
 <hq-page [title]="name()" [subtitle]="className()" [breadcrumbs]="breadcrumbs()">
-  <ng-container *hqFeature="gradebookFlag">
+  <ng-container *hqFeature="contentFlag()">
     @if (report.isLoading()) {
       <hq-skeleton
         [loading]="true"

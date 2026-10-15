@@ -1,0 +1,41 @@
+:host {
+  display: block;
+}
+
+.floors__retry {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-start: var(--hq-space-16);
+}
+
+.floors__overflow {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: var(--hq-color-ink);
+  font-size: var(--hq-text-theme-xl);
+  line-height: 1;
+  padding: var(--hq-space-8);
+}
+
+.floors__fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-8);
+  /* A school has dozens of sections: the list scrolls inside the dialog rather than pushing the
+     Save button past the fold. */
+  max-block-size: var(--hq-size-stop-list-width);
+  overflow-y: auto;
+}
+
+.floors__legend {
+  font-size: var(--hq-text-theme-sm);
+  font-weight: var(--hq-text-weight-semibold);
+  letter-spacing: var(--hq-font-letter-spacing-label);
+  color: var(--hq-color-ink-muted);
+  padding: 0;
+  margin-block-end: var(--hq-space-8);
+}

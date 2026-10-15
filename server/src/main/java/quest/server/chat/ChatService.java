@@ -76,6 +76,8 @@ public class ChatService {
     static final String PARENT = "parent", TEACHER = "teacher", PEER = "peer";
     /** V20 `chat_threads.staff_role` — which staff member holds the dashboard side (R4, DR3). */
     public static final String ROLE_TEACHER = "TEACHER", COORDINATOR = "COORDINATOR", MANAGERIAL = "MANAGERIAL";
+    /** Feature 20: `staff_role` on a thread the floor supervisor holds — with a parent of her floor or a teacher on it. */
+    public static final String FLOOR_SUPERVISOR = quest.server.tenancy.FloorScope.ROLE;
     /** S1: `staff_role` on a thread the platform admin opened with a parent, a teacher or a coordinator. */
     public static final String ADMIN = "ADMIN";
     /** S1: what a parent's row calls the admin — her own name and address are not the parent's to read. */
@@ -89,6 +91,7 @@ public class ChatService {
     private final ChatRateLimiter limiter; private final ChatBus bus; private final ChildService childService; private final ChildRepository children;
     private final ClassRepository classes; private final UserRepository users; private final TeacherScope scope; private final TenantContext tenant;
     private final CoordinatorScope coordinatorScope; private final ManagerScope managerScope; private final ChatPeers peers;
+    private final quest.server.tenancy.FloorScope floorScope;
     private final FeatureFlags flags; private final Clock clock; private final Json json;
     private final quest.server.auth.ParentRepository parents;
     private final ChatPresence presence; private final quest.server.notifications.NotificationService bells;
@@ -97,12 +100,14 @@ public class ChatService {
     public ChatService(ChatThreadRepository threads, ChatMessageRepository messages, ChatThreads threadRows, ChatRateLimiter limiter, ChatBus bus,
                        ChildService childService, ChildRepository children, ClassRepository classes, UserRepository users, TeacherScope scope,
                        TenantContext tenant, CoordinatorScope coordinatorScope, ManagerScope managerScope,
+                       quest.server.tenancy.FloorScope floorScope,
                        ChatPeers peers, FeatureFlags flags, Clock clock, Json json, quest.server.auth.ParentRepository parents,
                        ChatPresence presence, quest.server.notifications.NotificationService bells, StaffDirectory directory,
                        ChatAttachments attachments, OfficeHours officeHours) {
         this.threads = threads; this.messages = messages; this.threadRows = threadRows; this.limiter = limiter; this.bus = bus;
         this.childService = childService; this.children = children; this.classes = classes; this.users = users; this.scope = scope;
-        this.tenant = tenant; this.coordinatorScope = coordinatorScope; this.managerScope = managerScope; this.peers = peers; this.flags = flags; this.clock = clock;
+        this.tenant = tenant; this.coordinatorScope = coordinatorScope; this.managerScope = managerScope; this.floorScope = floorScope;
+        this.peers = peers; this.flags = flags; this.clock = clock;
         this.json = json; this.parents = parents; this.presence = presence; this.bells = bells; this.directory = directory; this.attachments = attachments;
         this.officeHours = officeHours;
     }
@@ -385,6 +390,7 @@ public class ChatService {
     private Set<String> supervisorsOf(Principals.User teacher) {
         var out = new java.util.LinkedHashSet<>(managerIdsOf(teacher));
         out.addAll(directory.coordinatorIdsForTeacher(teacher));
+        out.addAll(floorScope.supervisorsOfTeacher(tenant.writeSchoolId(), teacher.userId()));   // feature 20
         out.addAll(users.findActiveAdminIds());                                  // S1: a thread the admin opened with her
         return out;
     }
@@ -525,6 +531,113 @@ public class ChatService {
         var manager = peers.managersFor(me).stream().filter(u -> u.getId().equals(managerUserId)).findFirst()
                 .orElseThrow(() -> ApiException.notFound("manager"));
         return one(threadRows.getOrCreateStaff(schoolId, me.userId(), manager.getId()), me.userId());
+    }
+
+    // ---------------------------------------------------------------- the floor supervisor (feature 20)
+
+    /**
+     * Feature 20: her conversations, named by thread id as a coordinator's are — the parents of children on her
+     * floors, the teachers on them, the managers of the school and the Admin. {@link #staffThreads} builds it from
+     * {@link quest.server.tenancy.FloorScope}'s reach, which is a {@link CoordinatorScope.Reach} for exactly this
+     * reason: a supervising role's inbox is one list with a different scope behind it.
+     *
+     * <p>A parent thread drops out when the child leaves her floors — the thread is not deleted, it simply stops
+     * being hers to answer, which is the rule {@link #coordinatorThreads} applies with a coordinator's sections.
+     */
+    public List<ChatThread> floorThreads(Principals.User caller, String status) {
+        var me = quest.server.tenancy.FloorScope.require(caller);
+        requireOn(tenant.writeSchoolId());
+        return staffThreads(me.userId(), floorScope.reach(me).sections(), status);
+    }
+
+    public List<ChatMessage> floorMessages(Principals.User caller, String threadId, String before, String since, Integer limit) {
+        var t = ownFloorThread(quest.server.tenancy.FloorScope.require(caller), threadId);
+        return page(t.getId(), before, since, limit);
+    }
+
+    @Transactional
+    public ChatMessage floorSend(Principals.User caller, String threadId, String body, List<String> files, String clientId) {
+        var me = quest.server.tenancy.FloorScope.require(caller); var t = ownFloorThread(me, threadId);
+        return send(t, parentOf(t), roleOn(t, me.userId()), me.userId(), body, files, clientId);
+    }
+
+    @Transactional
+    public ChatReadReceipt floorRead(Principals.User caller, String threadId) {
+        var me = quest.server.tenancy.FloorScope.require(caller); var t = ownFloorThread(me, threadId);
+        return read(t, parentOf(t), roleOn(t, me.userId()), me.userId());
+    }
+
+    public void floorTyping(Principals.User caller, String threadId) {
+        var me = quest.server.tenancy.FloorScope.require(caller); var t = ownFloorThread(me, threadId);
+        String role = roleOn(t, me.userId());
+        publish(ChatEvent.typing(t.getSchoolId(), t.getId(), t.getChildId(), t.getTeacherId(), parentOf(t), t.getPeerUserId(), key(role, me.userId()), role));
+    }
+
+    /**
+     * `POST /floor/chat/threads`: exactly one of four — the registered parent of a child on one of her floors, a
+     * teacher who teaches there, a manager of the school, or the Admin (feature 20's "Messages": parents of children
+     * on her floor, those teachers, managers and the Admin).
+     *
+     * <p><strong>The row shapes keep the one rule</strong> — the subordinate on `teacher_id`, the supervisor on
+     * `peer_user_id`, and `staff_role` naming the <em>peer</em>. So a teacher's thread with her is the row T1b wrote
+     * for a coordinator (`staff_role` `FLOOR_SUPERVISOR`), her thread with a manager is R4's `MANAGERIAL`, and hers
+     * with the Admin is S1's `ADMIN`. A parent thread is MH1's shape: the child, her on `teacher_id`, `staff_role`
+     * `FLOOR_SUPERVISOR`, so it appears in the parent's app list beside the child's other staff threads.
+     *
+     * <p>A child outside her floors is the 403 {@link quest.server.tenancy.FloorScope#requireChild} answers
+     * everywhere; a teacher outside them is 404, because she is not told which staff exist beyond her own floors; a
+     * child with no registered parent is 404 `no_parent`, because there is no account to deliver to.
+     */
+    @Transactional
+    public ChatThread floorStaffThread(Principals.User caller, String childId, String teacherUserId,
+                                       String managerUserId, String adminUserId) {
+        var me = quest.server.tenancy.FloorScope.require(caller);
+        String schoolId = tenant.writeSchoolId();
+        requireOn(schoolId);
+        int sent = (named(childId) ? 1 : 0) + (named(teacherUserId) ? 1 : 0) + (named(managerUserId) ? 1 : 0) + (named(adminUserId) ? 1 : 0);
+        if (sent != 1) throw ApiException.badRequest("Send exactly one of childId, teacherUserId, managerUserId and adminUserId.");
+        if (named(childId)) {
+            var child = floorScope.requireChild(me, childId);
+            if (child.getParentId() == null)
+                throw new ApiException(HttpStatus.NOT_FOUND, "no_parent", "No parent has registered for this child yet.");
+            return one(threadRows.getOrCreate(child, me.userId(), FLOOR_SUPERVISOR), me.userId());
+        }
+        if (named(teacherUserId)) {
+            floorScope.requireTeacher(me, teacherUserId);
+            return one(threadRows.getOrCreateStaff(schoolId, teacherUserId, me.userId(), FLOOR_SUPERVISOR), me.userId());
+        }
+        if (named(managerUserId)) {
+            var manager = staff(managerUserId, MANAGERIAL, schoolId, "manager");
+            return one(threadRows.getOrCreateStaff(schoolId, me.userId(), manager.getId()), me.userId());
+        }
+        return one(threadRows.getOrCreateStaff(schoolId, me.userId(), admin(adminUserId).getId(), ADMIN), me.userId());
+    }
+
+    /**
+     * One thread with her on it: 404 for another school's (the filter), another person's, a child who has left her
+     * floors, or a colleague she may not write to. Every `/floor/chat` handler goes through it, which is what puts
+     * {@link quest.server.tenancy.FloorScope} in the reach of each one.
+     */
+    private ChatThreadEntity ownFloorThread(Principals.User me, String threadId) {
+        String schoolId = tenant.writeSchoolId();
+        requireOn(schoolId);
+        var t = messageThread(threadId);
+        if (!me.userId().equals(t.getTeacherId()) && !me.userId().equals(t.getPeerUserId())) throw ApiException.notFound("thread");
+        if (t.getChildId() != null) { floorScope.requireChild(me, t.getChildId()); return t; }
+        String other = named(t, me.userId());
+        // Her staff threads are of two kinds: the one a teacher of her floors holds with her (she is the peer), and
+        // the one she holds with a manager or the Admin (she is the subordinate). `findForStaff` lists both, so
+        // refusing either here would leave a row in her inbox she could not open.
+        boolean hers = (me.userId().equals(t.getPeerUserId()) && floorScope.teacherIdsOf(me).contains(other))
+                || (me.userId().equals(t.getTeacherId()) && aboveHer(schoolId, other));
+        if (!hers) throw ApiException.notFound("thread");
+        return t;
+    }
+
+    /** A manager of her school or a platform Admin — the two colleagues she opens a thread with rather than answers. */
+    private boolean aboveHer(String schoolId, String userId) {
+        if (users.findActiveAdminIds().contains(userId)) return true;
+        return users.findById(userId).filter(u -> MANAGERIAL.equals(u.getRole()) && schoolId.equals(u.getSchoolId())).isPresent();
     }
 
     // ---------------------------------------------------------------- the manager (dashboard, RM2, DR5)
@@ -714,6 +827,7 @@ public class ChatService {
     @Transactional
     public ChatMessage staffSend(Principals.User caller, String threadId, String body, List<String> files, String clientId) {
         if (CoordinatorScope.ROLE.equals(caller.role())) return coordinatorSend(caller, threadId, body, files, clientId);
+        if (FLOOR_SUPERVISOR.equals(caller.role())) return floorSend(caller, threadId, body, files, clientId);
         if (MANAGERIAL.equals(caller.role())) return managerSend(caller, threadId, body, files, clientId);
         return adminSend(caller, threadId, body, files, clientId);
     }
@@ -724,6 +838,7 @@ public class ChatService {
      */
     public List<ChatMessage> staffMessages(Principals.User caller, String threadId, String before, String since, Integer limit) {
         if (CoordinatorScope.ROLE.equals(caller.role())) return coordinatorMessages(caller, threadId, before, since, limit);
+        if (FLOOR_SUPERVISOR.equals(caller.role())) return floorMessages(caller, threadId, before, since, limit);
         if (MANAGERIAL.equals(caller.role())) return managerMessages(caller, threadId, before, since, limit);
         return adminMessages(caller, threadId, before, since, limit);
     }
@@ -765,12 +880,14 @@ public class ChatService {
     @Transactional
     public ChatReadReceipt staffRead(Principals.User caller, String threadId) {
         if (CoordinatorScope.ROLE.equals(caller.role())) return coordinatorRead(caller, threadId);
+        if (FLOOR_SUPERVISOR.equals(caller.role())) return floorRead(caller, threadId);
         if (MANAGERIAL.equals(caller.role())) return managerRead(caller, threadId);
         return adminRead(caller, threadId);
     }
 
     public void staffTyping(Principals.User caller, String threadId) {
         if (CoordinatorScope.ROLE.equals(caller.role())) coordinatorTyping(caller, threadId);
+        else if (FLOOR_SUPERVISOR.equals(caller.role())) floorTyping(caller, threadId);
         else if (MANAGERIAL.equals(caller.role())) managerTyping(caller, threadId);
         else adminTyping(caller, threadId);
     }
@@ -1009,8 +1126,11 @@ public class ChatService {
         // RM2 (DR5): the manager of the department the section is in — "parents message the manager about the school, a
         // child or a coordinator". Anyone else is 404, because a parent is told of no staff beyond her own child's.
         if (peers.managersOn(child.getSchoolId(), section).stream().anyMatch(u -> u.getId().equals(staffId))) return MANAGERIAL;
-        // S1: the admin, once she has written — a parent answers that thread and cannot start one.
-        if (threads.findByChildIdAndTeacherId(child.getId(), staffId).filter(t -> ADMIN.equals(t.getStaffRole())).isPresent()) return ADMIN;
+        // S1, and feature 20: the admin and the floor supervisor, once one of them has written — a parent answers
+        // that thread and cannot start one, because neither is offered by a chooser of hers.
+        var opened = threads.findByChildIdAndTeacherId(child.getId(), staffId)
+                .map(ChatThreadEntity::getStaffRole).filter(r -> ADMIN.equals(r) || FLOOR_SUPERVISOR.equals(r));
+        if (opened.isPresent()) return opened.get();
         throw ApiException.notFound("teacher");
     }
 
@@ -1144,7 +1264,8 @@ public class ChatService {
     static ChatPeerRole peerRole(String role) {
         return switch (role == null ? "" : role) {
             case ROLE_TEACHER -> ChatPeerRole.TEACHER; case COORDINATOR -> ChatPeerRole.COORDINATOR;
-            case MANAGERIAL -> ChatPeerRole.MANAGERIAL; case ADMIN -> ChatPeerRole.ADMIN; default -> null; };
+            case MANAGERIAL -> ChatPeerRole.MANAGERIAL; case ADMIN -> ChatPeerRole.ADMIN;
+            case FLOOR_SUPERVISOR -> ChatPeerRole.FLOOR_SUPERVISOR; default -> null; };
     }
     /** The colleague on a staff thread. The platform admin has no school, so a school-scoped read of her account comes back empty: her id says it. */
     private static ChatPeerRole peerRole(UserEntity user, String userId, Set<String> admins) {
@@ -1172,7 +1293,9 @@ public class ChatService {
 
     /** The wire word for a staff role; public because `AnnouncementService` labels a parent's card with it (RM2). */
     public static ChatStaffRole staffRole(String role) {
-        return switch (role == null ? ROLE_TEACHER : role) { case COORDINATOR -> ChatStaffRole.COORDINATOR; case MANAGERIAL, ADMIN -> ChatStaffRole.MANAGERIAL; default -> ChatStaffRole.TEACHER; };
+        return switch (role == null ? ROLE_TEACHER : role) {
+            case COORDINATOR -> ChatStaffRole.COORDINATOR; case MANAGERIAL, ADMIN -> ChatStaffRole.MANAGERIAL;
+            case FLOOR_SUPERVISOR -> ChatStaffRole.FLOOR_SUPERVISOR; default -> ChatStaffRole.TEACHER; };
     }
     static ChatTopic topic(String topic) { return COMPLAINT.equals(topic) ? ChatTopic.COMPLAINT : ChatTopic.QUESTION; }
     static ChatThreadStatus status(String status) { return RESOLVED.equals(status) ? ChatThreadStatus.RESOLVED : ChatThreadStatus.OPEN; }

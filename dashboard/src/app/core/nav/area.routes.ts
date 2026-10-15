@@ -70,6 +70,12 @@ function componentFor(screen: Screen, role: Role) {
   if ((role === 'COORDINATOR' || role === 'MANAGERIAL') && !SHARED_WITH_TEACHER.has(screen.id)) {
     return supervisorComponentFor(screen, role);
   }
+  // Feature 20: the two screens that are hers alone. Everything else in her area is already one
+  // of the shared components below — her Messages is the chat screen over `/floor/chat/**`
+  // (`core/chat/chat-routes.ts`), her Staff attendance and Attendance requests are the one board
+  // and the one requests screen all four areas open, and her child page is the teacher's in
+  // read-only mode — so naming them here would be four aliases for branches that already exist.
+  if (role === 'FLOOR_SUPERVISOR' && FLOOR_OWN.has(screen.id)) return floorComponentFor(screen);
   if (screen.path === '') return import('../../features/home/home.page').then((m) => m.HomePage);
   if (screen.id === 'week') return import('../../features/week/week.page').then((m) => m.WeekPage);
   if (screen.id === 'lessons')
@@ -101,9 +107,16 @@ function componentFor(screen: Screen, role: Role) {
   // MA2. Coordinators and Managers are **one** chunk: the same list, create, edit, reset and
   // scopes editor, told which account it is by `data.screenId`. A coordinator holds (subject,
   // track) pairs and a manager holds whole curricula, and that is the only branch inside.
-  if (role === 'ADMIN' && (screen.id === 'coordinators' || screen.id === 'managers')) {
+  // Feature 20: the Floor supervisors list is a third row of the same component, told which it is
+  // by `data.screenId` the way the other two are.
+  if (
+    role === 'ADMIN' &&
+    (screen.id === 'coordinators' || screen.id === 'managers' || screen.id === 'floor-supervisors')
+  ) {
     return import('../../features/admin/staff-accounts.page').then((m) => m.StaffAccountsPage);
   }
+  // Feature 20: the floors themselves — their classes and the supervisors over them.
+  if (screen.id === 'floors') return import('../../features/admin/floors.page').then((m) => m.FloorsPage);
   if (screen.id === 'workers') return import('../../features/admin/workers.page').then((m) => m.WorkersPage);
   // Feature 14: the Attendance settings page and its direct managers.
   if (screen.id === 'attendance-settings')
@@ -169,6 +182,16 @@ const SHARED_WITH_TEACHER = new Set([
   // `supervisorComponentFor` would be the same component reading the same route twice.
   'attendance-requests',
 ]);
+
+/** Feature 20: the screen ids `/floor/**` answers with a component of its own. */
+const FLOOR_OWN = new Set(['home', 'children']);
+
+/** Her Home and her Children, each its own lazy chunk — the Home carries the board, hers does not. */
+function floorComponentFor(screen: Screen) {
+  if (screen.id === 'children')
+    return import('../../features/floor/floor-children.page').then((m) => m.FloorChildrenPage);
+  return import('../../features/floor/floor-home.page').then((m) => m.FloorHomePage);
+}
 
 /**
  * The two read-only areas, one lazy chunk per screen so a Home never carries the calendar or the

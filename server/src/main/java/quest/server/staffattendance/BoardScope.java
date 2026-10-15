@@ -15,6 +15,9 @@ import quest.server.config.ApiException;
  *   <li><strong>The Admin</strong>: every employee of the school.</li>
  *   <li><strong>A manager</strong>: the people of the academy she directs ({@link DirectManagerResolver#academyDirector})
  *       and the people whose direct manager she is.</li>
+ *   <li><strong>A floor supervisor</strong> (feature 20): the teachers assigned to the classes on her floors —
+ *       "today's staff attendance for teachers assigned to her floor's classes" — and, like everybody else, the
+ *       people whose direct manager she is.</li>
  *   <li><strong>A teacher or a coordinator</strong>: only the people whose direct manager she is (feature 14's
  *       profile). With nobody, the board is empty — she holds the permission because any of them may be named.</li>
  * </ul>
@@ -26,10 +29,11 @@ class BoardScope {
     record View(String scope, List<AttendanceStaff.Employee> employees) {}
 
     private final AttendanceStaff staff; private final StaffAttendanceProfileRepository profiles;
-    private final DirectManagerResolver managers;
+    private final DirectManagerResolver managers; private final quest.server.tenancy.FloorScope floors;
 
-    BoardScope(AttendanceStaff staff, StaffAttendanceProfileRepository profiles, DirectManagerResolver managers) {
-        this.staff = staff; this.profiles = profiles; this.managers = managers;
+    BoardScope(AttendanceStaff staff, StaffAttendanceProfileRepository profiles, DirectManagerResolver managers,
+               quest.server.tenancy.FloorScope floors) {
+        this.staff = staff; this.profiles = profiles; this.managers = managers; this.floors = floors;
     }
 
     View of(String schoolId, Principals.User caller) {
@@ -43,12 +47,17 @@ class BoardScope {
             for (var p : profiles.findBySchoolId(schoolId))
                 if (caller.userId().equals(p.getDirectManagerId())) reports.add(key(p.getStaffKind(), p.getStaffId()));
         boolean manager = "MANAGERIAL".equals(caller.role());
+        // Feature 20: her floors' teachers, resolved through `FloorScope` so the rule is read from
+        // `floor_supervisors` and `floor_classes` and never from anything the request carries.
+        Set<String> onMyFloors = quest.server.tenancy.FloorScope.ROLE.equals(caller.role())
+                ? floors.teacherIdsOf(caller) : Set.of();
 
         var visible = new ArrayList<AttendanceStaff.Employee>();
         for (var e : everyone) {
             if (StaffAttendanceDto.KIND_USER.equals(e.kind()) && e.id().equals(caller.userId())) continue;
             if (reports.contains(key(e.kind(), e.id()))
-                    || manager && caller.userId().equals(managers.academyDirector(schoolId, e.kind(), e.id())))
+                    || manager && caller.userId().equals(managers.academyDirector(schoolId, e.kind(), e.id()))
+                    || StaffAttendanceDto.KIND_USER.equals(e.kind()) && onMyFloors.contains(e.id()))
                 visible.add(e);
         }
         return new View(manager ? StaffAttendanceDto.SCOPE_ACADEMY : StaffAttendanceDto.SCOPE_REPORTS, visible);

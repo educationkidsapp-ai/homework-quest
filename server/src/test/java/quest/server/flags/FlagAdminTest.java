@@ -24,7 +24,7 @@ class FlagAdminTest extends ApiTestSupport {
     @Test void the_flags_are_seeded_exactly_as_the_code_lists_them() {
         assertThat(definitions.findAllByOrderByKeyAsc()).extracting(Entities.FeatureFlagEntity::getKey)
                 .containsExactlyInAnyOrderElementsOf(FlagKeys.ALL);
-        assertThat(FlagKeys.ALL).hasSize(25);
+        assertThat(FlagKeys.ALL).hasSize(26);
 
         var on = definitions.findAllByOrderByKeyAsc().stream().filter(Entities.FeatureFlagEntity::isDefaultOn)
                 .map(Entities.FeatureFlagEntity::getKey).toList();
@@ -45,7 +45,10 @@ class FlagAdminTest extends ApiTestSupport {
                         // Feature 14: staff attendance, off until a school switches it on.
                         FlagKeys.STAFF_ATTENDANCE,
                         // Feature 19: quiet pushes and the morning summary, off until a school switches them on.
-                        FlagKeys.CHAT_OFFICE_HOURS);
+                        FlagKeys.CHAT_OFFICE_HOURS,
+                        // Feature 20: the floor supervisor role, off until the app build that can decode her chat
+                        // role is distributed.
+                        FlagKeys.FLOOR_SUPERVISOR);
         assertThat(definitions.findAllByOrderByKeyAsc()).allSatisfy(f ->
                 assertThat(f.getRolloutStage()).isIn("internal", "beta", "ga"));
     }

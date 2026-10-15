@@ -1,0 +1,25 @@
+:host {
+  display: block;
+}
+
+.floor-home__block {
+  display: block;
+
+  & + & {
+    margin-block-start: var(--hq-space-32);
+  }
+}
+
+.floor-home__heading {
+  margin: 0 0 var(--hq-space-16);
+  font-size: var(--hq-text-card-title);
+  line-height: calc(var(--hq-text-card-title-line) / var(--hq-text-card-title));
+  font-weight: var(--hq-text-weight-semibold);
+  color: var(--hq-color-ink-strong);
+}
+
+/* The class's own name reads first; the floor under it is context, not the row's subject. */
+.floor-home__class {
+  display: block;
+  font-weight: var(--hq-text-weight-medium);
+}

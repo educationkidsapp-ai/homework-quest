@@ -61,6 +61,12 @@ object ChatThreadsContract {
         val teacherThreads: List<ChatThread> get() = threads.filter { it.staffRole == ChatStaffRole.TEACHER }
         val coordinatorThreads: List<ChatThread> get() = threads.filter { it.staffRole == ChatStaffRole.COORDINATOR }
         val managerThreads: List<ChatThread> get() = threads.filter { it.staffRole == ChatStaffRole.MANAGERIAL && it.withAdmin != true }
+        /**
+         * Feature 20: the supervisor of the child's floor. A heading of her own, because she is neither a subject
+         * coordinator nor the department manager — and without it her thread would be in the list and under no
+         * heading, which is to say invisible. The parent never starts one; she does.
+         */
+        val floorSupervisorThreads: List<ChatThread> get() = threads.filter { it.staffRole == ChatStaffRole.FLOOR_SUPERVISOR }
         /** S1: a thread the school administration opened. `MANAGERIAL` on the wire; `withAdmin` tells it apart. */
         val adminThreads: List<ChatThread> get() = threads.filter { it.withAdmin == true }
     }
@@ -235,6 +241,11 @@ fun ChatThreadsScreen(
             SectionTitle(strings.managersGroup)
             val department = departmentWord(state.curriculum, strings)
             state.managerThreads.forEach { ChatThreadRow(it, strings, { onSelectThread(it) }, department = department, typing = it.id in state.typing) }
+        }
+
+        if (state.floorSupervisorThreads.isNotEmpty()) {
+            SectionTitle(strings.floorSupervisorsGroup)
+            state.floorSupervisorThreads.forEach { ChatThreadRow(it, strings, { onSelectThread(it) }, typing = it.id in state.typing) }
         }
 
         // The parent cannot start one of these — New message does not offer the administration — but answers here.

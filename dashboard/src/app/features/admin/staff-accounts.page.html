@@ -102,8 +102,9 @@
 
   <ng-template #rowMenu>
     <div cdkMenu class="hq-menu" [attr.aria-label]="'ui.table.actions' | transloco">
-      <!-- D1: her direct thread with this person, opened in Admin Messages. -->
-      @if (threads.available()) {
+      <!-- D1: her direct thread with this person, opened in Admin Messages. Not on a floor
+           supervisor's row — `POST /admin/chat/threads` has no body that names her. -->
+      @if (threads.available() && !isFloor) {
         <button
           type="button"
           cdkMenuItem
@@ -123,15 +124,19 @@
       >
         {{ 'admin.people.editAction' | transloco }}
       </button>
-      <button
-        type="button"
-        cdkMenuItem
-        class="hq-menu__item"
-        *hqCan="manageKey"
-        (cdkMenuItemTriggered)="openScopes(menuRow()?.source ?? null)"
-      >
-        {{ scopesHeader() }}
-      </button>
+      <!-- Feature 20: a floor supervisor's floors are assigned on the Floors page, where the
+           classes that make them up are — so there is no scope editor behind her row. -->
+      @if (!isFloor) {
+        <button
+          type="button"
+          cdkMenuItem
+          class="hq-menu__item"
+          *hqCan="manageKey"
+          (cdkMenuItemTriggered)="openScopes(menuRow()?.source ?? null)"
+        >
+          {{ scopesHeader() }}
+        </button>
+      }
       <button
         type="button"
         cdkMenuItem
@@ -274,6 +279,11 @@
           [value]="createCurriculum()"
           (valueChange)="setCreateCurriculum($event)"
         />
+      } @else if (isFloor) {
+        <!-- Nothing to pick: the account is a name and an address, and the floors she looks after
+             are assigned on the Floors page. The line says where, so the Admin is not left
+             looking for a field that is deliberately not here. -->
+        <p class="hq-muted">{{ 'admin.floorSupervisors.form.floorsHint' | transloco }}</p>
       } @else {
         <ng-container [ngTemplateOutlet]="scopesEditor" />
       }
