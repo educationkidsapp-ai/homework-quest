@@ -73,6 +73,7 @@ class PushNavigator(
             is Destination.Broadcast -> Step.Parent(Routes.Broadcasts(focusBroadcast = destination.broadcastId))
             is Destination.Notifications -> Step.Parent(Routes.Broadcasts(focusRow = destination.row, gone = destination.gone))
             Destination.Progress -> Step.Parent(Routes.Progress())
+            Destination.ParentHome -> Step.Parent(Routes.ParentHome)
             is Destination.Lesson -> Step.Parent(Routes.LessonPanel(destination.lessonId))
             Destination.ExamCard -> Step.Child(null)
             is Destination.ExamResult -> Step.Parent(Routes.Progress(focusExam = destination.lessonId))

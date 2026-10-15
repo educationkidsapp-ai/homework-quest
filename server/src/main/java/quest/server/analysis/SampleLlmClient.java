@@ -30,6 +30,8 @@ public class SampleLlmClient implements LlmClient {
         if (system.equals(Prompts.SYSTEM_E)) return announcementFromTranscript(user);
         if (system.equals(Prompts.SYSTEM_F)) return briefFromFacts(user);
         if (system.equals(Prompts.DOCUMENT_READER)) return summaryFromDocument(user);
+        if (system.equals(Prompts.COMPLAINT_TRIAGE)) return triageOfComplaint(user);
+        if (system.equals(Prompts.EVENING_CARD)) return eveningCard(user);
         if (system.equals(Prompts.SMART_HINTS)) return hints(user);
         if (system.equals(Prompts.TARGETED_PRACTICE)) return practice(user);
         if (user.startsWith("Here is a Play you wrote earlier")) {
@@ -236,6 +238,24 @@ public class SampleLlmClient implements LlmClient {
         return new Result(out.toString(), 1100, 500);
     }
 
+    /**
+     * Feature 28's note without a model: the first block's own "HOW IT WENT" words in a fixed sentence pair that
+     * keeps every rule the validator checks — `{child}` in both languages and not a digit anywhere. Deterministic,
+     * which is what lets the API test read the card back and assert on it, and it still exercises the real checks.
+     */
+    private Result eveningCard(String user) {
+        String en = "went well", ar = "سار على ما يرام";
+        var went = WENT.matcher(user);
+        if (went.find()) { en = went.group(1).strip(); ar = went.group(2).strip(); }
+        var out = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+        out.put("textEn", "{child} worked on today's homework — " + en + ". Ask about the part {child} practised this evening.");
+        out.put("textAr", "عمل {child} في واجب اليوم — " + ar + ". اسألوا {child} هذا المساء عما تدرب عليه.");
+        return new Result(out.toString(), 600, 300);
+    }
+
+    /** The result line of one `EveningCardFacts.Lesson.block`: `HOW IT WENT: went well / سار على ما يرام`. */
+    private static final java.util.regex.Pattern WENT = java.util.regex.Pattern.compile("HOW IT WENT: ([^/\n]+) / ([^\n]+)");
+
     /** One audience line of {@link Prompts#userE}: `curriculum "british", grade 1`. */
     private static final java.util.regex.Pattern CELL = java.util.regex.Pattern.compile("curriculum \"([a-z]+)\", grade (\\d+)");
     private static final java.util.regex.Pattern ISO_DAY = java.util.regex.Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
@@ -248,4 +268,33 @@ public class SampleLlmClient implements LlmClient {
         int to = whole.indexOf(before, from);
         return (to < 0 ? whole.substring(from) : whole.substring(from, to)).strip();
     }
+
+    /**
+     * Feature 27's turn without a model: the category is the first keyword the complaint carries, the urgency is
+     * "high" when it says so and "normal" otherwise, the summary is the title and the first line of the body, and
+     * the reply is one fixed courteous sentence. Deterministic, which is what lets `ComplaintTriageApiTest` and the
+     * local H2 run open a complaint and assert on the chips — and the server still has to accept the shape, mask the
+     * names before this is ever reached, and refuse an urgency it cannot draw.
+     */
+    private Result triageOfComplaint(String user) {
+        String title = between(user, "THE COMPLAINT'S TITLE:\n", "\n\nWHAT THE PARENT WROTE");
+        String body = between(user, "already masked):\n", "\n\nYour previous answer");
+        String all = (title + " " + body).toLowerCase(java.util.Locale.ROOT);
+        String category = "other";
+        for (var guess : CATEGORY_WORDS) if (all.contains(guess[1])) { category = guess[0]; break; }
+        String urgency = all.contains("urgent") || all.contains("unsafe") || all.contains("عاجل") ? "high"
+                : all.contains("whenever") || all.contains("question") ? "low" : "normal";
+        String summary = cut(title + " — " + body.lines().findFirst().orElse("").strip(), 400);
+        var out = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+        out.put("category", category); out.put("urgency", urgency);
+        out.put("summaryAr", summary); out.put("summaryEn", summary);
+        out.put("replyAr", "شكرًا لتواصلكم. سننظر في الأمر ونعود إليكم.");
+        out.put("replyEn", "Thank you for telling us. We are looking into it and will come back to you.");
+        return new Result(out.toString(), 500, 300);
+    }
+
+    /** `{category, the word that gives it away}`, in the order the sample tries them. */
+    private static final String[][] CATEGORY_WORDS = {
+            {"transport", "bus"}, {"fees", "fee"}, {"facilities", "toilet"}, {"behaviour", "bully"},
+            {"staff", "teacher"}, {"academic", "homework"}};
 }

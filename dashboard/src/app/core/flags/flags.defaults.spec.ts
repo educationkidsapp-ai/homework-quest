@@ -26,6 +26,7 @@ const MIGRATIONS: readonly { readonly file: string; readonly rows: number }[] = 
   { file: 'V46__remote_study_days.sql', rows: 1 },
   { file: 'V47__morning_brief.sql', rows: 1 },
   { file: 'V48__document_reader.sql', rows: 1 },
+  { file: 'V49__complaint_triage.sql', rows: 1 },
   { file: 'V52__smart_hints.sql', rows: 1 },
 ];
 

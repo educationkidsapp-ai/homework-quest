@@ -14,6 +14,7 @@ import quest.api.dto.Child
 import quest.api.dto.ChildAttendanceRecord
 import quest.api.dto.ChildAttendanceResponse
 import quest.api.dto.CreateChildRequest
+import quest.api.dto.EveningCard
 import quest.api.dto.MapResponse
 import quest.api.dto.MediaKind
 import quest.api.dto.MediaRef
@@ -88,6 +89,15 @@ interface ContentApi {
      * shows no announcements card.
      */
     suspend fun announcements(childId: String): List<ParentAnnouncement> = emptyList()
+
+    /**
+     * Feature 28: `GET /children/{id}/evening-card` — today's card, or **null** on the server's 204 (before 16:00
+     * school time, a day the school does not teach, or nothing to say about today). Behind the `parentEveningCard`
+     * flag; 404 while it is off. Its words carry `{child}`: fill it in with [EveningCard.forChild].
+     *
+     * Defaulted to null so every test double keeps compiling — an app with no backend simply shows no card.
+     */
+    suspend fun eveningCard(childId: String): EveningCard? = null
 
     // ---- C1: chat with the child's teachers (`docs/runbook.md` "Chat"). Behind the `chat` flag: 404 while off.
 
@@ -291,6 +301,10 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "morningBrief" to false,
     // Feature 26: a leader uploads a circular and reads what it says, in both languages (V48).
     "documentReader" to false,
+    // Feature 27: a new complaint is sorted by the AI for the staff who answer it (V49).
+    "complaintTriage" to false,
+    // Feature 28: the parent's evening card about one child's day (V50).
+    "parentEveningCard" to false,
     // Feature 30: teacher-approved hints and a practice set per weak skill, written at build time only (V52).
     "smartHints" to false,
 )

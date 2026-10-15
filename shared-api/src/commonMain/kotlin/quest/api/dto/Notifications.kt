@@ -140,6 +140,14 @@ enum class NotificationKind {
      * own, so the lines are never duplicated into a push that cannot be kept in step with the brief.
      */
     @SerialName("morning.brief") MORNING_BRIEF,
+
+    /**
+     * Feature 28 (parents only): the evening card about one child's day is ready. [NotificationView.title] is "Today
+     * with &lt;her name&gt;" — the **push** may name her, because nothing of her ever reached the model that wrote the
+     * card ([EveningCard]) — [NotificationView.childId] is that child and [NotificationView.link]
+     * `/children/{childId}/evening-card`. Once per child and day.
+     */
+    @SerialName("evening.card") EVENING_CARD,
 }
 
 /**

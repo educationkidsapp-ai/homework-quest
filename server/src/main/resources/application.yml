@@ -131,6 +131,13 @@ quest:
       # `staff_attendance_alerts` before it is sent, so reruns and a second instance send nothing twice.
       enabled: ${QUEST_STAFF_ATTENDANCE_JOB_ENABLED:true}
       interval-seconds: ${QUEST_STAFF_ATTENDANCE_JOB_INTERVAL_SECONDS:300}
+  evening-card:
+    job:
+      # Feature 28: from 18:00 school time, one push to the parent of every child who has a card today, and the cards
+      # nobody has asked for yet are written here. Every five minutes and once at startup; the card and the bell row
+      # are both claimed, so reruns and a second instance send nothing twice.
+      enabled: ${QUEST_EVENING_CARD_JOB_ENABLED:true}
+      interval-seconds: ${QUEST_EVENING_CARD_JOB_INTERVAL_SECONDS:300}
   chat-office-hours:
     job:
       # Feature 19: one summary of the parent messages that arrived outside a member of staff's office hours, when her
@@ -245,6 +252,9 @@ quest:
   # Feature 25: nor the morning brief — it would brief leaders another context seeded, and a tick against the shared
   # SessionFactory would make the query-count tests off by one. `MorningBriefApiTest` calls `run()` outright.
   morning-brief.job.enabled: false
+  # Feature 28: nor the evening card's job — it would write cards and push for children another context seeded.
+  # `EveningCardApiTest` calls `run(schoolId)` outright.
+  evening-card.job.enabled: false
   # Pushes are recorded, not sent, and a scripted transient failure is retried at once rather than after a second.
   push.backoff-millis: 0
 

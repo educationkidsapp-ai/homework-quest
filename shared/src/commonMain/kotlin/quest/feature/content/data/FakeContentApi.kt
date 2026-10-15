@@ -9,7 +9,10 @@ import quest.api.samples.PhonicsSeed
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import quest.api.ApiException
 import quest.api.AuthProvider
 import quest.api.AuthState
@@ -33,6 +36,8 @@ import quest.api.dto.ChatThread
 import quest.api.dto.ChatTopic
 import quest.api.dto.CreateChildRequest
 import quest.api.dto.Curriculum
+import quest.api.dto.EveningCard
+import quest.api.dto.EveningCardSource
 import quest.api.dto.LessonCompletionInfo
 import quest.api.dto.MapResponse
 import quest.api.dto.MediaKind
@@ -520,7 +525,30 @@ class FakeContentApi(
         return quest.api.dto.ChildAttendanceRecord(date = today().toString(), status = "PRESENT", notes = "Great participation in class today!")
     }
 
+    /**
+     * Feature 28: the card the real server writes with the assistant. The fake keeps the one rule that matters to the
+     * app — the words carry `{child}` and no digit, no `%` and no score word — and the one rule that decides whether
+     * there is a card at all: nothing before 16:00 local, which is the server's 204.
+     */
+    override suspend fun eveningCard(childId: String): EveningCard? {
+        net()
+        val hour = Instant.fromEpochMilliseconds(now()).toLocalDateTime(TimeZone.currentSystemDefault()).hour
+        if (hour < EVENING_CARD_FROM_HOUR) return null
+        return EveningCard(
+            day = today().toString(),
+            textAr = "اليوم عملت ${EveningCard.CHILD} على العدّ بخطوات، وأتمّت الدرس كاملًا. سار الأمر جيدًا. " +
+                "لو أعادت محطة «المقارنة» معكما قبل النوم فستثبت الفكرة أكثر.",
+            textEn = "${EveningCard.CHILD} worked on counting in steps today and finished the whole lesson. It went " +
+                "well. Going over the comparing step together before bed would make it stick.",
+            lessonIds = listOf(MathSeed.lesson.id),
+            source = EveningCardSource.MODEL,
+        )
+    }
+
     companion object {
+        /** Feature 28: the school hour from which there is a card at all (`docs/features/28-parent-evening-card.md`). */
+        const val EVENING_CARD_FROM_HOUR = 16
+
         /** The school code `createChild` places a child in the themed school for. */
         const val AL_NOOR_CODE = "ALNOOR"
         const val AL_NOOR_ID = "al-noor"

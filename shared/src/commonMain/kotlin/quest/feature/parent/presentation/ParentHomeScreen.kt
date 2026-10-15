@@ -33,6 +33,7 @@ import org.koin.compose.viewmodel.koinViewModel
 import quest.api.ContentApi
 import quest.api.dto.Child
 import quest.api.dto.ChildAttendanceRecord
+import quest.api.dto.EveningCard
 import quest.core.mvi.MviEffect
 import quest.core.mvi.MviIntent
 import quest.core.mvi.MviState
@@ -66,6 +67,11 @@ object ParentHomeContract {
         val unreadBroadcasts: Int = 0,
         /** MH3: unread weekly plans in the archive window, the badge on the Weekly plan button. */
         val unreadPlans: Int = 0,
+        /**
+         * Feature 28: today's evening card for [current], or null for every answer that is not one — the 204, the
+         * 404 and a failed request alike. The home draws no card then; it never shows an error in its place.
+         */
+        val eveningCard: EveningCard? = null,
     ) : MviState
     sealed interface Intent : MviIntent {
         data object Load : Intent
@@ -91,7 +97,7 @@ class ParentHomeViewModel(
                 // Nobody linked yet (or the school unlinked the last child): the home says so instead of asking the
                 // parent to add one — only the admin can.
                 if (current == null) {
-                    reduce { copy(loading = false, children = list, current = null, today = emptyList(), attendance = null, unreadBroadcasts = 0, unreadPlans = 0) }
+                    reduce { copy(loading = false, children = list, current = null, today = emptyList(), attendance = null, unreadBroadcasts = 0, unreadPlans = 0, eveningCard = null) }
                     return
                 }
                 val today = Today.date()
@@ -108,7 +114,11 @@ class ParentHomeViewModel(
                 val unread = feed?.let { unreadAnnouncements(it.items, Today.epochMillis()) } ?: 0
                 val plans = if (enabled) runCatching { api.childWeeklyPlans(current.id).unread }.getOrDefault(0) else 0
                 val undelivered = undeliveredExams?.invoke(current).orEmpty()
-                reduce { copy(loading = false, children = list, current = current, today = days, attendance = att, unreadBroadcasts = unread, unreadPlans = plans, undelivered = undelivered) }
+                // Feature 28: asked for only where the school has the card, for the same reason as the counts above —
+                // the flag is off in `DEFAULT_FLAGS`, so every other school would pay a refused request per load. A
+                // 204, a 404 and a failed request are all simply "no card": the home must never break over it.
+                val card = if (flags.isEnabled(Flags.PARENT_EVENING_CARD)) runCatching { api.eveningCard(current.id) }.getOrNull() else null
+                reduce { copy(loading = false, children = list, current = current, today = days, attendance = att, unreadBroadcasts = unread, unreadPlans = plans, undelivered = undelivered, eveningCard = card) }
             }
             is ParentHomeContract.Intent.Select -> {
                 children.select(intent.id)
@@ -194,6 +204,17 @@ fun ParentHomeScreen(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp),
     ) {
+        // ---- Feature 28: today with her -------------------------------------
+        // First, above everything, because it is the one thing a parent opens the app for at six o'clock — and it is
+        // its own gate, so a school without the card has exactly the home it had before.
+        EveningCardSection(
+            card = state.eveningCard,
+            childName = state.current?.name,
+            s = s,
+            onLessonPanel = onLessonPanel,
+            modifier = Modifier.padding(top = 18.dp),
+        )
+
         // ---- Children Section ------------------------------------------------
         SectionTitle(s.children, Modifier.testTag(TestTags.PARENT_HOME))
         // Every child the school linked to this account; the admin adds them, so there is nothing to add here.

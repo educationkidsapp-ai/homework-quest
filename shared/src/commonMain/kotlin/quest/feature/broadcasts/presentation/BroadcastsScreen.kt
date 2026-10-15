@@ -344,6 +344,7 @@ fun NotificationRowCard(row: NotificationView, strings: Strings, focused: Boolea
         NotificationKind.COMPLAINT_STATUS, NotificationKind.COMPLAINT_NEW -> strings.notices.updateComplaint
         NotificationKind.COMPLAINT_MESSAGE -> strings.notices.updateComplaintReply
         NotificationKind.BROADCAST_POSTED -> strings.notices.updateNews
+        NotificationKind.EVENING_CARD -> strings.eveningCardUpdate
         else -> strings.updateOther
     }
     ParentCard(

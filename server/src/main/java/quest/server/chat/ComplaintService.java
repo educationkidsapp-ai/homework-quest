@@ -1,6 +1,7 @@
 package quest.server.chat;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -36,6 +37,8 @@ import quest.server.chat.Entities.ComplaintEventEntity;
 import quest.server.children.ChildRepository;
 import quest.server.children.Entities.ChildEntity;
 import quest.server.config.ApiException;
+import quest.server.flags.FeatureFlags;
+import quest.server.flags.FlagKeys;
 import quest.server.notifications.NotificationService;
 import quest.server.tenancy.ClassRepository;
 import quest.server.tenancy.CoordinatorScope;
@@ -71,20 +74,26 @@ import quest.server.tenancy.TenantContext;
 public class ComplaintService {
     static final int TITLE_MAX = 120;
     static final String STAFF = "staff";
+    /** Feature 27: what the parent is told inside the recipient's office hours, and after her next start. */
+    static final Duration REPLY_WITHIN = Duration.ofHours(4), REPLY_AFTER_START = Duration.ofHours(2);
 
     private final ChatThreadRepository threads; private final ComplaintEventRepository events; private final ChatService chat;
     private final ChildRepository children; private final ClassRepository classes; private final UserRepository users;
     private final ParentRepository parents; private final TeacherScope scope; private final CoordinatorScope coordinatorScope;
     private final ManagerScope managerScope; private final ChatPeers peers; private final TenantContext tenant;
     private final NotificationService bells; private final Clock clock;
+    private final ComplaintTriageRepository triages; private final ComplaintTriageService triage;
+    private final OfficeHours officeHours; private final FeatureFlags flags;
 
     public ComplaintService(ChatThreadRepository threads, ComplaintEventRepository events, ChatService chat, ChildRepository children,
                             ClassRepository classes, UserRepository users, ParentRepository parents, TeacherScope scope,
                             CoordinatorScope coordinatorScope, ManagerScope managerScope, ChatPeers peers, TenantContext tenant,
-                            NotificationService bells, Clock clock) {
+                            NotificationService bells, Clock clock, ComplaintTriageRepository triages, ComplaintTriageService triage,
+                            OfficeHours officeHours, FeatureFlags flags) {
         this.threads = threads; this.events = events; this.chat = chat; this.children = children; this.classes = classes; this.users = users;
         this.parents = parents; this.scope = scope; this.coordinatorScope = coordinatorScope; this.managerScope = managerScope;
         this.peers = peers; this.tenant = tenant; this.bells = bells; this.clock = clock;
+        this.triages = triages; this.triage = triage; this.officeHours = officeHours; this.flags = flags;
     }
 
     // ---------------------------------------------------------------- the parent (app)
@@ -137,6 +146,9 @@ public class ComplaintService {
         threads.saveAndFlush(t);
         chat.send(t, child.getParentId(), ChatService.PARENT, parent.parentId(), req.getBody(), req.getAttachmentIds(), req.getClientId(), false);
         bells.complaintNew(t.getSchoolId(), t.getTeacherId(), id, parentName(parent.parentId()), title);
+        // Feature 27: asked for here, run after this transaction commits and on a task thread. Nothing below depends
+        // on it and nothing in it can reach back — a failed, slow or switched-off triage is this same complaint.
+        triage.request(id);
         return detail(threads.findOneById(id).orElseThrow(), parentViewer(parent, child), null, null, null);
     }
 
@@ -354,7 +366,35 @@ public class ComplaintService {
             return new ComplaintEvent(ChatService.status(e.getStatus()), byParent ? ComplaintActor.PARENT : ComplaintActor.STAFF, e.getActorId(), name,
                     e.getChangedAt().toEpochMilli());
         }).toList();
-        return new ComplaintDetail(rows(List.of(t), viewer).get(0), chat.page(t.getId(), before, since, limit), lines);
+        return new ComplaintDetail(rows(List.of(t), viewer).get(0), chat.page(t.getId(), before, since, limit), lines,
+                viewer.parentId() == null ? null : expectedReplyBy(t));
+    }
+
+    /**
+     * Feature 27, the parent's half: when she may expect an answer, in epoch milliseconds. It is the recipient's own
+     * office hours (feature 19) and therefore feature 14's work hours for the recipient's category in the school's
+     * zone, Ramadan, holidays and days off included — there is no second notion of "working time" to disagree with
+     * the banner she already reads on her Messages list.
+     *
+     * <p>Inside her hours: four hours from now, capped at the end of the period she is in, so a complaint at 13:30 on
+     * a day that ends at 14:00 does not promise an answer at 17:30. Outside them: two hours after her next working
+     * period starts. {@code chatOfficeHours} off promises nothing, which is what the app knew before feature 19, and
+     * so does a resolved complaint and a school whose holidays run past the lookahead.
+     *
+     * <p><strong>Independent of {@code complaintTriage}.</strong> It is arithmetic on the school's own schedule, not
+     * a thing the AI said, and a school can have either switch without the other.
+     */
+    private Long expectedReplyBy(ChatThreadEntity t) {
+        if (!ChatService.OPEN.equals(t.getStatus()) || t.getTeacherId() == null) return null;
+        if (!flags.isOn(t.getSchoolId(), FlagKeys.CHAT_OFFICE_HOURS)) return null;
+        var now = clock.instant();
+        var status = officeHours.status(t.getSchoolId(), t.getTeacherId(), now);
+        if (status.open()) {
+            var within = now.plus(REPLY_WITHIN);
+            var closes = status.closesAt();
+            return (closes != null && closes.isBefore(within) ? closes : within).toEpochMilli();
+        }
+        return status.nextStart() == null ? null : status.nextStart().plus(REPLY_AFTER_START).toEpochMilli();
     }
 
     private List<Complaint> rows(List<ChatThreadEntity> ts, Viewer viewer) { return rows(ts, viewer, kidsOf(ts)); }
@@ -369,6 +409,11 @@ public class ComplaintService {
         var accounts = staff(List.copyOf(people));
         var parentNames = chat.parentNames(kids.values());
         var last = chat.lastMessages(ts);
+        // Feature 27: staff only, and one statement for the page. A parent never reads the school's working note
+        // about her own complaint, so hers is not even read.
+        var triage = viewer.parentId() != null ? Map.<String, Entities.ComplaintTriageEntity>of()
+                : triages.findByComplaintIdIn(ts.stream().map(ChatThreadEntity::getId).toList()).stream()
+                        .collect(Collectors.toMap(Entities.ComplaintTriageEntity::getComplaintId, r -> r, (a, b) -> a));
         var coordinatorSubjects = new HashMap<String, Map<String, String>>();
         var out = new ArrayList<Complaint>(ts.size());
         for (var t : ts) {
@@ -384,7 +429,8 @@ public class ComplaintService {
                     section == null ? null : section.getName(), subject(t, kid, section, viewer.assignments(), coordinatorSubjects), last.get(t.getId()), unread,
                     resolved && t.getResolvedAt() != null ? t.getResolvedAt().toEpochMilli() : null,
                     resolved && resolver != null ? ChatService.name(resolver) : null,
-                    viewer.parentId() != null || viewer.isRecipient(t)));
+                    viewer.parentId() != null || viewer.isRecipient(t),
+                    ComplaintTriageService.view(triage.get(t.getId()))));
         }
         return out;
     }

@@ -53,10 +53,17 @@ object Flags {
      */
     const val VOICE_ANNOUNCEMENT = "voiceAnnouncement"
 
+    /**
+     * Feature 28: the parent's evening card about one child's day. The server answers 404 to
+     * `GET /children/{id}/evening-card` while it is off, so the home asks for the card only when the school has it —
+     * one refused request per home load and per child switch is exactly the bug `announcements` taught.
+     */
+    const val PARENT_EVENING_CARD = "parentEveningCard"
+
     /** Every key this app gates on. */
     val used = listOf(
         RETELL_RECORDING, OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, CERTIFICATES, LEVEL_THREE, CHAT, ANNOUNCEMENTS,
-        EXAMS, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, VOICE_ANNOUNCEMENT,
+        EXAMS, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, VOICE_ANNOUNCEMENT, PARENT_EVENING_CARD,
     )
 
     /** True when the platform defines [key] at all — the contract's `DEFAULT_FLAGS` is the list of what exists. */

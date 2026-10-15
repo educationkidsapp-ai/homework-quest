@@ -12,7 +12,13 @@ import { rxResource, takeUntilDestroyed, toSignal } from '@angular/core/rxjs-int
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { map } from 'rxjs';
-import { type Complaint, type ComplaintList, ChatMessageSenderEnum, ComplaintStatusEnum } from '../../api';
+import {
+  type Complaint,
+  type ComplaintList,
+  ChatMessageSenderEnum,
+  ComplaintStatusEnum,
+  ComplaintTriageUrgencyEnum,
+} from '../../api';
 import { ComplaintsService, type ComplaintFilter } from '../../core/complaints/complaints.service';
 import { FeatureDirective } from '../../core/flags/feature.directive';
 import { activeLang } from '../../core/i18n/active-lang';
@@ -125,6 +131,33 @@ import { ComplaintConversationComponent } from './complaint-conversation.compone
                 >
                   <span class="complaints__title" dir="auto">{{ row.title }}</span>
                 </a>
+                <!-- Feature 27: what the assistant made of it. Drawn only when there is a triage
+                     to draw — the chips are a help, so a complaint without one says nothing
+                     rather than "unknown". -->
+                @if (triageOn() ? row.triage : null; as triage) {
+                  <span class="complaints__chips">
+                    <span
+                      class="hq-badge complaints__chip--category"
+                      [attr.aria-label]="
+                        'complaints.triage.categoryOf'
+                          | transloco: { label: 'complaints.triage.category.' + triage.category | transloco }
+                      "
+                    >
+                      {{ 'complaints.triage.category.' + triage.category | transloco }}
+                    </span>
+                    <span
+                      class="hq-badge"
+                      [class.hq-badge--error]="triage.urgency === high"
+                      [class.complaints__chip--muted]="triage.urgency === low"
+                      [attr.aria-label]="
+                        'complaints.triage.urgencyOf'
+                          | transloco: { label: 'complaints.triage.urgency.' + triage.urgency | transloco }
+                      "
+                    >
+                      {{ 'complaints.triage.urgency.' + triage.urgency | transloco }}
+                    </span>
+                  </span>
+                }
                 <span class="complaints__last hq-muted" dir="auto">{{ row.lastMessage?.body ?? '' }}</span>
               }
               @case ('child') {
@@ -211,10 +244,28 @@ import { ComplaintConversationComponent } from './complaint-conversation.compone
       overflow-wrap: anywhere;
     }
 
-    .complaints__status {
+    .complaints__status,
+    .complaints__chips {
       display: inline-flex;
       flex-wrap: wrap;
       gap: var(--hq-space-4);
+    }
+
+    .complaints__chips {
+      margin-block: var(--hq-space-4);
+    }
+
+    // The category says what the complaint is about and the urgency says how soon: one outline
+    // and one fill, so a row of pills has one voice that carries — red on the urgent ones only.
+    .complaints__chip--category {
+      --hq-badge-bg: transparent;
+      --hq-badge-fg: var(--hq-color-ink-soft);
+      border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+    }
+
+    .complaints__chip--muted {
+      --hq-badge-bg: var(--hq-color-surface-sunken);
+      --hq-badge-fg: var(--hq-color-ink-muted);
     }
   `,
 })
@@ -226,6 +277,11 @@ export class ComplaintsPage {
   private readonly lang = activeLang();
 
   protected readonly open = ComplaintStatusEnum.OPEN;
+  /** Feature 27: only `high` wears the red, and `low` steps back; `normal` is the plain pill. */
+  protected readonly high = ComplaintTriageUrgencyEnum.HIGH;
+  protected readonly low = ComplaintTriageUrgencyEnum.LOW;
+  /** Whether a row's `triage` may be drawn at all (the `complaintTriage` switch). */
+  protected readonly triageOn = this.complaints.triageOn;
   protected readonly status = signal<ComplaintFilter>('open');
   protected readonly search = signal('');
   /**

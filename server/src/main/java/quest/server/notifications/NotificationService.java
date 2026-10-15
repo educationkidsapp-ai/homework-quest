@@ -132,7 +132,7 @@ public class NotificationService {
             case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS,
                  COMPLAINT_NEW, COMPLAINT_MESSAGE, ATTENDANCE_REMINDER, ATTENDANCE_ALERT, ATTENDANCE_DIGEST,
                  ATTENDANCE_REQUEST, ATTENDANCE_DECISION, ATTENDANCE_REMOTE_DAY,
-                 CHAT_AFTER_HOURS_SUMMARY, MORNING_BRIEF
+                 CHAT_AFTER_HOURS_SUMMARY, MORNING_BRIEF, EVENING_CARD
                  -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         String name = lesson.getTitle() == null || lesson.getTitle().isBlank() ? "Your lesson" : lesson.getTitle().trim();
@@ -143,7 +143,7 @@ public class NotificationService {
             case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS,
                  COMPLAINT_NEW, COMPLAINT_MESSAGE, ATTENDANCE_REMINDER, ATTENDANCE_ALERT, ATTENDANCE_DIGEST,
                  ATTENDANCE_REQUEST, ATTENDANCE_DECISION, ATTENDANCE_REMOTE_DAY,
-                 CHAT_AFTER_HOURS_SUMMARY, MORNING_BRIEF
+                 CHAT_AFTER_HOURS_SUMMARY, MORNING_BRIEF, EVENING_CARD
                  -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         try {
@@ -417,6 +417,35 @@ public class NotificationService {
     }
 
     /**
+     * Feature 28: today's evening card about one child is ready, from 18:00 school time. <strong>Once per child and
+     * day</strong>, and the once key is the card's own id, because V50 already allows one card per child and day — so
+     * a second instance running the job, or a rerun of it, pushes nothing.
+     *
+     * <p>The push <strong>may name her</strong>, unlike the card itself: the title is read by her own parent on her
+     * own phone, and nothing of the child ever reached the model that wrote the words ({@link quest.api.dto.EveningCard}).
+     *
+     * <p>No {@link #afterCommit}: the job has no transaction of its own to wait for, so the row is written in one
+     * {@code REQUIRES_NEW} transaction of its own here. Answers whether this call was the one that told her.
+     */
+    public boolean parentEveningCard(String schoolId, String parentId, String childId, String childName, String cardId, java.time.LocalDate day) {
+        if (parentId == null || childId == null || cardId == null) return false;
+        boolean named = childName != null && !childName.isBlank();
+        String who = named ? childName.trim() : "your child", whoAr = named ? childName.trim() : "طفلك";
+        var note = new Note(NotificationKind.EVENING_CARD, cardId, "Today with " + who,
+                "A short note about " + who + "'s day is ready.", "/children/" + childId + "/evening-card", "evening:" + childId + ":" + day)
+                .arabic("يوم " + whoAr + " اليوم", "ملاحظة قصيرة عن يوم " + whoAr + " جاهزة.");
+        try {
+            var told = own.execute(status -> tell(schoolId, parentId, childId, note, true));
+            if (told == null) return false;
+            push.toParents(List.of(told));
+            return true;
+        } catch (RuntimeException e) {
+            log.warn("notifications: could not tell a parent about the evening card of {}: {}", childId, e.toString());
+            return false;
+        }
+    }
+
+    /**
      * B4: a staff member resolved one of her complaints, or opened it again. One row per change — a complaint reopened
      * and resolved twice is news each time — collapsed with the complaint's messages on her phone. B6: the row and the
      * push open the complaint on her Complaints page (`/children/{childId}/complaints/{complaintId}`).
@@ -450,6 +479,21 @@ public class NotificationService {
         if (userId == null) return;
         notify(schoolId, userId, NotificationKind.COMPLAINT_NEW, "New complaint from " + (from == null || from.isBlank() ? "a parent" : from),
                 complaintTitle, complaintsLink(roleOf(userId), complaintId), complaintId);
+    }
+
+    /**
+     * Feature 27: the AI read a new complaint as <strong>high urgency</strong>, so the manager of the child's
+     * department hears about it as well as the person it was addressed to. B6's `complaint.new` kind, link and page —
+     * the escalation is who is told, not a new kind of thing to be told — with a title that says why she is being
+     * told. One row, because a complaint is triaged once ({@code complaint_triage.complaint_id} is its primary key).
+     *
+     * <p>Never fails anything: the triage runs after the complaint has committed and on a task thread, and a bell
+     * that cannot be written is logged there and nowhere else.
+     */
+    public void complaintEscalated(String schoolId, String userId, String complaintId, String complaintTitle) {
+        if (userId == null || complaintId == null) return;
+        notify(schoolId, userId, NotificationKind.COMPLAINT_NEW, "Urgent complaint needs attention", complaintTitle,
+                complaintsLink(roleOf(userId), complaintId), complaintId);
     }
 
     /**

@@ -78,6 +78,11 @@ export const FLAGS = {
   // screen reads a file and stores a summary, and only the "Draft an announcement" button needs
   // the feed, which is why that button is the one thing on it behind `announcements` as well.
   documentReader: 'documentReader',
+  // Feature 27: a new complaint reaches the staff who answer it already sorted — the category and
+  // urgency chips on the list, and the summary and suggested reply on the detail. It gates the
+  // triage and nothing else: a complaint with no triage row (the flag off, the seconds before the
+  // answer lands, a model that failed) is the ordinary case, so the screen draws what it has.
+  complaintTriage: 'complaintTriage',
   // Feature 30: the two hints the build wrote for every question, and one practice set per weak
   // skill — both unapproved until the teacher signs them. Off until an Admin turns it on, and
   // with it off the `/smart-hints` routes answer 404 and the lesson page draws no section at all,
