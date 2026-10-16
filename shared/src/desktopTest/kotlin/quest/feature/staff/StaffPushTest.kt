@@ -231,6 +231,25 @@ class StaffPushTest {
         assertEquals("/notifications?attendance=late&minutes=18", notice.tap.link)
     }
 
+    // ------------------------------------------- feature 25: the morning brief (post-merge review)
+
+    @Test fun `the morning brief opens her staff home, after the app lock, and never the parent PIN`() = runTest {
+        // `MorningBriefJob` rings each leader through `staffNotice`, which pushes to her staff devices while
+        // `staffMobileApp` is on. The brief names no child and no thread and its link is "/", so before this it fell
+        // through to the parent road and a manager landed on a PIN screen she has none for.
+        var locked = true
+        val navigator = PushNavigator(router(staffThreads = emptyList()), ParentGate(elapsed = { 0L }), signedIn = { true },
+            awaitUnlocked = { locked = false })
+        val step = navigator.follow(NotificationTap("morning.brief", link = "/", outside = true))
+        assertEquals(PushNavigator.Step.Staff(Routes.StaffHome), step, "her staff home, not Routes.ParentPin")
+        assertTrue(!locked, "and only once the app lock was past")
+    }
+
+    @Test fun `a morning brief without a staff session is still the parent's road`() = runTest {
+        val navigator = PushNavigator(router(staffThreads = null, staffSignedIn = false), ParentGate(elapsed = { 0L }), signedIn = { true })
+        assertEquals(PushNavigator.Step.Gate, navigator.follow(NotificationTap("morning.brief", link = "/", outside = true)))
+    }
+
     // ---------------------------------------------------------------- feature 19: chat office hours
 
     @Test fun `a message outside her office hours is quiet, and the same message inside them is not`() {

@@ -4,8 +4,12 @@
 
 **Status:** Done · **Area:** server, mobile app (parent), dashboard (Messages, Complaints) ·
 **Depends on:** feature 24 (`AiService`) · **Feature switch:** `languageBridge` (camelCase, like the other
+switches). Translating a message also needs `chat`; translating a broadcast or an announcement also needs
+`announcements`.
 
 **Leftovers:**
+- **A rejected AI answer is no longer saved to disk.** Since the review fixes, a rejected answer about a message is
+  not written to `data/llm-failures`. Only the error list is logged, and the `ai_calls` ledger keeps numbers only.
 - **Translation quality needs the real model on QA.** Tests use the fake model.
 - **The weekly plan page has no Translate action yet.** Chat, broadcasts, announcements and complaint replies have
   it.
@@ -14,8 +18,6 @@
   translation.
 - **The limit of 60 translations an hour counts cached answers too.**
 - **The app's interface stays in Arabic and English.** Only the translated content uses the reading language.
-switches). Translating a message also needs `chat`; translating a broadcast or an announcement also needs
-`announcements`.
 
 **The owner's rule, which decides every detail below:** *"The original text is always stored and shown as the record;
 translations are cached per language and marked as machine-translated."*

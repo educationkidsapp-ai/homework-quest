@@ -98,6 +98,42 @@ class StuckLessonTest extends ApiTestSupport {
     }
 
     /**
+     * Feature 30's `HINTS` step is <strong>optional</strong>, and that has to hold when the instance running it died
+     * as well as when the step itself failed. `LessonPipeline` already carried on to Review past a failed hints step;
+     * the sweep did not look at {@code PipelineStep.optional} at all, so a lesson whose three levels, Again variant
+     * and panel were all done ended up `error`/`timeout` because the model call it no longer needed was interrupted
+     * — and the spec's promise that hints never cost a teacher her lesson came down to which instance she was on.
+     */
+    @Test void the_sweep_leaves_a_lesson_reviewable_when_only_its_optional_step_was_lost() throws Exception {
+        String token = adminToken();
+        String id = create(token, "2026-11-06");
+        lessonSteps.ensure(id);
+        for (var step : quest.api.PipelineStep.values()) if (!step.getOptional()) lessonSteps.done(id, step);
+        lessonSteps.mark(id, quest.api.PipelineStep.HINTS, "running", null, null);
+        var old = Instant.now().minus(30, ChronoUnit.MINUTES);
+        age(id, "hints", old); ageLesson(id, "generating", old);
+
+        assertThat(watchdog.sweep()).isGreaterThanOrEqualTo(1);
+
+        var recovered = json(mvc.perform(admin(get("/admin/lessons/" + id), token)).andReturn());
+        assertThat(recovered.get("status").asText()).as("a lesson without hints is a lesson").isEqualTo("review");
+        assertThat(step(recovered, "hints")).as("the step keeps the error and offers Retry").isEqualTo("error");
+        assertThat(recovered.path("error").isMissingNode() || recovered.path("error").isNull())
+                .as("and the lesson carries none").isTrue();
+        assertThat(recovered.path("currentStep").isMissingNode() || recovered.path("currentStep").isNull()).isTrue();
+
+        // …while a lesson that lost a step it cannot do without still fails: optional is the exception, not the rule.
+        String broken = create(token, "2026-11-07");
+        lessonSteps.ensure(broken);
+        for (var step : quest.api.PipelineStep.values()) if (!step.getOptional() && step != quest.api.PipelineStep.PANEL) lessonSteps.done(broken, step);
+        lessonSteps.mark(broken, quest.api.PipelineStep.HINTS, "running", null, null);
+        age(broken, "hints", old); ageLesson(broken, "generating", old);
+        watchdog.sweep();
+        assertThat(json(mvc.perform(admin(get("/admin/lessons/" + broken), token)).andReturn()).get("status").asText())
+                .as("the parent panel is not optional").isEqualTo("error");
+    }
+
+    /**
      * "Type the text instead" was the last job with no ledger and no deadline: one `@Async` method that called
      * Prompt A and then every missing level in a row, so nothing bounded it and the watchdog had no `running` row to
      * age out — a hang there left the lesson `generating` for good. It walks the same steps as an uploaded lesson
@@ -137,8 +173,10 @@ class StuckLessonTest extends ApiTestSupport {
 
     @Autowired quest.server.analysis.LessonSteps lessonSteps;
 
-    private void age(String lessonId, Instant at) {
-        var row = stepRows.findById(lessonId + ":generate_L3").orElseThrow();
+    private void age(String lessonId, Instant at) { age(lessonId, "generate_L3", at); }
+
+    private void age(String lessonId, String step, Instant at) {
+        var row = stepRows.findById(lessonId + ":" + step).orElseThrow();
         row.setUpdatedAt(at); stepRows.save(row);
     }
 

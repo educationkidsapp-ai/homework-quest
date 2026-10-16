@@ -42,6 +42,10 @@ class ChildDeleteTest extends ClassesTestSupport {
     @Autowired quest.server.children.ChildMediaRepository media;
     @Autowired quest.server.teacher.TeacherQuestionRepository questions;
     @Autowired quest.server.teacher.TeacherQuestionAnswerRepository answers;
+    @Autowired quest.server.children.EveningCardRepository eveningCards;
+    @Autowired quest.server.translate.TranslationRepository translations;
+    @Autowired quest.server.chat.ChatThreadRepository threadRows;
+    @Autowired quest.server.chat.ChatMessageRepository messageRows;
 
     @Override String prefix() { return "cd-"; }
 
@@ -85,6 +89,31 @@ class ChildDeleteTest extends ClassesTestSupport {
         assertThat(json(mvc.perform(scoped(get("/admin/classes/" + section + "/children"), admin, A)).andReturn())).isEmpty();
     }
 
+    /**
+     * Features 28 and 29's own rows. Neither table can be left to a cascade: `evening_cards.child_id` references
+     * `children(id)` without one (V50), so a child with a card could not be deleted at all — the whole request
+     * failed on a foreign key — and `translations` has no foreign key whatever (V51), so the full text of her
+     * mother's complaint in another language outlived the complaint itself.
+     */
+    @Test void deleting_a_child_takes_her_evening_card_and_the_translations_of_her_messages() throws Exception {
+        var child = appChild(A, "Hana");
+        mvc.perform(scoped(post("/admin/classes/" + section + "/roster/attach").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"childId\":\"" + child.getId() + "\"}"), admin, A)).andExpect(status().isOk());
+        String card = eveningCard(child.getId());
+        String message = complaintMessage(child.getId());
+        String translation = translation(message);
+        String other = translation("cd-another-familys-message");
+
+        mvc.perform(scoped(delete("/admin/children/" + child.getId()), admin, A)).andExpect(status().isNoContent());
+
+        assertThat(childRows.findById(child.getId())).as("the delete went through at all").isEmpty();
+        assertThat(eveningCards.findById(card)).as("her card, which has no cascade of its own").isEmpty();
+        assertThat(messageRows.findOneById(message)).isEmpty();
+        assertThat(translations.findById(translation)).as("and what it said in Urdu").isEmpty();
+        assertThat(translations.findById(other)).as("nobody else's, though").isPresent();
+        translations.deleteById(other);
+    }
+
     /** A child a parent registered and nobody put in a section — exactly what an acceptance run leaves behind. */
     @Test void a_child_on_no_roster_is_deletable_too() throws Exception {
         var child = appChild(A, "Unsectioned");
@@ -122,6 +151,37 @@ class ChildDeleteTest extends ClassesTestSupport {
         child.setCurriculum("british"); child.setGrade(1); child.setAvatarColor("sky"); child.setLanguages("en");
         child.setActive(true); child.setCreatedAt(Instant.now());
         return childRows.save(child);
+    }
+
+    private String eveningCard(String childId) {
+        var e = new quest.server.children.Entities.EveningCardEntity();
+        e.setId("cd-card-" + UUID.randomUUID()); e.setSchoolId(A); e.setChildId(childId);
+        e.setCardDay(LocalDate.of(2026, 9, 18)); e.setFactsJson("{}");
+        e.setTextAr("{child} أنهى واجبه."); e.setTextEn("{child} finished her homework.");
+        e.setSource("template"); e.setCreatedAt(Instant.now());
+        return eveningCards.save(e).getId();
+    }
+
+    /** One complaint of her mother's, and its first message — what a translation hangs off. */
+    private String complaintMessage(String childId) {
+        var t = new quest.server.chat.Entities.ChatThreadEntity();
+        t.setId("cd-thread-" + UUID.randomUUID()); t.setSchoolId(A); t.setChildId(childId);
+        t.setTeacherId(TEACHER); t.setStaffRole("TEACHER"); t.setTopic("complaint"); t.setStatus("open");
+        t.setThreadKey(t.getId()); t.setTitle("The bus"); t.setCreatedAt(Instant.now()); t.setLastMessageAt(Instant.now());
+        threadRows.save(t);
+        var m = new quest.server.chat.Entities.ChatMessageEntity();
+        m.setId("cd-msg-" + UUID.randomUUID()); m.setSchoolId(A); m.setThreadId(t.getId());
+        m.setSenderRole("PARENT"); m.setSenderId("cd-parent"); m.setBody("She waits alone every morning.");
+        m.setCreatedAt(Instant.now());
+        return messageRows.save(m).getId();
+    }
+
+    private String translation(String messageId) {
+        var row = new quest.server.translate.Entities.TranslationEntity();
+        row.setId("cd-tr-" + UUID.randomUUID()); row.setSchoolId(A);
+        row.setSourceKind("complaint"); row.setSourceId(messageId); row.setSourceHash("cd-hash-" + messageId);
+        row.setLang("ur"); row.setText("[ur] She waits alone every morning."); row.setCreatedAt(Instant.now());
+        return translations.save(row).getId();
     }
 
     private String question(String schoolId) {

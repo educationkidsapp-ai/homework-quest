@@ -262,9 +262,10 @@ val contentModule = module {
     // M4 (D3): one for the app — started by `AppInitializer`, nudged when the app comes to the front.
     single { PendingAnswersSync(get(), get(), get()) }
     viewModel { SignInViewModel(get()) }
-    // Signing out also turns the biometric lock off (M2), empties the home-screen widget and any exam activity (M3), and
-    // withdraws the push token while the session can still say whose it is (M5).
-    factory { SignOutUseCase(get(), get(), get(), alsoForget = { get<PushRegistration>().signingOut(); get<BiometricPreferences>().signedOut(); get<TodaySnapshotStore>().write(null); get<ExamSittingPresenter>().end() }) }
+    // Signing out also turns the biometric lock off (M2), empties the home-screen widget and any exam activity (M3),
+    // withdraws the push token while the session can still say whose it is (M5), and forgets the reading language and
+    // translations of the parent who is leaving (feature 29) — the next parent on this phone is not her.
+    factory { SignOutUseCase(get(), get(), get(), alsoForget = { get<PushRegistration>().signingOut(); get<BiometricPreferences>().signedOut(); get<TodaySnapshotStore>().write(null); get<ExamSittingPresenter>().end(); get<TranslationStore>().forget() }) }
     single { ExamWindows() }
     factory { PublishTodayUseCase(get(), get(), get()) }
     // M2: the biometric lock. One instance — it remembers when the app went to the background.

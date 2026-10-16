@@ -36,6 +36,10 @@ import quest.server.content.LessonStepRepository;
  *       steps, so there is no row to age out, only a status nobody will ever move.</li>
  * </ol>
  *
+ * <p><strong>An optional step is the one exception to "and then the lesson fails".</strong> Feature 30's `HINTS`
+ * step may be lost — here as well as in the process that ran it — without costing the lesson its three levels: the
+ * row keeps the error and offers Retry, and a lesson whose every other step is done goes to Review.
+ *
  * <p><strong>It never takes work away from a live job.</strong> A lesson this instance is running is skipped outright
  * ({@link LessonPipeline#isLive}); one another instance may be running is protected by the deadline plus
  * {@link PipelineDeadlines#grace()}, which is longer than any healthy step takes to write its next row.
@@ -125,7 +129,26 @@ public class PipelineWatchdog {
     private void recover(String lessonId, PipelineStep step) {
         String message = LessonSteps.Messages.of(LessonSteps.TIMEOUT, null);
         if (step != null) steps.mark(lessonId, step, "error", LessonSteps.TIMEOUT, message);
+        // Feature 30: an optional step never dead-ends a lesson, and that has to hold when the instance running it
+        // died as well as when the step itself failed — `LessonPipeline.finish`'s own reading of the ledger. The
+        // step row keeps the error and offers Retry; the lesson, having everything it needs, reaches Review.
+        if ((step == null || step.getOptional()) && onlyOptionalOutstanding(lessonId)) {
+            state.set(lessonId, LessonStatus.REVIEW);
+            state.clearCurrentStep(lessonId);
+            log.warn("watchdog: lesson {} lost its optional {} step and is reviewable without it",
+                    lessonId, step == null ? "last" : LessonSteps.stepName(step));
+            return;
+        }
         state.fail(lessonId, LessonSteps.TIMEOUT, message);
         log.warn("watchdog: lesson {} was stuck at {} and is now error/timeout", lessonId, step == null ? "no step" : LessonSteps.stepName(step));
+    }
+
+    /** True when every step the lesson cannot do without is `done` — so the only thing missing is an optional one. */
+    private boolean onlyOptionalOutstanding(String lessonId) {
+        var rows = steps.list(lessonId);
+        if (rows.isEmpty()) return false;
+        for (var row : rows)
+            if (!LessonSteps.parse(row.getStep()).getOptional() && !"done".equals(row.getStatus())) return false;
+        return true;
     }
 }

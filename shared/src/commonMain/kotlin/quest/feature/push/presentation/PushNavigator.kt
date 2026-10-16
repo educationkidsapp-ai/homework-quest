@@ -3,8 +3,7 @@ package quest.feature.push.presentation
 import quest.core.navigation.Routes
 import quest.feature.parent.presentation.asConversation
 import quest.feature.push.domain.Destination
-import quest.feature.push.domain.CHAT_AFTER_HOURS_SUMMARY
-import quest.feature.push.domain.isAttendance
+import quest.feature.push.domain.isStaffOnlyKind
 import quest.feature.push.domain.NotificationRouter
 import quest.feature.push.domain.NotificationTap
 import quest.feature.push.domain.ParentGate
@@ -42,12 +41,12 @@ class PushNavigator(
             if (destination is Destination.StaffConversation) { awaitUnlocked(); return step(destination) }
             return if (tap.outside || !gate.isOpen) Step.Gate else step(destination)
         }
-        // Feature 16 and 19: an attendance tap and the after-hours summary are a staff member's too, and name no
-        // thread. The same road: the app lock, then her Attendance tab, her notifications or her Messages. Without a
-        // staff session it falls through to the parent gate.
-        if (isAttendance(tap.kind) || tap.kind == CHAT_AFTER_HOURS_SUMMARY) {
+        // Features 16, 19 and 25: an attendance tap, the after-hours summary and the morning brief are a staff
+        // member's too, and name no thread. The same road: the app lock, then her Attendance tab, her notifications,
+        // her Messages or her staff home. Without a staff session it falls through to the parent gate.
+        if (isStaffOnlyKind(tap.kind)) {
             val destination = router.resolve(tap)
-            if (destination is Destination.StaffAttendance || destination is Destination.StaffMessages) { awaitUnlocked(); return step(destination) }
+            if (isStaff(destination)) { awaitUnlocked(); return step(destination) }
             return if (tap.outside || !gate.isOpen) Step.Gate else step(destination)
         }
         if (tap.outside || !gate.isOpen) return Step.Gate
@@ -57,6 +56,9 @@ class PushNavigator(
     suspend fun afterGate(tap: NotificationTap): Step = step(router.resolve(tap))
 
     companion object {
+        /** A destination on the staff side of the app: it waits behind the app lock, never behind the parent gate. */
+        fun isStaff(destination: Destination): Boolean = step(destination) is Step.Staff
+
         fun step(destination: Destination): Step = when (destination) {
             is Destination.Conversation -> Step.Parent(destination.thread.asConversation())
             is Destination.StaffConversation -> Step.Staff(Routes.StaffConversation(threadId = destination.thread.id.orEmpty()))
@@ -68,6 +70,7 @@ class PushNavigator(
                 },
             )
             Destination.StaffMessages -> Step.Staff(Routes.StaffMessages)
+            Destination.StaffHome -> Step.Staff(Routes.StaffHome)
             is Destination.Complaint -> Step.Parent(Routes.Complaint(destination.childId, destination.complaintId))
             is Destination.WeeklyPlan -> Step.Parent(Routes.WeeklyPlan(focus = destination.planId))
             is Destination.Broadcast -> Step.Parent(Routes.Broadcasts(focusBroadcast = destination.broadcastId))

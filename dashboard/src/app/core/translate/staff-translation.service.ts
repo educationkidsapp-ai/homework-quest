@@ -10,6 +10,7 @@ import {
 import { BandService } from '../band/band.service';
 import { FLAGS, FlagService } from '../flags/flag.service';
 import { silentErrors } from '../http/error.interceptor';
+import { PermissionService } from '../permissions/permission.service';
 import { activeLang } from '../i18n/active-lang';
 
 /** The two sources a member of staff may ask `POST /staff/translate` about (feature 29). */
@@ -36,17 +37,32 @@ export type StaffSource = TranslateRequestKindEnum.CHAT | TranslateRequestKindEn
  * Failures are the red band, never a toast (§7): the request is sent with
  * {@link silentErrors} so the sentence is ours and in her language rather than the server's
  * English, and 429 — the spec's sixty an hour — says what to do about it.
+ *
+ * Which is why {@link allowed}, not {@link on}, is what a screen asks. `POST /staff/translate`
+ * is a write (`staff.translate` in the server's own matrix), and an Admin's "View as" session
+ * refuses every write with a 403 — so an action drawn there could only ever fail, however often
+ * she pressed it. §7's rule is that the UI offers exactly what the server would allow.
  */
 @Injectable({ providedIn: 'root' })
 export class StaffTranslationService {
   private readonly api = inject(LanguageBridgeApi);
   private readonly band = inject(BandService);
   private readonly flags = inject(FlagService);
+  private readonly permissions = inject(PermissionService);
   private readonly transloco = inject(TranslocoService);
   private readonly lang = activeLang();
 
   /** §4's dashboard half: with the switch off there is no action at all, as there is no route. */
   readonly on = computed(() => this.flags.isOn(FLAGS.languageBridge));
+
+  /**
+   * What a screen gates the action on: the switch **and** this account's own `staff.translate`.
+   *
+   * `can()` is false both for a role the matrix never gave the key to and for every write in a
+   * read-only "View as" session, which is the one that bit: the action was drawn for an
+   * impersonating Admin and answered 403 every single time.
+   */
+  readonly allowed = computed(() => this.on() && this.permissions.can('staff.translate'));
 
   /** What she reads the dashboard in, which is what a translation is asked for in. */
   readonly target = computed<TranslateRequestLangEnum>(() =>

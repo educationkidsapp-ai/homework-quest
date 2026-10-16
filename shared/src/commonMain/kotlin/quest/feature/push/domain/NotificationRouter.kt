@@ -33,6 +33,12 @@ sealed interface Destination {
      * off. It names no one thread, so it opens her Messages tab, where they are all waiting.
      */
     data object StaffMessages : Destination
+    /**
+     * Feature 25: `morning.brief` — the few lines a leader reads first thing. Its link is her Home (`/`) and the app
+     * has no brief screen of its own, so it opens her staff home. It is only ever a staff member's kind: without a
+     * staff session it is not routed here at all.
+     */
+    data object StaffHome : Destination
     /** M8: `complaint.message` and `complaint.status` — that complaint's own page, about [childId]. */
     data class Complaint(val childId: String, val complaintId: String) : Destination
     /** A weekly plan: the Weekly plan page, on that plan. */
@@ -88,6 +94,9 @@ class NotificationRouter(
         staffConversation(tap)?.let { return it }
         staffAttendance(tap)?.let { return it }
         if (tap.kind == CHAT_AFTER_HOURS_SUMMARY && staffSignedIn()) return Destination.StaffMessages
+        // Feature 25: the morning brief is pushed to a leader's staff devices. It names no child and no thread, and
+        // its link is "/", so without this it fell through to the parent road and the PIN she has none for.
+        if (tap.kind == MORNING_BRIEF && staffSignedIn()) return Destination.StaffHome
         val childId = tap.childId ?: childOf(tap.link)
         val child = childId?.let { select(it) }
         if (childId != null && child == null) return Destination.Notifications(tap.notificationId, gone = true)
@@ -235,6 +244,20 @@ fun isAttendance(kind: String?): Boolean = kind != null && kind.startsWith("atte
  * names no thread and cannot be mistaken for one.
  */
 const val CHAT_AFTER_HOURS_SUMMARY = "chat.after_hours_summary"
+
+/**
+ * Feature 25: `NotificationKind.MORNING_BRIEF` — the Admin's or a department manager's morning brief, pushed to her
+ * staff devices when the `staffMobileApp` flag is on. Its link is her Home (`/`).
+ */
+const val MORNING_BRIEF = "morning.brief"
+
+/**
+ * The kinds that are only ever a staff member's and name no thread, so a tap on one takes the staff road — the app
+ * lock, then one of her own screens — instead of the parent gate. Without a staff session they fall through to the
+ * parent side exactly as every other kind does.
+ */
+fun isStaffOnlyKind(kind: String?): Boolean =
+    isAttendance(kind) || kind == CHAT_AFTER_HOURS_SUMMARY || kind == MORNING_BRIEF
 
 /**
  * Feature 28: `NotificationKind.EVENING_CARD` — today's card about one child, linking

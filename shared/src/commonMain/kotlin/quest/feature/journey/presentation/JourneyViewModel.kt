@@ -106,6 +106,7 @@ class StopPlayerViewModel(
             PlayerContract.Intent.Load -> load()
             is PlayerContract.Intent.Correct -> onCorrect(intent.attempt, intent.answer)
             is PlayerContract.Intent.Wrong -> onWrong(intent)
+            is PlayerContract.Intent.Mistake -> onMistake(intent)
             is PlayerContract.Intent.Completed -> onCompleted(intent.stars, intent.answer, intent.mistakes, intent.recording, intent.drawing, intent.correct)
             PlayerContract.Intent.TryAgain -> if (!current.exam) { reduce { copy(phase = PlayerContract.Phase.STOP) }; current.stop?.let { effect(PlayerContract.Effect.Speak(it.speak)) } }
             PlayerContract.Intent.Advance -> advance()
@@ -163,8 +164,29 @@ class StopPlayerViewModel(
         journey.recordWrongAttempt(childId, lesson, play, stop.id, i.answer, i.attempt)
         // Feature 30: the teacher's graded hints when she approved some for this stop — the nudge on the first wrong
         // try, the stronger pointer on the second — and the stop's own single hint when she did not.
-        val hint = lesson.smartHint(stop.id, i.attempt) ?: i.hint
+        //
+        // The hints are keyed by what they were approved for, which inside an exit ticket is the **question**, not the
+        // ticket: the stop reports that id, and only a stop that reports none falls back to the one on screen.
+        val hint = lesson.smartHint(i.stopId.ifBlank { stop.id }, i.attempt) ?: i.hint
         reduce { copy(phase = PlayerContract.Phase.HINT, hint = hint, numberLine = i.numberLine) }
+        effect(PlayerContract.Effect.Speak(hint))
+    }
+
+    /**
+     * Feature 30: a mistake on a multi-answer stop (multiSelect, selectAll, match, order, trace). These stops are
+     * answered over several goes and correct it in place, so there is no "wrong answer" to dim — but the teacher's
+     * approved hints are for them as much as for a single-answer stop ("two graded hints for every answerable stop"),
+     * and before this nothing drew them. Her nudge comes up on the first mistake and her pointer on the second; with
+     * no approved hints the stop's own words are spoken exactly as they were, and nothing is drawn.
+     *
+     * An exam has neither — no hints, and no second go — so a mistake there says nothing.
+     */
+    private suspend fun onMistake(i: PlayerContract.Intent.Mistake) {
+        val stop = current.stop ?: return
+        if (current.exam) return
+        val hint = current.lesson?.smartHint(i.stopId.ifBlank { stop.id }, i.attempt)
+        if (hint == null) { if (i.say.isNotBlank()) effect(PlayerContract.Effect.Speak(i.say)); return }
+        reduce { copy(phase = PlayerContract.Phase.HINT, hint = hint, numberLine = null) }
         effect(PlayerContract.Effect.Speak(hint))
     }
 

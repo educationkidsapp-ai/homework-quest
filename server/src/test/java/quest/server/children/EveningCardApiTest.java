@@ -154,6 +154,23 @@ class EveningCardApiTest extends GradingTestSupport {
         assertThat(sent).as("no star, no mistake count, no mark").doesNotContain("%").doesNotContain("stars");
     }
 
+    /**
+     * Feature 30 put a child's practice-set stops in the same `attempts` table, and the parent panel has a tip only
+     * for the <em>level</em> stops. So the evening she practises hardest — more mistakes on the practice set than on
+     * the level stop it was built for — used to be the evening her card had nothing to practise in it: the ranking
+     * picked a stop the panel knows nothing about and the tip came back null. Only stops the teacher wrote a tip for
+     * are ranked.
+     */
+    @Test void the_practice_tip_survives_the_child_playing_a_practice_set() throws Exception {
+        // She makes more mistakes on the targeted practice set than anywhere in the lesson's own levels.
+        for (int number = 1; number <= 3; number++)
+            attemptStop(childId, HOMEWORK, HOMEWORK + ":1:2:p1", 9, number, false, 0);
+
+        parentGet("/children/" + childId + "/evening-card");
+        assertThat(captured()).as("the teacher's tip for the level stop she struggled with, not nothing at all")
+                .contains("Lay the steps out with real spoons.").contains("Practise together.");
+    }
+
     @Test void a_sealed_exam_never_reaches_the_facts() throws Exception {
         var card = parentGet("/children/" + childId + "/evening-card");
         assertThat(ids(card.get("lessonIds"))).doesNotContain(EXAM);
@@ -223,6 +240,22 @@ class EveningCardApiTest extends GradingTestSupport {
         assertThat(percentage.get("source").asText()).as("a percentage, beside a number she may quote").isEqualTo("template");
         for (var card : List.of(invented, percentage))
             for (String field : List.of("textEn", "textAr")) assertThat(card.get(field).asText()).doesNotContain("%");
+    }
+
+    /**
+     * The number rule, as a rule about <em>numbers</em> rather than about digit strings. "Unit 13" in a title and
+     * "Count to 20" in an objective are the teacher's own words, and they used to license "3 of them right" and
+     * "2 stars" — a substring search finds 3 inside 13 and 2 inside 20. Whole runs on both sides.
+     */
+    @Test void a_number_hiding_inside_a_longer_one_is_not_the_teachers_own() {
+        assertThat(EveningCardService.madeUpNumbers("{child} got 3 of them right.", "Unit 13 — Count to 20"))
+                .as("3 is only in 13").containsExactly("3");
+        assertThat(EveningCardService.madeUpNumbers("{child} earned 2 stars today.", "Count to 20"))
+                .as("2 is only in 20").containsExactly("2");
+        assertThat(EveningCardService.madeUpNumbers("{child} practised Counting by 2s.", "Counting by 2s"))
+                .as("her own number, word for word").isEmpty();
+        assertThat(EveningCardService.madeUpNumbers("عمل {child} ١٣ تمرينًا.", "التمرين ١٣"))
+                .as("Arabic-Indic digits are digits too").isEmpty();
     }
 
     @Test void a_provider_that_fails_still_leaves_her_a_card() throws Exception {

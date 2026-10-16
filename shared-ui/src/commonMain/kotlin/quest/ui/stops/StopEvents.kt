@@ -10,8 +10,19 @@ sealed interface StopEvent {
     /**
      * Single-answer stop answered wrongly: the player shows the hint sheet; the tile is already dimmed. [answer] is
      * the option chosen — in an exam it is the student's one and final answer.
+     *
+     * Feature 30: [stopId] is the id the teacher's approved hints are keyed by — the stop's own id, or, inside an
+     * exit ticket, the **question's** id, because that is what the hints were approved for. Blank means "the stop the
+     * player is on", which is the same thing everywhere but an exit ticket.
      */
-    data class Wrong(val attempt: Int, val hint: String, val numberLine: NumberLine?, val answer: String = "") : StopEvent
+    data class Wrong(val attempt: Int, val hint: String, val numberLine: NumberLine?, val answer: String = "", val stopId: String = "") : StopEvent
+    /**
+     * Feature 30: a multi-answer stop (multiSelect, selectAll, match, order, trace) got something wrong on its
+     * [attempt]-th try, and keeps going as it always has — nothing dims the whole stop and nothing is a "wrong
+     * answer" here. The player draws the teacher's graded hint for [stopId] when she approved some, and otherwise
+     * says [say], which is the word the stop itself would have spoken.
+     */
+    data class Mistake(val stopId: String, val attempt: Int, val say: String = "") : StopEvent
     /**
      * Info / multi / open / exit stop finished with the stars it earned. [correct] is false only in an exam, where a
      * stop is finished by answering it once, right or wrong.

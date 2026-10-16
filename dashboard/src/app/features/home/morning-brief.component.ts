@@ -3,6 +3,7 @@ import { rxResource } from '@angular/core/rxjs-interop';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { type MorningBrief, MorningBriefApi } from '../../api';
 import { AuthService } from '../../core/auth/auth.service';
+import { silentErrors } from '../../core/http/error.interceptor';
 import { activeLang } from '../../core/i18n/active-lang';
 import { CardComponent } from '../../ui';
 
@@ -168,7 +169,11 @@ export class MorningBriefComponent {
    */
   private readonly resource = rxResource({
     params: () => (this.auth.signedIn() ? (this.auth.effectiveSchoolId() ?? 'all') : undefined),
-    stream: () => this.api.morningBrief(),
+    // `silentErrors` is what makes the paragraph above true: she never asked for this card, so a
+    // 404 with the switch newly off, a 5xx, or a dropped connection must leave Home exactly as it
+    // is. Without it the global interceptor raises the red band — and routes a 403 to /no-access —
+    // for a request she did not make. The screen-owned calls of this wave are all sent this way.
+    stream: () => this.api.morningBrief('body', false, { context: silentErrors() }),
   });
 
   /**

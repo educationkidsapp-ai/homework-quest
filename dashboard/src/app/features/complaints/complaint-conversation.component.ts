@@ -50,6 +50,7 @@ import {
   ListStaggerDirective,
   SkeletonComponent,
   TextareaComponent,
+  UndoStripComponent,
 } from '../../ui';
 
 /** One line of the conversation: a message, or a status change drawn as a system line. */
@@ -86,6 +87,7 @@ interface LocalMessage extends ChatMessage {
     TextareaComponent,
     TranslateMessageComponent,
     TranslocoPipe,
+    UndoStripComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -244,6 +246,15 @@ interface LocalMessage extends ChatMessage {
         </ol>
 
         @if (canReply()) {
+          <!-- Her own words are never taken away without a way back: "Use suggested reply" over a
+               box she had already typed in is undoable for ten seconds (§7), which is this system's
+               counterpart of a confirm for everything that is not destructive. -->
+          <hq-undo-strip
+            [open]="replaced() !== null"
+            [message]="'complaints.triage.replaced' | transloco"
+            (undone)="undoSuggestedReply()"
+            (expired)="replaced.set(null)"
+          />
           <!-- \`novalidate\`: files alone are a reply too, so an empty box must not stop the send. -->
           <form class="complaint__composer" novalidate (submit)="$event.preventDefault(); send()">
             <hq-chat-staged-files />
@@ -499,6 +510,11 @@ export class ComplaintConversationComponent {
   readonly missing = output<void>();
 
   protected readonly draft = signal('');
+  /**
+   * What she had typed before "Use suggested reply" took the box, while the undo window is open —
+   * `null` when there is nothing to put back (the box was empty, she undid it, or it ran out).
+   */
+  protected readonly replaced = signal<string | null>(null);
   protected readonly asking = signal<ComplaintStatus | null>(null);
   protected readonly moving = signal(false);
   protected readonly failure = signal<string | null>(null);
@@ -711,11 +727,26 @@ export class ComplaintConversationComponent {
    * Feature 27: the suggested reply goes **into the box**, and that is the whole of it — no
    * request is made, no message is written, and she reads it, edits it and presses Send as she
    * would her own words. The box takes focus so the caret is already where she would change it.
+   *
+   * A box she had already typed in is the one case that needs more than that: her own answer is
+   * kept for the undo window, and the strip under the panel offers it back. Pressing this to
+   * compare the wording used to lose whatever she had written, with nothing to say so.
    */
   protected useSuggestedReply(): void {
     const suggested = this.suggestion();
     if (suggested === null || !this.canReply()) return;
+    const typed = this.draft();
+    this.replaced.set(typed.trim() === '' ? null : typed);
     this.draft.set(suggested.reply);
+    this.replyBox()?.nativeElement.querySelector('textarea')?.focus();
+  }
+
+  /** "Undo": her own words come back exactly as she left them, and the suggestion is still there. */
+  protected undoSuggestedReply(): void {
+    const typed = this.replaced();
+    if (typed === null) return;
+    this.replaced.set(null);
+    this.draft.set(typed);
     this.replyBox()?.nativeElement.querySelector('textarea')?.focus();
   }
 
@@ -760,6 +791,8 @@ export class ComplaintConversationComponent {
     const clientId = crypto.randomUUID();
     const me = this.auth.user()?.id ?? '';
     this.draft.set('');
+    // Sent: there is no draft of hers to come back to any more.
+    this.replaced.set(null);
     this.failure.set(null);
     this.sending.set(true);
     this.patchMessages((list) => [
@@ -899,6 +932,7 @@ export class ComplaintConversationComponent {
   private reset(): void {
     this.uploads.clear();
     this.draft.set('');
+    this.replaced.set(null);
     this.failure.set(null);
     this.asking.set(null);
     this.sending.set(false);

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_FLAGS } from './flags.defaults';
@@ -9,33 +9,48 @@ import { DEFAULT_FLAGS } from './flags.defaults';
  * them, the one place the other two already check themselves against
  * (`FlagAdminTest.the_fourteen_flags_are_seeded_exactly_as_the_code_lists_them`).
  *
- * Two migrations seed flags: `V5__flags_themes.sql` (§4's fourteen) and `V7__sections.sql` (the
- * seven the one-school build adds). Both use the same `SELECT '<key>', '<description>', TRUE|FALSE`
- * shape, so one pattern reads both — and a third migration that seeds flags will be caught by the
- * count, not silently ignored.
+ * `V5__flags_themes.sql` seeds §4's fourteen and `V7__sections.sql` the seven the one-school build
+ * adds; every feature since adds its own switch in its own migration. All use the same
+ * `SELECT '<key>', '<description>', TRUE|FALSE` shape, so one pattern reads them all.
+ *
+ * The list of migrations is *discovered*, not written down: a hand-kept list silently ignored
+ * whatever it omitted, and did — `V36__staff_mobile_app.sql` and `V50__parent_evening_card.sql`
+ * both seeded a flag this map never grew (the post-merge review of features 23–30). `ROWS` only
+ * pins how many rows each file is expected to yield, so a change to the regex, or to a migration's
+ * shape, cannot quietly match nothing; a newly discovered file with no entry fails here too, which
+ * is the reminder to add its key below.
  */
-const MIGRATIONS: readonly { readonly file: string; readonly rows: number }[] = [
-  { file: 'V5__flags_themes.sql', rows: 14 },
-  { file: 'V7__sections.sql', rows: 7 },
-  { file: 'V15__chat.sql', rows: 1 },
-  { file: 'V37__attendance_settings.sql', rows: 1 },
-  { file: 'V41__chat_office_hours.sql', rows: 1 },
-  { file: 'V42__floors.sql', rows: 1 },
-  { file: 'V43__today_home.sql', rows: 1 },
-  { file: 'V44__voice_announcement.sql', rows: 1 },
-  { file: 'V46__remote_study_days.sql', rows: 1 },
-  { file: 'V47__morning_brief.sql', rows: 1 },
-  { file: 'V48__document_reader.sql', rows: 1 },
-  { file: 'V49__complaint_triage.sql', rows: 1 },
-  { file: 'V51__language_bridge.sql', rows: 1 },
-  { file: 'V52__smart_hints.sql', rows: 1 },
-];
+const MIGRATION_DIR = resolve(process.cwd(), '../server/src/main/resources/db/migration/');
+
+const ROWS: Readonly<Record<string, number>> = {
+  'V5__flags_themes.sql': 14,
+  'V7__sections.sql': 7,
+  'V15__chat.sql': 1,
+  'V36__staff_mobile_app.sql': 1,
+  'V37__attendance_settings.sql': 1,
+  'V41__chat_office_hours.sql': 1,
+  'V42__floors.sql': 1,
+  'V43__today_home.sql': 1,
+  'V44__voice_announcement.sql': 1,
+  'V46__remote_study_days.sql': 1,
+  'V47__morning_brief.sql': 1,
+  'V48__document_reader.sql': 1,
+  'V49__complaint_triage.sql': 1,
+  'V50__parent_evening_card.sql': 1,
+  'V51__language_bridge.sql': 1,
+  'V52__smart_hints.sql': 1,
+};
+
+/** Every migration that inserts into `feature_flags`, in Flyway's own order. */
+function flagMigrations(): readonly string[] {
+  return readdirSync(MIGRATION_DIR)
+    .filter((file) => file.endsWith('.sql'))
+    .filter((file) => readFileSync(resolve(MIGRATION_DIR, file), 'utf8').includes('INTO feature_flags'))
+    .sort((a, b) => Number(/^V(\d+)__/.exec(a)?.[1]) - Number(/^V(\d+)__/.exec(b)?.[1]));
+}
 
 function seededBy(file: string): Record<string, boolean> {
-  const sql = readFileSync(
-    resolve(process.cwd(), '../server/src/main/resources/db/migration/', file),
-    'utf8',
-  );
+  const sql = readFileSync(resolve(MIGRATION_DIR, file), 'utf8');
 
   // Each seeded row is `SELECT '<key>' [AS flag_key], '<description>' [AS description],
   // TRUE|FALSE [AS default_on], ...` — the first row spells out the AS aliases, the rest are
@@ -58,10 +73,11 @@ function seededBy(file: string): Record<string, boolean> {
 describe('DEFAULT_FLAGS', () => {
   it('matches every key and default_on seeded by the migrations', () => {
     const seeded: Record<string, boolean> = {};
-    for (const migration of MIGRATIONS) {
-      const rows = seededBy(migration.file);
-      // A change to the regex, or to a migration's shape, must not quietly match nothing.
-      expect(`${migration.file}:${Object.keys(rows).length}`).toBe(`${migration.file}:${migration.rows}`);
+    for (const file of flagMigrations()) {
+      const rows = seededBy(file);
+      // A change to the regex, or to a migration's shape, must not quietly match nothing — and a
+      // migration nobody listed here must not be skipped, which is how two keys went missing.
+      expect(`${file}:${Object.keys(rows).length}`).toBe(`${file}:${ROWS[file]}`);
       Object.assign(seeded, rows);
     }
 

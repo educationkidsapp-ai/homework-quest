@@ -97,9 +97,10 @@ fun rememberSingleAnswer(stopId: String, correctId: String, hint: String, number
         attempts += 1
         when {
             // An exam takes the first answer as the answer: it is marked as chosen, never as right or wrong.
-            exam -> { done = true; chosen = id; onEvent(if (id == correctId) StopEvent.Correct(1, id) else StopEvent.Wrong(1, hint, numberLine, id)) }
+            exam -> { done = true; chosen = id; onEvent(if (id == correctId) StopEvent.Correct(1, id) else StopEvent.Wrong(1, hint, numberLine, id, stopId)) }
             id == correctId -> { done = true; onEvent(StopEvent.Correct(attempts, id)) }
-            else -> { dimmed = dimmed + id; onEvent(StopEvent.Wrong(attempts, hint, numberLine, id)) }
+            // Feature 30: `stopId` is this question's own id, so an exit ticket's approved hints are found by it.
+            else -> { dimmed = dimmed + id; onEvent(StopEvent.Wrong(attempts, hint, numberLine, id, stopId)) }
         }
     }
 }

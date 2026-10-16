@@ -4,9 +4,11 @@ import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { map } from 'rxjs';
 import { ManagementApi, RemoteStudyDaysApi, type RemoteStudyDay, apiErrorOf } from '../../api';
 import { BandService } from '../../core/band/band.service';
+import { dayIn } from '../../core/broadcasts/broadcast.rules';
 import { FLAGS, FlagService } from '../../core/flags/flag.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import { PermissionService } from '../../core/permissions/permission.service';
+import { PlatformService } from '../../core/platform/platform.service';
 import {
   type SelectOption,
   type TableColumn,
@@ -118,7 +120,7 @@ interface StudyDayRow {
               type="date"
               [label]="'admin.attendanceSettings.remoteStudyDays.date' | transloco"
               [required]="true"
-              [min]="today"
+              [min]="today()"
               [value]="date()"
               [disabled]="saving()"
               (valueChange)="date.set($event)"
@@ -233,6 +235,7 @@ export class RemoteStudyDaysCardComponent {
   private readonly band = inject(BandService);
   private readonly permissions = inject(PermissionService);
   private readonly flagService = inject(FlagService);
+  private readonly platform = inject(PlatformService);
   private readonly lang = activeLang();
 
   /** With the flag off the card is not drawn at all, and nothing behind it is asked for. */
@@ -240,8 +243,20 @@ export class RemoteStudyDaysCardComponent {
 
   protected readonly canWrite = computed(() => this.permissions.can('attendance.settings.write'));
 
-  /** Today in the browser's zone — the earliest day the date field offers; the server owns the truth. */
-  protected readonly today: string = new Date().toISOString().slice(0, 10);
+  /**
+   * Today **in the school's zone** — the earliest day the date field offers.
+   *
+   * `dayIn` and `PlatformService.timezone`, as every other date on the dashboard is read (the
+   * convention in `docs/features/00-week-plan.md`: all dates are computed in the school's zone).
+   * `new Date().toISOString().slice(0, 10)` was the UTC day, which is the day *before* for every
+   * hour after midnight in Riyadh — the picker offered yesterday and `RemoteStudyDayService`
+   * refused it with a 400 only once she had filled in the reason and pressed Add.
+   *
+   * A computed, so it settles with the zone the moment `GET /platform/settings` answers rather
+   * than keeping the `UTC` it was constructed with. The server still owns the truth: a tab left
+   * open across midnight keeps the day it last read, and that past date is refused there.
+   */
+  protected readonly today = computed(() => dayIn(Date.now(), this.platform.timezone()));
 
   protected readonly days = rxResource({
     params: () => (this.enabled() ? true : undefined),

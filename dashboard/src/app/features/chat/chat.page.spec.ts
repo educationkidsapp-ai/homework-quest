@@ -29,6 +29,7 @@ import { LocalMessage } from '../../core/chat/chat.models';
 import { ChatService } from '../../core/chat/chat.service';
 import { FlagService } from '../../core/flags/flag.service';
 import { MediaService } from '../../core/media/media.service';
+import { PermissionService } from '../../core/permissions/permission.service';
 import { ChatPage } from './chat.page';
 
 describe('ChatPage', () => {
@@ -108,10 +109,15 @@ describe('ChatPage', () => {
     mockFlags = {
       isOn: vi.fn().mockReturnValue(true),
     };
+
+    // Feature 29: `staff.translate` is a write, so a read-only "View as" session has it taken away.
+    translateReadOnly = signal(false);
   });
 
   /** Feature 29: one answer from `POST /staff/translate`, counted per test. */
   const translateForStaff = vi.fn();
+  /** Flipped on for the one test that checks an Admin's "View as" session. */
+  let translateReadOnly: ReturnType<typeof signal<boolean>>;
 
   const PIXEL = 'data:image/png;base64,iVBORw0KGgo=';
   /** D4: every upload is accepted at once as `att-9`. */
@@ -169,8 +175,13 @@ describe('ChatPage', () => {
           useValue: { role: signal(role), user: signal({ id: 'u-sara' }) },
         },
         { provide: FlagService, useValue: mockFlags },
-        // Feature 29: `POST /staff/translate`, through the generated client.
+        // Feature 29: `POST /staff/translate`, through the generated client, and the permission
+        // that gates its action — `can` is false for every write in a read-only session.
         { provide: LanguageBridgeApi, useValue: { translateForStaff } },
+        {
+          provide: PermissionService,
+          useValue: { can: () => !translateReadOnly(), readOnly: translateReadOnly },
+        },
         // D4: the bubbles read files through the media cache and the composer uploads through the client.
         {
           provide: MediaService,
@@ -771,6 +782,16 @@ describe('ChatPage', () => {
 
     it('draws no action at all with `languageBridge` off', async () => {
       mockFlags.isOn = vi.fn((key: string) => key !== 'languageBridge');
+      await renderPage();
+
+      expect(screen.queryByRole('button', { name: 'Translate to English' })).toBeNull();
+      expect(screen.getByText(PARENT_MESSAGE.body)).toBeTruthy();
+    });
+
+    it('draws no action at all in a read-only "View as" session', async () => {
+      // The server's ReadOnlyGuard answers 403 to every non-GET there, so an action drawn here
+      // could only ever fail — it is hidden, exactly as the other writes on this screen are.
+      translateReadOnly.set(true);
       await renderPage();
 
       expect(screen.queryByRole('button', { name: 'Translate to English' })).toBeNull();

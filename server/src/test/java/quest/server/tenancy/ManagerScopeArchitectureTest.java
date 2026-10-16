@@ -60,12 +60,17 @@ class ManagerScopeArchitectureTest {
      * the exemption is <em>proved</em> rather than trusted — {@link #author_scoped_reads_really_are_keyed_by_author}
      * fails unless each of them reaches an author-keyed query. Nothing else is excused.
      */
-    private static final Set<String> AUTHOR_SCOPED_READS = Set.of(
+    private static final java.util.Map<String, String> AUTHOR_SCOPED_READS = java.util.Map.of(
             // Feature 26: her own last twenty document summaries, and one of them.
-            "DocumentReaderController#myDocumentSummaries",
-            "DocumentReaderController#documentSummary");
+            "DocumentReaderController#myDocumentSummaries", quest.server.documents.DocumentSummaryRepository.class.getName(),
+            "DocumentReaderController#documentSummary", quest.server.documents.DocumentSummaryRepository.class.getName());
 
-    /** The queries that make an {@link #AUTHOR_SCOPED_READS} entry true: both name the author beside the school. */
+    /**
+     * The queries that make an {@link #AUTHOR_SCOPED_READS} entry true: both name the author beside the school. The
+     * <em>owner</em> matters as much as the name, which is why the map above carries the repository — feature 22's
+     * `AnnouncementDraftRepository` has methods of exactly these two names, so a handler that read
+     * `document_summaries` by school alone while touching a draft somewhere on its path counted as proved.
+     */
     private static final Set<String> AUTHOR_KEYED_QUERIES = Set.of("findOneOfAuthor", "byAuthor");
 
     @Test void every_management_handler_reaches_a_scope_check() {
@@ -76,7 +81,7 @@ class ManagerScopeArchitectureTest {
                 if (routes(controller, method).isEmpty()) continue;
                 handlers++;
                 String handler = controller.getSimpleName() + "#" + method.getName();
-                if (AUTHOR_SCOPED_READS.contains(handler)) continue;
+                if (AUTHOR_SCOPED_READS.containsKey(handler)) continue;
                 if (!reachesACheck(method)) missing.add(handler);
             }
         assertThat(handlers).as("the sweep must actually find the /management handlers").isGreaterThanOrEqualTo(15);
@@ -94,17 +99,19 @@ class ManagerScopeArchitectureTest {
         for (JavaClass controller : managementControllers())
             for (JavaMethod method : controller.getMethods()) {
                 String handler = controller.getSimpleName() + "#" + method.getName();
-                if (!AUTHOR_SCOPED_READS.contains(handler)) continue;
+                String repository = AUTHOR_SCOPED_READS.get(handler);
+                if (repository == null) continue;
                 for (String route : routes(controller, method))
                     if (!route.startsWith("GET ")) unproved.add(handler + " is a write (" + route + "), not a read");
-                if (!reachesAny(method, AUTHOR_KEYED_QUERIES)) unproved.add(handler + " reaches no author-keyed query");
+                if (!reaches(method, repository, AUTHOR_KEYED_QUERIES))
+                    unproved.add(handler + " reaches no author-keyed query on " + repository);
             }
         assertThat(unproved).as("an exempted handler must be a GET that reads by author (%s)", AUTHOR_KEYED_QUERIES).isEmpty();
         var handlers = new ArrayList<String>();
         for (JavaClass controller : managementControllers())
             for (JavaMethod method : controller.getMethods())
                 if (!routes(controller, method).isEmpty()) handlers.add(controller.getSimpleName() + "#" + method.getName());
-        assertThat(handlers).as("an exempted handler was renamed or removed: update AUTHOR_SCOPED_READS").containsAll(AUTHOR_SCOPED_READS);
+        assertThat(handlers).as("an exempted handler was renamed or removed: update AUTHOR_SCOPED_READS").containsAll(AUTHOR_SCOPED_READS.keySet());
     }
 
     /**
@@ -190,9 +197,6 @@ class ManagerScopeArchitectureTest {
 
     /** Breadth-first over the call graph inside `quest.server`, looking for one of {@link #CHECKS}. */
     private static boolean reachesACheck(JavaMethod from) { return reaches(from, SCOPE, CHECKS); }
-
-    /** The same walk, for a method of any owner — what {@link #AUTHOR_SCOPED_READS} is checked with. */
-    private static boolean reachesAny(JavaMethod from, Set<String> names) { return reaches(from, null, names); }
 
     private static boolean reaches(JavaMethod from, String owner, Set<String> names) {
         Set<String> seen = new LinkedHashSet<>();

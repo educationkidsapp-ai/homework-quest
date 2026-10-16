@@ -86,6 +86,7 @@ class ComplaintTriageApiTest extends ApiTestSupport {
     @Autowired ChatMessageRepository messageRows;
     @Autowired ComplaintEventRepository eventRows;
     @Autowired ComplaintTriageRepository triageRows;
+    @Autowired ComplaintTriageService triage;
     @Autowired AdminJwtService jwt;
     @Autowired quest.server.notifications.NotificationRepository notificationRows;
     @Autowired quest.server.flags.SchoolFlagRepository schoolFlags;
@@ -225,6 +226,8 @@ class ComplaintTriageApiTest extends ApiTestSupport {
         String id = created.get("complaint").get("id").asText();
         triagedWithin(id);
         assertThat(triageRows.findById(id).orElseThrow().getUrgency()).isEqualTo("high");
+        // The row is written *before* `escalate` runs, so waiting for the row is not waiting for the bell.
+        escalatedWithin(id);
 
         var manager = rowWith(staffGet(nour, "MANAGERIAL", "/me/notifications"), "lessonId", id);
         assertThat(manager.get("kind").asText()).isEqualTo("complaint.new");
@@ -237,11 +240,24 @@ class ComplaintTriageApiTest extends ApiTestSupport {
         assertThat(kindsAbout(lina, "COORDINATOR", id)).as("a coordinator is not the escalation").isEmpty();
     }
 
+    /**
+     * The negative, run <strong>on the test thread</strong>. Waiting for the triage row and then asserting that
+     * nobody was rung proves nothing: the service writes that row and escalates afterwards, so the assertion used to
+     * run before the bell it is about could have landed — a triage that escalated every urgency passed this test.
+     * The complaint is therefore created with the switch off (no task thread at all), the switch is turned on, and
+     * {@link ComplaintTriageService#triage} is called here: when it returns, everything it was ever going to do is
+     * done, and "nobody extra was rung" is a fact.
+     */
     @Test void a_normal_urgency_tells_the_manager_nothing() throws Exception {
+        flag(FlagKeys.COMPLAINT_TRIAGE, false);
         var created = complain("The bus is always late", "She waits alone every morning.");
         String id = created.get("complaint").get("id").asText();
-        triagedWithin(id);
+        flag(FlagKeys.COMPLAINT_TRIAGE, true);
+
+        triage.triage(id);
+        assertThat(triageRows.findById(id).orElseThrow().getUrgency()).as("triaged, and on this thread").isEqualTo("normal");
         assertThat(kindsAbout(nour, "MANAGERIAL", id)).isEmpty();
+        assertThat(kindsAbout(maya, "TEACHER", id)).as("the recipient's own bell, and no second one").containsExactly("complaint.new");
     }
 
     // ---------------------------------------------------------------- what the provider is not told
@@ -263,6 +279,35 @@ class ComplaintTriageApiTest extends ApiTestSupport {
         assertThat(sent).contains("[name]").contains("[phone]").contains("[email]");
         assertThat(sent).as("the complaint's own words are what it is given").contains("left behind by the bus");
         assertThat(system.getValue()).as("Prompt F, which says the masks are masks").contains("[name], [email] and [phone]");
+    }
+
+    /**
+     * The masks are the guard's, and the prompt says so — which is exactly why a model may write them back. The
+     * dashboard's "Use suggested reply" pastes `replyEn` into the box unchanged and the member of staff presses
+     * Send, so a draft reading "Dear parent of [name], we will call you on [phone]" would reach the parent as
+     * written. It is rejected like any other broken answer, and the retry is told why.
+     */
+    @Test void a_suggested_reply_that_echoes_a_mask_is_refused() throws Exception {
+        answer.set(GOOD.replace("Thank you for telling us; we are looking into it.",
+                "Dear parent of [name], we will call you on [phone]."));
+        var created = complain("Lila was left behind by the bus", "Ring me on 0551234567.");
+        String id = created.get("complaint").get("id").asText();
+
+        assertThat(noTriageAfterTheProviderHasBeenAsked(id)).as("twice rejected is no triage at all").isTrue();
+        verify(llm, times(2)).complete(any(), any(), any());
+        var second = ArgumentCaptor.forClass(String.class);
+        verify(llm, times(2)).complete(any(), second.capture(), any());
+        assertThat(second.getValue()).as("the retry is told what was wrong with the first answer").contains("placeholder");
+    }
+
+    /** And the masks a <em>summary</em> carries are the staff's own reading, which is not a reply to anybody. */
+    @Test void a_summary_that_names_a_mask_is_still_a_triage() throws Exception {
+        answer.set(GOOD.replace("The bus is late every morning and the child waits alone.",
+                "[name]'s mother says the bus is late every morning."));
+        var created = complain("The bus is always late", "She waits alone every morning.");
+        String id = created.get("complaint").get("id").asText();
+        triagedWithin(id);
+        assertThat(triageRows.findById(id).orElseThrow().getSummaryEn()).contains("[name]");
     }
 
     // ---------------------------------------------------------------- the parent's expected reply time
@@ -309,6 +354,15 @@ class ComplaintTriageApiTest extends ApiTestSupport {
             Thread.sleep(50);
         }
         throw new AssertionError("the complaint was never triaged: " + complaintId);
+    }
+
+    /** The escalation bell, once the task thread has written it — the triage row lands before it, not with it. */
+    private void escalatedWithin(String complaintId) throws Exception {
+        for (int i = 0; i < 100; i++) {
+            if (!kindsAbout(nour, "MANAGERIAL", complaintId).isEmpty()) return;
+            Thread.sleep(50);
+        }
+        throw new AssertionError("the department manager was never rung about: " + complaintId);
     }
 
     /** Waits for the provider to have been asked (and to have failed), then answers whether no row was written. */

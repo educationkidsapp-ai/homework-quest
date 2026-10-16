@@ -164,8 +164,13 @@ describe('the Complaints page', () => {
           useValue: { isOn: (key: string) => flagsOn().includes(key), ready: () => true },
         },
         {
+          // Mirrors the real service: this account's own key, plus feature 29's `staff.translate`,
+          // and — as `PermissionService.can` does — no write at all in a read-only session.
           provide: PermissionService,
-          useValue: { can: (key: string) => key === permission, readOnly },
+          useValue: {
+            can: (key: string) => (key === permission || key === 'staff.translate') && !readOnly(),
+            readOnly,
+          },
         },
         {
           provide: AuthService,
@@ -398,6 +403,60 @@ describe('the Complaints page', () => {
     await settle();
     expect(box.value).toBe(TRIAGE.replyAr);
     backend.expectNone('/teacher/complaints/c-1/messages');
+  });
+
+  /**
+   * The post-merge review of features 23–30: pressing this to compare the wording used to lose
+   * whatever she had written, with no warning and no way back. Her own answer is kept for the
+   * undo window instead (§7: everything that is not destructive is undoable, never confirmed).
+   */
+  it('gives her own words back when the suggestion took a box she had typed in', async () => {
+    const { backend } = await render(TEACHER_USER, 'teacher.complaints');
+    lists(backend, '/teacher/complaints', [TRIAGED]);
+    await open('c-1');
+    detailOf(backend, '/teacher/complaints/c-1').flush({
+      ...DETAIL,
+      complaint: { ...TRIAGED, unread: 0 },
+    });
+    await settle();
+
+    const box = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Reply' });
+    const mine = 'I am so sorry — I will mark every page tonight and send you a photo.';
+    fireEvent.input(box, { target: { value: mine } });
+    await settle();
+    // Nothing to put back while the box is her own: no strip.
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+
+    screen.getByRole('button', { name: 'Use suggested reply' }).click();
+    await settle();
+
+    expect(box.value).toBe(TRIAGE.replyEn);
+    expect(document.body.textContent).toContain('The suggestion replaced the reply you had written.');
+
+    screen.getByRole('button', { name: 'Undo' }).click();
+    await settle();
+
+    // Exactly as she left it, and the strip is gone. Still nothing sent.
+    expect(box.value).toBe(mine);
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+    backend.expectNone('/teacher/complaints/c-1/messages');
+  });
+
+  it('offers no undo when the box was empty, which is the ordinary case', async () => {
+    const { backend } = await render(TEACHER_USER, 'teacher.complaints');
+    lists(backend, '/teacher/complaints', [TRIAGED]);
+    await open('c-1');
+    detailOf(backend, '/teacher/complaints/c-1').flush({
+      ...DETAIL,
+      complaint: { ...TRIAGED, unread: 0 },
+    });
+    await settle();
+
+    screen.getByRole('button', { name: 'Use suggested reply' }).click();
+    await settle();
+
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Reply' }).value).toBe(TRIAGE.replyEn);
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
   });
 
   it('gives the Admin the summary and no way to use it: her complaints are read-only', async () => {
@@ -793,6 +852,16 @@ describe('the Complaints page', () => {
       await settle();
       backend.expectNone('/staff/translate');
       expect(screen.getByRole('list', { name: 'Conversation' }).textContent).toContain(ENGLISH);
+    });
+
+    it('draws no action at all in a read-only "View as" session', async () => {
+      // `POST /staff/translate` is a write, which the server refuses with a 403 for an
+      // impersonating Admin — so the action must be absent rather than fail every press.
+      readOnly.set(true);
+      await openWithTranslation();
+
+      expect(screen.getByText('لم يصحّح أحد الواجب لأسبوعين')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Translate to English' })).toBeNull();
     });
 
     it('says what to do about the rate limit, in the red band, and adds nothing', async () => {

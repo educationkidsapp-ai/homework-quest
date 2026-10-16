@@ -90,8 +90,10 @@ class RemoteStudyDaysApiTest extends ApiTestSupport {
         pin(SCHOOL); pin(OTHER);
         user(ADMIN, null, "ADMIN");
         user(MANAGER, SCHOOL, "MANAGERIAL");
-        teacher(BRITISH_1, "british"); teacher(BRITISH_2, "british"); teacher(AMERICAN_1, "american");
-        teacher(ASKER, "british"); teacher(ASKER_OFF, "british");
+        // BRITISH_2 teaches grade 2 only, which is what makes "grades never narrow staff" provable: a day declared
+        // for grade 1 reaches her because she teaches the *academy*, not because her profile happens to hold grade 1.
+        teacher(BRITISH_1, "british", "[1,2]"); teacher(BRITISH_2, "british", "[2]"); teacher(AMERICAN_1, "american", "[1,2]");
+        teacher(ASKER, "british", "[1,2]"); teacher(ASKER_OFF, "british", "[1,2]");
         ClassFixtures.section(classes, assignments, SECTION_B1, SCHOOL, "british", 1, "math", BRITISH_1);
         ClassFixtures.section(classes, assignments, SECTION_B2, SCHOOL, "british", 2, "math", BRITISH_2);
         ClassFixtures.section(classes, assignments, SECTION_A1, SCHOOL, "american", 1, "math", AMERICAN_1);
@@ -143,7 +145,7 @@ class RemoteStudyDaysApiTest extends ApiTestSupport {
         assertThat(created.get("academy").asText()).as("stored lower-cased").isEqualTo("british");
         assertThat(created.get("grades").get(0).asInt()).isEqualTo(1);
         assertThat(notices(BRITISH_1, "2027-05-10")).as("tomorrow: announced at once").isEqualTo(1);
-        assertThat(notices(BRITISH_2, "2027-05-10")).as("grade 2 teaches British too, and grades never narrow staff").isEqualTo(1);
+        assertThat(notices(BRITISH_2, "2027-05-10")).as("she teaches grade 2 only, and grades never narrow staff").isEqualTo(1);
         assertThat(notices(AMERICAN_1, "2027-05-10")).isZero();
 
         clock.pinTo(at("2027-05-10", "07:05"));
@@ -454,10 +456,10 @@ class RemoteStudyDaysApiTest extends ApiTestSupport {
         settings.save(row);
     }
 
-    private void teacher(String id, String curriculum) {
+    private void teacher(String id, String curriculum, String gradesJson) {
         user(id, SCHOOL, "TEACHER");
         var t = teachers.findById(id).orElseGet(quest.server.auth.Entities.TeacherEntity::new);
-        t.setUserId(id); t.setSubjectsJson("[\"math\"]"); t.setCurriculum(curriculum); t.setGradesJson("[1,2]");
+        t.setUserId(id); t.setSubjectsJson("[\"math\"]"); t.setCurriculum(curriculum); t.setGradesJson(gradesJson);
         t.setUpdatedAt(Instant.now());
         teachers.save(t);
     }

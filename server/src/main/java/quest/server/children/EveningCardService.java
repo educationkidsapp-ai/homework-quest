@@ -190,9 +190,15 @@ public class EveningCardService {
 
     private static Tip practise(List<AttemptEntity> mine, String lessonId, ParentPanel panel) {
         if (panel == null) return null;
+        // Only the stops the teacher's panel has a tip for can win. Since feature 30 a child's attempts include the
+        // stops of a targeted practice set, which the panel knows nothing about: ranking those in would hand the
+        // evening to a stop with no tip and leave the card with nothing to practise, exactly when she practised most.
+        Map<String, Tip> tips = new LinkedHashMap<>();
+        for (var tip : panel.getStopTips()) tips.putIfAbsent(tip.getStopId(), new Tip(tip.getEn(), tip.getAr()));
+        if (tips.isEmpty()) return null;
         Map<String, int[]> perStop = new LinkedHashMap<>();              // stopId -> {mistakes, best stars}
         for (var a : mine) {
-            if (!lessonId.equals(a.getLessonId())) continue;
+            if (!lessonId.equals(a.getLessonId()) || !tips.containsKey(a.getStopId())) continue;
             var seen = perStop.computeIfAbsent(a.getStopId(), k -> new int[] {0, 0});
             seen[0] += a.getMistakes(); seen[1] = Math.max(seen[1], a.getStars());
         }
@@ -201,8 +207,7 @@ public class EveningCardService {
                 .sorted(Comparator.<Map.Entry<String, int[]>>comparingInt(e -> -e.getValue()[0])
                         .thenComparingInt(e -> e.getValue()[1]).thenComparing(Map.Entry::getKey))
                 .findFirst().map(Map.Entry::getKey).orElse(null);
-        for (var tip : panel.getStopTips()) if (tip.getStopId().equals(worst)) return new Tip(tip.getEn(), tip.getAr());
-        return null;
+        return worst == null ? null : tips.get(worst);
     }
 
     // ---------------------------------------------------------------- the words
@@ -267,21 +272,29 @@ public class EveningCardService {
     }
 
     /**
-     * The runs of digits in {@code text} that {@code teacherText} does not hold word for word, in reading order and
-     * without repeats. Western and Arabic-Indic alike: `Character.isDigit` is true of `٠`–`٩` as well as of `0`–`9`.
+     * The runs of digits in {@code text} that {@code teacherText} does not hold <strong>as a number of its own</strong>,
+     * in reading order and without repeats. Whole runs on both sides, never a substring: "Unit 13" in a title does
+     * not make "3 of them right" the teacher's own number, and "Count to 20" does not license "2 stars".
      */
     static List<String> madeUpNumbers(String text, String teacherText) {
+        var allowed = digitRuns(teacherText);
         var out = new java.util.LinkedHashSet<String>();
-        String allowed = teacherText == null ? "" : teacherText;
+        for (String run : digitRuns(text)) if (!allowed.contains(run)) out.add(run);
+        return List.copyOf(out);
+    }
+
+    /** The whole runs of digits in a text, in reading order. Western and Arabic-Indic alike. */
+    private static java.util.Set<String> digitRuns(String text) {
+        var out = new java.util.LinkedHashSet<String>();
+        if (text == null) return out;
         int i = 0;
         while (i < text.length()) {
             if (!Character.isDigit(text.charAt(i))) { i++; continue; }
             int from = i;
             while (i < text.length() && Character.isDigit(text.charAt(i))) i++;
-            String run = text.substring(from, i);
-            if (!allowed.contains(run)) out.add(run);
+            out.add(text.substring(from, i));
         }
-        return List.copyOf(out);
+        return out;
     }
 
     /**

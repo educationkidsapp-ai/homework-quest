@@ -37,6 +37,8 @@ class SmartHintsApiTest extends TeacherTestSupport {
     private static final String SCHOOL = "sh-school", OTHER_SCHOOL = "sh-school-2";
     private static final String TEACHER = "sh-teacher", COLLEAGUE = "sh-colleague", OTHER = "sh-other-teacher";
     private static final String HERS = "sh-class-1a", THEIRS = "sh-class-1b", ELSEWHERE = "sh-class-2a";
+    /** A second section of her own grade, for the copy: `THEIRS` is her colleague's and she may not write into it. */
+    private static final String SIBLING = "sh-class-1d";
 
     @Override String prefix() { return "sh-"; }
 
@@ -116,7 +118,10 @@ class SmartHintsApiTest extends TeacherTestSupport {
         mvc.perform(as(post("/teacher/lessons/" + id + "/unpublish"), teacherToken)).andExpect(status().isOk());
         publish(id);
         var second = parentGet("/lessons/" + id);
-        assertThat(second.get("version").asInt()).as("approved content arrives at the next version").isEqualTo(2);
+        // Each approval on a lesson that was still published is a version of its own (see
+        // `approving_after_publishing_is_a_new_version_rather_than_a_changed_one`), so what matters here is that the
+        // approved content is on a *later* version than the one that went out without it.
+        assertThat(second.get("version").asInt()).as("approved content arrives at a new version").isGreaterThan(1);
         assertThat(second.get("smartHints").size()).isEqualTo(written);
         assertThat(second.get("smartHints").get(stopId)).hasSize(HintRules.COUNT);
         assertThat(second.get("practice")).as("only the one she approved").hasSize(1);
@@ -275,7 +280,168 @@ class SmartHintsApiTest extends TeacherTestSupport {
         mvc.perform(as(post("/teacher/lessons/" + id + "/practice/" + playId + "/approve"), teacherToken)).andExpect(status().isNotFound());
     }
 
+    /**
+     * A question that is rewritten keeps its stop id — the teacher's edit pins it — and the hints that were
+     * approved for the old question must not survive it. They were written against <em>that</em> answer, the leak
+     * check was run against <em>that</em> answer, and nothing re-runs either: publishing them would be help for a
+     * question that no longer exists, or the new answer handed over in a hint.
+     */
+    @Test void rewriting_a_question_takes_its_approved_hints_with_it() throws Exception {
+        String id = built(7);
+        String stopId = choiceStop(id);
+        mvc.perform(as(post("/teacher/lessons/" + id + "/smart-hints/approve").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"stopIds\":[\"" + stopId + "\"]}"), teacherToken)).andExpect(status().isOk());
+        assertThat(hintRows.findById(stopId).orElseThrow().isApproved()).isTrue();
+
+        // the same stop, the same id, a different question
+        mvc.perform(as(put("/teacher/stops/" + stopId).contentType(MediaType.APPLICATION_JSON)
+                .content(json().encodeShared(choice(stopId, "Which is nine plus four?"), quest.api.dto.Stop.Companion.serializer())), teacherToken))
+                .andExpect(status().isOk());
+
+        assertThat(hintRows.findById(stopId)).as("hints for a question that has been rewritten are not its hints").isEmpty();
+        publish(id);
+        assertThat(parentGet("/lessons/" + id).get("smartHints").has(stopId)).isFalse();
+    }
+
+    /**
+     * The other half of that: a stop the rewrite did not touch keeps what she approved. The deletion is about the
+     * question changing, not about the play being saved — editing one stop must not cost the play its hints.
+     */
+    @Test void editing_one_question_leaves_its_neighbours_hints_alone() throws Exception {
+        String id = built(8);
+        mvc.perform(as(post("/teacher/lessons/" + id + "/smart-hints/approve").contentType(MediaType.APPLICATION_JSON)
+                .content("{}"), teacherToken)).andExpect(status().isOk());
+        String edited = choiceStop(id);
+        var others = new ArrayList<String>();
+        for (JsonNode row : view(id).get("hints")) if (!edited.equals(row.get("stopId").asText())) others.add(row.get("stopId").asText());
+        assertThat(others).as("the lesson has more than one hinted stop").isNotEmpty();
+
+        mvc.perform(as(put("/teacher/stops/" + edited).contentType(MediaType.APPLICATION_JSON)
+                .content(json().encodeShared(choice(edited, "Which is nine plus four?"), quest.api.dto.Stop.Companion.serializer())), teacherToken))
+                .andExpect(status().isOk());
+
+        for (String kept : others)
+            assertThat(hintRows.findById(kept)).as("%s was not the question that changed", kept).isPresent();
+    }
+
+    /**
+     * <strong>A published body may not change under the version it went out as.</strong> `GET /lessons/{id}` is
+     * assembled live and cached publicly for a year under the ETag `"<id>-v<version>"`, and the app keeps a cached
+     * copy whose version is at least the one it asked for — so an approval made after publishing used to reach the
+     * phones that had not cached the lesson and no others, and two children on "v1" saw different help. The
+     * approval is therefore a new version.
+     */
+    @Test void approving_after_publishing_is_a_new_version_rather_than_a_changed_one() throws Exception {
+        String id = built(9);
+        publish(id);
+        var first = parentGet("/lessons/" + id);
+        assertThat(first.get("version").asInt()).isEqualTo(1);
+        assertThat(first.get("smartHints")).isEmpty();
+
+        String stopId = view(id).get("hints").get(0).get("stopId").asText();
+        mvc.perform(as(post("/teacher/lessons/" + id + "/smart-hints/approve").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"stopIds\":[\"" + stopId + "\"]}"), teacherToken)).andExpect(status().isOk());
+
+        var second = parentGet("/lessons/" + id);
+        assertThat(second.get("version").asInt()).as("the hint arrives under a version of its own").isEqualTo(2);
+        assertThat(second.get("smartHints").has(stopId)).isTrue();
+        assertThat(etag(id)).isEqualTo("\"" + id + "-v2\"");
+
+        // and taking it away again is another one, so no cache can keep serving the hint she withdrew
+        mvc.perform(as(put("/teacher/lessons/" + id + "/smart-hints/" + stopId).contentType(MediaType.APPLICATION_JSON)
+                .content(hints("Count them out loud first.", "Look at the picture again.")), teacherToken)).andExpect(status().isOk());
+        var third = parentGet("/lessons/" + id);
+        assertThat(third.get("version").asInt()).isEqualTo(3);
+        assertThat(third.get("smartHints")).isEmpty();
+
+        // a lesson that is still in review has nothing out there to contradict, so nothing is bumped for it
+        String draft = built(10);
+        int before = lessons.findById(draft).orElseThrow().getVersion();
+        mvc.perform(as(post("/teacher/lessons/" + draft + "/smart-hints/approve").contentType(MediaType.APPLICATION_JSON)
+                .content("{}"), teacherToken)).andExpect(status().isOk());
+        assertThat(lessons.findById(draft).orElseThrow().getVersion()).isEqualTo(before);
+    }
+
+    /**
+     * The switch is read where the body is assembled, and not only on her routes: an Admin who turns `smartHints`
+     * off because a hint turned out to be wrong is turning it off for the children too. While it is off she cannot
+     * unapprove anything either — every route of the feature answers 404 — so a flag that left the approved rows
+     * in the body would have left her with no way to take them out at all.
+     */
+    @Test void turning_the_switch_off_takes_approved_hints_and_practice_out_of_the_body() throws Exception {
+        String id = built(11);
+        String playId = view(id).get("practice").get(0).get("playId").asText();
+        mvc.perform(as(post("/teacher/lessons/" + id + "/smart-hints/approve").contentType(MediaType.APPLICATION_JSON)
+                .content("{}"), teacherToken)).andExpect(status().isOk());
+        mvc.perform(as(post("/teacher/lessons/" + id + "/practice/" + playId + "/approve"), teacherToken)).andExpect(status().isOk());
+        publish(id);
+        assertThat(parentGet("/lessons/" + id).get("smartHints")).as("on, and approved").isNotEmpty();
+        assertThat(parentGet("/lessons/" + id).get("practice")).isNotEmpty();
+
+        setFlag(adminToken, SCHOOL, FlagKeys.SMART_HINTS, false);
+
+        var off = parentGet("/lessons/" + id);
+        assertThat(off.get("smartHints")).as("off is off, in the body as on the map").isEmpty();
+        assertThat(off.get("practice")).isEmpty();
+        mvc.perform(as(get("/teacher/lessons/" + id + "/smart-hints"), teacherToken)).andExpect(status().isNotFound());
+
+        // …and back, unchanged: the rows were never deleted, only unpublished
+        setFlag(adminToken, SCHOOL, FlagKeys.SMART_HINTS, true);
+        assertThat(parentGet("/lessons/" + id).get("smartHints")).isNotEmpty();
+    }
+
+    /**
+     * N2.1's copy into a sibling class, with feature 30 on it: the copy carries the hints the teacher approved and
+     * the practice rows of the practice plays it copied. Without them 1B's children get the generic Again island
+     * where 1A's get their skill's own set, and the copy holds practice variants that no screen shows and nothing
+     * can reject — the `HINTS` step does not run for a copy, so nothing would ever write them.
+     */
+    @Test void a_copy_into_a_sibling_class_carries_the_approved_hints_and_the_practice_rows() throws Exception {
+        String id = built(12);
+        String playId = view(id).get("practice").get(0).get("playId").asText();
+        mvc.perform(as(post("/teacher/lessons/" + id + "/smart-hints/approve").contentType(MediaType.APPLICATION_JSON)
+                .content("{}"), teacherToken)).andExpect(status().isOk());
+        mvc.perform(as(post("/teacher/lessons/" + id + "/practice/" + playId + "/approve"), teacherToken)).andExpect(status().isOk());
+        int approved = hintRows.findByLessonId(id).size();
+        int sets = practiceRows.findByLessonIdOrderBySkillIdAsc(id).size();
+
+        // a second section of the same grade that is also hers: what "copy into a sibling class" means. The row
+        // carries no subject or teacher of its own (V7) — `classes` is unique on those — only her assignment.
+        var sibling = classes.findById(SIBLING).orElseGet(() -> {
+            var fresh = new quest.server.tenancy.Entities.ClassEntity();
+            fresh.setId(SIBLING); fresh.setSchoolId(SCHOOL); fresh.setCurriculum("british"); fresh.setGrade(1);
+            fresh.setName("1D"); fresh.setJoinCode("SHJOIN1D"); fresh.setActive(true); fresh.setJoinCodeEnabled(true);
+            fresh.setCreatedAt(Instant.now());
+            return classes.save(fresh);
+        });
+        quest.server.ClassFixtures.assign(assignments, sibling, "english", TEACHER);
+        String copy = json(mvc.perform(as(post("/teacher/lessons/" + id + "/copy").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"classId\":\"" + SIBLING + "\"}"), teacherToken))
+                .andExpect(status().isCreated()).andReturn()).get("id").asText();
+
+        assertThat(hintRows.findByLessonId(copy)).as("what she approved travels with the lesson").hasSize(approved);
+        assertThat(hintRows.findByLessonId(copy)).allSatisfy(row -> {
+            assertThat(row.isApproved()).as("the question is the same question, so the approval is still true").isTrue();
+            assertThat(row.getStopId()).as("on the copy's own stop ids").startsWith(copy.substring(0, 8));
+        });
+        assertThat(practiceRows.findByLessonIdOrderBySkillIdAsc(copy))
+                .as("every practice play of the copy has its row, or it is a variant nothing can show or reject").hasSize(sets);
+        assertThat(practiceRows.findByLessonIdOrderBySkillIdAsc(copy)).anyMatch(r -> r.isApproved());
+        assertThat(practiceRows.approvedByLesson(List.of(copy))).as("so 1B's review island finds it too").isNotEmpty();
+    }
+
     // ---------------------------------------------------------------- helpers
+
+    /** The first hinted stop of the lesson that is a `choice`, which is the one shape this test can rewrite by hand. */
+    private String choiceStop(String id) throws Exception {
+        for (JsonNode row : view(id).get("hints")) if ("choice".equals(row.get("stopType").asText())) return row.get("stopId").asText();
+        throw new AssertionError("no hinted choice stop in " + view(id).get("hints"));
+    }
+
+    private String etag(String id) throws Exception {
+        return mvc.perform(get("/lessons/" + id).header("Authorization", PARENT)).andExpect(status().isOk())
+                .andReturn().getResponse().getHeader("ETag");
+    }
 
     /** A lesson built the way a teacher builds one from typed text: the whole pipeline, `HINTS` included. */
     private String built(int day) throws Exception {

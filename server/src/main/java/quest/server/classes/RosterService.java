@@ -44,17 +44,23 @@ public class RosterService {
     private final quest.server.chat.ChatThreadRepository chatThreads; private final quest.server.chat.ChatMessageRepository chatMessages;
     private final quest.server.auth.ParentRepository parents;
     private final quest.server.auth.ParentAccounts accounts; private final quest.server.chat.ComplaintEventRepository complaintEvents;
+    /** The two feature-28 / feature-29 tables a child's delete has to take by hand — see {@link #delete}. */
+    private final quest.server.children.EveningCardRepository eveningCards;
+    private final quest.server.translate.TranslationRepository translations;
 
     public RosterService(ChildRepository children, TeacherScope scope, RosterImport reader, AuditService audit,
                          quest.server.children.ChildMediaRepository media,
                          quest.server.teacher.TeacherQuestionAnswerRepository answers, quest.server.files.FileStore files,
                          quest.server.chat.ChatThreadRepository chatThreads, quest.server.chat.ChatMessageRepository chatMessages,
                          quest.server.auth.ParentRepository parents,
-                         quest.server.auth.ParentAccounts accounts, quest.server.chat.ComplaintEventRepository complaintEvents) {
+                         quest.server.auth.ParentAccounts accounts, quest.server.chat.ComplaintEventRepository complaintEvents,
+                         quest.server.children.EveningCardRepository eveningCards,
+                         quest.server.translate.TranslationRepository translations) {
         this.children = children; this.scope = scope; this.reader = reader; this.audit = audit;
         this.media = media; this.answers = answers; this.files = files;
         this.chatThreads = chatThreads; this.chatMessages = chatMessages; this.parents = parents;
         this.accounts = accounts; this.complaintEvents = complaintEvents;
+        this.eveningCards = eveningCards; this.translations = translations;
     }
 
     /**
@@ -212,8 +218,10 @@ public class RosterService {
      * clearing out acceptance or test data needs the row to actually go, so this removes it: her roster place (the
      * row itself), and by `ON DELETE CASCADE` her attempts, stop and lesson completions, parent unlocks, stickers,
      * streak and media rows. `teacher_question_answers` is the one child table `V6` gave no cascade to, so those
-     * rows are deleted here by hand — before the child, or the constraint would refuse. Her chat threads and their
-     * messages (V15, no foreign key on purpose: the parent of a thread is resolved at delivery time) go the same way.
+     * rows are deleted here by hand — before the child, or the constraint would refuse, and feature 28's
+     * `evening_cards` (V50) is the second. Her chat threads and their messages (V15, no foreign key on purpose: the
+     * parent of a thread is resolved at delivery time) go the same way, and with them feature 29's `translations`
+     * of those messages, which have no foreign key either and nothing else to take them.
      *
      * <p>Her recordings and drawings are deleted from the bucket first: a cascade takes the rows and would leave the
      * blobs they pointed at behind for good, with no row left to find them by.
@@ -233,8 +241,16 @@ public class RosterService {
         if (child.getClassId() != null) writable(caller, child.getClassId());
         for (var m : media.findByChildId(child.getId())) delete(m.getStoragePath());
         answers.deleteAll(answers.findByChildIdOrderByAnsweredAtDesc(child.getId()));
+        // Feature 28: `evening_cards.child_id` references `children(id)` with no cascade (V50), so the row has to go
+        // first or the delete below is a foreign-key violation and the child can never be removed at all.
+        eveningCards.deleteByChild(child.getSchoolId(), child.getId());
         var threadIds = chatThreads.findByChildIdOrderByLastMessageAtDesc(child.getId()).stream().map(quest.server.chat.Entities.ChatThreadEntity::getId).toList();
         if (!threadIds.isEmpty()) {
+            // Feature 29: `translations` has no foreign key at all (V51, four source tables cannot be one
+            // reference), so her family's messages would otherwise leave their full text behind in another language,
+            // keyed by a message id nothing can resolve. They go with the messages they are a translation of.
+            var messageIds = chatMessages.idsOfThreads(threadIds);
+            if (!messageIds.isEmpty()) translations.deleteBySources(child.getSchoolId(), messageIds);
             chatMessages.deleteByThreads(threadIds); complaintEvents.deleteByThreads(threadIds); chatThreads.deleteByChild(child.getId());
         }
         children.delete(child);

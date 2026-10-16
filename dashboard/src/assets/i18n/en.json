@@ -2878,6 +2878,7 @@
       "panel": "Suggested by the assistant",
       "note": "Nothing is sent until you press Send.",
       "use": "Use suggested reply",
+      "replaced": "The suggestion replaced the reply you had written.",
       "categoryOf": "What it is about: {{label}}",
       "urgencyOf": "Urgency: {{label}}",
       "category": {

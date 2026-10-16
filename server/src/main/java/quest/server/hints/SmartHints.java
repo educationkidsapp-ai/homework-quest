@@ -40,12 +40,30 @@ import quest.server.content.StopRepository;
 public class SmartHints {
     private final StopHintsRepository hints; private final PracticePlayRepository practice;
     private final PlayRepository plays; private final StopRepository stops; private final SkillRepository skills;
-    private final LessonStore store; private final Json json; private final Clock clock;
+    private final LessonStore store; private final quest.server.content.LessonRepository lessons;
+    private final Json json; private final Clock clock;
 
     public SmartHints(StopHintsRepository hints, PracticePlayRepository practice, PlayRepository plays, StopRepository stops,
-                      SkillRepository skills, LessonStore store, Json json, Clock clock) {
+                      SkillRepository skills, LessonStore store, quest.server.content.LessonRepository lessons, Json json, Clock clock) {
         this.hints = hints; this.practice = practice; this.plays = plays; this.stops = stops; this.skills = skills;
-        this.store = store; this.json = json; this.clock = clock;
+        this.store = store; this.lessons = lessons; this.json = json; this.clock = clock;
+    }
+
+    /**
+     * <strong>A published lesson's body may not change under the version it was downloaded as.</strong>
+     * `GET /lessons/{id}` assembles live and is cached, publicly and for a year, under the ETag
+     * {@code "<id>-v<version>"} — and the app keeps whatever it holds while the cached version is at least the one
+     * it asked for. So an approval, an edit or a rejection made after the lesson went out is a new version: the
+     * ETag changes, caches revalidate, and two children on the same version can no longer see different help. A
+     * lesson still in review has nothing out there to contradict, so nothing is bumped for it.
+     */
+    private void bumpIfPublished(LessonEntity lesson) {
+        if (!"published".equals(lesson.getStatus())) return;
+        lessons.findById(lesson.getId()).ifPresent(row -> {
+            row.setVersion(row.getVersion() + 1); row.setUpdatedAt(clock.instant());
+            lessons.save(row);
+            lesson.setVersion(row.getVersion());
+        });
     }
 
     // ---------------------------------------------------------------- what she reads
@@ -82,10 +100,13 @@ public class SmartHints {
             fresh.setStopId(stopId); fresh.setLessonId(lesson.getId()); fresh.setSchoolId(lesson.getSchoolId()); fresh.setCreatedAt(clock.instant());
             return fresh;
         });
+        boolean wasPublished = row.isApproved();                   // these words are out there; dropping them is a change
         var arr = json.array(); written.stream().map(String::strip).forEach(arr::add);
         row.setHintsJson(arr.toString());
         row.setApprovedBy(null); row.setApprovedAt(null);
-        return view(stop, hints.save(row));
+        var saved = hints.save(row);
+        if (wasPublished) bumpIfPublished(lesson);
+        return view(stop, saved);
     }
 
     /** Approves the named stops, or every stop of the lesson that has hints. Answers how many rows it signed. */
@@ -95,23 +116,27 @@ public class SmartHints {
         for (var row : hints.findByLessonId(lesson.getId())) mine.put(row.getStopId(), row);
         var chosen = request == null || request.getStopIds() == null ? new ArrayList<>(mine.keySet()) : request.getStopIds();
         var now = clock.instant();
-        int signed = 0;
+        int signed = 0, added = 0;
         for (String stopId : chosen) {
             var row = mine.get(stopId);
             if (row == null) throw ApiException.notFound("stop");
+            if (!row.isApproved()) added++;
             row.setApprovedBy(userId); row.setApprovedAt(now);
             hints.save(row);
             signed++;
         }
+        if (added > 0) bumpIfPublished(lesson);
         return signed;
     }
 
-    /** This practice set may be published; the next publish of the lesson carries it. */
+    /** This practice set may be published: the next publish carries it, and a lesson already out gets a version. */
     @Transactional
     public PracticePlayView approvePractice(LessonEntity lesson, String playId, String userId) {
         var row = requirePractice(lesson, playId);
+        boolean fresh = !row.isApproved();
         row.setApprovedBy(userId); row.setApprovedAt(clock.instant());
         practice.save(row);
+        if (fresh) bumpIfPublished(lesson);
         return practiceViews(lesson.getId()).stream().filter(v -> v.getPlayId().equals(playId)).findFirst()
                 .orElseThrow(() -> ApiException.notFound("practice play"));
     }
@@ -123,8 +148,10 @@ public class SmartHints {
     @Transactional
     public void rejectPractice(LessonEntity lesson, String playId) {
         var row = requirePractice(lesson, playId);
+        boolean wasApproved = row.isApproved();
         practice.delete(row);
         plays.findById(playId).ifPresent(play -> { stops.deleteAll(stops.findByPlayIdOrderByPosition(play.getId())); plays.delete(play); });
+        if (wasApproved) bumpIfPublished(lesson);
     }
 
     // ---------------------------------------------------------------- what the map asks

@@ -30,4 +30,15 @@ public interface TranslationRepository extends JpaRepository<TranslationEntity, 
     /** Every translation of one source, for the tests and for a sweep of a source that is gone. */
     @Query("select t from TranslationEntity t where t.sourceKind = :kind and t.sourceId = :sourceId")
     List<TranslationEntity> of(@Param("kind") String kind, @Param("sourceId") String sourceId);
+
+    /**
+     * The sweep V51 promised, for the one case that has to happen at once: a hard-deleted child
+     * ({@link quest.server.classes.RosterService#delete}). Her family's messages are deleted there, and the full
+     * text of them in another language has no foreign key to go with it — so it is named here, by the message ids
+     * that are about to stop existing and by the school those messages were in.
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("delete from TranslationEntity t where t.schoolId = :schoolId and t.sourceKind in ('chat', 'complaint')"
+            + " and t.sourceId in :sourceIds")
+    int deleteBySources(@Param("schoolId") String schoolId, @Param("sourceIds") java.util.Collection<String> sourceIds);
 }

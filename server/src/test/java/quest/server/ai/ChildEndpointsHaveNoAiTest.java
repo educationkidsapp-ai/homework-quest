@@ -63,7 +63,13 @@ class ChildEndpointsHaveNoAiTest {
             // feature 28: the parent's evening card, written from the teacher's lesson text and the child's own results
             "/children/{id}/evening-card",
             // feature 29: the parent translates a staff message she may read; the original is never changed
-            "/children/{id}/translate");
+            "/children/{id}/translate",
+            // Feature 27: the parent's own complaint, sorted for the member of staff who will answer it. The child
+            // never posts one and never reads the triage — it is written after the complaint has committed, on a
+            // task thread, for the three staff areas alone, and there is no path from it back into the complaint.
+            // The parent's POST itself makes no model call: `NoAiFromChildEndpointsTest` posts one with the switch
+            // on and the mock is untouched by the request that returns to her.
+            "/children/{id}/complaints");
 
     /**
      * The exam-attempt path, which no route of its own leads to: a child hands her paper in through
@@ -109,9 +115,30 @@ class ChildEndpointsHaveNoAiTest {
         assertThat(reaches(generate)).as("a walk that finds nothing anywhere proves nothing").isNotNull();
     }
 
+    /**
+     * And the guard on the new edge: feature 27's complaint route reaches the model <em>only</em> through an event,
+     * so the walk from `ComplaintService.create` must find it. It is the proof that the exemption above is a
+     * decision — and that the next after-commit listener added on a child's route cannot hide behind `publishEvent`.
+     */
+    @Test void the_sweep_follows_a_spring_event_to_its_listener() {
+        var create = SERVER.get(quest.server.chat.ComplaintService.class).getMethods().stream()
+                .filter(m -> m.getName().equals("create")).findFirst().orElseThrow();
+        assertThat(LISTENERS).as("the server really does handle events, so the index is not empty by accident").isNotEmpty();
+        assertThat(reaches(create)).as("the parent's complaint is triaged by a model after it commits, through "
+                + "ComplaintTriageService.Requested — a walk that stops at publishEvent cannot see it").isNotNull();
+    }
+
     // ---------------------------------------------------------------- the sweep
 
-    /** The name of the forbidden class this method can reach, or null. Breadth-first inside `quest.server` only. */
+    /**
+     * The name of the forbidden class this method can reach, or null. Breadth-first inside `quest.server` — and
+     * <strong>through a Spring event</strong>, which is the one edge a call graph does not have: a handler that
+     * publishes an event reaches whatever listens for it, minutes later and on another thread, and feature 27's
+     * complaint triage is exactly that shape. So a method that calls {@code publishEvent} is read as calling every
+     * {@code @EventListener} / {@code @TransactionalEventListener} whose parameter is one of the event types it
+     * builds. Without this the walk stopped at `ApplicationEventPublisher` — outside `quest.server` — and an AI call
+     * hanging off any after-commit event on a child's route would have passed.
+     */
     private static String reaches(JavaMethod from) {
         Set<String> seen = new LinkedHashSet<>();
         var queue = new ArrayDeque<JavaMethod>();
@@ -120,6 +147,7 @@ class ChildEndpointsHaveNoAiTest {
             var current = queue.poll();
             if (!seen.add(current.getFullName())) continue;
             if (FORBIDDEN.contains(current.getOwner().getName())) return current.getOwner().getSimpleName() + "#" + current.getName();
+            for (JavaMethod listener : listenersPublishedBy(current)) if (!seen.contains(listener.getFullName())) queue.add(listener);
             for (var call : current.getMethodCallsFromSelf()) {
                 if (!call.getTargetOwner().getPackageName().startsWith("quest.server")) continue;
                 if (FORBIDDEN.contains(call.getTargetOwner().getName())) return call.getTargetOwner().getSimpleName() + "#" + call.getName();
@@ -127,6 +155,32 @@ class ChildEndpointsHaveNoAiTest {
             }
         }
         return null;
+    }
+
+    /** The handlers of every event this method both builds and publishes; empty for a method that publishes none. */
+    private static List<JavaMethod> listenersPublishedBy(JavaMethod method) {
+        boolean publishes = method.getMethodCallsFromSelf().stream().anyMatch(c -> c.getName().equals("publishEvent"));
+        if (!publishes) return List.of();
+        var out = new ArrayList<JavaMethod>();
+        for (var built : method.getConstructorCallsFromSelf())
+            out.addAll(LISTENERS.getOrDefault(built.getTargetOwner().getName(), List.of()));
+        return out;
+    }
+
+    /** Every event handler in the server, by the type of the one event it takes. */
+    private static final java.util.Map<String, List<JavaMethod>> LISTENERS = listeners();
+
+    private static java.util.Map<String, List<JavaMethod>> listeners() {
+        var out = new java.util.LinkedHashMap<String, List<JavaMethod>>();
+        SERVER.forEach(type -> {
+            for (JavaMethod method : type.getMethods()) {
+                boolean handles = method.isAnnotatedWith(org.springframework.context.event.EventListener.class)
+                        || method.isAnnotatedWith(org.springframework.transaction.event.TransactionalEventListener.class);
+                if (!handles || method.getRawParameterTypes().size() != 1) continue;
+                out.computeIfAbsent(method.getRawParameterTypes().getFirst().getName(), k -> new ArrayList<>()).add(method);
+            }
+        });
+        return out;
     }
 
     /** Every handler of a `@RestController` whose route a child's or her parent's app calls. */

@@ -17,8 +17,7 @@
 - **No in-app list of requests to decide.** Managers decide from the push buttons or from the dashboard.
 - **Dates in the app are typed.** The request and correction forms take the date as `yyyy-MM-dd` (validated, with a
   sensible default). There is no date picker yet.
-- **Not deployed yet.** The QA deploy follows the merge into `develop`. Sending the Android build to testers needs the
-  owner's go-ahead.
+- **Deployed to QA** with the merge of #221. Sending the Android build to testers needs the owner's go-ahead.
 
 ## Goal
 
