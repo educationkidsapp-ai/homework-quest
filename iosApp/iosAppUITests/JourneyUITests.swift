@@ -80,18 +80,23 @@ final class JourneyUITests: XCTestCase {
     private func signInIfNeeded() {
         let email = id("signin.email")
         guard email.waitForExistence(timeout: 20) else { return }   // already signed in on a replay
-        email.tap(); dismissKeyboardTip(); app.typeText("ios@test.com")
-        id("signin.password").tap(); dismissKeyboardTip(); app.typeText("secret12")
+        email.tap(); if dismissKeyboardTip() { email.tap() }; app.typeText("ios@test.com")
+        let password = id("signin.password")
+        password.tap(); if dismissKeyboardTip() { password.tap() }; app.typeText("secret12")
         tapId("signin.submit")
     }
     /// A fresh simulator may show iOS's one-time "slide to type" keyboard tip the first time the keyboard opens. It covers
     /// the keyboard, so the typed email was lost and Sign in stayed disabled (CI run 38765592309). CI also marks the tip
     /// as seen before the test; this covers a local simulator that still shows it.
-    private func dismissKeyboardTip() {
+    /// Returns true when the tip was there: tapping its Continue takes the focus away from the field, so the caller taps
+    /// the field again before typing (CI run 38820637437 lost the email exactly that way).
+    @discardableResult
+    private func dismissKeyboardTip() -> Bool {
         let tip = app.buttons["Continue"]
-        guard tip.waitForExistence(timeout: 2) else { return }
+        guard tip.waitForExistence(timeout: 2) else { return false }
         NSLog("JourneyUITests: keyboard tip shown, dismissed")
         tip.tap()
+        return true
     }
     /// M2/M6: the one-time offer to lock the app with Face ID or the passcode comes after a sign-in on a device that has either.
     private func declineLockOfferIfShown() {
