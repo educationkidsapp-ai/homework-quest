@@ -307,6 +307,16 @@ class OpenApiContractTest extends ApiTestSupport {
      */
     static final List<String> LANGUAGE_BRIDGE_API = List.of("/children/{id}/translate", "/staff/translate");
 
+    /**
+     * Feature 31 (`quest.api.dashboard.TeachingMaterials`): the teacher's own weekly teaching material, the leaders'
+     * board over it with its CSV and its one review, and the Admin's deadline card. Behind the `teachingMaterials`
+     * flag at run time and still in the document, for the reason every flagged area is: `server/openapi.json`
+     * describes the API the server can serve rather than what one school has switched on.
+     */
+    static final List<String> TEACHING_MATERIALS_API = List.of(
+            "/teacher/materials", "/teacher/materials/attachments", "/teacher/materials/{classId}/{subject}",
+            "/materials/board", "/materials/board.csv", "/materials/{id}/review", "/admin/material-settings");
+
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */
     static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings",
             "/schools/logo", "/classes/lookup", "/schools/{id}/logo");
@@ -335,6 +345,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(STAFF_ATTENDANCE_API);
         assertThat(paths).containsAll(LANGUAGE_BRIDGE_API);
         assertThat(paths).containsAll(SMART_HINTS_API);
+        assertThat(paths).containsAll(TEACHING_MATERIALS_API);
         // MH1: the upload and the download of a broadcast attachment — the app and the dashboard both call them.
         assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}", "/media/attachments", "/media/attachments/{id}", "/media/chat-attachments",
                 "/children/{id}/chat/attachments");

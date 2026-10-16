@@ -29,6 +29,7 @@ const MIGRATIONS: readonly { readonly file: string; readonly rows: number }[] = 
   { file: 'V49__complaint_triage.sql', rows: 1 },
   { file: 'V51__language_bridge.sql', rows: 1 },
   { file: 'V52__smart_hints.sql', rows: 1 },
+  { file: 'V53__teaching_materials.sql', rows: 1 },
 ];
 
 function seededBy(file: string): Record<string, boolean> {

@@ -1,0 +1,123 @@
+hq-tabs {
+  display: block;
+  margin-block-end: var(--hq-space-16);
+}
+
+.materials {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-16);
+}
+
+.materials__due {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--hq-space-12);
+  margin: 0;
+}
+
+.materials__week {
+  font-weight: var(--hq-text-weight-medium);
+}
+
+.materials__counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--hq-space-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.materials__count {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-4);
+  padding: var(--hq-space-16);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  border-radius: var(--hq-radius-card);
+  background: var(--hq-color-surface-raised);
+}
+
+.materials__number {
+  font-size: var(--hq-text-theme-xl);
+  line-height: var(--hq-text-theme-xl-line);
+  font-weight: var(--hq-text-weight-medium);
+
+  &[data-status='late'] {
+    color: var(--hq-color-warning-700);
+  }
+
+  &[data-status='missing'] {
+    color: var(--hq-color-error-ink);
+  }
+
+  &[data-status='onTime'],
+  &[data-status='reviewed'] {
+    color: var(--hq-color-success-ink);
+  }
+}
+
+.materials__status {
+  font-weight: var(--hq-text-weight-medium);
+
+  &[data-status='LATE'] {
+    color: var(--hq-color-warning-700);
+  }
+
+  &[data-status='MISSING'] {
+    color: var(--hq-color-error-ink);
+  }
+
+  &[data-status='ON_TIME'],
+  &[data-status='REVIEWED'] {
+    color: var(--hq-color-success-ink);
+  }
+}
+
+.materials__at {
+  display: block;
+}
+
+.materials__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--hq-space-12);
+}
+
+.materials__teacher {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-12);
+  padding-block: var(--hq-space-12);
+}
+
+.hand-in {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-12);
+}
+
+.hand-in__row {
+  margin: 0;
+  font-weight: var(--hq-text-weight-medium);
+}
+
+.hand-in__file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hq-space-8);
+}
+
+.hand-in__picked {
+  font-weight: var(--hq-text-weight-medium);
+}
+
+.hand-in__error {
+  margin: 0;
+  color: var(--hq-color-error-ink);
+  font-size: var(--hq-text-note);
+}

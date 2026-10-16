@@ -132,7 +132,7 @@ public class NotificationService {
             case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS,
                  COMPLAINT_NEW, COMPLAINT_MESSAGE, ATTENDANCE_REMINDER, ATTENDANCE_ALERT, ATTENDANCE_DIGEST,
                  ATTENDANCE_REQUEST, ATTENDANCE_DECISION, ATTENDANCE_REMOTE_DAY,
-                 CHAT_AFTER_HOURS_SUMMARY, MORNING_BRIEF, EVENING_CARD
+                 CHAT_AFTER_HOURS_SUMMARY, MORNING_BRIEF, EVENING_CARD, MATERIAL_REMINDER
                  -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         String name = lesson.getTitle() == null || lesson.getTitle().isBlank() ? "Your lesson" : lesson.getTitle().trim();
@@ -143,7 +143,7 @@ public class NotificationService {
             case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS,
                  COMPLAINT_NEW, COMPLAINT_MESSAGE, ATTENDANCE_REMINDER, ATTENDANCE_ALERT, ATTENDANCE_DIGEST,
                  ATTENDANCE_REQUEST, ATTENDANCE_DECISION, ATTENDANCE_REMOTE_DAY,
-                 CHAT_AFTER_HOURS_SUMMARY, MORNING_BRIEF, EVENING_CARD
+                 CHAT_AFTER_HOURS_SUMMARY, MORNING_BRIEF, EVENING_CARD, MATERIAL_REMINDER
                  -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         try {

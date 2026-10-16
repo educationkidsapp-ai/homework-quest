@@ -96,6 +96,9 @@ class IsolationTest extends ApiTestSupport {
     @Autowired quest.server.hints.StopHintsRepository stopHints;
     @Autowired quest.server.hints.PracticePlayRepository practicePlays;
     @Autowired quest.server.content.PlayRepository playRows;
+    @Autowired quest.server.materials.MaterialSettingsRepository materialSettings;
+    @Autowired quest.server.materials.MaterialSubmissionRepository materialSubmissions;
+    @Autowired quest.server.materials.MaterialReminderRepository materialReminders;
 
     @BeforeEach void seedTwoSchools() {
         school(A, "Alpha Academy", "SCHLAA"); school(B, "Beta School", "SCHLBB");
@@ -485,6 +488,50 @@ class IsolationTest extends ApiTestSupport {
             stopHints.deleteById("iso-stop-of-b");
             practicePlays.findById("iso-play-of-b").ifPresent(practicePlays::delete);
             playRows.findById("iso-play-of-b").ifPresent(playRows::delete);
+        }
+    }
+
+    /**
+     * Feature 31's three tenant tables. What a teacher prepared, the deadline her school holds her to, and the
+     * reminders it has sent are that school's business: a principal of A reads none of B's rows, and naming B's own
+     * school, teacher or week outright does not help her — the filter is on the query, not on the argument.
+     */
+    @Test void feature_31s_teaching_material_tables_stay_in_their_school() {
+        var week = LocalDate.of(2026, 10, 18);
+        var settings = new quest.server.materials.Entities.MaterialSettingsEntity();
+        settings.setSchoolId(B); settings.setDueWeekday("WEDNESDAY");
+        settings.setDueTime(java.time.LocalTime.of(10, 0)); settings.setRemindHoursBefore(3);
+        settings.setUpdatedAt(Instant.now());
+        materialSettings.save(settings);
+        var handed = new quest.server.materials.Entities.MaterialSubmissionEntity();
+        handed.setId("iso-material-b"); handed.setSchoolId(B); handed.setTeacherId("teacher-b");
+        handed.setClassId(CLASS_B); handed.setSubject("math"); handed.setWeekStart(week);
+        handed.setNote("B's own preparation"); handed.setSubmittedAt(Instant.now());
+        materialSubmissions.save(handed);
+        var reminder = new quest.server.materials.Entities.MaterialReminderEntity();
+        reminder.setId("iso-material-reminder-b"); reminder.setSchoolId(B); reminder.setTeacherId("teacher-b");
+        reminder.setWeekStart(week); reminder.setSentAt(Instant.now());
+        materialReminders.save(reminder);
+        try {
+            tenant.set("MANAGERIAL", A, null);
+            assertThat(materialSettings.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(materialSettings.findOneBySchoolId(B)).as("nor by naming B outright").isEmpty();
+            assertThat(materialSubmissions.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(materialSubmissions.findBySchoolIdAndWeekStart(B, week)).isEmpty();
+            assertThat(materialSubmissions.findOneBySchoolIdAndId(B, "iso-material-b")).isEmpty();
+            assertThat(materialSubmissions.findFirstBySchoolIdAndAttachmentId(B, "iso-material-b")).isEmpty();
+            assertThat(materialReminders.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(materialReminders.findBySchoolIdAndWeekStart(B, week)).isEmpty();
+            tenant.set("MANAGERIAL", B, null);
+            assertThat(materialSettings.findOneBySchoolId(B)).isPresent();
+            assertThat(materialSubmissions.findBySchoolIdAndWeekStart(B, week))
+                    .extracting(quest.server.materials.Entities.MaterialSubmissionEntity::getId).containsExactly("iso-material-b");
+            assertThat(materialReminders.findBySchoolIdAndWeekStart(B, week)).hasSize(1);
+        } finally {
+            tenant.clear();
+            materialReminders.deleteById("iso-material-reminder-b");
+            materialSubmissions.deleteById("iso-material-b");
+            materialSettings.deleteById(B);
         }
     }
 

@@ -295,4 +295,25 @@ describe('MG2a — where a notification sends its reader', () => {
       '/notifications',
     );
   });
+  /**
+   * Feature 31: the teaching-material reminder. `MaterialReminderJob` writes one link for
+   * everybody — `/notifications?material=reminder&week=…&missing=…`, because a job has no role to
+   * write for — and only a teacher has a screen that can hand anything in, so hers is the only
+   * bell the row opens a screen from. The week travels with it; the number still missing does
+   * not, because the page counts its own rows.
+   */
+  it('sends a teaching-material reminder to her own materials page, with the week', () => {
+    const item = row(NotificationViewKindEnum.MATERIAL_REMINDER, {
+      link: '/notifications?material=reminder&week=2026-10-25&missing=3',
+    });
+    expect(target(item, 'TEACHER')).toBe('/teacher/my-materials?week=2026-10-25');
+    for (const role of ['ADMIN', 'MANAGERIAL', 'COORDINATOR', 'FLOOR_SUPERVISOR'] as Role[])
+      expect(target(item, role)).toBe('/notifications');
+    expect(target(item, null)).toBe('/notifications');
+    // No week on the link: her page opens on the week the server calls now.
+    const bare = row(NotificationViewKindEnum.MATERIAL_REMINDER, {
+      link: '/notifications?material=reminder',
+    });
+    expect(target(bare, 'TEACHER')).toBe('/teacher/my-materials');
+  });
 });

@@ -1,0 +1,191 @@
+<hq-page [title]="'nav.materials' | transloco" [subtitle]="'materials.board.subtitle' | transloco">
+  <div class="materials__toolbar">
+    <hq-input
+      type="date"
+      [label]="'materials.weekLabel' | transloco"
+      [hint]="weekLabel()"
+      [value]="week() || resolved()"
+      (valueChange)="pickWeek($event)"
+    />
+    <hq-button variant="secondary" data-hq-prev-week (pressed)="shiftWeek(-1)">
+      {{ 'materials.previousWeek' | transloco }}
+    </hq-button>
+    <hq-button variant="secondary" data-hq-next-week (pressed)="shiftWeek(1)">
+      {{ 'materials.nextWeek' | transloco }}
+    </hq-button>
+    <hq-button variant="secondary" data-hq-export-csv [disabled]="exporting()" (pressed)="exportCsv()">
+      {{ 'materials.board.csv' | transloco }}
+    </hq-button>
+  </div>
+
+  @if (board.isLoading() && !board.hasValue()) {
+    <hq-skeleton [loading]="true" [lines]="6" [label]="'materials.loading' | transloco" />
+  } @else if (board.error()) {
+    <hq-card>
+      <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco" [dismissible]="false">
+        {{ 'band.unreachable' | transloco }}
+      </hq-band>
+      <hq-button variant="secondary" (pressed)="board.reload()">{{ 'ui.retry' | transloco }}</hq-button>
+    </hq-card>
+  } @else if (leadsNobody()) {
+    <hq-empty-state
+      data-hq-leads-nobody
+      [message]="'materials.board.leadsNobody' | transloco"
+      [detail]="'materials.board.leadsNobodyDetail' | transloco"
+    />
+  } @else {
+    <div class="materials" data-hq-material-board>
+      <p class="materials__due" data-hq-due>
+        <span class="materials__week">{{ weekLabel() }}</span>
+        <span class="hq-muted">{{ dueLabel() }}</span>
+      </p>
+
+      <ul class="materials__counts" [attr.aria-label]="'materials.countsLabel' | transloco">
+        @for (card of cards; track card) {
+          <li class="materials__count" [attr.data-hq-count]="card">
+            <span class="materials__number" [attr.data-status]="card">{{ count(card) }}</span>
+            <span>{{ 'materials.card.' + card | transloco }}</span>
+          </li>
+        }
+      </ul>
+
+      @if (failure(); as message) {
+        <hq-band
+          variant="error"
+          [open]="true"
+          [title]="'band.failed' | transloco"
+          (dismissed)="failure.set(null)"
+        >
+          {{ message }}
+        </hq-band>
+      }
+
+      <hq-table
+        [rows]="rows()"
+        [columns]="columns()"
+        [cellTemplate]="teacherCell"
+        [expandedTemplate]="classes"
+        [isExpanded]="isOpen"
+        [trackBy]="trackTeacher"
+        [label]="'materials.board.tableLabel' | transloco"
+      >
+        <hq-empty-state table-empty [message]="'materials.board.empty' | transloco" />
+      </hq-table>
+    </div>
+  }
+</hq-page>
+
+<ng-template #teacherCell let-row let-column="column">
+  @switch (column.key) {
+    @case ('fullName') {
+      <button
+        type="button"
+        class="hq-linkbutton"
+        data-hq-teacher
+        [attr.aria-expanded]="isOpen(row)"
+        (click)="toggle(row)"
+      >
+        {{ row.fullName }}
+      </button>
+    }
+    @default {
+      {{ countsOf(row, column.key) }}
+    }
+  }
+</ng-template>
+
+<ng-template #classes let-teacher>
+  <div class="materials__teacher" [attr.data-hq-teacher-rows]="teacher.teacherId">
+    <hq-table
+      [rows]="teacher.rows ?? []"
+      [columns]="rowColumns()"
+      [cellTemplate]="rowCell"
+      [trackBy]="trackRow"
+      [label]="'materials.board.rowsLabel' | transloco: { name: teacher.fullName }"
+    >
+      <hq-empty-state table-empty [message]="'materials.board.noRows' | transloco" />
+    </hq-table>
+  </div>
+</ng-template>
+
+<ng-template #rowCell let-row let-column="column">
+  @switch (column.key) {
+    @case ('className') {
+      {{ row.className ?? '—' }}
+    }
+    @case ('subject') {
+      {{ subjectLabel(row.subject) }}
+    }
+    @case ('status') {
+      <span class="materials__status" [attr.data-status]="statusOf(row)">
+        {{ statusLabel(statusOf(row)) }}
+      </span>
+      @if (row.submittedAt) {
+        <span class="hq-muted materials__at">{{ at(row.submittedAt) }}</span>
+      }
+    }
+    @case ('attachmentName') {
+      @if (row.attachmentId) {
+        <hq-button
+          variant="quiet"
+          [disabled]="opening() !== null"
+          [ariaLabel]="'chat.attachment.openNamed' | transloco: { name: row.attachmentName ?? '' }"
+          (pressed)="openFile(row)"
+        >
+          {{ row.attachmentName ?? ('chat.attachment.open' | transloco) }}
+        </hq-button>
+      } @else {
+        —
+      }
+    }
+    @case ('note') {
+      {{ row.note || '—' }}
+    }
+    @case ('review') {
+      {{ reviewLabel(row) }}
+    }
+    @case ('act') {
+      @if (canReview(row)) {
+        <hq-button variant="primary" data-hq-review (pressed)="review(row)">
+          {{ 'materials.markReviewed' | transloco }}
+        </hq-button>
+      } @else if (isReviewed(row)) {
+        <span class="hq-muted" data-hq-reviewed>{{ 'materials.status.REVIEWED' | transloco }}</span>
+      } @else {
+        <span class="hq-muted">{{ 'materials.nothingToReview' | transloco }}</span>
+      }
+    }
+  }
+</ng-template>
+
+<hq-dialog
+  [open]="dialogOpen()"
+  (openChange)="onDialog($event)"
+  [title]="'materials.reviewTitle' | transloco"
+  [confirmLabel]="'materials.markReviewed' | transloco"
+  [confirmDisabled]="saving()"
+  [loading]="saving()"
+  (confirmed)="confirmReview()"
+>
+  @if (reviewing(); as row) {
+    <div class="hand-in">
+      <p class="hand-in__row">{{ row.className }} · {{ subjectLabel(row.subject) }}</p>
+
+      @if (failure(); as message) {
+        <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco" [dismissible]="false">
+          {{ message }}
+        </hq-band>
+      }
+
+      <p class="hq-muted">{{ 'materials.reviewOnce' | transloco }}</p>
+
+      <hq-textarea
+        [label]="'materials.comment' | transloco"
+        [rows]="3"
+        [value]="comment()"
+        (valueChange)="comment.set($event)"
+        [hint]="'materials.commentHint' | transloco"
+      />
+    </div>
+  }
+</hq-dialog>

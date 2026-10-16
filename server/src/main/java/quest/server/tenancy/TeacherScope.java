@@ -69,6 +69,15 @@ public class TeacherScope {
         return assignments.findBySchoolIdAndTeacherIdOrderByClassIdAscSubjectAsc(tenant.writeSchoolId(), teacherId);
     }
 
+    /**
+     * Every assignment of one named school, for a background job that has no caller and so no tenant scope to read
+     * {@link #writeSchoolId()} from — feature 31's teaching material reminder is the first. A request never uses
+     * this: it has a caller, and the caller is what narrows the rows.
+     */
+    public List<TeachingAssignmentEntity> assignmentsIn(String schoolId) {
+        return assignments.findBySchoolIdOrderByClassIdAscSubjectAsc(schoolId);
+    }
+
     /** The assignments of the signed-in teacher; every assignment of the school for ADMIN and MANAGERIAL. */
     public List<TeachingAssignmentEntity> assignmentsOf(Principals.User caller) {
         String schoolId = tenant.writeSchoolId();

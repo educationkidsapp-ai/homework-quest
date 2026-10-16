@@ -51,6 +51,8 @@ export const WRITE_PERMISSIONS: ReadonlySet<string> = new Set([
   'management.complaints',
   'management.staff.attendance',
   'manager.manage',
+  'materials.board',
+  'materials.self',
   'me.update',
   'media.attachment.write',
   'notifications.write',
