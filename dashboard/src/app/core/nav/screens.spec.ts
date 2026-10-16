@@ -98,6 +98,9 @@ describe('the screen table', () => {
       'attendance-requests',
       // Feature 17: the whole school's board and monthly report, behind the same switch.
       'staff-attendance',
+      // Feature 31: the leaders' board over the weekly teaching material, behind
+      // `teachingMaterials` — the same teachers her Staff attendance board shows.
+      'materials',
       // D13: `schools` keeps its label and its `multiSchool` flag — the rail hides it at runtime,
       // and the table is what it is hidden from.
       'schools',
@@ -202,8 +205,11 @@ describe('the screen table', () => {
       // T2 (the owner's list, 2026-10-01): who she reports to, with the phone numbers on it.
       'coordinators',
       'manager',
+      // Feature 31: her own teaching material, and the board of the people she leads.
+      'my-materials',
       // Feature 17: the board of the people she is direct manager of.
       'staff-attendance',
+      'materials',
     ]);
     expect(navScreens('TEACHER').map(({ link }) => link)).toEqual([
       '/teacher/week',
@@ -214,7 +220,9 @@ describe('the screen table', () => {
       '/teacher/complaints',
       '/teacher/coordinators',
       '/teacher/manager',
+      '/teacher/my-materials',
       '/teacher/staff-attendance',
+      '/teacher/materials',
     ]);
     // Both are the chooser for a conversation, so both carry what the chat routes carry.
     for (const id of ['coordinators', 'manager']) {
@@ -278,6 +286,8 @@ describe('the screen table', () => {
       'announcements',
       // Feature 17: the board of the people she is direct manager of.
       'staff-attendance',
+      // Feature 31: their teaching material, the same people and the same scope.
+      'materials',
     ]);
     expect(navScreens('COORDINATOR').map(({ link }) => link)).toEqual([
       '/coordinator',
@@ -293,6 +303,7 @@ describe('the screen table', () => {
       '/coordinator/manager',
       '/coordinator/announcements',
       '/coordinator/staff-attendance',
+      '/coordinator/materials',
     ]);
     // R7: all three carry the flag their server routes carry, so a school without chat has none
     // of them — in the rail or at the URL.
@@ -349,7 +360,8 @@ describe('the screen table', () => {
           key.startsWith('coordinator.') ||
           key === 'broadcast.read' ||
           key === 'attendance.requests.decide' ||
-          key === 'attendance.board',
+          key === 'attendance.board' ||
+          key === 'materials.board',
       ),
     ).toBe(true);
     const requests = AREAS.COORDINATOR.screens.find((screen) => screen.id === 'attendance-requests');
@@ -374,6 +386,8 @@ describe('the screen table', () => {
       // MH2 item 3: **Children**, not People — its other two tabs are rail rows of their own now.
       'children',
       'staff-attendance',
+      // Feature 31: her department's teaching material, in her attendance board's own scope.
+      'materials',
       // Feature 18: the requests her direct reports are waiting on — the one row of hers that is
       // not read-only.
       'attendance-requests',
@@ -437,11 +451,11 @@ describe('the screen table', () => {
    *
    * A school that has not turned the feature on has no floors, so there is nothing for any of her
    * screens to draw; the router answering `/not-found` is the same answer the server's 404 gives.
-   * The two rows that carry `staffAttendance` instead are features 17's and 18's own switches: the
-   * board and the requests screen are shared by all four areas, and a floor supervisor reaches
-   * them only in a school that takes staff attendance at all.
+   * The three rows that carry another switch are features 17's, 18's and 31's own: the attendance
+   * board, the requests screen and the teaching-material board are shared by every area, and a
+   * floor supervisor reaches them only in a school that has turned those features on at all.
    */
-  it('gives the floor supervisor her five rail items, every one behind the flag', () => {
+  it('gives the floor supervisor her six rail items, every one behind a flag', () => {
     expect(navScreens('FLOOR_SUPERVISOR').map(({ screen }) => screen.id)).toEqual([
       'home',
       'children',
@@ -450,6 +464,8 @@ describe('the screen table', () => {
       // requests of anyone whose direct manager she is.
       'staff-attendance',
       'attendance-requests',
+      // Feature 31: the teaching material of the teachers of her floors' classes.
+      'materials',
     ]);
     expect(navScreens('FLOOR_SUPERVISOR').map(({ link }) => link)).toEqual([
       '/floor',
@@ -457,6 +473,7 @@ describe('the screen table', () => {
       '/floor/messages',
       '/floor/staff-attendance',
       '/floor/attendance-requests',
+      '/floor/materials',
     ]);
 
     // Her own three rows carry her own flag and her own keys; the two shared screens carry the
@@ -495,7 +512,8 @@ describe('the screen table', () => {
           key === '' ||
           key.startsWith('floor.') ||
           key === 'attendance.board' ||
-          key === 'attendance.requests.decide',
+          key === 'attendance.requests.decide' ||
+          key === 'materials.board',
       ),
     ).toBe(true);
     // D5: no Complaints row at all — `permissions.json` gives her no key for one.
@@ -528,5 +546,40 @@ describe('the screen table', () => {
     expect(phaseOf('/teacher/lessons/new?classId=c-1')).toBeUndefined();
     expect(phaseOf('/teacher/lessons/l-1?notice=lessons.new.created')).toBeUndefined();
     expect(phaseOf('/admin/nothing-here')).toBeUndefined();
+  });
+  /**
+   * Feature 31. Two rows and one switch: **her own** teaching material, which only a teacher has
+   * (`materials.self`), and the **board** over everyone's, which is in the five areas the Staff
+   * attendance board is in and carries the key the server's `MaterialBoardController` carries.
+   *
+   * Asserted against the table rather than per area, so a sixth area given the board without the
+   * flag — or a board row given `materials.self` — fails here rather than in a school's rail.
+   */
+  it('puts the teaching-material board in every area that has the attendance board, behind one flag', () => {
+    const boards = ROLES.map((role) => AREAS[role].screens.find((screen) => screen.id === 'materials'));
+    expect(boards.map((row) => row?.path)).toEqual(ROLES.map(() => 'materials'));
+    for (const row of boards)
+      expect([row?.flag, row?.permission, row?.labelKey]).toEqual([
+        'teachingMaterials',
+        'materials.board',
+        'nav.materials',
+      ]);
+
+    // Exactly the areas that have Staff attendance, and no others.
+    const withBoard = ROLES.filter((role) =>
+      AREAS[role].screens.some((screen) => screen.id === 'staff-attendance'),
+    );
+    expect(withBoard).toEqual(ROLES);
+
+    // Her own page is the teacher's alone.
+    const mine = ROLES.filter((role) => AREAS[role].screens.some((screen) => screen.id === 'my-materials'));
+    expect(mine).toEqual(['TEACHER']);
+    const row = AREAS.TEACHER.screens.find((screen) => screen.id === 'my-materials');
+    expect([row?.path, row?.flag, row?.permission, row?.labelKey]).toEqual([
+      'my-materials',
+      'teachingMaterials',
+      'materials.self',
+      'nav.myMaterials',
+    ]);
   });
 });

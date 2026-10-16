@@ -191,6 +191,16 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.staffAttendance,
         permission: 'attendance.board',
       },
+      // Feature 31: the leaders' board over the weekly teaching material — the same teachers the
+      // Staff attendance board shows this leader (`GET /materials/board` is scoped by feature 17's
+      // own `BoardScope`), so there is one answer to "whose material do I see" and not two.
+      {
+        id: 'materials',
+        path: 'materials',
+        labelKey: 'nav.materials',
+        flag: FLAGS.teachingMaterials,
+        permission: 'materials.board',
+      },
       // D13: while `multiSchool` is off there is one school, it is the Admin's own, and these
       // three screens have nothing to show — the rail hides them and the router refuses them,
       // rather than offering a list of one and a switcher that switches to itself.
@@ -387,6 +397,16 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.chat,
         permission: 'teacher.chat',
       },
+      // Feature 31: her own teaching material (دفتر التحضير) — one row per class and subject her
+      // assignments give her, for this week and the next. `materials.self` is the teacher's alone;
+      // the board row below it is the one every leader has.
+      {
+        id: 'my-materials',
+        path: 'my-materials',
+        labelKey: 'nav.myMaterials',
+        flag: FLAGS.teachingMaterials,
+        permission: 'materials.self',
+      },
       // Feature 17: the leaders' board and monthly report. Every teacher and coordinator holds
       // `attendance.board` because any of them may be named someone's direct manager; the server
       // answers each only the people she leads, and an empty board says she leads nobody.
@@ -396,6 +416,16 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         labelKey: 'nav.staffAttendance',
         flag: FLAGS.staffAttendance,
         permission: 'attendance.board',
+      },
+      // Feature 31: the leaders' board over the weekly teaching material — the same teachers the
+      // Staff attendance board shows this leader (`GET /materials/board` is scoped by feature 17's
+      // own `BoardScope`), so there is one answer to "whose material do I see" and not two.
+      {
+        id: 'materials',
+        path: 'materials',
+        labelKey: 'nav.materials',
+        flag: FLAGS.teachingMaterials,
+        permission: 'materials.board',
       },
     ],
   },
@@ -442,6 +472,16 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         path: 'staff-attendance',
         labelKey: 'nav.staffAttendance',
         permission: 'management.staff.attendance',
+      },
+      // Feature 31: the leaders' board over the weekly teaching material — the same teachers the
+      // Staff attendance board shows this leader (`GET /materials/board` is scoped by feature 17's
+      // own `BoardScope`), so there is one answer to "whose material do I see" and not two.
+      {
+        id: 'materials',
+        path: 'materials',
+        labelKey: 'nav.materials',
+        flag: FLAGS.teachingMaterials,
+        permission: 'materials.board',
       },
       // Feature 18: her direct reports' requests. Not `readOnly` — deciding them is the one thing
       // in the whole `/management` namespace she does by tapping a button, and the row carries
@@ -650,6 +690,16 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.staffAttendance,
         permission: 'attendance.board',
       },
+      // Feature 31: the leaders' board over the weekly teaching material — the same teachers the
+      // Staff attendance board shows this leader (`GET /materials/board` is scoped by feature 17's
+      // own `BoardScope`), so there is one answer to "whose material do I see" and not two.
+      {
+        id: 'materials',
+        path: 'materials',
+        labelKey: 'nav.materials',
+        flag: FLAGS.teachingMaterials,
+        permission: 'materials.board',
+      },
     ],
   },
   // Feature 20 (`docs/features/20-floor-supervisor-role.md`): the floor supervisor's area. She
@@ -707,6 +757,16 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         labelKey: 'nav.attendanceRequests',
         flag: FLAGS.staffAttendance,
         permission: 'attendance.requests.decide',
+      },
+      // Feature 31: the leaders' board over the weekly teaching material — the same teachers the
+      // Staff attendance board shows this leader (`GET /materials/board` is scoped by feature 17's
+      // own `BoardScope`), so there is one answer to "whose material do I see" and not two.
+      {
+        id: 'materials',
+        path: 'materials',
+        labelKey: 'nav.materials',
+        flag: FLAGS.teachingMaterials,
+        permission: 'materials.board',
       },
     ],
   },

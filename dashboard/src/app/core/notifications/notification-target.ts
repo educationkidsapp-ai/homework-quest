@@ -168,6 +168,18 @@ export function notificationTarget(item: NotificationView, role: Role | null): N
     case NotificationViewKindEnum.ATTENDANCE_DECISION:
     case NotificationViewKindEnum.ATTENDANCE_REMOTE_DAY:
       return INBOX;
+    // Feature 31: "next week's teaching material is still missing". `MaterialReminderJob` writes
+    // `/notifications?material=reminder&week=…&missing=…` — one link for everybody, because the
+    // job has no role to write for — so this is where it becomes a route. **Her own** materials
+    // page and nobody else's: `materials.self` is the teacher's alone, and `/teacher/my-materials`
+    // is the only screen that can hand anything in, so a reminder in any other bell stays on the
+    // notifications page, which can always show the row itself. The week travels with it; the
+    // number still missing does not, because the page counts its own rows.
+    case NotificationViewKindEnum.MATERIAL_REMINDER: {
+      if (role !== 'TEACHER') return INBOX;
+      const week = paramOf(link, 'week');
+      return { path: '/teacher/my-materials', queryParams: week === null ? null : { week } };
+    }
     default:
       return INBOX;
   }

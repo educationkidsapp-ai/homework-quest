@@ -58,6 +58,9 @@ public class SecurityConfig {
                 .requestMatchers("/attendance/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "FLOOR_SUPERVISOR")
                 // Feature 17: the leaders' attendance board — anyone who may be a direct manager; never a worker or a parent.
                 .requestMatchers("/staff-attendance/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "FLOOR_SUPERVISOR")
+                // Feature 31: the leaders' teaching material board — the same roles as feature 17's, for the same
+                // reason, and never a worker or a parent. The teacher's own half is under `/teacher/**` below.
+                .requestMatchers("/materials/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "FLOOR_SUPERVISOR")
                 // §6 screens 19–20: "my own school", with no school id in the path. Dashboard roles only; which of
                 // them may read what is the `@PreAuthorize` on each route, as everywhere else.
                 .requestMatchers("/school/**").hasAnyRole("ADMIN", "TEACHER", "MANAGERIAL")

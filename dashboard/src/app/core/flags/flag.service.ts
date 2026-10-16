@@ -87,6 +87,10 @@ export const FLAGS = {
   // parent's own message — "Translate to English" / «ترجم إلى العربية» — and nothing else:
   // the original is always what is stored and always what is shown.
   languageBridge: 'languageBridge',
+  // Feature 31: the weekly teaching material (دفتر التحضير) a teacher hands in per class and
+  // subject, the leaders' board over it, and the Admin's deadline card. Off until an Admin turns
+  // it on — the server answers 404 without it, and neither page has an older screen behind it.
+  teachingMaterials: 'teachingMaterials',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];

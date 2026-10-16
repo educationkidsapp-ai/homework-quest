@@ -5200,6 +5200,135 @@
         "required" : [ "id", "left", "right" ],
         "type" : "object"
       },
+      "MaterialBoard" : {
+        "properties" : {
+          "counts" : {
+            "$ref" : "#/components/schemas/MaterialCounts"
+          },
+          "dueAt" : {
+            "type" : "string"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/MaterialBoardRow"
+            },
+            "type" : "array"
+          },
+          "scope" : {
+            "type" : "string"
+          },
+          "timeZone" : {
+            "type" : "string"
+          },
+          "week" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "MaterialBoardRow" : {
+        "properties" : {
+          "counts" : {
+            "$ref" : "#/components/schemas/MaterialCounts"
+          },
+          "fullName" : {
+            "type" : "string"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/MaterialRow"
+            },
+            "type" : "array"
+          },
+          "teacherId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "MaterialCounts" : {
+        "properties" : {
+          "late" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "missing" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "onTime" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "reviewed" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "MaterialRow" : {
+        "properties" : {
+          "attachmentId" : {
+            "type" : "string"
+          },
+          "attachmentName" : {
+            "type" : "string"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "note" : {
+            "type" : "string"
+          },
+          "reviewComment" : {
+            "type" : "string"
+          },
+          "reviewedAt" : {
+            "type" : "string"
+          },
+          "reviewedBy" : {
+            "type" : "string"
+          },
+          "reviewedByName" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "submissionId" : {
+            "type" : "string"
+          },
+          "submittedAt" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "MaterialSettings" : {
+        "properties" : {
+          "dueTime" : {
+            "type" : "string"
+          },
+          "dueWeekday" : {
+            "type" : "string"
+          },
+          "remindHoursBefore" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "timeZone" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "MePermissions" : {
         "properties" : {
           "permissions" : {
@@ -5466,7 +5595,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message", "attendance.reminder", "attendance.alert", "attendance.digest", "attendance.request", "attendance.decision", "attendance.remote_day", "chat.after_hours_summary", "morning.brief", "evening.card" ],
+            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message", "attendance.reminder", "attendance.alert", "attendance.digest", "attendance.request", "attendance.decision", "attendance.remote_day", "chat.after_hours_summary", "morning.brief", "evening.card", "material.reminder" ],
             "type" : "string"
           },
           "lessonId" : {
@@ -6397,6 +6526,14 @@
           }
         },
         "required" : [ "cue", "stage" ],
+        "type" : "object"
+      },
+      "ReviewMaterialRequest" : {
+        "properties" : {
+          "comment" : {
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "RosterChild" : {
@@ -7812,6 +7949,17 @@
         },
         "type" : "object"
       },
+      "SubmitMaterialRequest" : {
+        "properties" : {
+          "attachmentId" : {
+            "type" : "string"
+          },
+          "note" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "TapTask" : {
         "properties" : {
           "correctIds" : {
@@ -8068,6 +8216,29 @@
             "type" : "integer"
           },
           "stopId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "TeacherMaterials" : {
+        "properties" : {
+          "counts" : {
+            "$ref" : "#/components/schemas/MaterialCounts"
+          },
+          "dueAt" : {
+            "type" : "string"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/MaterialRow"
+            },
+            "type" : "array"
+          },
+          "timeZone" : {
+            "type" : "string"
+          },
+          "week" : {
             "type" : "string"
           }
         },
@@ -9009,6 +9180,21 @@
             "maxLength" : 30,
             "minLength" : 0,
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UpdateMaterialSettingsRequest" : {
+        "properties" : {
+          "dueTime" : {
+            "type" : "string"
+          },
+          "dueWeekday" : {
+            "type" : "string"
+          },
+          "remindHoursBefore" : {
+            "format" : "int32",
+            "type" : "integer"
           }
         },
         "type" : "object"
@@ -12043,6 +12229,50 @@
           }
         },
         "tags" : [ "Managers" ]
+      }
+    },
+    "/admin/material-settings" : {
+      "get" : {
+        "operationId" : "materialSettings",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MaterialSettings"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teaching material settings" ]
+      },
+      "put" : {
+        "operationId" : "updateMaterialSettings",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateMaterialSettingsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MaterialSettings"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teaching material settings" ]
       }
     },
     "/admin/platform-settings" : {
@@ -17573,6 +17803,95 @@
         "tags" : [ "Broadcasts" ]
       }
     },
+    "/materials/board" : {
+      "get" : {
+        "operationId" : "materialBoard",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "week",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MaterialBoard"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teaching material board" ]
+      }
+    },
+    "/materials/board.csv" : {
+      "get" : {
+        "operationId" : "materialBoardCsv",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "week",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "text/csv" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teaching material board" ]
+      }
+    },
+    "/materials/{id}/review" : {
+      "post" : {
+        "operationId" : "reviewMaterial",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReviewMaterialRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MaterialRow"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teaching material board" ]
+      }
+    },
     "/me" : {
       "get" : {
         "operationId" : "me",
@@ -21181,6 +21500,116 @@
         "tags" : [ "Results and gradebook" ]
       }
     },
+    "/teacher/materials" : {
+      "get" : {
+        "operationId" : "myMaterials",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "week",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TeacherMaterials"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teaching material" ]
+      }
+    },
+    "/teacher/materials/attachments" : {
+      "post" : {
+        "operationId" : "uploadMaterial",
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "file" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "file" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttachmentRef"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teaching material" ]
+      }
+    },
+    "/teacher/materials/{classId}/{subject}" : {
+      "put" : {
+        "operationId" : "submitMaterial",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "subject",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "week",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SubmitMaterialRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MaterialRow"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Teaching material" ]
+      }
+    },
     "/teacher/messages/coordinator" : {
       "post" : {
         "operationId" : "messageCoordinator",
@@ -21687,8 +22116,14 @@
     }
   },
   "tags" : [ {
+    "description" : "Who handed in their teaching material, and its review",
+    "name" : "Teaching material board"
+  }, {
     "description" : "Children created together with their parents' accounts",
     "name" : "Children and parents"
+  }, {
+    "description" : "A teacher's weekly teaching material, per class and subject",
+    "name" : "Teaching material"
   }, {
     "description" : "A floor supervisor's view of the classes, staff and children of her floors",
     "name" : "Floor supervisor"
@@ -21743,6 +22178,9 @@
   }, {
     "description" : "Remote days and attendance corrections, and their approval",
     "name" : "Attendance requests"
+  }, {
+    "description" : "The weekly teaching material deadline and its reminder",
+    "name" : "Teaching material settings"
   }, {
     "description" : "Dashboard accounts, invites and View as…",
     "name" : "Dashboard users"

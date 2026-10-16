@@ -326,6 +326,8 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "parentEveningCard" to false,
     // Feature 29: parents read the school's messages in their own language, and staff read what they write (V51).
     "languageBridge" to false,
+    // Feature 31: teachers hand in their weekly teaching material and leaders track and review it (V53).
+    "teachingMaterials" to false,
 )
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */

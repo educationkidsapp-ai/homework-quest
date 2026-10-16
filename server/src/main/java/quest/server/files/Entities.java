@@ -50,8 +50,12 @@ public final class Entities {
         public Integer getHeight() { return height; } public void setHeight(Integer v) { height = v; }
         public boolean isChat() { return CHAT.equals(purpose); }
         public boolean isAttendance() { return ATTENDANCE.equals(purpose); }
+        public boolean isMaterial() { return MATERIAL.equals(purpose); }
     }
 
-    /** V33 `attachments.purpose`; feature 18 adds `attendance`, a correction's photo or PDF. */
-    public static final String BROADCAST = "broadcast", CHAT = "chat", ATTENDANCE = "attendance";
+    /**
+     * V33 `attachments.purpose`; feature 18 adds `attendance`, a correction's photo or PDF, and feature 31
+     * `material`, a week's teaching preparation.
+     */
+    public static final String BROADCAST = "broadcast", CHAT = "chat", ATTENDANCE = "attendance", MATERIAL = "material";
 }

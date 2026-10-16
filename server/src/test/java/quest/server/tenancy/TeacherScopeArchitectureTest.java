@@ -108,7 +108,11 @@ class TeacherScopeArchitectureTest {
             "TeacherController#myTeacherProfile", "TeacherController#saveMyTeacherProfile",
             "AnnouncementController#teacherAnnouncements", "AnnouncementController#deleteAnnouncement",
             "TeacherQuestionController#teacherQuestions", "TeacherQuestionController#sendTeacherQuestion",
-            "TeacherQuestionController#teacherQuestionResults");
+            "TeacherQuestionController#teacherQuestionResults",
+            // Feature 31: the upload names no class — it stores bytes under the caller's own `uploaded_by` and
+            // answers an id. The class is resolved when she puts that id on a row, in `submitMaterial`, which is
+            // `TeacherScope.requireAssignment`; an upload nobody ever hands in is read by nobody and swept away.
+            "TeacherMaterialsController#uploadMaterial");
 
     /** True when this method serves at least one route under `/teacher`. */
     private static boolean teacherRoute(JavaClass controller, JavaMethod method) {

@@ -152,6 +152,14 @@ quest:
       # reruns and a second instance neither generate nor notify twice.
       enabled: ${QUEST_MORNING_BRIEF_JOB_ENABLED:true}
       interval-seconds: ${QUEST_MORNING_BRIEF_JOB_INTERVAL_SECONDS:300}
+  materials:
+    job:
+      # Feature 31: from `remind_hours_before` before the teaching material deadline until the deadline itself, one
+      # reminder to each teacher whose next week's preparation is still missing, for the schools with
+      # `teachingMaterials` on. Every five minutes and once at startup; each reminder is claimed in
+      # `material_reminders` before it is sent, so reruns and a second instance send nothing twice.
+      enabled: ${QUEST_MATERIALS_JOB_ENABLED:true}
+      interval-seconds: ${QUEST_MATERIALS_JOB_INTERVAL_SECONDS:300}
   push:
     # B4: Firebase Cloud Messaging to parents' phones. Off by default — H2, tests and a laptop record the sends instead
     # (`RecordingPushSender`); on in `qa` and `prod`, where the Firebase app runs on the runtime service account.
@@ -255,6 +263,9 @@ quest:
   # Feature 28: nor the evening card's job — it would write cards and push for children another context seeded.
   # `EveningCardApiTest` calls `run(schoolId)` outright.
   evening-card.job.enabled: false
+  # Feature 31: nor the teaching material reminder — it would remind teachers another context seeded.
+  # `TeachingMaterialsApiTest` calls `run(schoolId)` outright.
+  materials.job.enabled: false
   # Pushes are recorded, not sent, and a scripted transient failure is retried at once rather than after a second.
   push.backoff-millis: 0
 

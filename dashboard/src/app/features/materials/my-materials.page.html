@@ -1,0 +1,159 @@
+<hq-page [title]="'nav.myMaterials' | transloco" [subtitle]="'materials.teacher.subtitle' | transloco">
+  <hq-tabs
+    [tabs]="tabs()"
+    [selected]="selected()"
+    (selectedChange)="pickWeek($event)"
+    [label]="'materials.weekLabel' | transloco"
+  />
+
+  @if (materials.isLoading() && !materials.hasValue()) {
+    <hq-skeleton [loading]="true" [lines]="5" [label]="'materials.loading' | transloco" />
+  } @else if (materials.error()) {
+    <hq-card>
+      <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco" [dismissible]="false">
+        {{ 'band.unreachable' | transloco }}
+      </hq-band>
+      <hq-button variant="secondary" (pressed)="materials.reload()">{{ 'ui.retry' | transloco }}</hq-button>
+    </hq-card>
+  } @else {
+    <div class="materials" data-hq-my-materials>
+      <p class="materials__due" data-hq-due>
+        <span class="materials__week">{{ weekLabel() }}</span>
+        <span class="hq-muted">{{ dueLabel() }}</span>
+      </p>
+
+      <ul class="materials__counts" [attr.aria-label]="'materials.countsLabel' | transloco">
+        @for (card of cards; track card) {
+          <li class="materials__count" [attr.data-hq-count]="card">
+            <span class="materials__number" [attr.data-status]="card">{{ count(card) }}</span>
+            <span>{{ 'materials.card.' + card | transloco }}</span>
+          </li>
+        }
+      </ul>
+
+      @if (failure(); as message) {
+        <hq-band
+          variant="error"
+          [open]="true"
+          [title]="'band.failed' | transloco"
+          (dismissed)="failure.set(null)"
+        >
+          {{ message }}
+        </hq-band>
+      }
+
+      <hq-table
+        [rows]="rows()"
+        [columns]="columns()"
+        [cellTemplate]="cell"
+        [trackBy]="trackRow"
+        [label]="'materials.teacher.tableLabel' | transloco"
+      >
+        <hq-empty-state
+          table-empty
+          [message]="'materials.teacher.empty' | transloco"
+          [detail]="'materials.teacher.emptyDetail' | transloco"
+        />
+      </hq-table>
+    </div>
+  }
+</hq-page>
+
+<ng-template #cell let-row let-column="column">
+  @switch (column.key) {
+    @case ('className') {
+      {{ row.className ?? '—' }}
+    }
+    @case ('subject') {
+      {{ subjectLabel(row.subject) }}
+    }
+    @case ('status') {
+      <span class="materials__status" [attr.data-status]="statusOf(row)">
+        {{ statusLabel(statusOf(row)) }}
+      </span>
+      @if (row.submittedAt) {
+        <span class="hq-muted materials__at">{{ at(row.submittedAt) }}</span>
+      }
+    }
+    @case ('attachmentName') {
+      @if (row.attachmentId) {
+        <hq-button
+          variant="quiet"
+          [disabled]="opening() !== null"
+          [ariaLabel]="'chat.attachment.openNamed' | transloco: { name: row.attachmentName ?? '' }"
+          (pressed)="openFile(row)"
+        >
+          {{ row.attachmentName ?? ('chat.attachment.open' | transloco) }}
+        </hq-button>
+      } @else {
+        —
+      }
+    }
+    @case ('note') {
+      {{ row.note || '—' }}
+    }
+    @case ('review') {
+      {{ reviewLabel(row) }}
+    }
+    @case ('hand') {
+      @if (canReplace(row)) {
+        <hq-button variant="primary" data-hq-hand-in (pressed)="open(row)">
+          {{ (row.submissionId ? 'materials.replace' : 'materials.handIn') | transloco }}
+        </hq-button>
+      } @else {
+        <span class="hq-muted" data-hq-locked>{{ 'materials.lockedByReview' | transloco }}</span>
+      }
+    }
+  }
+</ng-template>
+
+<hq-dialog
+  [open]="dialogOpen()"
+  (openChange)="onDialog($event)"
+  [title]="'materials.handInTitle' | transloco"
+  [confirmLabel]="'materials.handIn' | transloco"
+  [confirmDisabled]="!valid() || saving()"
+  [loading]="saving()"
+  [confirmReason]="valid() ? null : ('materials.needOne' | transloco)"
+  (confirmed)="submit()"
+>
+  @if (editing(); as row) {
+    <div class="hand-in">
+      <p class="hand-in__row">{{ row.className }} · {{ subjectLabel(row.subject) }}</p>
+
+      @if (failure(); as message) {
+        <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco" [dismissible]="false">
+          {{ message }}
+        </hq-band>
+      }
+
+      <div class="hand-in__file">
+        <hq-button variant="secondary" data-hq-choose-file (pressed)="picker.click()">
+          {{ 'materials.chooseFile' | transloco }}
+        </hq-button>
+        <input #picker type="file" hidden data-hq-file-input [accept]="accept" (change)="pickFile($event)" />
+        @if (file(); as picked) {
+          <span class="hand-in__picked" data-hq-picked>{{ fileLabel(picked) }}</span>
+          <hq-button variant="quiet" (pressed)="clearFile()">{{
+            'materials.removeFile' | transloco
+          }}</hq-button>
+        } @else if (row.attachmentName) {
+          <span class="hq-muted">{{ 'materials.keepsFile' | transloco: { name: row.attachmentName } }}</span>
+        }
+      </div>
+
+      @if (refusal(); as message) {
+        <p class="hand-in__error" role="alert" data-hq-refusal>{{ message }}</p>
+      }
+      <p class="hq-muted">{{ 'materials.fileHint' | transloco }}</p>
+
+      <hq-textarea
+        [label]="'materials.note' | transloco"
+        [rows]="3"
+        [value]="note()"
+        (valueChange)="note.set($event)"
+        [hint]="'materials.noteHint' | transloco"
+      />
+    </div>
+  }
+</hq-dialog>

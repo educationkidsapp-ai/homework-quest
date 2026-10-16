@@ -487,6 +487,17 @@
         "ramadanOrder": "The first Ramadan date must be on or before the last.",
         "holidayName": "Give the holiday a name (up to 80 characters).",
         "holidayDates": "The first day must be on or before the last."
+      },
+      "materialDeadline": {
+        "title": "Teaching material deadline",
+        "hint": "When each week's teaching material is due. The deadline falls in the week before the week it is for, so a teacher prepares the coming week while the current one runs.",
+        "loading": "Loading the teaching material deadline",
+        "weekday": "Day",
+        "time": "Time",
+        "remind": "Remind this many hours before",
+        "remindHint": "A teacher with anything still missing is reminded once.",
+        "remindError": "Between {{min}} and {{max}} hours.",
+        "zone": "Read in the school's time zone ({{zone}})."
       }
     },
     "attendanceFields": {
@@ -1690,7 +1701,9 @@
     "attendanceRequests": "Attendance requests",
     "floors": "Floors",
     "floorSupervisors": "Floor supervisors",
-    "documents": "Document reader"
+    "documents": "Document reader",
+    "myMaterials": "My teaching material",
+    "materials": "Teaching material"
   },
   "notifications": {
     "title": "Notifications",
@@ -3117,5 +3130,72 @@
     "showOriginal": "Show original only",
     "tooMany": "Too many translations, try again later",
     "failed": "That message could not be translated. Try again in a moment."
+  },
+  "materials": {
+    "teacher": {
+      "subtitle": "The weekly preparation you hand in for each class and subject you teach.",
+      "tableLabel": "Your teaching material this week",
+      "empty": "Nothing is expected from you this week.",
+      "emptyDetail": "Rows appear here for every class and subject you are assigned to."
+    },
+    "board": {
+      "subtitle": "Who handed their weekly preparation in on time, who was late, and who has not handed it in.",
+      "tableLabel": "Teaching material by teacher",
+      "rowsLabel": "{{name}}'s classes and subjects",
+      "noRows": "No classes for this teacher this week.",
+      "empty": "No teachers to show for this week.",
+      "csv": "Download CSV",
+      "leadsNobody": "Nobody reports to you yet.",
+      "leadsNobodyDetail": "When an employee is given you as her direct manager, her teaching material appears here."
+    },
+    "weekLabel": "Week",
+    "thisWeek": "This week",
+    "nextWeek": "Next week",
+    "previousWeek": "Previous week",
+    "loading": "Loading teaching material",
+    "countsLabel": "Teaching material at a glance",
+    "weekOf": "Week of {{date}}",
+    "dueAt": "Due {{at}} ({{zone}}), the week before",
+    "card": {
+      "onTime": "On time",
+      "late": "Late",
+      "missing": "Missing",
+      "reviewed": "Reviewed"
+    },
+    "status": {
+      "ON_TIME": "On time",
+      "LATE": "Late",
+      "MISSING": "Not handed in",
+      "REVIEWED": "Reviewed"
+    },
+    "column": {
+      "class": "Class",
+      "subject": "Subject",
+      "status": "Status",
+      "file": "File",
+      "note": "Note",
+      "review": "Review",
+      "teacher": "Teacher"
+    },
+    "handIn": "Hand in",
+    "replace": "Replace",
+    "lockedByReview": "Reviewed — no longer yours to change",
+    "handInTitle": "Hand in teaching material",
+    "needOne": "Attach a file or write a note first.",
+    "chooseFile": "Choose a file",
+    "removeFile": "Remove file",
+    "keepsFile": "{{name}} stays attached unless you choose another file.",
+    "fileHint": "A JPEG, PNG or WebP picture up to 5 MB, or a PDF up to 10 MB.",
+    "note": "Note",
+    "noteHint": "Anything a leader should read with it. Optional if you attach a file.",
+    "reviewedBy": "Reviewed by {{name}}, {{at}}",
+    "aLeader": "a leader",
+    "markReviewed": "Mark reviewed",
+    "nothingToReview": "Nothing handed in yet",
+    "reviewTitle": "Mark this teaching material reviewed",
+    "reviewOnce": "A row is reviewed once, and the teacher can no longer replace it afterwards.",
+    "comment": "Comment",
+    "commentHint": "What the teacher should know. Optional.",
+    "alreadyReviewed": "Somebody has already reviewed this row. Reload the page to see their comment."
   }
 }
