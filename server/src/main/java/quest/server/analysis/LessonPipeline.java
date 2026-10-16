@@ -33,6 +33,8 @@ public class LessonPipeline {
     private static final Logger log = LoggerFactory.getLogger(LessonPipeline.class);
     private final LessonRepository lessons; private final SourceFileRepository files; private final AnalysisService analysis; private final ConversionService conversion; private final GenerationService generation; private final LessonState state; private final LessonSteps steps;
     private final quest.server.content.SkillRepository skills; private final quest.server.content.PlayRepository plays; private final quest.server.content.ParentPanelRepository panels; private final AnalysisCacheRepository analyses; private final quest.server.content.LessonStore store;
+    /** Feature 30: the `HINTS` step's body, and the two things that decide whether it runs at all. */
+    private final SmartHintsGenerator smartHints; private final quest.server.flags.FeatureFlags flags;
     /** Test hook: `quest.pipeline.fail-once-at=generate_L2` makes that step fail the first time it runs for each lesson. */
     private final String failOnceAt; private final Set<String> failed = ConcurrentHashMap.newKeySet();
     /** Test hook: `quest.pipeline.hang-at=generate_L3` makes that step sleep until its deadline interrupts it. */
@@ -48,9 +50,11 @@ public class LessonPipeline {
 
     public LessonPipeline(LessonRepository lessons, SourceFileRepository files, AnalysisService analysis, ConversionService conversion, GenerationService generation, LessonState state, LessonSteps steps, @Value("${quest.pipeline.fail-once-at:}") String failOnceAt,
                           @Value("${quest.pipeline.hang-at:}") String hangAt,
-                          quest.server.content.SkillRepository skills, quest.server.content.PlayRepository plays, quest.server.content.ParentPanelRepository panels, AnalysisCacheRepository analyses, quest.server.content.LessonStore store) {
+                          quest.server.content.SkillRepository skills, quest.server.content.PlayRepository plays, quest.server.content.ParentPanelRepository panels, AnalysisCacheRepository analyses, quest.server.content.LessonStore store,
+                          SmartHintsGenerator smartHints, quest.server.flags.FeatureFlags flags) {
         this.lessons = lessons; this.files = files; this.analysis = analysis; this.conversion = conversion; this.generation = generation; this.state = state; this.steps = steps; this.failOnceAt = failOnceAt == null ? "" : failOnceAt.trim(); this.hangAt = hangAt == null ? "" : hangAt.trim();
         this.skills = skills; this.plays = plays; this.panels = panels; this.analyses = analyses; this.store = store;
+        this.smartHints = smartHints; this.flags = flags;
     }
 
     /**
@@ -226,7 +230,15 @@ public class LessonPipeline {
     private boolean runOne(String lessonId, PipelineStep step) {
         if (steps.isDone(lessonId, step)) return true;
         if (step == PipelineStep.SKILLS) { state.set(lessonId, LessonStatus.NEEDS_REVIEW); return false; }   // the admin's turn
+        // Feature 30: a school with `smartHints` off, and an exam whatever the school has on, get no hints and no
+        // practice at all. The row is marked done rather than left pending, because the step did everything there
+        // was for it to do and a lesson that reaches Review must have nothing outstanding.
+        if (step == PipelineStep.HINTS && !hintsApply(lessonId)) { steps.done(lessonId, step); return true; }
         state.set(lessonId, step.ordinal() <= PipelineStep.ANALYZE.ordinal() ? LessonStatus.ANALYZING : LessonStatus.GENERATING);
+        // Feature 30: an optional step never dead-ends a lesson. Its row keeps the error and offers Retry, and the
+        // walk carries on to Review — a lesson without hints is a lesson, and losing the three levels to them would
+        // be the pipeline failing at the one thing it is for.
+        if (step.getOptional()) { run(lessonId, step); return true; }
         if (!run(lessonId, step)) { var row = steps.get(lessonId, step).orElseThrow(); state.fail(lessonId, row.getErrorCode(), row.getErrorMessage()); return false; }
         if (step == PipelineStep.ANALYZE && !steps.isDone(lessonId, PipelineStep.SKILLS)) { state.set(lessonId, LessonStatus.NEEDS_REVIEW); return false; }
         return true;
@@ -283,16 +295,31 @@ public class LessonPipeline {
             case GENERATE_L3 -> generation.generatePlay(lesson, 3, 0);
             case GENERATE_AGAIN -> generation.generatePlay(lesson, 1, 1);
             case PANEL -> generation.generatePanel(lesson);
+            // Feature 30: the hints of every answerable stop and a practice set per skill — unapproved, and the
+            // only place in the server that asks a model for either. `runOne` has already decided it applies.
+            case HINTS -> smartHints.generate(lesson);
         }
     }
 
     /** All steps done → review; a single step retried with more to go → paused (the strip shows what is left). */
     private void finish(String lessonId, boolean ranToEnd) {
-        boolean allDone = steps.list(lessonId).stream().allMatch(e -> "done".equals(e.getStatus()));
+        boolean allDone = steps.list(lessonId).stream()
+                .filter(e -> !LessonSteps.parse(e.getStep()).getOptional())
+                .allMatch(e -> "done".equals(e.getStatus()));
         state.set(lessonId, allDone ? LessonStatus.REVIEW : LessonStatus.PAUSED);
         // A batch's last `mark` clears `current_step` only if it happens to read the ledger after its siblings
         // wrote theirs; at Review nothing is running by definition, so say so once and for all.
         if (allDone) state.clearCurrentStep(lessonId);
+    }
+
+    /**
+     * Feature 30: whether this lesson gets hints and practice at all — the school's `smartHints` switch, and never
+     * for an exam, whose whole point is that there is no help on screen (`hintsOff`, §8).
+     */
+    private boolean hintsApply(String lessonId) {
+        var lesson = lessons.findById(lessonId).orElseThrow(() -> new LessonSteps.Stop("lesson deleted"));
+        if (quest.server.exams.ExamPlays.isExam(lesson)) return false;
+        return flags.isOn(lesson.getSchoolId(), quest.server.flags.FlagKeys.SMART_HINTS);
     }
 
     /** The hang the deadline exists for: a step that never returns on its own, ended only by the interrupt. */
@@ -309,7 +336,9 @@ public class LessonPipeline {
 
     /** The levels and the panel a lesson already has, marked done — nothing regenerates work that is already there. */
     private void markExistingWork(String lessonId) {
-        for (var p : store.plays(lessonId)) if (!store.play(p).getStops().isEmpty()) {
+        // Feature 30: variant 2 and up is a targeted practice set, not a level — marking its generate step done
+        // would tell the pipeline that a Level 1 nobody has written is already there.
+        for (var p : store.plays(lessonId)) if (p.getVariant() <= 1 && !store.play(p).getStops().isEmpty()) {
             PipelineStep s = p.getVariant() == 1 ? PipelineStep.GENERATE_AGAIN : switch (p.getLevel()) { case 1 -> PipelineStep.GENERATE_L1; case 2 -> PipelineStep.GENERATE_L2; default -> PipelineStep.GENERATE_L3; };
             steps.done(lessonId, s);
         }

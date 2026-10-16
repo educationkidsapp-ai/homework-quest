@@ -252,7 +252,18 @@ data class Play @kotlin.jvm.JvmOverloads constructor(
      * (see [Stop]). Absent (null) on everything else, so a homework's body is unchanged; read it as `sealed == true`.
      */
     val sealed: Boolean? = null,
-)
+) {
+    companion object {
+        /**
+         * Feature 30: the first variant a targeted practice play may take. Variant 0 is a level, variant 1 is the
+         * Level-1 "Again" play, and 2 and up are one practice set per confirmed skill of the lesson.
+         */
+        const val PRACTICE_VARIANT: Int = 2
+        /** The stops a generated level (variant 0 or 1) must have; a practice play has [PRACTICE_STOPS]. */
+        val LEVEL_STOPS: IntRange = 6..9
+        val PRACTICE_STOPS: IntRange = 4..5
+    }
+}
 
 /** Star rules from §5, shared by the app player and the server's usage report. */
 object StopScoring {

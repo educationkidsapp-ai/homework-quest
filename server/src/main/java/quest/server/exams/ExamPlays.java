@@ -67,7 +67,10 @@ public class ExamPlays {
         return new PublishedLesson(published.getId(), published.getVersion(), published.getCourse(), published.getSubject(),
                 published.getDate(), published.getTitle(), published.getKind(), published.getTheme(), published.getSkills(),
                 published.getPlays(), published.getVariant(), published.getParentPanel(), published.getPageImages(),
-                "exam", exam.isHintsOff(), exam.isNumbersOff(), paper);
+                // Feature 30: an exam carries no hints and no practice, whatever is stored against its stops. The
+                // `HINTS` step never runs for one, so there is normally nothing to drop — but a homework a teacher
+                // turned into an exam afterwards would otherwise hand its paper the very help `hintsOff` forbids.
+                "exam", exam.isHintsOff(), exam.isNumbersOff(), paper, java.util.Map.of(), java.util.List.of());
     }
 
     /**

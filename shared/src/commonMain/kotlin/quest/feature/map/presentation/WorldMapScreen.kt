@@ -369,7 +369,11 @@ private fun FormalCourseworkCard(
     val isReview = island.kind == IslandKind.REVIEW
 
     DashboardCard(
-        modifier = if (island.lessonId != null) Modifier.testTag(TestTags.homeLesson(island.lessonId!!)) else Modifier,
+        modifier = when {
+            isReview -> Modifier.testTag(TestTags.homeReview(island.skillId ?: island.id))
+            island.lessonId != null -> Modifier.testTag(TestTags.homeLesson(island.lessonId!!))
+            else -> Modifier
+        },
         onClick = if (!isLocked) onOpen else null,
     ) {
         Column {

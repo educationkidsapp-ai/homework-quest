@@ -11,6 +11,7 @@ import { ADMIN_USER, MANAGERIAL_USER, TEACHER_USER } from '../../../testing/fixt
 import { renderHq } from '../../../testing/render';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
+import { FlagService } from '../../core/flags/flag.service';
 import { LessonPage } from './lesson.page';
 import { StopDraftService } from './stop-draft.service';
 
@@ -67,6 +68,12 @@ function providersFor(id: string, query: Record<string, string> = {}): (Provider
     provideHttpClientTesting(),
     provideRouter([{ path: '**', children: [] }]),
     { provide: BASE_PATH, useValue: '' },
+    // Feature 30 put an `*hqFeature` on the page outside any `@if`, so `FlagService` is now
+    // constructed on every render — and the real one fetches the school's flag map (and, for an
+    // Admin, `GET /admin/schools` to resolve the sole school first), which every `verify()` in
+    // this file would see as an open request. Stubbed off: this file is about the pipeline, and
+    // `smart-hints.spec.ts` is where the flag being on or off is the parameter.
+    { provide: FlagService, useValue: { isOn: () => false, ready: () => true, flags: () => ({}) } },
     { provide: ActivatedRoute, useValue: routeFor(id, query) },
   ];
 }
@@ -1258,6 +1265,98 @@ describe('Lesson', () => {
     expect(screen.queryByText('Upload more')).not.toBeInTheDocument();
     expect(document.querySelector('#lesson-upload-more')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Actions for Adding to ten' })).not.toBeInTheDocument();
+  });
+
+  /**
+   * Feature 30 stores a targeted practice set as a play of the lesson — level 1, variant 2 and
+   * up — because it had nowhere else to put one. It is not a level, and the level strip, the
+   * editor behind it and the stop list must all read `plays` as "the four levels" and nothing
+   * else. Its own section is where a teacher approves or rejects it.
+   */
+  it('keeps a practice play (variant 2) out of the level strip and the editor', async () => {
+    const withPractice = lessonWithStops();
+    withPractice.plays.push({
+      id: 'p-again',
+      level: 1,
+      variant: 1,
+      generatedAt: 0,
+      promptVersion: '1',
+      play: {
+        kind: 'math',
+        level: 1,
+        variant: 1,
+        theme: withPractice.plays[0]!.play.theme,
+        stops: [choiceStop('st-again', 'One more try')],
+      },
+    });
+    withPractice.plays.push({
+      id: 'pp-1',
+      level: 1,
+      variant: 2,
+      generatedAt: 0,
+      promptVersion: '1',
+      play: {
+        kind: 'math',
+        level: 1,
+        variant: 2,
+        theme: withPractice.plays[0]!.play.theme,
+        stops: [choiceStop('ps-1', 'Practice two more carrots')],
+      },
+    });
+    await renderLesson(withPractice);
+
+    // Four tabs, as ever — a fifth play does not make a fifth level.
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent?.trim())).toEqual([
+      'Level 1',
+      'Level 2',
+      'Level 3',
+      'Again',
+    ]);
+
+    // Level 1 is variant 0, and the practice set shares its level — so it is the tab that would
+    // have shown the practice stops if `plays` were read as "the levels".
+    const list = screen.getByRole('listbox', { name: 'Stops' });
+    expect(within(list).getAllByRole('option')).toHaveLength(2);
+    expect(screen.queryByText('Practice two more carrots')).not.toBeInTheDocument();
+
+    // And not on Again either, which is the other play at level 1.
+    await userEvent.click(screen.getByRole('tab', { name: /Again/ }));
+    const again = screen.getByRole('listbox', { name: 'Stops' });
+    expect(within(again).getAllByRole('option')).toHaveLength(1);
+    expect(within(again).getByText('One more try')).toBeInTheDocument();
+    expect(screen.queryByText('Practice two more carrots')).not.toBeInTheDocument();
+  });
+
+  /** Feature 30's own ledger row, last and optional, drawn by the strip like every other step. */
+  it('names the Hints and practice step in the strip', async () => {
+    await renderLesson({
+      ...BASE_LESSON,
+      steps: [
+        { step: 'generate_again', status: 'done', attempt: 1, updatedAt: 0 },
+        { step: 'panel', status: 'done', attempt: 1, updatedAt: 0 },
+        { step: 'hints', status: 'running', attempt: 1, updatedAt: 0 },
+      ],
+    });
+
+    const strip = await screen.findByRole('list', { name: 'Lesson pipeline' });
+    expect(within(strip).getByText('Hints and practice').closest('li')).toHaveClass(
+      'steps__step--running',
+    );
+  });
+
+  /**
+   * A failed `hints` row never fails the lesson: the spec's own rule is that the lesson still
+   * reaches review and can be published without hints or practice. So the strip says the step
+   * failed and the footer still offers Publish.
+   */
+  it('still offers Publish when only the hints step failed', async () => {
+    await renderLessonAs(
+      { ...READY_TEACHER_LESSON, steps: [{ step: 'hints', status: 'error', attempt: 1, updatedAt: 0 }] },
+      TEACHER_USER,
+      TEACHER_PERMISSIONS,
+    );
+
+    expect(await screen.findByRole('button', { name: 'Publish' })).toBeEnabled();
   });
 });
 

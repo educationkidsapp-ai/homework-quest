@@ -49,7 +49,7 @@ public class LessonSteps {
         this.steps = steps; this.lessons = lessons; this.retryDelayMs = retryDelayMs; this.deadlines = deadlines;
     }
 
-    public static String stepName(PipelineStep s) { return switch (s) { case UPLOAD -> "upload"; case CONVERT -> "convert"; case ANALYZE -> "analyze"; case SKILLS -> "skills"; case GENERATE_L1 -> "generate_L1"; case GENERATE_L2 -> "generate_L2"; case GENERATE_L3 -> "generate_L3"; case GENERATE_AGAIN -> "generate_again"; case PANEL -> "panel"; }; }
+    public static String stepName(PipelineStep s) { return switch (s) { case UPLOAD -> "upload"; case CONVERT -> "convert"; case ANALYZE -> "analyze"; case SKILLS -> "skills"; case GENERATE_L1 -> "generate_L1"; case GENERATE_L2 -> "generate_L2"; case GENERATE_L3 -> "generate_L3"; case GENERATE_AGAIN -> "generate_again"; case PANEL -> "panel"; case HINTS -> "hints"; }; }
     public static PipelineStep parse(String name) { for (var s : ORDER) if (stepName(s).equals(name)) return s; throw ApiException.badRequest("Unknown step: " + name); }
     private static String id(String lessonId, PipelineStep s) { return lessonId + ":" + stepName(s); }
 

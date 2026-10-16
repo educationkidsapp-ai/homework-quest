@@ -92,9 +92,16 @@ interface AdminApi {
 @Serializable enum class PipelineStep {
     @SerialName("upload") UPLOAD, @SerialName("convert") CONVERT, @SerialName("analyze") ANALYZE, @SerialName("skills") SKILLS,
     @SerialName("generate_L1") GENERATE_L1, @SerialName("generate_L2") GENERATE_L2, @SerialName("generate_L3") GENERATE_L3,
-    @SerialName("generate_again") GENERATE_AGAIN, @SerialName("panel") PANEL;
-    val label: String get() = when (this) { UPLOAD -> "Upload"; CONVERT -> "Convert to text"; ANALYZE -> "Read the pages"; SKILLS -> "Confirm skills"; GENERATE_L1 -> "Level 1"; GENERATE_L2 -> "Level 2"; GENERATE_L3 -> "Level 3"; GENERATE_AGAIN -> "Again variant"; PANEL -> "Parent panel" }
-    val short: String get() = when (this) { UPLOAD -> "upload"; CONVERT -> "convert"; ANALYZE -> "analyze"; SKILLS -> "skills"; GENERATE_L1 -> "generate L1"; GENERATE_L2 -> "generate L2"; GENERATE_L3 -> "generate L3"; GENERATE_AGAIN -> "generate Again"; PANEL -> "parent panel" }
+    @SerialName("generate_again") GENERATE_AGAIN, @SerialName("panel") PANEL, @SerialName("hints") HINTS;
+    val label: String get() = when (this) { UPLOAD -> "Upload"; CONVERT -> "Convert to text"; ANALYZE -> "Read the pages"; SKILLS -> "Confirm skills"; GENERATE_L1 -> "Level 1"; GENERATE_L2 -> "Level 2"; GENERATE_L3 -> "Level 3"; GENERATE_AGAIN -> "Again variant"; PANEL -> "Parent panel"; HINTS -> "Hints and practice" }
+    val short: String get() = when (this) { UPLOAD -> "upload"; CONVERT -> "convert"; ANALYZE -> "analyze"; SKILLS -> "skills"; GENERATE_L1 -> "generate L1"; GENERATE_L2 -> "generate L2"; GENERATE_L3 -> "generate L3"; GENERATE_AGAIN -> "generate Again"; PANEL -> "parent panel"; HINTS -> "hints" }
+
+    /**
+     * Feature 30: a step the lesson can do without. It runs last, only when the school's `smartHints` flag is on and
+     * only for homework, and a lesson whose [HINTS] row is in error is still reviewable and still publishable — just
+     * without hints or practice. Every other step stops the pipeline where it failed.
+     */
+    val optional: Boolean get() = this == HINTS
 }
 
 /**

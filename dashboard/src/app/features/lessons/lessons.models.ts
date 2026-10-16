@@ -52,7 +52,13 @@ export type PipelineStep =
   | 'generate_L2'
   | 'generate_L3'
   | 'generate_again'
-  | 'panel';
+  | 'panel'
+  /**
+   * Feature 30: the hints and the practice sets, last in the pipeline and optional — it runs only
+   * for a school with `smartHints` on, and only on homework. A failed `hints` row never fails the
+   * lesson, so the strip can show it in `error` beside a lesson that is still publishable.
+   */
+  | 'hints';
 export type StepStatus = 'pending' | 'running' | 'done' | 'error';
 
 /** Where a lesson's content came from — no generated model; see the file header. */
@@ -149,6 +155,27 @@ export function generateFromTextBody(text: string): string {
 /** `PUT …/lessons/{id}/parent-panel`'s body — the whole `ParentPanel`, as the server returns it. */
 export function parentPanelBody(panel: unknown): string {
   return JSON.stringify(panel);
+}
+
+/**
+ * Feature 30's two bodies. Pre-serialized like every other lesson-content write: both routes
+ * declare `"type": "string"` in `server/openapi.json`, so the generated client posts this
+ * verbatim (see `lesson-api.service.ts`'s header).
+ */
+
+/** `PUT …/lessons/{id}/smart-hints/{stopId}` (`SaveStopHintsRequest`) — exactly two hints. */
+export function saveStopHintsBody(hints: readonly string[]): string {
+  return JSON.stringify({ hints });
+}
+
+/**
+ * `POST …/lessons/{id}/smart-hints/approve` (`ApproveHintsRequest`).
+ *
+ * `stopIds` omitted — not `null`, not `[]` — is what the server reads as "all of them", so
+ * "Approve all hints" sends `{}` and a per-stop approve sends the one id.
+ */
+export function approveHintsBody(stopIds?: readonly string[]): string {
+  return JSON.stringify(stopIds === undefined ? {} : { stopIds });
 }
 
 /**

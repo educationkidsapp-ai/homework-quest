@@ -84,6 +84,9 @@ fun JourneyScreen(state: State, dispatch: (Intent) -> Unit, onBack: () -> Unit) 
                 val onHero = MaterialTheme.colorScheme.onPrimary
                 Column {
                     if (state.exam) { Text(s.exam.uppercase(), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = onHero); Spacer(Modifier.height(Dimens.s4)) }
+                    // Feature 30: a targeted practice set says which skill it practises, so the child knows why this
+                    // island is shorter than the lesson it belongs to.
+                    state.practiceSkill?.let { skill -> Text(s.practiceOf.replace("{skill}", skill), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = onHero); Spacer(Modifier.height(Dimens.s4)) }
                     Text(state.lesson?.subject?.let { SubjectMeta.of(it).label(LocalLessonRtl.current) }.orEmpty(), style = MaterialTheme.typography.labelLarge, color = onHero.copy(alpha = 0.9f))
                     Spacer(Modifier.height(Dimens.s4))
                     Text(state.lesson?.title.orEmpty(), style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = onHero)
@@ -99,7 +102,8 @@ fun JourneyScreen(state: State, dispatch: (Intent) -> Unit, onBack: () -> Unit) 
             if (state.exam) DashboardCard(Modifier.padding(horizontal = Dimens.s16)) {
                 // §8: one paper, one sitting — no level to choose, and the rules said before the first question.
                 Text(s.examRules, style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.ink, modifier = Modifier.fillMaxWidth())
-            } else LevelSelector(unlocked = state.levelsUnlocked, completed = state.completedLevels, current = state.level, onSelect = { dispatch(Intent.SelectLevel(it)) }, levels = Flags.levels(featureEnabled(Flags.LEVEL_THREE)))
+            // Feature 30: a practice set is not a level, so there is no level to choose while one is open.
+            } else if (state.practiceSkill == null) LevelSelector(unlocked = state.levelsUnlocked, completed = state.completedLevels, current = state.level, onSelect = { dispatch(Intent.SelectLevel(it)) }, levels = Flags.levels(featureEnabled(Flags.LEVEL_THREE)))
             Spacer(Modifier.height(Dimens.s12))
             StepList(stops = state.stops, states = state.nodeStates, stars = state.stops.map { if (state.exam) null else state.stopStars[it.id] }, onTap = { dispatch(Intent.TapStop(it)) }, exam = state.exam)
             Spacer(Modifier.height(Dimens.s16))

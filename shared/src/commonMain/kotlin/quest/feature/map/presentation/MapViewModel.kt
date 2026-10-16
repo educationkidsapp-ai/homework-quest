@@ -87,7 +87,7 @@ class MapViewModel(
         }
         when (island.kind) {
             IslandKind.LOCKED -> effect(Effect.Speak(copy.strings().speakLocked))
-            IslandKind.REVIEW -> effect(Effect.OpenLesson(island.lessonId ?: return, 1, 1))
+            IslandKind.REVIEW -> effect(Effect.OpenLesson(island.lessonId ?: return, 1, reviewVariant(island.playId)))
             IslandKind.LESSON -> effect(Effect.OpenLesson(island.lessonId ?: return, 1, 0))
         }
     }
@@ -97,4 +97,14 @@ class MapViewModel(
         current.islands.any { it.state == IslandState.TODAY } -> copy.strings().speakHomeToday
         else -> copy.strings().speakHome
     }
+}
+
+/**
+ * Feature 30: which play a review island opens — `"<lessonId>:1:<variant>"` says it. Variant 1 is the generic Again
+ * play, which is what a review island has always been; [quest.api.dto.Play.PRACTICE_VARIANT] and up is the teacher's
+ * own practice set for that weak skill. Anything else (an older server, a hand-made island) is read as the Again play.
+ */
+fun reviewVariant(playId: String?): Int {
+    val variant = playId?.substringAfterLast(':')?.toIntOrNull() ?: return 1
+    return if (variant >= quest.api.dto.Play.PRACTICE_VARIANT) variant else 1
 }

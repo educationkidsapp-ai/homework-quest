@@ -87,6 +87,11 @@ export const FLAGS = {
   // parent's own message — "Translate to English" / «ترجم إلى العربية» — and nothing else:
   // the original is always what is stored and always what is shown.
   languageBridge: 'languageBridge',
+  // Feature 30: the two hints the build wrote for every question, and one practice set per weak
+  // skill — both unapproved until the teacher signs them. Off until an Admin turns it on, and
+  // with it off the `/smart-hints` routes answer 404 and the lesson page draws no section at all,
+  // because the `HINTS` step never ran for that school and there is nothing to approve.
+  smartHints: 'smartHints',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];

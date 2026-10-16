@@ -39,12 +39,15 @@ public class MapService {
     private final SchoolLessons schoolLessons; private final StopRepository stops; private final SkillRepository skills;
     private final LessonCompletionRepository completions; private final ParentUnlockRepository unlocks; private final ProgressService progress;
     private final TeacherQuestionService teacherQuestions; private final FeatureFlags flags; private final java.time.Clock clock;
+    /** Feature 30: which practice set a weak skill's island points at. Rows only — no model, ever (see the class note). */
+    private final quest.server.hints.SmartHints smartHints;
 
     public MapService(SchoolLessons schoolLessons, StopRepository stops, SkillRepository skills, LessonCompletionRepository completions,
                       ParentUnlockRepository unlocks, ProgressService progress, TeacherQuestionService teacherQuestions,
-                      FeatureFlags flags, java.time.Clock clock) {
+                      FeatureFlags flags, java.time.Clock clock, quest.server.hints.SmartHints smartHints) {
         this.schoolLessons = schoolLessons; this.stops = stops; this.skills = skills; this.completions = completions;
         this.unlocks = unlocks; this.progress = progress; this.teacherQuestions = teacherQuestions; this.flags = flags; this.clock = clock;
+        this.smartHints = smartHints;
     }
 
     public MapResponse map(Entities.ChildEntity child, LocalDate from, LocalDate to, LocalDate today) {
@@ -76,7 +79,12 @@ public class MapService {
         Map<String, List<Integer>> parentUnlocked = new HashMap<>();
         for (var u : unlocks.findByChildId(child.getId())) parentUnlocked.computeIfAbsent(u.getLessonId(), k -> new ArrayList<>()).add(u.getLevel());
         List<MapAssembler.ReviewCandidate> review = new ArrayList<>();
-        progress.weakByLesson(child, lessons).forEach((lessonId, b) -> review.add(new MapAssembler.ReviewCandidate(b.skillId(), b.name(), lessonId, lessonId + ":1:1")));
+        // Feature 30: a weak skill's island plays that skill's own practice set when the teacher approved one, and
+        // the generic "Again" play when she did not. Both are a `playId` of `"<lessonId>:1:<variant>"`, so the §7
+        // assembler and the app are unchanged — what changed is which variant the id names.
+        var approvedPractice = flags.isOn(child.getSchoolId(), FlagKeys.SMART_HINTS) ? smartHints.approvedPracticeIds(lessonIds) : Map.<String, String>of();
+        progress.weakByLesson(child, lessons).forEach((lessonId, b) -> review.add(new MapAssembler.ReviewCandidate(b.skillId(), b.name(), lessonId,
+                approvedPractice.getOrDefault(quest.server.hints.SmartHints.key(lessonId, b.skillId()), lessonId + ":1:1"))));
         var c = ChildService.dto(child);
         var assembled = MapAssembler.INSTANCE.assemble(c, published, done, review, parentUnlocked, kdate(from), kdate(to), kdate(today));
         return withTeacherIslands(withExamWindows(assembled, visible.examWindows(), sealed), child, today);
