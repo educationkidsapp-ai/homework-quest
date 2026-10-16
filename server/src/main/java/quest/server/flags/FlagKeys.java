@@ -123,11 +123,19 @@ public final class FlagKeys {
      */
     public static final String SMART_HINTS = "smartHints";
 
+    /**
+     * Feature 31: each teacher hands in her weekly teaching material (دفتر التحضير) for every class and subject she
+     * teaches, and the leaders of feature 17's board track it and mark it reviewed (`/teacher/materials/**`,
+     * `/materials/**`, `/admin/material-settings`). Seeded off by V53.
+     */
+    public static final String TEACHING_MATERIALS = "teachingMaterials";
+
     public static final List<String> ALL = List.of(
             LESSONS_PDF, LESSONS_SLIDES, LESSONS_IMAGES, LESSONS_MANUAL, LEVELS_THREE, RETELL_RECORDING,
             OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, COMPLAINTS, ANNOUNCEMENTS, TEACHER_QUESTIONS,
             STICKERS_TREASURE_CHEST, PROGRESS_WEEKLY_EMAIL, CERTIFICATES,
             MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST,
             CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, FLOOR_SUPERVISOR, TODAY_HOME,
-            VOICE_ANNOUNCEMENT, REMOTE_STUDY_DAYS, MORNING_BRIEF, DOCUMENT_READER, COMPLAINT_TRIAGE, PARENT_EVENING_CARD, LANGUAGE_BRIDGE, SMART_HINTS);
+            VOICE_ANNOUNCEMENT, REMOTE_STUDY_DAYS, MORNING_BRIEF, DOCUMENT_READER, COMPLAINT_TRIAGE, PARENT_EVENING_CARD, LANGUAGE_BRIDGE, SMART_HINTS,
+            TEACHING_MATERIALS);
 }

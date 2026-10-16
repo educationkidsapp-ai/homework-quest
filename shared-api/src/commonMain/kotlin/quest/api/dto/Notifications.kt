@@ -148,6 +148,13 @@ enum class NotificationKind {
      * `/children/{childId}/evening-card`. Once per child and day.
      */
     @SerialName("evening.card") EVENING_CARD,
+
+    /**
+     * Feature 31, to a teacher a few hours before the teaching material deadline: some of next week's preparation is
+     * still missing. [NotificationView.link] carries `quest.api.dashboard.MaterialLink` — the week and how many rows
+     * are missing — so both clients word the row in her language. Once per teacher and week.
+     */
+    @SerialName("material.reminder") MATERIAL_REMINDER,
 }
 
 /**

@@ -131,6 +131,14 @@ function componentFor(screen: Screen, role: Role) {
   // Feature 17: the leaders' board and monthly report — the Admin's and a teacher who leads someone.
   if (screen.id === 'staff-attendance')
     return import('../../features/staff-attendance/attendance-board.page').then((m) => m.AttendanceBoardPage);
+  // Feature 31: her own teaching material, and the leaders' board over everyone's. The board is
+  // one component for all five areas for Attendance requests' reason — `GET /materials/board` is
+  // not namespaced by role, it is scoped to the caller — so `materials` is in
+  // `SHARED_WITH_TEACHER` below rather than copied under `supervisorComponentFor`.
+  if (screen.id === 'my-materials')
+    return import('../../features/materials/my-materials.page').then((m) => m.MyMaterialsPage);
+  if (screen.id === 'materials')
+    return import('../../features/materials/material-board.page').then((m) => m.MaterialBoardPage);
   // The Admin's Children & parents — admission, and the parent login it mints. The *manager's*
   // `children` row is her department's read-only directory and never reaches here
   // (`supervisorComponentFor` takes MANAGERIAL first).
@@ -188,6 +196,10 @@ const SHARED_WITH_TEACHER = new Set([
   // role — the server scopes it to the caller's direct reports — so a copy of the screen under
   // `supervisorComponentFor` would be the same component reading the same route twice.
   'attendance-requests',
+  // Feature 31: and so is the teaching-material board, for the same reason —
+  // `GET /materials/board` answers every leader her own scope, so a copy of the screen under
+  // `supervisorComponentFor` would read the same route twice.
+  'materials',
 ]);
 
 /** Feature 20: the screen ids `/floor/**` answers with a component of its own. */

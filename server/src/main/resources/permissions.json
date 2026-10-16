@@ -148,6 +148,8 @@
     "attendance.requests.decide": ["ADMIN", "TEACHER", "MANAGERIAL", "COORDINATOR", "FLOOR_SUPERVISOR"],
     "attendance.correction.write": ["ADMIN"],
     "attendance.board": ["ADMIN", "MANAGERIAL", "COORDINATOR", "TEACHER", "FLOOR_SUPERVISOR"],
+    "materials.self": ["TEACHER"],
+    "materials.board": ["ADMIN", "MANAGERIAL", "COORDINATOR", "FLOOR_SUPERVISOR", "TEACHER"],
     "home.today": ["ADMIN", "MANAGERIAL"],
     "brief.read": ["ADMIN", "MANAGERIAL"]
   },
@@ -303,6 +305,14 @@
     { "method": "GET", "path": "/staff-attendance/report", "permission": "attendance.board" },
     { "method": "GET", "path": "/staff-attendance/report.csv", "permission": "attendance.board" },
     { "method": "GET", "path": "/staff-attendance/report.xlsx", "permission": "attendance.board" },
+    { "method": "GET", "path": "/admin/material-settings", "permission": "attendance.settings.read" },
+    { "method": "PUT", "path": "/admin/material-settings", "permission": "attendance.settings.write" },
+    { "method": "GET", "path": "/teacher/materials", "permission": "materials.self" },
+    { "method": "POST", "path": "/teacher/materials/attachments", "permission": "materials.self" },
+    { "method": "PUT", "path": "/teacher/materials/{classId}/{subject}", "permission": "materials.self" },
+    { "method": "GET", "path": "/materials/board", "permission": "materials.board" },
+    { "method": "GET", "path": "/materials/board.csv", "permission": "materials.board" },
+    { "method": "POST", "path": "/materials/{id}/review", "permission": "materials.board" },
 
     { "method": "GET", "path": "/admin/teachers", "permission": "teacher.read" },
     { "method": "POST", "path": "/admin/teachers", "permission": "teacher.manage" },

@@ -92,6 +92,10 @@ export const FLAGS = {
   // with it off the `/smart-hints` routes answer 404 and the lesson page draws no section at all,
   // because the `HINTS` step never ran for that school and there is nothing to approve.
   smartHints: 'smartHints',
+  // Feature 31: the weekly teaching material (دفتر التحضير) a teacher hands in per class and
+  // subject, the leaders' board over it, and the Admin's deadline card. Off until an Admin turns
+  // it on — the server answers 404 without it, and neither page has an older screen behind it.
+  teachingMaterials: 'teachingMaterials',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];

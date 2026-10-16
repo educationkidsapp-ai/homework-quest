@@ -328,6 +328,8 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "languageBridge" to false,
     // Feature 30: teacher-approved hints and a practice set per weak skill, written at build time only (V52).
     "smartHints" to false,
+    // Feature 31: teachers hand in their weekly teaching material and leaders track and review it (V53).
+    "teachingMaterials" to false,
 )
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */

@@ -39,6 +39,7 @@ const ROWS: Readonly<Record<string, number>> = {
   'V50__parent_evening_card.sql': 1,
   'V51__language_bridge.sql': 1,
   'V52__smart_hints.sql': 1,
+  'V53__teaching_materials.sql': 1,
 };
 
 /** Every migration that inserts into `feature_flags`, in Flyway's own order. */

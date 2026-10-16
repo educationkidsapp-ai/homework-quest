@@ -24,12 +24,14 @@ public class MediaAccess {
     private final LessonRepository lessons; private final ChildRepository children; private final ChildService childService;
     private final quest.server.broadcasts.BroadcastService broadcasts; private final quest.server.chat.ChatAttachments chatFiles;
     private final quest.server.staffattendance.AttendanceRequestService attendanceFiles;
+    private final quest.server.materials.TeachingMaterialService materialFiles;
 
     public MediaAccess(LessonRepository lessons, ChildRepository children, ChildService childService,
                        quest.server.broadcasts.BroadcastService broadcasts, quest.server.chat.ChatAttachments chatFiles,
-                       @org.springframework.context.annotation.Lazy quest.server.staffattendance.AttendanceRequestService attendanceFiles) {
+                       @org.springframework.context.annotation.Lazy quest.server.staffattendance.AttendanceRequestService attendanceFiles,
+                       @org.springframework.context.annotation.Lazy quest.server.materials.TeachingMaterialService materialFiles) {
         this.lessons = lessons; this.children = children; this.childService = childService; this.broadcasts = broadcasts;
-        this.chatFiles = chatFiles; this.attendanceFiles = attendanceFiles;
+        this.chatFiles = chatFiles; this.attendanceFiles = attendanceFiles; this.materialFiles = materialFiles;
     }
 
     /**
@@ -95,6 +97,12 @@ public class MediaAccess {
         // Feature 18: a correction's photo or PDF — whoever may decide the request it is attached to, and nobody else.
         if (row.isAttendance()) {
             if (user == null || !attendanceFiles.readable(row, user)) throw hidden();
+            return;
+        }
+        // Feature 31: a week's teaching material — the teacher who uploaded it (returned above) and the leaders whose
+        // attendance-board scope covers her, and nobody else. Never a parent, whatever the flag says.
+        if (row.isMaterial()) {
+            if (user == null || !materialFiles.readable(row, user)) throw hidden();
             return;
         }
         var kids = user != null ? List.<ChildEntity>of()

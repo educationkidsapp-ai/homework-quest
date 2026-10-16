@@ -24,7 +24,7 @@ class FlagAdminTest extends ApiTestSupport {
     @Test void the_flags_are_seeded_exactly_as_the_code_lists_them() {
         assertThat(definitions.findAllByOrderByKeyAsc()).extracting(Entities.FeatureFlagEntity::getKey)
                 .containsExactlyInAnyOrderElementsOf(FlagKeys.ALL);
-        assertThat(FlagKeys.ALL).hasSize(35);
+        assertThat(FlagKeys.ALL).hasSize(36);
 
         var on = definitions.findAllByOrderByKeyAsc().stream().filter(Entities.FeatureFlagEntity::isDefaultOn)
                 .map(Entities.FeatureFlagEntity::getKey).toList();
@@ -70,7 +70,9 @@ class FlagAdminTest extends ApiTestSupport {
                         FlagKeys.LANGUAGE_BRIDGE,
                         // Feature 30: hints and targeted practice, off until a school switches them on — and until it
                         // does, the `HINTS` step writes nothing and the teacher's routes answer 404.
-                        FlagKeys.SMART_HINTS);
+                        FlagKeys.SMART_HINTS,
+                        // Feature 31: teaching material tracking, off until a school switches it on.
+                        FlagKeys.TEACHING_MATERIALS);
         assertThat(definitions.findAllByOrderByKeyAsc()).allSatisfy(f ->
                 assertThat(f.getRolloutStage()).isIn("internal", "beta", "ga"));
     }
