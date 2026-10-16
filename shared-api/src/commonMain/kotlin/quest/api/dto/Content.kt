@@ -49,9 +49,31 @@ data class PublishedLesson(
      * The app plays exactly this and ignores [plays] and [variant] — there is no level chooser in an exam.
      */
     val examPlay: Play? = null,
+    /**
+     * Feature 30: the teacher-approved hints of this lesson's stops, by stop id — two per stop, a nudge then a
+     * stronger pointer, and never the answer. The player shows the first after one wrong try and the second after
+     * two, in place of the single `hint` the stop carries. A stop with no entry here keeps today's behaviour, and an
+     * exam has no entries at all.
+     *
+     * Only hints the teacher approved are ever here: the rest live on the server until she has read them.
+     */
+    val smartHints: Map<String, List<String>> = emptyMap(),
+    /**
+     * Feature 30: the teacher-approved practice sets, one per weak-skill island the map may point at. Each play is
+     * level 1 with [Play.PRACTICE_VARIANT] or more, so `MapResponse.islands[].playId` of `"<lessonId>:1:<variant>"`
+     * names exactly one of them; a review island that names `":1:1"` is the generic "Again" play as before.
+     */
+    val practice: List<PracticePlay> = emptyList(),
 ) {
-    fun play(level: Int, variant: Int = 0): Play? = if (variant == 1 && level == 1) this.variant else plays.firstOrNull { it.level == level }
+    fun play(level: Int, variant: Int = 0): Play? = when {
+        variant == 1 && level == 1 -> this.variant
+        variant >= Play.PRACTICE_VARIANT -> practice.firstOrNull { it.play.level == level && it.play.variant == variant }?.play
+        else -> plays.firstOrNull { it.level == level }
+    }
 }
+
+/** Feature 30: one targeted practice set and the confirmed skill of the lesson it practises. */
+@Serializable data class PracticePlay(val skillId: String, val skillName: String, val play: Play)
 
 /**
  * The window an exam island is alive in (§8's "only between open and close"), carried on [Island.examWindow].

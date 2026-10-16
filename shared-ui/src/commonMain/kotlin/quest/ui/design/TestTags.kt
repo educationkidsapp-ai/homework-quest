@@ -12,6 +12,12 @@ object TestTags {
     fun childRow(childId: String) = "children.child.$childId"
     const val HOME_PARENT_PORTAL = "home.parentPortal"
     fun homeLesson(lessonId: String) = "home.lesson.$lessonId"
+    /**
+     * A review island, by the weak skill it is for. It belongs to a lesson but is **not** that lesson's island and
+     * does not open the same play — feature 30 gives it the skill's own practice set — so it carries a tag of its own:
+     * both under [homeLesson] a test asking for the lesson got whichever the day listed first, the review island.
+     */
+    fun homeReview(skillId: String) = "home.review.$skillId"
     const val LESSON_CTA = "lesson.cta"
     const val STOP_DONE = "stop.done"
     const val STOP_CHECK = "stop.check"

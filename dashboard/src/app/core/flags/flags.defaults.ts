@@ -53,6 +53,8 @@ export const DEFAULT_FLAGS: Readonly<Record<string, boolean>> = {
   complaintTriage: false,
   // V51 (feature 29): off until an Admin turns it on per school.
   languageBridge: false,
+  // V52 (feature 30): off until an Admin turns it on per school.
+  smartHints: false,
   // V53 (feature 31): off until an Admin turns it on per school.
   teachingMaterials: false,
 };

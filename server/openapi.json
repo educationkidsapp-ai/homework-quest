@@ -60,7 +60,7 @@
             "type" : "integer"
           },
           "currentStep" : {
-            "enum" : [ "upload", "convert", "analyze", "skills", "generate_L1", "generate_L2", "generate_L3", "generate_again", "panel" ],
+            "enum" : [ "upload", "convert", "analyze", "skills", "generate_L1", "generate_L2", "generate_L3", "generate_again", "panel", "hints" ],
             "type" : "string"
           },
           "date" : {
@@ -4825,7 +4825,7 @@
       "LessonStatusView" : {
         "properties" : {
           "currentStep" : {
-            "enum" : [ "upload", "convert", "analyze", "skills", "generate_L1", "generate_L2", "generate_L3", "generate_again", "panel" ],
+            "enum" : [ "upload", "convert", "analyze", "skills", "generate_L1", "generate_L2", "generate_L3", "generate_again", "panel", "hints" ],
             "type" : "string"
           },
           "errorCode" : {
@@ -4888,7 +4888,7 @@
             "type" : "string"
           },
           "step" : {
-            "enum" : [ "upload", "convert", "analyze", "skills", "generate_L1", "generate_L2", "generate_L3", "generate_again", "panel" ],
+            "enum" : [ "upload", "convert", "analyze", "skills", "generate_L1", "generate_L2", "generate_L3", "generate_again", "panel", "hints" ],
             "type" : "string"
           },
           "updatedAt" : {
@@ -6050,6 +6050,53 @@
         "required" : [ "kind", "level", "stops", "theme", "variant" ],
         "type" : "object"
       },
+      "PracticePlay" : {
+        "properties" : {
+          "play" : {
+            "$ref" : "#/components/schemas/Play"
+          },
+          "skillId" : {
+            "type" : "string"
+          },
+          "skillName" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "play", "skillId", "skillName" ],
+        "type" : "object"
+      },
+      "PracticePlayView" : {
+        "properties" : {
+          "approved" : {
+            "type" : "boolean"
+          },
+          "approvedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "approvedBy" : {
+            "type" : "string"
+          },
+          "play" : {
+            "$ref" : "#/components/schemas/Play"
+          },
+          "playId" : {
+            "type" : "string"
+          },
+          "skillId" : {
+            "type" : "string"
+          },
+          "skillName" : {
+            "type" : "string"
+          },
+          "variant" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "approved", "play", "playId", "skillId", "skillName", "variant" ],
+        "type" : "object"
+      },
       "ProgressResponse" : {
         "properties" : {
           "childId" : {
@@ -6159,11 +6206,26 @@
             },
             "type" : "array"
           },
+          "practice" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PracticePlay"
+            },
+            "type" : "array"
+          },
           "skills" : {
             "items" : {
               "$ref" : "#/components/schemas/SkillRef"
             },
             "type" : "array"
+          },
+          "smartHints" : {
+            "additionalProperties" : {
+              "items" : {
+                "type" : "string"
+              },
+              "type" : "array"
+            },
+            "type" : "object"
           },
           "subject" : {
             "enum" : [ "math", "english", "french", "science", "religion", "arabic" ],
@@ -6186,7 +6248,7 @@
             "type" : "integer"
           }
         },
-        "required" : [ "course", "date", "hintsOff", "id", "kind", "numbersOff", "pageImages", "parentPanel", "plays", "skills", "subject", "theme", "title", "type", "variant", "version" ],
+        "required" : [ "course", "date", "hintsOff", "id", "kind", "numbersOff", "pageImages", "parentPanel", "plays", "practice", "skills", "smartHints", "subject", "theme", "title", "type", "variant", "version" ],
         "type" : "object"
       },
       "QuietTeacher" : {
@@ -7257,6 +7319,27 @@
         "required" : [ "id", "method", "name", "subject" ],
         "type" : "object"
       },
+      "SmartHintsView" : {
+        "properties" : {
+          "hints" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StopHintsView"
+            },
+            "type" : "array"
+          },
+          "lessonId" : {
+            "type" : "string"
+          },
+          "practice" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PracticePlayView"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "hints", "lessonId", "practice" ],
+        "type" : "object"
+      },
       "Sound" : {
         "allOf" : [ {
           "$ref" : "#/components/schemas/SingleAnswer"
@@ -7781,6 +7864,48 @@
           }
         },
         "required" : [ "attempts", "firstTryCorrect", "lessonId", "stopId", "title", "type" ],
+        "type" : "object"
+      },
+      "StopHintsView" : {
+        "properties" : {
+          "answer" : {
+            "type" : "string"
+          },
+          "approved" : {
+            "type" : "boolean"
+          },
+          "approvedAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "approvedBy" : {
+            "type" : "string"
+          },
+          "hints" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "level" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "question" : {
+            "type" : "string"
+          },
+          "stopId" : {
+            "type" : "string"
+          },
+          "stopType" : {
+            "type" : "string"
+          },
+          "variant" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "answer", "approved", "hints", "level", "question", "stopId", "stopType", "variant" ],
         "type" : "object"
       },
       "StopTip" : {
@@ -21147,6 +21272,65 @@
         "tags" : [ "Teacher lessons" ]
       }
     },
+    "/teacher/lessons/{id}/practice/{playId}/approve" : {
+      "post" : {
+        "operationId" : "approvePractice",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "playId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PracticePlayView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Smart hints" ]
+      }
+    },
+    "/teacher/lessons/{id}/practice/{playId}/reject" : {
+      "post" : {
+        "operationId" : "rejectPractice",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "playId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "the practice set is gone"
+          }
+        },
+        "tags" : [ "Smart hints" ]
+      }
+    },
     "/teacher/lessons/{id}/publish" : {
       "post" : {
         "operationId" : "publishTeacherLesson",
@@ -21361,6 +21545,111 @@
           }
         },
         "tags" : [ "Teacher lessons" ]
+      }
+    },
+    "/teacher/lessons/{id}/smart-hints" : {
+      "get" : {
+        "operationId" : "smartHints",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SmartHintsView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Smart hints" ]
+      }
+    },
+    "/teacher/lessons/{id}/smart-hints/approve" : {
+      "post" : {
+        "operationId" : "approveHints",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SmartHintsView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Smart hints" ]
+      }
+    },
+    "/teacher/lessons/{id}/smart-hints/{stopId}" : {
+      "put" : {
+        "operationId" : "saveStopHints",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "stopId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StopHintsView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Smart hints" ]
       }
     },
     "/teacher/lessons/{id}/status" : {
@@ -22220,6 +22509,9 @@
   }, {
     "description" : "What needs the Admin or the department manager today (feature 21)",
     "name" : "Today"
+  }, {
+    "description" : "Teacher-approved hints and targeted practice (feature 30)",
+    "name" : "Smart hints"
   }, {
     "description" : "A subject coordinator's read-only view of the school she supervises",
     "name" : "Coordinator"

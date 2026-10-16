@@ -58,7 +58,9 @@ class JourneyViewModel(
             copy(loading = false, lesson = lesson, play = play, level = if (lesson.isExam) level else play.level, variant = if (lesson.isExam) variant else play.variant,
                 levelsUnlocked = MapAssembler.unlockedLevels(completions.filter { it.lessonId == lessonId }, unlocks[lessonId].orEmpty()),
                 completedLevels = completions.filter { it.lessonId == lessonId }.map { it.level }.distinct().sorted(),
-                stopStars = progress.stops, childName = child.name, exam = lesson.isExam)
+                stopStars = progress.stops, childName = child.name, exam = lesson.isExam,
+                // Feature 30: the skill, when the play this route resolved to is one of the targeted practice sets.
+                practiceSkill = lesson.practice.firstOrNull { it.play.level == play.level && it.play.variant == play.variant }?.skillName)
         }
     }
 
@@ -159,8 +161,11 @@ class StopPlayerViewModel(
         // acknowledged exactly as a right one is; there is no hint and no second go.
         if (current.exam) { if (stop.category == StopCategory.SINGLE) examAnswer(stop.id, 0, i.answer, correct = false); return }
         journey.recordWrongAttempt(childId, lesson, play, stop.id, i.answer, i.attempt)
-        reduce { copy(phase = PlayerContract.Phase.HINT, hint = i.hint, numberLine = i.numberLine) }
-        effect(PlayerContract.Effect.Speak(i.hint))
+        // Feature 30: the teacher's graded hints when she approved some for this stop — the nudge on the first wrong
+        // try, the stronger pointer on the second — and the stop's own single hint when she did not.
+        val hint = lesson.smartHint(stop.id, i.attempt) ?: i.hint
+        reduce { copy(phase = PlayerContract.Phase.HINT, hint = hint, numberLine = i.numberLine) }
+        effect(PlayerContract.Effect.Speak(hint))
     }
 
     private suspend fun onCompleted(stars: Int, answer: String, mistakes: Int, recording: ByteArray?, drawing: String?, correct: Boolean) {

@@ -117,6 +117,13 @@ public final class FlagKeys {
     public static final String LANGUAGE_BRIDGE = "languageBridge";
 
     /**
+     * Feature 30: teacher-approved hints on every question and one short practice set per weak skill, both written
+     * only by the lesson's `HINTS` pipeline step at build time (`/teacher/lessons/{id}/smart-hints`). Seeded off by
+     * V52, and nothing of it is published until the teacher has approved it.
+     */
+    public static final String SMART_HINTS = "smartHints";
+
+    /**
      * Feature 31: each teacher hands in her weekly teaching material (دفتر التحضير) for every class and subject she
      * teaches, and the leaders of feature 17's board track it and mark it reviewed (`/teacher/materials/**`,
      * `/materials/**`, `/admin/material-settings`). Seeded off by V53.
@@ -129,6 +136,6 @@ public final class FlagKeys {
             STICKERS_TREASURE_CHEST, PROGRESS_WEEKLY_EMAIL, CERTIFICATES,
             MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST,
             CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, FLOOR_SUPERVISOR, TODAY_HOME,
-            VOICE_ANNOUNCEMENT, REMOTE_STUDY_DAYS, MORNING_BRIEF, DOCUMENT_READER, COMPLAINT_TRIAGE, PARENT_EVENING_CARD, LANGUAGE_BRIDGE,
+            VOICE_ANNOUNCEMENT, REMOTE_STUDY_DAYS, MORNING_BRIEF, DOCUMENT_READER, COMPLAINT_TRIAGE, PARENT_EVENING_CARD, LANGUAGE_BRIDGE, SMART_HINTS,
             TEACHING_MATERIALS);
 }

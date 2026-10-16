@@ -52,6 +52,12 @@ object SchemaValidator {
     /**
      * [lenient] = a hand-written (manual) play: any number of stops (1–9) and the exit ticket is optional, so an admin
      * can publish a single readPage + multiSelect. Model output is never lenient.
+     *
+     * Feature 30: how many stops a play needs is decided here rather than by `Play.schema.json`, because it now
+     * depends on what the play is. A level and the Again variant are Prompt B's [Play.LEVEL_STOPS] ending in an exit
+     * ticket; a targeted practice play ([Play.PRACTICE_VARIANT] and up) is [Play.PRACTICE_STOPS] of pure practice on
+     * one skill, with no exit ticket, so the schema's array bounds are the widest of the three and the rule each play
+     * is actually held to is below.
      */
     fun validate(play: Play, expectedLevel: Int? = null, excludedIds: Set<String> = emptySet(), lenient: Boolean = false): ValidationResult {
         val errors = mutableListOf<String>()
@@ -61,7 +67,14 @@ object SchemaValidator {
         if (ids.size != ids.toSet().size) errors += "stop ids must be unique"
         ids.filter { it in excludedIds }.forEach { errors += "stop $it was already used" }
         if (lenient) { if (play.stops.isEmpty()) errors += "add at least one stop"; if (play.stops.size > 9) errors += "at most 9 stops" }
-        else if (play.stops.lastOrNull() !is Stop.ExitTicket) errors += "the last stop must be an exitTicket"
+        else if (play.variant >= Play.PRACTICE_VARIANT) {
+            if (play.stops.size !in Play.PRACTICE_STOPS) errors += "a practice play needs ${Play.PRACTICE_STOPS.first}–${Play.PRACTICE_STOPS.last} stops"
+            if (play.stops.any { it.category != quest.api.dto.StopCategory.SINGLE && it.category != quest.api.dto.StopCategory.MULTI })
+                errors += "every stop of a practice play must be an answerable single- or multi-answer stop"
+        } else {
+            if (play.stops.size !in Play.LEVEL_STOPS) errors += "a level needs ${Play.LEVEL_STOPS.first}–${Play.LEVEL_STOPS.last} stops"
+            if (play.stops.lastOrNull() !is Stop.ExitTicket) errors += "the last stop must be an exitTicket"
+        }
         play.stops.dropLast(1).filterIsInstance<Stop.ExitTicket>().forEach { errors += "exitTicket ${it.id} must be the last stop" }
         all.forEach { s -> errors += validate(s).map { "stop ${s.id}: $it" } }
         return ValidationResult(errors)

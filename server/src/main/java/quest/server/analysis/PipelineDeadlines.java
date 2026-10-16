@@ -33,7 +33,7 @@ public class PipelineDeadlines {
     /** The deadline of one step. UPLOAD and SKILLS do no work of their own and take the shortest one. */
     public Duration of(PipelineStep step) {
         return switch (step) {
-            case GENERATE_L1, GENERATE_L2, GENERATE_L3, GENERATE_AGAIN, PANEL -> generate;
+            case GENERATE_L1, GENERATE_L2, GENERATE_L3, GENERATE_AGAIN, PANEL, HINTS -> generate;
             case ANALYZE -> analyze;
             case UPLOAD, CONVERT, SKILLS -> convert;
         };

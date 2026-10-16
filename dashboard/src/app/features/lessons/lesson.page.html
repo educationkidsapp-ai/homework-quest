@@ -528,6 +528,26 @@
         />
       }
 
+      <!--
+        Feature 30: the hints and the practice sets the build wrote, none of which reaches a
+        child until she approves them. Behind `smartHints`, so a school without the feature sees
+        nothing and the section's own read is never made — the routes would answer 404.
+
+        Not on a read-only page: `/teacher/lessons/{id}/smart-hints` is gated by `lesson.read`,
+        which neither a coordinator nor a manager holds (she has `coordinator.lesson.read`), so
+        rendering it for her would buy a refusal and a red band on arrival.
+      -->
+      @if (!readOnly) {
+        <ng-container *hqFeature="smartHintsFlag">
+          <hq-smart-hints
+            [lessonId]="l.id"
+            [images]="l.images"
+            [subject]="previewSubject()"
+            [disabled]="busy() !== null || running()"
+          />
+        </ng-container>
+      }
+
       @if (l.parentPanel; as panel) {
         @if (!readOnly) {
           <hq-card [title]="'lessons.detail.panel.title' | transloco">

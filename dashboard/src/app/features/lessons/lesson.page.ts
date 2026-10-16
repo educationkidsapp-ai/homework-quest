@@ -88,6 +88,7 @@ import {
 import { ExamContextService } from '../exams/exam-context.service';
 import { ExamSettingsCardComponent } from '../exams/exam-settings-card.component';
 import { ParentPanelEditorComponent } from './parent-panel-editor.component';
+import { SmartHintsComponent } from './smart-hints.component';
 import { type StopDraft, StopDraftService } from './stop-draft.service';
 import { StopEditorComponent, type StopSaveFailure } from './stop-editor.component';
 
@@ -111,6 +112,12 @@ interface PlayTabDef {
   /** E5's `level` segment for this tab, or `null` on Level 1 — hers to write, never asked for. */
   readonly ask: AskLevel | null;
 }
+/**
+ * Feature 30's `Play.PRACTICE_VARIANT`: the first variant that is a targeted practice set rather
+ * than a level of the lesson. Levels occupy variant 0 (L1/L2/L3) and variant 1 (Again).
+ */
+const PRACTICE_VARIANT = 2;
+
 const PLAY_TAB_DEFS: readonly PlayTabDef[] = [
   { id: 'L1', level: 1, variant: 0, ask: null },
   { id: 'L2', level: 2, variant: 0, ask: '2' },
@@ -171,6 +178,7 @@ type PendingAction =
     PhonePreviewComponent,
     StopEditorComponent,
     ParentPanelEditorComponent,
+    SmartHintsComponent,
     LessonSourcesComponent,
     ExamSettingsCardComponent,
     TextareaComponent,
@@ -242,6 +250,8 @@ export class LessonPage {
   // key is hers (`coordinator.results.read`) rather than the teacher's — she holds no
   // `results.read` at all — and the path comes from {@link basePath} so it lands in her area.
   protected readonly gradebookFlag = FLAGS.gradebook;
+  /** Feature 30: the Hints and practice section is drawn only for a school that has it on. */
+  protected readonly smartHintsFlag = FLAGS.smartHints;
   protected readonly resultsKey = computed(() =>
     this.readOnly ? 'coordinator.results.read' : 'results.read',
   );
@@ -696,6 +706,27 @@ export class LessonPage {
 
   protected readonly playTab = signal<PlayTabId>('L1');
 
+  /**
+   * The four plays that are **levels**, and nothing else.
+   *
+   * Feature 30 puts its targeted practice sets in `AdminLesson.plays` as well — level 1, variant
+   * 2 and up, one per confirmed skill — because they are plays of this lesson and the pipeline
+   * had nowhere else to store them. They are not levels, so everything that reads "the plays" as
+   * "the levels" reads this instead: the tab strip, the editor behind it, "Create this level" and
+   * publish readiness. They have their own section (`hq-smart-hints`), where a teacher approves
+   * or rejects each one.
+   *
+   * Every reader this replaces happens to be safe on its own today — the four tab definitions
+   * match on an exact `level`+`variant` pair, and {@link publishReady} counts `variant === 0`
+   * and `variant === 1` — so none of them would have shown a practice set as a level. The point
+   * of saying it once, in front of all of them, is that the next reader of "the plays" inherits
+   * the rule instead of having to rediscover it, and that `lesson.plays` keeps its one meaning:
+   * every play the lesson has, levels and practice alike.
+   */
+  private readonly levelPlays = computed<readonly AdminPlay[]>(
+    () => this.lesson()?.plays.filter((play) => play.variant < PRACTICE_VARIANT) ?? [],
+  );
+
   /** A step of this lesson's pipeline is live — the lesson-wide lock, in one place. */
   protected readonly running = computed(() => {
     const status = this.lesson()?.status;
@@ -713,7 +744,7 @@ export class LessonPage {
   protected readonly playTabs = computed<readonly Tab<PlayTabId>[]>(() => {
     this.lang();
     const lesson = this.lesson();
-    const plays = lesson?.plays ?? [];
+    const plays = this.levelPlays();
     const running = lesson === null || this.running();
     return PLAY_TAB_DEFS.map((def) => ({
       id: def.id,
@@ -724,7 +755,7 @@ export class LessonPage {
 
   protected readonly currentAdminPlay = computed<AdminPlay | null>(() => {
     const def = PLAY_TAB_DEFS.find((d) => d.id === this.playTab());
-    const plays = this.lesson()?.plays ?? [];
+    const plays = this.levelPlays();
     return (def && plays.find((play) => play.level === def.level && play.variant === def.variant)) ?? null;
   });
 
@@ -1061,13 +1092,13 @@ export class LessonPage {
   protected readonly missingPlay = computed(() => {
     const def = PLAY_TAB_DEFS.find((entry) => entry.id === this.playTab());
     if (!def) return null;
-    const plays = this.lesson()?.plays ?? [];
+    const plays = this.levelPlays();
     return plays.some((play) => play.level === def.level && play.variant === def.variant) ? null : def;
   });
 
   /** Level 1's questions — the only thing the assistant writes another level from (E5). */
   private readonly level1Stops = computed(() => {
-    const one = (this.lesson()?.plays ?? []).find((play) => play.level === 1 && play.variant === 0);
+    const one = this.levelPlays().find((play) => play.level === 1 && play.variant === 0);
     return one?.play.stops.length ?? 0;
   });
 
@@ -1383,13 +1414,12 @@ export class LessonPage {
   protected readonly publishReady = computed(() => {
     const lesson = this.lesson();
     if (!lesson) return false;
+    const plays = this.levelPlays();
     if (lesson.source === AdminLessonSourceEnum.MANUAL) {
-      return lesson.plays.some(
-        (play) => play.level === 1 && play.variant === 0 && play.play.stops.length > 0,
-      );
+      return plays.some((play) => play.level === 1 && play.variant === 0 && play.play.stops.length > 0);
     }
-    const mains = lesson.plays.filter((play) => play.variant === 0).length;
-    const hasAgain = lesson.plays.some((play) => play.variant === 1);
+    const mains = plays.filter((play) => play.variant === 0).length;
+    const hasAgain = plays.some((play) => play.variant === 1);
     return mains === 3 && hasAgain && lesson.parentPanel != null;
   });
 
