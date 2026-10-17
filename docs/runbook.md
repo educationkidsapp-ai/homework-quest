@@ -750,7 +750,7 @@ migration and one number in that test. Read the current list with
 
 #### The first fourteen (V5)
 
-| Key | Seeded default (V5; all but `multiSchool` on since V54) | Stage | What it gates |
+| Key | Seeded default (V5; all fourteen on since V54) | Stage | What it gates |
 |---|---|---|---|
 | `lessons.pdf` | on | ga | new lesson from a PDF |
 | `lessons.slides` | on | ga | new lesson from PowerPoint slides |
