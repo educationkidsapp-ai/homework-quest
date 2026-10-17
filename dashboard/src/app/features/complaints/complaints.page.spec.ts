@@ -628,7 +628,7 @@ describe('the Complaints page', () => {
     const nour = items.findIndex((text) => text.includes('Resolved by Nour'));
     expect(items[nour - 1]).toContain('Message 5');
     expect(items[nour + 1]).toContain('Message 6');
-  });
+  }, 20_000); // pages through three windows of history: about 7 s on a shared CI runner against vitest's 5 s default
 
   it('lets go of a link to a complaint she cannot open, quietly', async () => {
     const { backend } = await render(TEACHER_USER, 'teacher.complaints');
