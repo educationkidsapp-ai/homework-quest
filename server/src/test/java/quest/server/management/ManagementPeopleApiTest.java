@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import quest.server.ClassFixtures;
 import quest.server.grading.GradingTestSupport;
 import quest.server.platform.SchoolCalendar;
+import quest.server.flags.FlagKeys;
 import quest.server.tenancy.Entities.ClassEntity;
 import quest.server.tenancy.StaffScopeRepository;
 
@@ -84,6 +85,10 @@ class ManagementPeopleApiTest extends GradingTestSupport {
         today = calendar.today(SCHOOL);
         schoolDay = lastSchoolDay(today);
         future = nextSchoolDay(today.plusDays(1));
+        // D30 turned `staffAttendance` on by default, and feature 17 replaces the manual register with check-ins
+        // where it is on (`StaffAttendanceService.mark` answers 409 `manual_marking_off`). This class is RM5's
+        // hand-marked register, so this school has the switch off — which is the only state that register exists in.
+        setSchoolFlag(SCHOOL, FlagKeys.STAFF_ATTENDANCE, false);
     }
 
     @AfterEach void clean() {

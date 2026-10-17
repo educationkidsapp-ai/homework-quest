@@ -273,8 +273,11 @@ interface ContentApi {
 }
 
 /**
- * What [ContentApi.schoolFlags] answers without a backend: the `default_on` of every flag as
- * `V5__flags_themes.sql` and `V7__sections.sql` seed them — on for what ships today, off for what is not built yet.
+ * What [ContentApi.schoolFlags] answers without a backend: the `default_on` of every flag as the migrations leave it.
+ *
+ * Since `V54__flags_on_by_default.sql` (D30, owner 2026-10-17) that is **on for everything except `multiSchool`** —
+ * the school buys the whole platform and the Admin turns off what she does not want. `multiSchool` is a tenancy mode,
+ * not a feature (D13), so it stays off.
  */
 val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "lessons.pdf" to true,
@@ -285,51 +288,51 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "retell.recording" to true,
     "openAnswer.drawing" to true,
     "parentPanel.arabic" to true,
-    "complaints" to false,
-    "announcements" to false,
-    "teacherQuestions" to false,
+    "complaints" to true,
+    "announcements" to true,
+    "teacherQuestions" to true,
     "stickers.treasureChest" to true,
-    "progress.weeklyEmail" to false,
+    "progress.weeklyEmail" to true,
     "certificates" to true,
-    // N1.1, the one-school build (`docs/prompts/dashboard-first-one-school.md`). All off: `multiSchool` hides the
-    // Admin school screens and the switcher while there is one school, and the rest gate what N2–N4 build.
+    // N1.1/D13: the one and only switch still off. It is a tenancy mode, not a feature — off is what makes ADMIN
+    // mean "this school", hides the Admin school screens and collapses the switcher. V54 deliberately skips it.
     "multiSchool" to false,
-    "webPlayer" to false,
-    "gradebook" to false,
-    "openStopMarking" to false,
-    "exams" to false,
-    "teacher.rosterEdit" to false,
-    "join.byList" to false,
+    "webPlayer" to true,
+    "gradebook" to true,
+    "openStopMarking" to true,
+    "exams" to true,
+    "teacher.rosterEdit" to true,
+    "join.byList" to true,
     // C1/C3: parent ↔ teacher chat (REST + `/ws/chat`).
-    "chat" to false,
+    "chat" to true,
     // Feature 13: staff sign in to the mobile app (V36).
-    "staffMobileApp" to false,
+    "staffMobileApp" to true,
     // Feature 14: staff attendance — settings, direct managers, and later check-in (15) and alerts (16).
-    "staffAttendance" to false,
+    "staffAttendance" to true,
     // Feature 19: parent messages outside office hours arrive quietly, with a morning summary (V41).
-    "chatOfficeHours" to false,
+    "chatOfficeHours" to true,
     // Feature 20: the floor supervisor role — her area, her Messages and the Admin's Floors pages (V42).
-    "floorSupervisor" to false,
+    "floorSupervisor" to true,
     // Feature 21: the Admin's and the manager's Home leads with what needs a decision today (V43).
-    "todayHome" to false,
+    "todayHome" to true,
     // Feature 22: a leader's voice note becomes a formal bilingual announcement she reviews and sends (V44).
-    "voiceAnnouncement" to false,
+    "voiceAnnouncement" to true,
     // Feature 23: a remote study day for the school, one academy or chosen grades (V46).
-    "remoteStudyDays" to false,
+    "remoteStudyDays" to true,
     // Feature 25: the Admin's and the manager's morning brief, above feature 21's cards (V47).
-    "morningBrief" to false,
+    "morningBrief" to true,
     // Feature 26: a leader uploads a circular and reads what it says, in both languages (V48).
-    "documentReader" to false,
+    "documentReader" to true,
     // Feature 27: a new complaint is sorted by the AI for the staff who answer it (V49).
-    "complaintTriage" to false,
+    "complaintTriage" to true,
     // Feature 28: the parent's evening card about one child's day (V50).
-    "parentEveningCard" to false,
+    "parentEveningCard" to true,
     // Feature 29: parents read the school's messages in their own language, and staff read what they write (V51).
-    "languageBridge" to false,
+    "languageBridge" to true,
     // Feature 30: teacher-approved hints and a practice set per weak skill, written at build time only (V52).
-    "smartHints" to false,
+    "smartHints" to true,
     // Feature 31: teachers hand in their weekly teaching material and leaders track and review it (V53).
-    "teachingMaterials" to false,
+    "teachingMaterials" to true,
 )
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */

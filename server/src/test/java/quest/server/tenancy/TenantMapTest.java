@@ -94,7 +94,10 @@ class TenantMapTest extends ApiTestSupport {
         parentGet("/children/" + childId + "/map?from=2027-06-01&to=2027-06-10&today=2027-06-02");
         long statements = stats.getPrepareStatementCount();
         System.out.println("map statements with " + lessons + " lessons: " + statements);
-        assertThat(statements).as("statements for a map of %d lessons", lessons).isLessThanOrEqualTo(12);
+        // 12 → 14 with D30: `smartHints` is on by default now, so `MapService` also reads the approved practice
+        // sets. Two more statements, both for the whole map — the property this test guards is that the count does
+        // not grow with the number of lessons, and it still does not.
+        assertThat(statements).as("statements for a map of %d lessons", lessons).isLessThanOrEqualTo(14);
     }
 
     // ---------------------------------------------------------------- helpers

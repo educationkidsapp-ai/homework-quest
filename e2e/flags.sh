@@ -50,11 +50,12 @@ BAD_PRIMARY='#F3F2F2'
 BAD_PRIMARY_INK='#EC3013'
 BAD_LOGO='javascript:alert(1)'
 
-# The 14 keys of §4 with the `default_on` of `V5__flags_themes.sql`, which is also `DEFAULT_FLAGS` in
-# shared-api (`quest/api/ContentApi.kt`) — 10 on for what ships today, 4 off for what is not built yet.
-# `FlagDefaultsTest` already asserts the two lists agree on the server; this one asserts the deployed database does.
-DEFAULT_FLAGS_ON='lessons.pdf lessons.slides lessons.images lessons.manual levels.three retell.recording openAnswer.drawing parentPanel.arabic stickers.treasureChest certificates'
-DEFAULT_FLAGS_OFF='complaints announcements teacherQuestions progress.weeklyEmail'
+# §4's keys with the `default_on` the migrations leave them at, which is also `DEFAULT_FLAGS` in shared-api
+# (`quest/api/ContentApi.kt`). Since `V54__flags_on_by_default.sql` (D30, owner 2026-10-17) every switch is on and
+# `multiSchool` alone is off. `FlagAdminTest` asserts the lists agree on the server; this one asserts the deployed
+# database does. Only §4's own fourteen are listed, as before — the list is a sample, not the whole matrix.
+DEFAULT_FLAGS_ON='lessons.pdf lessons.slides lessons.images lessons.manual levels.three retell.recording openAnswer.drawing parentPanel.arabic stickers.treasureChest certificates complaints announcements teacherQuestions progress.weeklyEmail'
+DEFAULT_FLAGS_OFF='multiSchool'
 
 pass=0; failed=0; blocked=0
 

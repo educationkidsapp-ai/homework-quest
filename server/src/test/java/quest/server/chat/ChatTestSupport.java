@@ -42,6 +42,11 @@ public abstract class ChatTestSupport extends GradingTestSupport {
         adminToken = adminToken();
         setFlag(adminToken, A, FlagKeys.CHAT, true);
         setFlag(adminToken, B, FlagKeys.CHAT, false);
+        // D30 turned every switch on by default. Feature 19 changes what a message outside office hours does, so
+        // every chat fixture starts without it and `ChatOfficeHoursApiTest` — the class that is about it — turns it
+        // on itself; otherwise its after-hours rows are written by every other chat test too.
+        setFlag(adminToken, A, FlagKeys.CHAT_OFFICE_HOURS, false);
+        setFlag(adminToken, B, FlagKeys.CHAT_OFFICE_HOURS, false);
         sara = token(SARA, "TEACHER", A); noor = token(NOOR, "TEACHER", A); other = token(OTHER, "TEACHER", B);
     }
 

@@ -33,6 +33,28 @@ public abstract class ApiTestSupport {
     }
     protected MockHttpServletRequestBuilder admin(MockHttpServletRequestBuilder b, String token) { return b.header("Authorization", "Bearer " + token); }
 
+    @Autowired protected quest.server.flags.SchoolFlagRepository schoolFlagRows;
+    @Autowired protected quest.server.flags.FeatureFlags featureFlagValues;
+
+    /**
+     * Switches one flag for one school: the override row plus the cache drop, which is what `FlagService.set` does
+     * besides recording the flip. Deliberately not the Admin route — `flag_audit` is global to the suite's one H2
+     * database and `FlagAdminTest` counts its own flips there, so a fixture must not write to it.
+     *
+     * <p>Since D30 (`V54__flags_on_by_default.sql`) every switch is on by default, so this is mostly used to turn a
+     * feature <em>off</em> for a test that is about the behaviour without it.
+     */
+    protected void setSchoolFlag(String schoolId, String key, boolean enabled) {
+        var row = schoolFlagRows.findOne(schoolId, key).orElseGet(() -> {
+            var fresh = new quest.server.flags.Entities.SchoolFeatureFlagEntity();
+            fresh.setSchoolId(schoolId); fresh.setFlagKey(key);
+            return fresh;
+        });
+        row.setEnabled(enabled); row.setUpdatedBy("test"); row.setUpdatedAt(java.time.Instant.now());
+        schoolFlagRows.save(row);
+        featureFlagValues.invalidate(schoolId);
+    }
+
     /** Polls the lesson until it leaves the given transient status (async jobs run on the task executor). */
     protected JsonNode awaitStatus(String token, String lessonId, String... terminal) throws Exception {
         for (int i = 0; i < 100; i++) {

@@ -39,6 +39,15 @@ import quest.server.analysis.SampleLlmClient;
 @TestPropertySource(properties = { "quest.pipeline.retry-delay-ms=1" })
 class PipelineParallelTest extends ApiTestSupport {
 
+    /**
+     * D30 turned every switch on by default, feature 30's `smartHints` with it — and with that on the pipeline also
+     * writes the practice sets, so a lesson has six plays rather than four. This class is about the pipeline itself,
+     * so the Admin's school (D6's `default`) has the switch off, exactly as a school whose Admin turned it off has.
+     */
+    @org.junit.jupiter.api.BeforeEach void smartHintsOff() {
+        setSchoolFlag("default", quest.server.flags.FlagKeys.SMART_HINTS, false);
+    }
+
     @TestConfiguration
     static class LatchingLlmConfig {
         @Bean @Primary LatchingLlm latchingLlm() { return new LatchingLlm(); }

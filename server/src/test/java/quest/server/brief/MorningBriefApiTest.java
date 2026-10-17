@@ -205,7 +205,8 @@ class MorningBriefApiTest extends ApiTestSupport {
 
     @Test void a_remote_study_day_is_in_the_lines_and_nowhere_when_the_switch_is_off() throws Exception {
         var s = school("remote-off");
-        s.remoteStudyDay("british", "Sandstorm warning");                          // `remoteStudyDays` still off
+        s.flag(FlagKeys.REMOTE_STUDY_DAYS, false);                                 // on by default since D30
+        s.remoteStudyDay("british", "Sandstorm warning");
         var off = ok(scoped(get("/me/morning-brief"), s.admin(), s.id));
         assertThat(off.get("facts").get("remoteStudyDayToday").asBoolean())
                 .as("with the switch off a remote study day does not exist at all").isFalse();

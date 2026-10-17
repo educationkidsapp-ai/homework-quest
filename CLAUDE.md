@@ -48,7 +48,9 @@ migration.
   - Server: `flags/` (`FeatureFlags`, `FeatureFlagInterceptor`).
   - Dashboard: `core/flags` (`feature.guard`, `feature.directive`, `flags.defaults`).
   - App: `feature/school/FeatureGate.kt`, `Flags.kt`.
-  - New switches are off by default. Runbook: "Feature flags".
+  - Switches are **on** by default (D30, owner 2026-10-17): a school buys the whole platform and the Admin turns
+    off what it does not want on Admin → Feature switches. `multiSchool` is the one exception and stays off. A new
+    key is seeded `TRUE`. Runbook: "Feature flags".
 - **Background jobs.**
   - Lesson generation: `analysis/LessonPipeline`, step deadlines in `PipelineDeadlines`, and `PipelineWatchdog`,
     which moves a stalled step to error/timeout and offers Retry.
