@@ -725,6 +725,9 @@ which is what the app falls back to before its first sync.
 
 `schools.feature_flags_json` (added in V4) stays **unused** — the normalised table is the only truth.
 
+The Admin turns a switch on at **Admin → Feature switches** (`/admin/switches`, `flag.read` to see it and
+`flag.write` to change it); the page is behind no flag of its own, and every key the server defines appears on it.
+
 ### The 36 keys
 
 `flags/FlagKeys.java` is the list in code; `FlagAdminTest.the_flags_are_seeded_exactly_as_the_code_lists_them`

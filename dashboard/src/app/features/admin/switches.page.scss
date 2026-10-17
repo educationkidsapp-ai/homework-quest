@@ -1,0 +1,65 @@
+.switches {
+  display: grid;
+  gap: var(--hq-space-24);
+}
+
+.switches__retry {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-start: var(--hq-space-16);
+}
+
+.switches__group-note {
+  margin-block-end: var(--hq-space-16);
+  font-size: var(--hq-text-theme-sm);
+  color: var(--hq-color-ink-soft);
+}
+
+.switches__list {
+  display: grid;
+  gap: var(--hq-space-24);
+}
+
+// One switch is one block: the toggle and its sentence, then the facts about it. A rule between
+// the rows rather than a border on each, so a card of six reads as one list.
+.switches__row + .switches__row {
+  padding-block-start: var(--hq-space-24);
+  border-block-start: var(--hq-size-rule-thin) solid var(--hq-color-divider);
+}
+
+// Aligned under the toggle's own hint (the switch's width plus its gap), so the sentence, the
+// chips and the notes form one column rather than three indents.
+.switches__meta,
+.switches__note {
+  margin-inline-start: calc(var(--hq-size-switch) + var(--hq-space-12));
+  font-size: var(--hq-font-label-size);
+  color: var(--hq-color-ink-soft);
+}
+
+.switches__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hq-space-8);
+  margin-block-start: var(--hq-space-4);
+}
+
+.switches__chip {
+  padding: 0 var(--hq-space-8);
+  border-radius: var(--hq-radius-pill);
+  background: var(--hq-color-surface-sunken);
+  color: var(--hq-color-ink);
+}
+
+.switches__key {
+  font-family: var(--hq-font-family-mono);
+  color: var(--hq-color-ink-muted);
+}
+
+.switches__note {
+  margin-block-start: var(--hq-space-4);
+}
+
+.switches__note--warn {
+  color: var(--hq-color-warning-ink);
+}

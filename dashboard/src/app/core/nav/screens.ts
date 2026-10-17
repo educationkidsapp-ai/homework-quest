@@ -164,6 +164,22 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         labelKey: 'nav.childrenParents',
         permission: 'admin.children.read',
       },
+      // MA0 follow-up: **Feature switches**, the page that turns a feature on for the school, and
+      // the row above Attendance settings because it is what makes Attendance settings appear.
+      //
+      // `switches` and not the retired `flags` — that path still redirects to her Home below, and
+      // a bookmark must not quietly land on a different screen than it did. No `flag` of its own,
+      // ever: a switch over the page that works the switches has no way back on, which is exactly
+      // the corner the owner was in when he could not turn the staff app on. `flag.read` is the
+      // key `GET /admin/flags` carries, so a read-only "View as" session and a manager see the
+      // list with every toggle disabled rather than no page at all; `flag.write` is the Admin's
+      // alone and the page gates the toggles on it.
+      {
+        id: 'switches',
+        path: 'switches',
+        labelKey: 'nav.featureSwitches',
+        permission: 'flag.read',
+      },
       // Feature 14: where and when staff must be present, and every employee's direct manager.
       // Read with `attendance.settings.read` so a read-only "View as" session still sees the page.
       {

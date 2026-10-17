@@ -34,6 +34,9 @@ describe('the nav switch', () => {
       'floor-supervisors',
       'workers',
       'children',
+      // MA0 follow-up: the Feature switches page, a school screen like the rest — this switch
+      // is about the *platform* surfaces and does not touch it.
+      'switches',
       // Feature 14: the school's attendance rules and direct managers.
       'attendance-settings',
       // Feature 18: the remote days and corrections waiting for a decision.

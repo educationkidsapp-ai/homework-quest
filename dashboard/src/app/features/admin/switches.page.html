@@ -1,0 +1,74 @@
+<hq-page [title]="'admin.switches.title' | transloco" [subtitle]="'admin.switches.subtitle' | transloco">
+  @if (failure(); as message) {
+    <hq-band
+      variant="error"
+      [open]="true"
+      [title]="'band.failed' | transloco"
+      (dismissed)="failure.set(null)"
+    >
+      {{ message }}
+    </hq-band>
+  }
+
+  @if (!canWrite()) {
+    <hq-band variant="notice" [open]="true" [dismissible]="false">
+      {{ 'admin.switches.readOnly' | transloco }}
+    </hq-band>
+  }
+
+  @if (unreachable()) {
+    <hq-card>
+      <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco" [dismissible]="false">
+        {{ 'band.unreachable' | transloco }}
+      </hq-band>
+      <div class="switches__retry">
+        <hq-button variant="secondary" (pressed)="reload()">{{ 'ui.retry' | transloco }}</hq-button>
+      </div>
+    </hq-card>
+  } @else if (loading()) {
+    <hq-card [title]="'admin.switches.title' | transloco">
+      <hq-skeleton [lines]="6" [label]="'ui.loading' | transloco" />
+    </hq-card>
+  } @else {
+    <div class="switches" data-hq-switches>
+      @for (group of groups(); track group.id) {
+        <hq-card [title]="group.title">
+          @if (group.id === 'other') {
+            <p class="switches__group-note">{{ 'admin.switches.otherNote' | transloco }}</p>
+          }
+          <ul class="switches__list">
+            @for (row of group.rows; track row.key) {
+              <li class="switches__row" [attr.data-hq-switch]="row.key">
+                <hq-toggle
+                  [label]="row.name"
+                  [hint]="row.what"
+                  [checked]="row.enabled"
+                  [disabled]="!canWrite() || row.busy"
+                  (checkedChange)="onToggle(row.key, $event)"
+                />
+                <p class="switches__meta">
+                  @if (row.feature; as feature) {
+                    <span class="switches__chip">{{ feature }}</span>
+                  }
+                  <span class="switches__key">{{ row.key }}</span>
+                  @if (row.lastChanged; as changed) {
+                    <span class="switches__changed">{{ changed }}</span>
+                  }
+                </p>
+                @if (row.needs; as needs) {
+                  <p class="switches__note">{{ needs }}</p>
+                }
+                @if (row.needsOff; as needsOff) {
+                  <p class="switches__note switches__note--warn">{{ needsOff }}</p>
+                }
+                @if (row.note; as note) {
+                  <p class="switches__note switches__note--warn">{{ note }}</p>
+                }
+              </li>
+            }
+          </ul>
+        </hq-card>
+      }
+    </div>
+  }
+</hq-page>

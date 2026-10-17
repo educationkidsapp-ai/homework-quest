@@ -566,6 +566,122 @@
       "form": {
         "floorsHint": "Her floors are assigned on the Floors page, together with the classes on them."
       }
+    },
+    "switches": {
+      "title": "Feature switches",
+      "subtitle": "Turn a feature on for the school. Every feature is off until you turn it on here.",
+      "readOnly": "You can see which features are on. Only the Admin can change them.",
+      "feature": "Feature {{n}}",
+      "needs": "Works with {{names}}.",
+      "needsOff": "{{names}} is off. Turn that on first.",
+      "lastChanged": "Last changed by {{who}} at {{when}}",
+      "lastChangedBy": "Last changed by {{who}}",
+      "someone": "a member of staff",
+      "listSeparator": ", ",
+      "otherNote": "The rest of the switches, described as the platform defines them.",
+      "noDescription": "No description.",
+      "groups": {
+        "staff": "Staff & attendance",
+        "leaders": "Leaders' tools",
+        "parents": "Parents",
+        "lessons": "Lessons & results",
+        "other": "Other"
+      },
+      "notes": {
+        "needsLatestApp": "Turn this on only after the parents have the latest app: an older app cannot read the new role.",
+        "documentReader": "Reading a circular needs nothing else. The “Draft an announcement” button inside it also needs Announcements.",
+        "smartHints": "Nothing reaches a child until the teacher has approved it."
+      },
+      "keys": {
+        "staffMobileApp": {
+          "name": "Staff app",
+          "what": "Staff sign in to the same app the parents use, with their own area for attendance, messages and their classes."
+        },
+        "staffAttendance": {
+          "name": "Staff attendance",
+          "what": "Staff check in and out on the app, and leaders see who is present, late or away."
+        },
+        "remoteStudyDays": {
+          "name": "Remote study days",
+          "what": "Declare a day when the whole school, one academy or chosen grades study from home."
+        },
+        "chatOfficeHours": {
+          "name": "Office hours for messages",
+          "what": "A parent who writes outside a member of staff’s working hours is told when to expect a reply, and the staff member is not notified until then."
+        },
+        "floorSupervisor": {
+          "name": "Floor supervisors",
+          "what": "A supervisor looks after the classes on one floor, with her own area and her own messages."
+        },
+        "teachingMaterials": {
+          "name": "Weekly teaching material",
+          "what": "Each teacher hands in her weekly preparation notebook, and the leaders track and review it."
+        },
+        "todayHome": {
+          "name": "Today on the Home page",
+          "what": "Your Home leads with what needs a decision today: attendance, the requests waiting for you, overdue complaints and unread messages."
+        },
+        "morningBrief": {
+          "name": "Morning brief",
+          "what": "Your Home opens with a short summary of yesterday and today, written once each school morning."
+        },
+        "voiceAnnouncement": {
+          "name": "Announcements by voice",
+          "what": "Record a voice note and it becomes a formal announcement in both languages for you to review and send."
+        },
+        "documentReader": {
+          "name": "Document reader",
+          "what": "Upload a circular — a PDF, a Word file or a photograph — and read what it says in both languages, with its dates and actions."
+        },
+        "complaintTriage": {
+          "name": "Sorted complaints",
+          "what": "A new complaint arrives already sorted for the staff who answer it: a category, how urgent it is, a summary and a suggested reply."
+        },
+        "announcements": {
+          "name": "Announcements",
+          "what": "School-wide announcements, written by the leaders and read by the parents in the app."
+        },
+        "chat": {
+          "name": "Messages with parents",
+          "what": "Parents and teachers write to each other in the app, and staff read and answer on the dashboard."
+        },
+        "complaints": {
+          "name": "Complaints",
+          "what": "A parent raises a complaint in the app, and the staff who answer it see it as its own conversation."
+        },
+        "teacherQuestions": {
+          "name": "Questions for the teacher",
+          "what": "A parent asks the teacher a question about a lesson, and the teacher answers it."
+        },
+        "parentEveningCard": {
+          "name": "Evening card for parents",
+          "what": "Each evening a parent gets one card about her child’s day, with a notification at six."
+        },
+        "languageBridge": {
+          "name": "Reading in the parent’s language",
+          "what": "A parent reads the school’s messages in her own language and staff read what she writes in theirs. The original text is always kept."
+        },
+        "gradebook": {
+          "name": "Marks and results",
+          "what": "Scores for every lesson and exam: the results screens, the grid and each child’s report."
+        },
+        "openStopMarking": {
+          "name": "Marking written answers",
+          "what": "A teacher marks the written and spoken answers herself instead of only reading the automatic score."
+        },
+        "exams": {
+          "name": "Exams",
+          "what": "Paper and on-screen exams: the exam itself, its settings and its results."
+        },
+        "smartHints": {
+          "name": "Hints and practice",
+          "what": "Two hints on every question and one short practice set for each weak skill, written when the lesson is built."
+        },
+        "certificates": {
+          "name": "Certificates",
+          "what": "A certificate for a child who finishes a level, to print or send home."
+        }
+      }
     }
   },
   "auth": {
@@ -1738,7 +1854,8 @@
     "floorSupervisors": "Floor supervisors",
     "documents": "Document reader",
     "myMaterials": "My teaching material",
-    "materials": "Teaching material"
+    "materials": "Teaching material",
+    "featureSwitches": "Feature switches"
   },
   "notifications": {
     "title": "Notifications",
