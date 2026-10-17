@@ -25,6 +25,15 @@ import quest.server.ApiTestSupport;
  */
 @TestPropertySource(properties = { "quest.pipeline.fail-once-at=generate_L2", "quest.pipeline.retry-delay-ms=1" })
 class LessonRecoveryTest extends ApiTestSupport {
+
+    /**
+     * D30 turned every switch on by default, feature 30's `smartHints` with it — and with that on the pipeline also
+     * writes the practice sets, so a lesson has six plays rather than four. This class is about the pipeline itself,
+     * so the Admin's school (D6's `default`) has the switch off, exactly as a school whose Admin turned it off has.
+     */
+    @org.junit.jupiter.api.BeforeEach void smartHintsOff() {
+        setSchoolFlag("default", quest.server.flags.FlagKeys.SMART_HINTS, false);
+    }
     @Value("${quest.storage.local-dir}") String storageDir;
 
     @Test void level2_fails_once_then_retry_and_continue_finishes_without_paying_for_level1_again() throws Exception {

@@ -183,8 +183,9 @@ class ChatApiTest extends ChatTestSupport {
         assertThat(rows).extracting(r -> r.get("id").asText()).contains(sent.get("threadId").asText());
         var page = json(mvc.perform(as(get("/admin/chat/threads/" + sent.get("threadId").asText() + "/messages"), adminToken).header(TenantContext.HEADER, A)).andExpect(status().isOk()).andReturn());
         assertThat(bodies(page)).containsExactly("Question about homework");
-        // without the header an Admin reads the flag defaults, and `chat` is off by default: the gate answers first
-        mvc.perform(as(get("/admin/chat/threads"), adminToken)).andExpect(status().isNotFound());
+        // Without the header an Admin has no school: since D30 `chat` is on in the defaults, so the gate lets her
+        // through and the route itself refuses — "pick a school", not "no such endpoint".
+        mvc.perform(as(get("/admin/chat/threads"), adminToken)).andExpect(status().isBadRequest());
         mvc.perform(as(get("/admin/chat/threads"), sara).header(TenantContext.HEADER, A)).andExpect(status().isForbidden());
     }
 

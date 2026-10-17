@@ -87,7 +87,9 @@ class FeatureFlagInterceptorTest extends ApiTestSupport {
         String childId = child.get("id").asText();
         assertThat(child.get("schoolId").asText()).isEqualTo(school);
 
-        // `complaints` is seeded off, so the feature is not there for this parent yet
+        // D30: every switch is on by default, so this school has to turn `complaints` off for the parent's route to
+        // be the 404 this test is about — the gate is read from her *child's* school either way, which is the point.
+        setFlag(token, school, FlagKeys.COMPLAINTS, false);
         mvc.perform(get("/children/" + childId + "/flag-probe").header("Authorization", PARENT)).andExpect(status().isNotFound());
 
         setFlag(token, school, FlagKeys.COMPLAINTS, true);

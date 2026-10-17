@@ -720,8 +720,21 @@ retires with `webAdmin/` in phase 3. New clients use `POST /auth/sign-in`.
 Every feature is behind a flag. `feature_flags` defines them platform-wide, `school_feature_flags` holds the
 overrides a school has actually been given, and `flag_audit` records who flipped what. All three are created by
 `V5__flags_themes.sql`, which seeds the first fourteen; every feature since has added its own key in its own
-additive migration. The same keys and defaults are `DEFAULT_FLAGS` in `shared-api` (`quest/api/ContentApi.kt`),
-which is what the app falls back to before its first sync.
+additive migration. The same keys and defaults are `DEFAULT_FLAGS` in `shared-api` (`quest/api/ContentApi.kt`) and
+`DEFAULT_FLAGS` in the dashboard (`core/flags/flags.defaults.ts`), which is what each front end falls back to before
+its first sync.
+
+**Every switch is on by default** since `V54__flags_on_by_default.sql` (D30, owner 2026-10-17): the school buys the
+whole platform, so a switch is a kill switch rather than a sales gate, and the Admin turns off what her school does
+not want. V54 set `default_on = TRUE` for every key, rewrote the overrides the schools that existed then carried, and
+left one `flag_audit` row per key with `school_id` NULL. The tables below give each key's **original** seeded default,
+which is what its own migration wrote; read today's value with `GET /admin/flags` or the table in the Admin screen.
+
+`multiSchool` is the one exception and stays **off**. It is a tenancy mode rather than a feature (D13): off is what
+makes ADMIN mean "this school", hides the Admin school screens and collapses the school switcher.
+
+A migration that adds a new key from here on seeds it `TRUE`;
+`FlagAdminTest.every_flag_except_multiSchool_is_on_by_default` fails when one does not.
 
 `schools.feature_flags_json` (added in V4) stays **unused** — the normalised table is the only truth.
 
@@ -737,7 +750,7 @@ migration and one number in that test. Read the current list with
 
 #### The first fourteen (V5)
 
-| Key | Seeded default | Stage | What it gates |
+| Key | Seeded default (V5; all but `multiSchool` on since V54) | Stage | What it gates |
 |---|---|---|---|
 | `lessons.pdf` | on | ga | new lesson from a PDF |
 | `lessons.slides` | on | ga | new lesson from PowerPoint slides |
@@ -754,12 +767,12 @@ migration and one number in that test. Read the current list with
 | `teacherQuestions` | **off** | internal | teachers send questions to their students (phase 4) |
 | `progress.weeklyEmail` | **off** | internal | weekly progress email to parents |
 
-On for what shipped in §6, off for what came later — so the migration switches nothing off that a school already
-uses.
+On for what shipped in §6, off for what came later — so the migration switched nothing off that a school already
+used. V54 then turned the four off ones on.
 
 #### The one-school build (V7)
 
-All seven seeded **off**, stage `internal`.
+All seven seeded **off**, stage `internal`. V54 turned six of them on; `multiSchool` is the one that stays off.
 
 | Key | What it gates |
 |---|---|
@@ -773,7 +786,8 @@ All seven seeded **off**, stage `internal`.
 
 #### Everything since (one key per feature)
 
-All fifteen seeded **off**, stage `internal`. A school turns on what it uses.
+All fifteen seeded **off**, stage `internal`, and all fifteen turned **on** by V54. A school turns off what it does
+not use.
 
 | Key | Migration | Feature | What it gates |
 |---|---|---|---|
@@ -781,7 +795,7 @@ All fifteen seeded **off**, stage `internal`. A school turns on what it uses.
 | `staffMobileApp` | V36 | 13 | staff sign in to the parents' app: `/staff/**`, the staff half of `/me/devices`, and every staff push (the morning brief's, the material reminder's) |
 | `staffAttendance` | V37 | 14–18 | attendance settings, the direct manager, geofenced check-in and check-out, statuses and alerts, the board and the monthly report, remote days and corrections |
 | `chatOfficeHours` | V41 | 19 | a parent's out-of-hours message arrives quietly and is summarised when the member of staff's next working day starts; also the expected reply time on a complaint |
-| `floorSupervisor` | V42 | 20 | the floor supervisor's area `/floor/**`, her Messages, and the Admin's Floors and Floor supervisors pages. It stays off until an app build that can decode the `FLOOR_SUPERVISOR` chat role is distributed |
+| `floorSupervisor` | V42 | 20 | the floor supervisor's area `/floor/**`, her Messages, and the Admin's Floors and Floor supervisors pages. **On since V54**, which overrides feature 20's own "off until the app build that decodes the `FLOOR_SUPERVISOR` chat role is distributed" — distribute that build, or turn this one switch off again, before a supervisor opens a thread with a parent |
 | `todayHome` | V43 | 21 | the Admin's and the department manager's "what needs me today?" Home (`GET /me/today`) |
 | `voiceAnnouncement` | V44 | 22 | a leader's voice note becomes a bilingual announcement (`POST /management/broadcasts/voice-drafts`). The button also needs `announcements` |
 | `remoteStudyDays` | V46 | 23 | remote study days for the school, one academy or chosen grades (`/admin/remote-study-days`). V46 copied feature 18's school-wide rows in, so turning it on restores every day already declared |

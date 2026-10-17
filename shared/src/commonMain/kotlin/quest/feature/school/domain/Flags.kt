@@ -9,6 +9,10 @@ import quest.api.DEFAULT_FLAGS
  * The other seeded keys (`stickers.treasureChest` — the app has had no treasure chest since the formal redesign —
  * `lessons.*`, `complaints`, `teacherQuestions`, `progress.weeklyEmail`) gate dashboard or
  * server features the app does not draw yet; they are deliberately absent.
+ *
+ * Since D30 (`V54__flags_on_by_default.sql`) every switch is **on** by default and the Admin turns off what her
+ * school does not want, `multiSchool` apart. Every gate below therefore has to behave for a school that has turned
+ * its feature off, not for one that has never turned it on.
  */
 object Flags {
     const val RETELL_RECORDING = "retell.recording"
@@ -29,8 +33,8 @@ object Flags {
     const val EXAMS = "exams"
 
     /**
-     * Feature 13: staff sign in to the mobile app. Off by default and turned on per school; its value comes from
-     * `GET /staff/me` (the staff member's **own** school), not from the current child's.
+     * Feature 13: staff sign in to the mobile app. Its value comes from `GET /staff/me` (the staff member's **own**
+     * school), not from the current child's.
      */
     const val STAFF_MOBILE_APP = "staffMobileApp"
 

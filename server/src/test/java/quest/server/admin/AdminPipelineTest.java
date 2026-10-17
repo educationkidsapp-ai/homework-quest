@@ -22,6 +22,15 @@ import quest.server.ApiTestSupport;
 /** Upload → analyse → confirm → generate → edit → publish, then the same slides again with zero model calls. */
 public class AdminPipelineTest extends ApiTestSupport {
 
+    /**
+     * D30 turned every switch on by default, feature 30's `smartHints` with it — and with that on the pipeline also
+     * writes the practice sets, so a lesson has six plays rather than four. This class is about the pipeline itself,
+     * so the Admin's school (D6's `default`) has the switch off, exactly as a school whose Admin turned it off has.
+     */
+    @org.junit.jupiter.api.BeforeEach void smartHintsOff() {
+        setSchoolFlag("default", quest.server.flags.FlagKeys.SMART_HINTS, false);
+    }
+
     @Test void admin_endpoints_need_the_admin_role() throws Exception {
         mvc.perform(get("/admin/lessons")).andExpect(status().isUnauthorized());
         assertThat(mvc.perform(get("/admin/lessons").header("Authorization", PARENT)).andReturn().getResponse().getStatus()).isIn(401, 403);

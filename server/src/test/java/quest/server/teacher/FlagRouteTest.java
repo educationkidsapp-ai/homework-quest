@@ -22,8 +22,8 @@ import quest.server.flags.FlagKeys;
  * is a 404 — for the teacher and for the parent — and with it on they answer. The same route, no rebuild, no
  * restart.
  *
- * <p>Both flags are seeded <strong>off</strong> (`V5__flags_themes.sql`), so "off" here is the state a school that
- * has never been touched is actually in.
+ * <p>Since D30 (`V54__flags_on_by_default.sql`) both flags are on by default, so this school switches them off in
+ * its `@BeforeEach` — "off" here is a school whose Admin has turned the feature off on Admin → Feature switches.
  */
 class FlagRouteTest extends TeacherTestSupport {
     private static final String A = "fr-school-a";
@@ -41,6 +41,10 @@ class FlagRouteTest extends TeacherTestSupport {
         adminToken = adminToken();
         teacherToken = token(TEACHER_A, "TEACHER", A);
         childId = child("Maya", "FRSCHA", "british", 1);
+        // D30: both switches are on by default, so this school turns them off to be the "never touched" state the
+        // gate is tested from. The `@AfterEach` puts them back off for the next parameterised row.
+        setFlag(adminToken, A, FlagKeys.TEACHER_QUESTIONS, false);
+        setFlag(adminToken, A, FlagKeys.ANNOUNCEMENTS, false);
     }
 
     @AfterEach void clean() throws Exception {

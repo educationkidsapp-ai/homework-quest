@@ -20,61 +20,55 @@ import quest.server.tenancy.SchoolRepository;
 class FlagAdminTest extends ApiTestSupport {
     @Autowired SchoolRepository schools;
     @Autowired FeatureFlagRepository definitions;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     @Test void the_flags_are_seeded_exactly_as_the_code_lists_them() {
         assertThat(definitions.findAllByOrderByKeyAsc()).extracting(Entities.FeatureFlagEntity::getKey)
                 .containsExactlyInAnyOrderElementsOf(FlagKeys.ALL);
         assertThat(FlagKeys.ALL).hasSize(36);
-
-        var on = definitions.findAllByOrderByKeyAsc().stream().filter(Entities.FeatureFlagEntity::isDefaultOn)
-                .map(Entities.FeatureFlagEntity::getKey).toList();
-        // on: what ships today; off: what phases 4–6 still have to build
-        assertThat(on).containsExactlyInAnyOrder(FlagKeys.LESSONS_PDF, FlagKeys.LESSONS_SLIDES, FlagKeys.LESSONS_IMAGES,
-                FlagKeys.LESSONS_MANUAL, FlagKeys.LEVELS_THREE, FlagKeys.RETELL_RECORDING, FlagKeys.OPEN_ANSWER_DRAWING,
-                FlagKeys.PARENT_PANEL_ARABIC, FlagKeys.STICKERS_TREASURE_CHEST, FlagKeys.CERTIFICATES);
-        assertThat(definitions.findAllByOrderByKeyAsc()).filteredOn(f -> !f.isDefaultOn())
-                .extracting(Entities.FeatureFlagEntity::getKey)
-                .containsExactlyInAnyOrder(FlagKeys.COMPLAINTS, FlagKeys.ANNOUNCEMENTS, FlagKeys.TEACHER_QUESTIONS, FlagKeys.PROGRESS_WEEKLY_EMAIL,
-                        // N1.1: the one-school build's seven, all off until the package that builds each one ships.
-                        FlagKeys.MULTI_SCHOOL, FlagKeys.WEB_PLAYER, FlagKeys.GRADEBOOK, FlagKeys.OPEN_STOP_MARKING,
-                        FlagKeys.EXAMS, FlagKeys.TEACHER_ROSTER_EDIT, FlagKeys.JOIN_BY_LIST,
-                        // C1: parent ↔ teacher chat, off until a school switches it on.
-                        FlagKeys.CHAT,
-                        // Feature 13: staff mode in the mobile app, off until a school switches it on.
-                        FlagKeys.STAFF_MOBILE_APP,
-                        // Feature 14: staff attendance, off until a school switches it on.
-                        FlagKeys.STAFF_ATTENDANCE,
-                        // Feature 19: quiet pushes and the morning summary, off until a school switches them on.
-                        FlagKeys.CHAT_OFFICE_HOURS,
-                        // Feature 20: the floor supervisor role, off until the app build that can decode her chat
-                        // role is distributed.
-                        FlagKeys.FLOOR_SUPERVISOR,
-                        // Feature 21: the "what needs me today?" Home, off until a school switches it on.
-                        FlagKeys.TODAY_HOME,
-                        // Feature 22: the leader's voice note turned into an announcement, off until a school
-                        // switches it on.
-                        FlagKeys.VOICE_ANNOUNCEMENT,
-                        // Feature 23: the remote study day, off until a school switches it on — and with it off, a
-                        // school-wide remote day does not exist there at all.
-                        FlagKeys.REMOTE_STUDY_DAYS,
-                        // Feature 25: the morning brief, off until a school switches it on.
-                        FlagKeys.MORNING_BRIEF,
-                        // Feature 26: the document reader, off until a school switches it on.
-                        FlagKeys.DOCUMENT_READER,
-                        // Feature 27: the AI's reading of a new complaint, off until a school switches it on.
-                        FlagKeys.COMPLAINT_TRIAGE,
-                        // Feature 28: the parent's evening card, off until a school switches it on.
-                        FlagKeys.PARENT_EVENING_CARD,
-                        // Feature 29: the language bridge, off until a school switches it on — with it off, a parent
-                        // reads exactly what she read before, which is the original and only the original.
-                        FlagKeys.LANGUAGE_BRIDGE,
-                        // Feature 30: hints and targeted practice, off until a school switches them on — and until it
-                        // does, the `HINTS` step writes nothing and the teacher's routes answer 404.
-                        FlagKeys.SMART_HINTS,
-                        // Feature 31: teaching material tracking, off until a school switches it on.
-                        FlagKeys.TEACHING_MATERIALS);
         assertThat(definitions.findAllByOrderByKeyAsc()).allSatisfy(f ->
                 assertThat(f.getRolloutStage()).isIn("internal", "beta", "ga"));
+    }
+
+    /**
+     * D30 (owner, 2026-10-17), `V54__flags_on_by_default.sql`: the school buys the whole platform, so every switch
+     * is on by default and the Admin turns off what she does not want on Admin → Feature switches.
+     *
+     * <p>`multiSchool` is the one exception — a tenancy mode rather than a feature (D13): off is what makes ADMIN
+     * mean "this school", hides the Admin school screens and collapses the switcher.
+     *
+     * <p>This is also the test a later migration fails when it seeds its new switch `FALSE` out of habit.
+     */
+    @Test void every_flag_except_multiSchool_is_on_by_default() {
+        assertThat(definitions.findAllByOrderByKeyAsc()).filteredOn(f -> !f.isDefaultOn())
+                .extracting(Entities.FeatureFlagEntity::getKey)
+                .containsExactly(FlagKeys.MULTI_SCHOOL);
+    }
+
+    /**
+     * The two halves of D30 that `default_on` alone does not cover: the overrides the schools which existed before
+     * V54 already carried, which the migration rewrote, and the audit row it left for each key.
+     *
+     * <p>The rows are found by `updated_by`, not by school: the suite's one H2 database is shared and a later flip
+     * writes its own `updated_by`, so "every row V54 wrote is on" stays true however the suite is ordered, while
+     * "every row of the `default` school is on" would not.
+     */
+    @Test void the_rows_the_migration_rewrote_are_on_and_audited() {
+        assertThat(jdbc.queryForList(
+                "SELECT flag_key FROM school_feature_flags WHERE updated_by = 'migration:V54' AND enabled = FALSE", String.class))
+                .as("V54 left no override off").isEmpty();
+        assertThat(jdbc.queryForList("SELECT flag_key FROM flag_audit WHERE id LIKE 'v54-%' AND school_id IS NULL", String.class))
+                .as("one 'for every school' audit row per key, `multiSchool` apart")
+                .containsExactlyInAnyOrderElementsOf(FlagKeys.ALL.stream().filter(k -> !k.equals(FlagKeys.MULTI_SCHOOL)).toList());
+    }
+
+    /** A school created after V54 has no override rows at all, so it reads the defaults — every switch on. */
+    @Test void a_new_school_sees_every_switch_on() throws Exception {
+        String school = createSchool(adminToken());
+        var body = json(mvc.perform(get("/schools/" + school + "/flags")).andExpect(status().isOk()).andReturn());
+        assertThat(fieldNames(body)).containsExactlyInAnyOrderElementsOf(FlagKeys.ALL);
+        assertThat(fieldNames(body).stream().filter(key -> !body.get(key).asBoolean()).toList())
+                .containsExactly(FlagKeys.MULTI_SCHOOL);
     }
 
     /**
@@ -98,7 +92,7 @@ class FlagAdminTest extends ApiTestSupport {
         var body = json(first);
         assertThat(fieldNames(body)).containsExactlyInAnyOrderElementsOf(FlagKeys.ALL);
         assertThat(body.get(FlagKeys.CERTIFICATES).asBoolean()).isTrue();
-        assertThat(body.get(FlagKeys.COMPLAINTS).asBoolean()).isFalse();
+        assertThat(body.get(FlagKeys.COMPLAINTS).asBoolean()).as("D30: on by default").isTrue();
 
         String etag = first.getResponse().getHeader("ETag");
         assertThat(etag).isNotBlank();
@@ -106,10 +100,10 @@ class FlagAdminTest extends ApiTestSupport {
         mvc.perform(get("/schools/" + school + "/flags").header("If-None-Match", etag)).andExpect(status().isNotModified());
 
         // a flip changes the body, so it changes the ETag: the app's cached copy is invalidated by content
-        setFlag(token, school, FlagKeys.COMPLAINTS, true);
+        setFlag(token, school, FlagKeys.COMPLAINTS, false);
         var second = mvc.perform(get("/schools/" + school + "/flags")).andExpect(status().isOk()).andReturn();
         assertThat(second.getResponse().getHeader("ETag")).isNotEqualTo(etag);
-        assertThat(json(second).get(FlagKeys.COMPLAINTS).asBoolean()).isTrue();
+        assertThat(json(second).get(FlagKeys.COMPLAINTS).asBoolean()).isFalse();
 
         mvc.perform(get("/schools/no-such-school/flags")).andExpect(status().isNotFound());
     }
@@ -118,15 +112,15 @@ class FlagAdminTest extends ApiTestSupport {
         var token = adminToken();
         String a = createSchool(token), b = createSchool(token);
 
-        setFlag(token, a, FlagKeys.ANNOUNCEMENTS, true);
-        assertThat(json(mvc.perform(get("/schools/" + a + "/flags")).andReturn()).get(FlagKeys.ANNOUNCEMENTS).asBoolean()).isTrue();
-        assertThat(json(mvc.perform(get("/schools/" + b + "/flags")).andReturn()).get(FlagKeys.ANNOUNCEMENTS).asBoolean()).isFalse();
+        setFlag(token, a, FlagKeys.ANNOUNCEMENTS, false);
+        assertThat(json(mvc.perform(get("/schools/" + a + "/flags")).andReturn()).get(FlagKeys.ANNOUNCEMENTS).asBoolean()).isFalse();
+        assertThat(json(mvc.perform(get("/schools/" + b + "/flags")).andReturn()).get(FlagKeys.ANNOUNCEMENTS).asBoolean()).isTrue();
 
         var matrix = json(mvc.perform(admin(get("/admin/flags"), token)).andExpect(status().isOk()).andReturn());
         assertThat(matrix.get("definitions")).hasSize(FlagKeys.ALL.size());
         assertThat(matrix.get("definitions").get(0).get("rolloutStage").asText()).isIn("internal", "beta", "ga");
-        assertThat(rowFor(matrix, a).get("flags").get(FlagKeys.ANNOUNCEMENTS).asBoolean()).isTrue();
-        assertThat(rowFor(matrix, b).get("flags").get(FlagKeys.ANNOUNCEMENTS).asBoolean()).isFalse();
+        assertThat(rowFor(matrix, a).get("flags").get(FlagKeys.ANNOUNCEMENTS).asBoolean()).isFalse();
+        assertThat(rowFor(matrix, b).get("flags").get(FlagKeys.ANNOUNCEMENTS).asBoolean()).isTrue();
 
         mvc.perform(admin(put("/admin/schools/" + a + "/flags/no.such.flag").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"enabled\":true}"), token)).andExpect(status().isNotFound());
@@ -139,22 +133,22 @@ class FlagAdminTest extends ApiTestSupport {
         var before = json(mvc.perform(admin(get("/admin/flags/audit?limit=200"), token)).andExpect(status().isOk()).andReturn()).size();
 
         var matrix = json(mvc.perform(admin(put("/admin/flags/" + FlagKeys.TEACHER_QUESTIONS + "/all")
-                .contentType(MediaType.APPLICATION_JSON).content("{\"enabled\":true}"), token)).andExpect(status().isOk()).andReturn());
+                .contentType(MediaType.APPLICATION_JSON).content("{\"enabled\":false}"), token)).andExpect(status().isOk()).andReturn());
         assertThat(matrix.get("schools")).isNotEmpty();
-        matrix.get("schools").forEach(row -> assertThat(row.get("flags").get(FlagKeys.TEACHER_QUESTIONS).asBoolean()).isTrue());
-        assertThat(json(mvc.perform(get("/schools/" + a + "/flags")).andReturn()).get(FlagKeys.TEACHER_QUESTIONS).asBoolean()).isTrue();
-        assertThat(json(mvc.perform(get("/schools/" + b + "/flags")).andReturn()).get(FlagKeys.TEACHER_QUESTIONS).asBoolean()).isTrue();
+        matrix.get("schools").forEach(row -> assertThat(row.get("flags").get(FlagKeys.TEACHER_QUESTIONS).asBoolean()).isFalse());
+        assertThat(json(mvc.perform(get("/schools/" + a + "/flags")).andReturn()).get(FlagKeys.TEACHER_QUESTIONS).asBoolean()).isFalse();
+        assertThat(json(mvc.perform(get("/schools/" + b + "/flags")).andReturn()).get(FlagKeys.TEACHER_QUESTIONS).asBoolean()).isFalse();
 
         var audit = json(mvc.perform(admin(get("/admin/flags/audit?limit=200"), token)).andExpect(status().isOk()).andReturn());
         assertThat(audit.size()).isEqualTo(before + 1);                 // the column action is one event, not one per school
         var newest = audit.get(0);
         assertThat(newest.get("flagKey").asText()).isEqualTo(FlagKeys.TEACHER_QUESTIONS);
         assertThat(newest.get("schoolId").isNull()).as("null schoolId means every school").isTrue();
-        assertThat(newest.get("enabled").asBoolean()).isTrue();
+        assertThat(newest.get("enabled").asBoolean()).isFalse();
         assertThat(newest.get("actorEmail").asText()).isEqualTo("admin@test.local");
 
         // …while a single cell is recorded against its school
-        setFlag(token, a, FlagKeys.PROGRESS_WEEKLY_EMAIL, true);
+        setFlag(token, a, FlagKeys.PROGRESS_WEEKLY_EMAIL, false);
         var perSchool = json(mvc.perform(admin(get("/admin/flags/audit?limit=5"), token)).andReturn()).get(0);
         assertThat(perSchool.get("flagKey").asText()).isEqualTo(FlagKeys.PROGRESS_WEEKLY_EMAIL);
         assertThat(perSchool.get("schoolId").asText()).isEqualTo(a);
@@ -167,7 +161,7 @@ class FlagAdminTest extends ApiTestSupport {
     @Test void a_managerial_user_reads_her_own_schools_column_and_no_others() throws Exception {
         var token = adminToken();
         String mine = createSchool(token), other = createSchool(token);
-        setFlag(token, other, FlagKeys.ANNOUNCEMENTS, true);
+        setFlag(token, other, FlagKeys.ANNOUNCEMENTS, false);
 
         String email = "flags-" + UUID.randomUUID().toString().substring(0, 8) + "@school.test";
         mvc.perform(admin(post("/admin/schools/" + mine + "/users").contentType(MediaType.APPLICATION_JSON)

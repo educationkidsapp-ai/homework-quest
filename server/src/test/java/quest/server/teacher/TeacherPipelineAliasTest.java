@@ -46,6 +46,10 @@ class TeacherPipelineAliasTest extends TeacherTestSupport {
         section(HERS, "1A", TEACHER); section(THEIRS, "1B", OTHER);
         teacherToken = token(TEACHER, "TEACHER", SCHOOL);
         otherToken = token(OTHER, "TEACHER", SCHOOL);
+        // D30: `smartHints` is on by default, and with it the pipeline writes the practice sets too — six plays
+        // instead of four, and a model call the cache cannot save. This class is about the teacher's routes over
+        // the core pipeline, so this school has the switch off.
+        setSchoolFlag(SCHOOL, quest.server.flags.FlagKeys.SMART_HINTS, false);
     }
 
     @AfterEach void clean() {

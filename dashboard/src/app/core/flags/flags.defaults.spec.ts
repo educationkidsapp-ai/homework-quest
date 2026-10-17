@@ -42,12 +42,40 @@ const ROWS: Readonly<Record<string, number>> = {
   'V53__teaching_materials.sql': 1,
 };
 
-/** Every migration that inserts into `feature_flags`, in Flyway's own order. */
+/**
+ * The blanket flips: a migration that does not seed a key but rewrites `default_on` across the
+ * board. `V54__flags_on_by_default.sql` (D30) is the first — it turns every switch on except the
+ * keys it names — and each is applied, in Flyway order, over the keys the seeds above produced.
+ * The value pinned here is how many keys that file excepts, for the same reason `ROWS` pins row
+ * counts: a change to the SQL's shape must fail here rather than quietly match nothing.
+ */
+const FLIPS: Readonly<Record<string, number>> = {
+  'V54__flags_on_by_default.sql': 1,
+};
+
+/** Every migration that touches `feature_flags.default_on`, in Flyway's own order. */
 function flagMigrations(): readonly string[] {
   return readdirSync(MIGRATION_DIR)
     .filter((file) => file.endsWith('.sql'))
-    .filter((file) => readFileSync(resolve(MIGRATION_DIR, file), 'utf8').includes('INTO feature_flags'))
+    .filter((file) => {
+      const sql = readFileSync(resolve(MIGRATION_DIR, file), 'utf8');
+      return sql.includes('INTO feature_flags') || /UPDATE feature_flags SET default_on/.test(sql);
+    })
     .sort((a, b) => Number(/^V(\d+)__/.exec(a)?.[1]) - Number(/^V(\d+)__/.exec(b)?.[1]));
+}
+
+/**
+ * A blanket `UPDATE feature_flags SET default_on = TRUE WHERE flag_key <> '…' …` — the new value
+ * and the keys it leaves alone. Returns null for a file that has no such statement.
+ */
+function blanketFlip(file: string): { readonly value: boolean; readonly except: readonly string[] } | null {
+  const sql = readFileSync(resolve(MIGRATION_DIR, file), 'utf8');
+  const statement = /UPDATE feature_flags SET default_on = (TRUE|FALSE)\s*([^;]*);/.exec(sql);
+  if (!statement) return null;
+  const except = [...(statement[2] ?? '').matchAll(/flag_key <> '([^']+)'/g)]
+    .map((m) => m[1])
+    .filter((key): key is string => key !== undefined);
+  return { value: statement[1] === 'TRUE', except };
 }
 
 function seededBy(file: string): Record<string, boolean> {
@@ -75,6 +103,14 @@ describe('DEFAULT_FLAGS', () => {
   it('matches every key and default_on seeded by the migrations', () => {
     const seeded: Record<string, boolean> = {};
     for (const file of flagMigrations()) {
+      const flip = blanketFlip(file);
+      if (flip) {
+        expect(`${file}:${flip.except.length}`).toBe(`${file}:${FLIPS[file]}`);
+        for (const key of Object.keys(seeded)) {
+          if (!flip.except.includes(key)) seeded[key] = flip.value;
+        }
+        continue;
+      }
       const rows = seededBy(file);
       // A change to the regex, or to a migration's shape, must not quietly match nothing — and a
       // migration nobody listed here must not be skipped, which is how two keys went missing.
@@ -88,5 +124,13 @@ describe('DEFAULT_FLAGS', () => {
   /** D13: one school until this is flipped, so the dashboard must not assume otherwise offline. */
   it('leaves multiSchool off', () => {
     expect(DEFAULT_FLAGS['multiSchool']).toBe(false);
+  });
+
+  /** D30: every other switch is on, so a school that bought the platform sees all of it. */
+  it('has every other switch on', () => {
+    const off = Object.entries(DEFAULT_FLAGS)
+      .filter(([, on]) => !on)
+      .map(([key]) => key);
+    expect(off).toEqual(['multiSchool']);
   });
 });

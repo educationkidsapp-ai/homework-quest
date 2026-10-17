@@ -37,6 +37,13 @@ import kotlin.test.assertTrue
  */
 private const val TREASURE_CHEST = "stickers.treasureChest"
 
+/**
+ * The one key that is **off** in the platform defaults since D30 (`V54__flags_on_by_default.sql`): every switch is on
+ * by default and the Admin turns off what her school does not want. `multiSchool` is a tenancy mode rather than a
+ * feature (D13), so it stays off — which makes it the sample "off" key these tests need.
+ */
+private const val OFF_BY_DEFAULT = "multiSchool"
+
 /** §4: the flag store, and the gate that decides whether a screen is composed at all. */
 class FeatureFlagTest {
     private val db = Db(DriverFactory(null))
@@ -60,7 +67,7 @@ class FeatureFlagTest {
         val session = SchoolSessionImpl(fake, fake, settings)
         assertEquals(DEFAULT_FLAGS, session.flags.value)
         assertTrue(session.isEnabled(Flags.CERTIFICATES))
-        assertFalse(session.isEnabled("complaints"), "a feature that is not built yet is off")
+        assertFalse(session.isEnabled(OFF_BY_DEFAULT), "the one switch the platform leaves off")
         assertFalse(session.isEnabled("a.key.nobody.defined"), "an unknown key is off, never a crash")
     }
 
@@ -141,15 +148,15 @@ class FeatureFlagTest {
      * follow the child into a school this device has no cached answer for.
      */
     @Test fun switchingOfflineToAnUncachedSchoolDropsThePreviousSchoolsFlags() = runBlocking {
-        val api = Flagged(fake, mapOf(Flags.CHAT to true, Flags.CERTIFICATES to false))
+        val api = Flagged(fake, mapOf(OFF_BY_DEFAULT to true, Flags.CERTIFICATES to false))
         SchoolSessionImpl(api, api, settings).use(FakeContentApi.AL_NOOR_ID)
 
         val offline = SchoolSessionImpl(Offline, Offline, settings)
         offline.restore()
-        assertTrue(offline.isEnabled(Flags.CHAT), "Al Noor's own answer, from the cache")
+        assertTrue(offline.isEnabled(OFF_BY_DEFAULT), "Al Noor's own answer, from the cache")
 
         offline.use(SchoolSessionImpl.DEFAULT_SCHOOL)
-        assertFalse(offline.isEnabled(Flags.CHAT), "nothing is cached for the default school, so the platform default stands")
+        assertFalse(offline.isEnabled(OFF_BY_DEFAULT), "nothing is cached for the default school, so the platform default stands")
         assertTrue(offline.isEnabled(Flags.CERTIFICATES), "and Al Noor's `off` does not follow either")
     }
 
@@ -189,13 +196,13 @@ class FeatureFlagTest {
 
     @Test fun withoutAHostTheGateFallsBackToThePlatformDefaults() {
         var chest = 0
-        var complaints = 0
+        var offByDefault = 0
         composeOnce(PlatformDefaultFlags) {
             FeatureGate(TREASURE_CHEST) { chest++ }
-            FeatureGate("complaints") { complaints++ }
+            FeatureGate(OFF_BY_DEFAULT) { offByDefault++ }
         }
         assertEquals(1, chest, "shipped features render in a screenshot test or preview with no container")
-        assertEquals(0, complaints, "and an unshipped one still does not")
+        assertEquals(0, offByDefault, "and the one switch the platform leaves off still does not")
     }
 
     @Test fun aSyncThatFlipsAFlagReachesTheGate() {

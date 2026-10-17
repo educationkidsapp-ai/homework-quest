@@ -145,7 +145,7 @@ class FloorApiTest extends ApiTestSupport {
         var home = json(mvc.perform(bearer(get("/floor/home"), hers)).andExpect(status().isOk()).andReturn());
         assertThat(names(home.get("classes"), "className")).containsExactly("1A", "1B");
         assertThat(row(home.get("classes"), "1A").get("notMarked").asInt()).as("nobody has taken register yet").isEqualTo(1);
-        assertThat(home.get("board").isNull()).as("the school has staffAttendance off").isTrue();
+        assertThat(home.get("board").isNull()).as("this school has turned staffAttendance off").isTrue();
         assertThat(home.get("day").asText()).isNotBlank();
 
         // Her own child page, and the off-floor child's refused.
@@ -254,6 +254,9 @@ class FloorApiTest extends ApiTestSupport {
         schools.save(row);
         var s = new School(id);
         s.flag(FlagKeys.FLOOR_SUPERVISOR, true);
+        // D30 turned every switch on by default. Feature 20's own tests are about the supervisor, so each school
+        // starts without feature 17's attendance board and turns it on where that is what is under test.
+        s.flag(FlagKeys.STAFF_ATTENDANCE, false);
         return s;
     }
 
