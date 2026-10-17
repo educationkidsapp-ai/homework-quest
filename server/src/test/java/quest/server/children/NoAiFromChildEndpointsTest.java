@@ -87,6 +87,10 @@ class NoAiFromChildEndpointsTest extends ApiTestSupport {
         setFlag(token, seed.getSchoolId(), FlagKeys.TEACHER_QUESTIONS, true);
         setFlag(token, seed.getSchoolId(), FlagKeys.CHAT, true);
         setFlag(token, seed.getSchoolId(), FlagKeys.ANNOUNCEMENTS, true);
+        // D30 turned every switch on, feature 27's triage with it — and that one *does* call the model, after the
+        // request has committed and on a task thread. It is off here so `verifyNoInteractions` below is a fact about
+        // the parent's own request rather than a race with that thread; see the complaint note at the end.
+        setFlag(token, seed.getSchoolId(), FlagKeys.COMPLAINT_TRIAGE, false);
         examPaper(seed);
 
         // her children, and a new one — on the seeded lesson's own section, so every read below is a real read and
@@ -133,8 +137,8 @@ class NoAiFromChildEndpointsTest extends ApiTestSupport {
         // `ComplaintTriageApiTest` is where the triage itself is tested). What is asserted here is the half this
         // test is about: the parent's own request — the recipients it offers her and the complaint it creates —
         // holds no model call of its own. The triage switch is off, so the assertion below is a fact and not a
-        // race with a task thread; the synchronous path is the same either way, since the flag is read by the
-        // listener and not by the request.
+        // race with a task thread (it is switched off at the top of this test, since D30 turned it on by default);
+        // the synchronous path is the same either way, since the flag is read by the listener and not by the request.
         teacherOfTheSection(seed);
         var recipients = parentGet("/children/" + child + "/complaints/recipients");
         assertThat(recipients.size()).as("her class has staff to complain to, so the POST below is a real one").isPositive();
