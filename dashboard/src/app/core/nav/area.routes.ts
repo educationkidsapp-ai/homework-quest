@@ -118,6 +118,9 @@ function componentFor(screen: Screen, role: Role) {
   // Feature 20: the floors themselves — their classes and the supervisors over them.
   if (screen.id === 'floors') return import('../../features/admin/floors.page').then((m) => m.FloorsPage);
   if (screen.id === 'workers') return import('../../features/admin/workers.page').then((m) => m.WorkersPage);
+  // MA0 follow-up: the Feature switches page. The Admin's alone, and behind no flag — see the row.
+  if (screen.id === 'switches')
+    return import('../../features/admin/switches.page').then((m) => m.SwitchesPage);
   // Feature 14: the Attendance settings page and its direct managers.
   if (screen.id === 'attendance-settings')
     return import('../../features/admin/attendance-settings.page').then((m) => m.AttendanceSettingsPage);

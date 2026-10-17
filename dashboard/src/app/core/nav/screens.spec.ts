@@ -92,6 +92,9 @@ describe('the screen table', () => {
       'floor-supervisors',
       'workers',
       'children',
+      // MA0 follow-up: the switches themselves, above Attendance settings because it is what
+      // makes Attendance settings appear. Behind no flag and behind `flag.read`.
+      'switches',
       // Feature 14: the school's attendance rules and direct managers, behind `staffAttendance`.
       'attendance-settings',
       // Feature 18: the remote days and corrections waiting for a decision, behind the same flag.
@@ -137,6 +140,39 @@ describe('the screen table', () => {
     expect(ids).toContain('new-lesson');
     expect(ids).toContain('lesson');
     expect(AREAS.ADMIN.screens.find((screen) => screen.id === 'lesson')?.labelKey).toBeUndefined();
+  });
+
+  /**
+   * MA0 follow-up: the Feature switches page.
+   *
+   * Three things about this row are the whole point of it, and each would be invisible in the rail
+   * assertion above. It is at `switches`, because `flags` is a redirect to her Home and taking that
+   * path back would change where an old bookmark lands. It carries **no flag** — a switch over the
+   * page that works the switches cannot be turned back on, which is the state the owner was in. And
+   * it carries `flag.read` rather than `flag.write`, so a manager and a read-only session are shown
+   * the list with the toggles disabled rather than "Nothing here".
+   */
+  it('puts Feature switches at its own path, behind flag.read and behind no flag', () => {
+    const row = AREAS.ADMIN.screens.find((screen) => screen.id === 'switches');
+
+    expect(row?.path).toBe('switches');
+    expect(row?.labelKey).toBe('nav.featureSwitches');
+    expect(row?.permission).toBe('flag.read');
+    expect(row?.flag).toBeUndefined();
+    // The retired path is untouched: still a redirect, still not this screen.
+    expect(AREAS.ADMIN.screens.find((screen) => screen.path === 'flags')?.redirectTo).toBe('/admin');
+
+    const route = childrenOf(areaRoutes('ADMIN')).find((candidate) => candidate.path === 'switches');
+    // One guard, and it is the permission's: no `featureGuard` may ever appear here.
+    expect(gateCount(route!)).toBe(1);
+    expect(route?.loadComponent).toBeDefined();
+
+    // Hers alone. MANAGERIAL holds `flag.read` too (`permissions.json`), and a manager reading the
+    // page through her own area would be a second route to gate and a second rail to agree with.
+    for (const role of ROLES.filter((candidate) => candidate !== 'ADMIN'))
+      expect(`${role}:${String(AREAS[role].screens.some((screen) => screen.id === 'switches'))}`).toBe(
+        `${role}:false`,
+      );
   });
 
   /**
