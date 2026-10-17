@@ -24,8 +24,7 @@ deleting.
 - **The app has no date picker.** The expiry is typed as `yyyy-MM-dd` and checked.
 - **The transcript itself can name a child.** No child or parent data goes to the AI from the school's records, but
   whatever the leader says is in the transcript. Unsent drafts and their transcripts are deleted after 7 days.
-- **Not deployed yet.** The QA deploy follows the merge into `develop`. The switch is off until the school turns it
-  on.
+- **Deployed to QA** with the merge of #226. The switch is off until the school turns it on.
 
 ## Goal
 

@@ -5,15 +5,19 @@
 **Status:** Done · **Area:** server, dashboard (Teacher, Coordinator, Manager), mobile app (parent) ·
 **Depends on:** feature 24 (the AI service layer) and, for the expected reply time only, feature 19 (office hours) ·
 **Feature switch:** `complaintTriage` (camelCase, like the other switches). Complaints themselves stay behind `chat`,
+the switch they have always had.
 
 **Leftovers:**
+- **A rejected AI answer is no longer saved to disk.** Since the review fixes, a rejected answer about a complaint is
+  not written to `data/llm-failures`. Only the error list is logged, and the `ai_calls` ledger keeps numbers only.
 - **Triage accuracy and the suggested replies' wording need real complaints and the real model on QA.** Tests use
   the fake model.
 - **No "Urgent first" sort yet.** Lists show the category and urgency chips only.
 - **The expected reply time is shown only while a complaint is open,** and only when the school uses office hours
   (`chatOfficeHours`). A time already past is hidden.
-- **Prompt naming.** Features 25, 26 and 27 each added a prompt named `SYSTEM_F`; the later ones are renamed at merge.
-the switch they have always had.
+
+The triage prompt is `Prompts.COMPLAINT_TRIAGE`, renamed from `SYSTEM_F` at merge: features 25, 26 and 27 were each
+written against a prompt of that name, and a prompt is now named after its feature rather than lettered.
 
 **Decision:** the triage runs **after the complaint is committed, on a task thread**. The parent's complaint is
 created, answered and pushed exactly as it is today whether the AI succeeds, fails, is slow or is switched off. The

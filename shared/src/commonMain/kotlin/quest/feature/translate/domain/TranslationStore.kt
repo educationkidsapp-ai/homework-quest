@@ -86,6 +86,17 @@ class TranslationStore(private val api: ContentApi) {
     /** "Show original": the translation is put away, not forgotten. */
     fun showOriginal(key: TranslateKey) = update(key) { it.copy(showing = false, failure = null) }
 
+    /**
+     * Signing out: everything here belongs to the parent who signed in, so none of it may outlive her session. One
+     * object serves the whole process, so without this the next parent on the same phone inherited the last one's
+     * reading language — [ensureReadingLanguage] had already read a profile and would never read hers — and was
+     * offered Translate into a language she never chose. Called by `SignOutUseCase`.
+     */
+    suspend fun forget() {
+        mutex.withLock { profileRead = false; _readingLanguage.value = null }
+        _items.value = emptyMap()
+    }
+
     private fun update(key: TranslateKey, block: (ItemTranslation) -> ItemTranslation) {
         _items.value = _items.value + (key to block(_items.value[key] ?: ItemTranslation()))
     }

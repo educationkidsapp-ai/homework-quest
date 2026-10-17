@@ -8,8 +8,8 @@
 **Leftovers:**
 - **No screen shows the AI ledger yet.** Every model attempt is recorded in `ai_calls` (feature, tokens, outcome,
   time), but Admin usage still reads the per-lesson totals. A usage page per feature is a later step.
-- **The input guard is opt-in.** The lesson builder and the voice note (22) do not use it, so their behaviour stays
-  the same. Features 25 to 27 use it.
+- **The input guard is opt-in.** Features 25 to 29 use it. The lesson builder, the voice note (22) and smart hints
+  (30) do not, so their behaviour stays the same.
 - **Real-provider timings are unchanged and unmeasured.** The service adds no network calls, and tests use the fake
   model.
 - **Two tests changed one wiring line each** (`AnalysisUnitTest`, `PromptAInputTest`), because they build the

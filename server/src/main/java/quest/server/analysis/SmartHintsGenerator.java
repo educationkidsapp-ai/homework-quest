@@ -3,7 +3,6 @@ package quest.server.analysis;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -65,12 +64,14 @@ public class SmartHintsGenerator {
     private final AnalysisCacheRepository analyses; private final AnalysisService analysisService;
     private final StopHintsRepository hints; private final PracticePlayRepository practice;
     private final AiService ai; private final Json json; private final LessonState state;
+    /** `created_at` of both tables comes from here, as `SmartHints.save`'s does: one time source, pinnable in a test. */
+    private final java.time.Clock clock;
 
     public SmartHintsGenerator(LessonStore store, PlayRepository plays, SkillRepository skills, AnalysisCacheRepository analyses,
                                AnalysisService analysisService, StopHintsRepository hints, PracticePlayRepository practice,
-                               AiService ai, Json json, LessonState state) {
+                               AiService ai, Json json, LessonState state, java.time.Clock clock) {
         this.store = store; this.plays = plays; this.skills = skills; this.analyses = analyses; this.analysisService = analysisService;
-        this.hints = hints; this.practice = practice; this.ai = ai; this.json = json; this.state = state;
+        this.hints = hints; this.practice = practice; this.ai = ai; this.json = json; this.state = state; this.clock = clock;
     }
 
     /**
@@ -182,7 +183,7 @@ public class SmartHintsGenerator {
             row.setStopId(stopId); row.setLessonId(lesson.getId()); row.setSchoolId(lesson.getSchoolId());
             row.setHintsJson(entry.path("hints").toString());
             row.setApprovedBy(null); row.setApprovedAt(null);          // new hints are nobody's yet
-            if (row.getCreatedAt() == null) row.setCreatedAt(Instant.now());
+            if (row.getCreatedAt() == null) row.setCreatedAt(clock.instant());
             hints.save(row);
             existing.remove(stopId);
             written++;
@@ -219,7 +220,7 @@ public class SmartHintsGenerator {
         var row = practice.findById(entity.getId()).orElseGet(PracticePlayEntity::new);
         row.setPlayId(entity.getId()); row.setLessonId(lesson.getId()); row.setSchoolId(lesson.getSchoolId()); row.setSkillId(skill.getId());
         row.setApprovedBy(null); row.setApprovedAt(null);
-        if (row.getCreatedAt() == null) row.setCreatedAt(Instant.now());
+        if (row.getCreatedAt() == null) row.setCreatedAt(clock.instant());
         practice.save(row);
         log.info("lesson {}: wrote a practice set for skill {} as variant {}", lesson.getId(), skill.getId(), variant);
     }

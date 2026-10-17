@@ -472,6 +472,9 @@ class IsolationTest extends ApiTestSupport {
         playRows.save(playRow);
         var play = new quest.server.hints.Entities.PracticePlayEntity();
         play.setPlayId("iso-play-of-b"); play.setLessonId(LESSON_B); play.setSchoolId(B); play.setSkillId("iso-skill");
+        // Approved, and signed: an unapproved row is empty to *every* tenant, B's own included, so the negative
+        // below would have passed with the filter off and the positive proves the fixture really is there.
+        play.setApprovedBy("iso-teacher-b"); play.setApprovedAt(Instant.now());
         play.setCreatedAt(Instant.now());
         practicePlays.save(play);
         try {
@@ -483,6 +486,11 @@ class IsolationTest extends ApiTestSupport {
             assertThat(practicePlays.approvedByLesson(java.util.List.of(LESSON_B))).isEmpty();
             tenant.set("MANAGERIAL", B, null);
             assertThat(stopHints.findByLessonId(LESSON_B)).extracting(r -> r.getStopId()).containsExactly("iso-stop-of-b");
+            assertThat(practicePlays.findByLessonIdOrderBySkillIdAsc(LESSON_B)).extracting(r -> r.getPlayId())
+                    .as("B's own practice set is B's to read").containsExactly("iso-play-of-b");
+            assertThat(practicePlays.approvedByLesson(java.util.List.of(LESSON_B)))
+                    .as("and the map's one query finds it, which is what the negative above denies A")
+                    .extracting(row -> row[0] + "/" + row[1]).containsExactly(LESSON_B + "/iso-skill");
         } finally {
             tenant.clear();
             stopHints.deleteById("iso-stop-of-b");

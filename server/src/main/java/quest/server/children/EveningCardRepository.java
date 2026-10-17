@@ -28,4 +28,13 @@ public interface EveningCardRepository extends JpaRepository<Entities.EveningCar
             + " values (:#{#c.id}, :#{#c.schoolId}, :#{#c.childId}, :#{#c.cardDay}, :#{#c.factsJson}, :#{#c.textAr}, :#{#c.textEn}, :#{#c.source}, :#{#c.createdAt})"
             + " on conflict do nothing")
     int insertOnce(@Param("c") Entities.EveningCardEntity c);
+
+    /**
+     * Every card of one child, for {@link quest.server.classes.RosterService#delete}: V50's foreign key into
+     * `children` has no cascade, so a child with a card cannot be hard-deleted until these rows go. The school is
+     * named as well as filtered, as every query here is.
+     */
+    @Modifying @Transactional
+    @Query("delete from EveningCardEntity c where c.schoolId = :schoolId and c.childId = :childId")
+    int deleteByChild(@Param("schoolId") String schoolId, @Param("childId") String childId);
 }

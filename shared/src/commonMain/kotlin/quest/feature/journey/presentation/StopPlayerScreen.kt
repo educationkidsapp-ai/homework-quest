@@ -151,7 +151,8 @@ private fun StopView(state: State, dispatch: (Intent) -> Unit, onBack: () -> Uni
             StopContent(stop, onEvent = { e ->
                 when (e) {
                     is StopEvent.Correct -> dispatch(Intent.Correct(e.attempt, e.answer))
-                    is StopEvent.Wrong -> dispatch(Intent.Wrong(e.attempt, e.hint, e.numberLine, e.answer))
+                    is StopEvent.Wrong -> dispatch(Intent.Wrong(e.attempt, e.hint, e.numberLine, e.answer, e.stopId))
+                    is StopEvent.Mistake -> dispatch(Intent.Mistake(e.stopId, e.attempt, e.say))
                     is StopEvent.Completed -> dispatch(Intent.Completed(e.stars, e.answer, e.mistakes, e.recording, e.drawing, e.correct))
                     is StopEvent.Speak -> dispatch(Intent.Speak(e.text))
                     is StopEvent.QuestionAnswered -> dispatch(Intent.QuestionAnswered(e.questionId, e.answer, e.correct, e.stars))

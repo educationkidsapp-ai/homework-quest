@@ -75,6 +75,8 @@ public class ComplaintTriageService {
     static final Set<String> CATEGORIES = Set.of("academic", "behaviour", "transport", "fees", "facilities", "staff", "other");
     static final Set<String> URGENCIES = Set.of("low", "normal", "high");
     static final String HIGH = "high";
+    /** What the guard put in: a suggested reply that echoes one of these is not a reply anybody can send. */
+    static final List<String> MASKS = List.of(AiInputGuard.NAME_MASK, AiInputGuard.PHONE_MASK, AiInputGuard.EMAIL_MASK);
 
     private static final Logger log = LoggerFactory.getLogger(ComplaintTriageService.class);
 
@@ -127,8 +129,10 @@ public class ComplaintTriageService {
                 .map(Entities.ChatMessageEntity::getBody).findFirst().orElse("");
         var accepted = ai.run(AiTask.of("complaintTriage", "F-" + schoolId, schoolId, Prompts.COMPLAINT_TRIAGE, Prompts.userComplaintTriage(title, body))
                 .guardedBy(AiInputGuard.masking(namesAround(complaint)))
-                .reading(this::read)
-                .keepingRejects()).json();
+                // No `keepingRejects()`: a rejected answer here is a summary and a draft reply about one family, and
+                // `LlmFailures` writes them to `data/llm-failures/` in clear, with no retention and no tenant. The
+                // errors are logged by `onRequested` and the answer is dropped, which is all this feature needs.
+                .reading(this::read)).json();
 
         var row = new ComplaintTriageEntity();
         row.setComplaintId(complaintId); row.setSchoolId(schoolId);
@@ -158,7 +162,16 @@ public class ComplaintTriageService {
         String urgency = word(candidate, "urgency");
         if (!URGENCIES.contains(urgency)) wrong.add("\"urgency\" must be low, normal or high");
         for (String field : List.of("summaryAr", "summaryEn")) check(candidate, field, SUMMARY_MAX, wrong);
-        for (String field : List.of("replyAr", "replyEn")) check(candidate, field, REPLY_MAX, wrong);
+        for (String field : List.of("replyAr", "replyEn")) {
+            check(candidate, field, REPLY_MAX, wrong);
+            // The input was masked and the system turn says so, which is exactly why the model may write the masks
+            // back. A member of staff presses "Use suggested reply" and sends what is in the box, so a draft reading
+            // "Dear parent of [name]" would reach the parent as written. It is rejected, and the retry is told why.
+            for (String mask : MASKS)
+                if (text(candidate, field).contains(mask))
+                    wrong.add("\"" + field + "\" must not contain " + mask + " or any other placeholder — write to the"
+                            + " parent without naming anybody");
+        }
         return wrong.isEmpty() ? AiVerdict.ok(candidate) : AiVerdict.rejected(wrong);
     }
 

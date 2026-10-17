@@ -157,4 +157,27 @@ class TranslationStoreTest {
         assertEquals(false, store.setReadingLanguage(ReadingLanguage.FR))
         assertEquals(ReadingLanguage.UR, store.readingLanguage.value)
     }
+
+    /**
+     * Post-merge review: one store serves the whole process, so signing out has to empty it. Parent A's Urdu was
+     * otherwise still there for Parent B on the same phone — `ensureReadingLanguage` had already read a profile and
+     * would never read hers — and every message offered B a Translate into a language she never chose.
+     */
+    @Test fun signingOutLeavesTheNextParentNothingOfThisOne() = runBlocking {
+        val api = api()
+        val store = TranslationStore(api)
+        store.ensureReadingLanguage()
+        store.translate("c-1", key)
+        assertEquals(ReadingLanguage.UR, store.readingLanguage.value)
+
+        store.forget()
+        assertNull(store.readingLanguage.value, "nothing of the parent who left")
+        assertTrue(store.items.value.isEmpty(), "and none of her messages either")
+
+        // The next parent's own choice is read, because the latch went down with the rest of it.
+        api.reading = null
+        store.ensureReadingLanguage()
+        assertEquals(2, api.profileCalls)
+        assertNull(store.readingLanguage.value, "her own null, not the last parent's Urdu")
+    }
 }

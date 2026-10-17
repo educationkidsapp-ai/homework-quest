@@ -8,7 +8,7 @@ old name and still appears in package names. The QA pilot school is *Learning In
 
 ## Read first
 - [docs/features/00-week-plan.md](docs/features/00-week-plan.md): the current week's specs, conventions and definition of done.
-- [docs/milestones/README.md](docs/milestones/README.md): what is already built (milestones 01–12), in business terms.
+- [docs/milestones/README.md](docs/milestones/README.md): what is already built (milestones 01–16), in business terms.
 - [docs/runbook.md](docs/runbook.md): the reference for tenancy, roles, flags, themes, chat, notifications, push, exams and QA.
 - [docs/plan.md](docs/plan.md): the decision log (D1…, DR…) and the status table of every package and PR.
 - [.claude/AGENT_RULES.md](.claude/AGENT_RULES.md): git, pipeline and token rules for worker agents.
@@ -29,8 +29,10 @@ old name and still appears in package names. The QA pilot school is *Learning In
 `webAdmin/` and `desktopApp/` are legacy and replaced by the dashboard. Do not extend them.
 
 Shared interfaces change first, in their own PR: Flyway migrations, `server/openapi.json`,
-`server/src/main/resources/permissions.json`, `design/tokens.json` and `shared-api/`. Flyway is at **V35**; take
-the next free number and never edit an applied migration.
+`server/src/main/resources/permissions.json`, `design/tokens.json` and `shared-api/`. Flyway is at **V53**
+(feature 31, `V53__teaching_materials.sql`); read the real number with
+`ls server/src/main/resources/db/migration | sort -V | tail -1`, take the next free one, and never edit an applied
+migration.
 
 ## Patterns to reuse (do not invent new ones)
 - **Roles and permissions.**
@@ -54,6 +56,20 @@ the next free number and never edit an applied migration.
     the lesson is ready.
   - Inject `java.time.Clock` (`config/TimeConfig`, `TestClock` in tests). Never call `now()` directly. School-day
     logic lives in `platform/SchoolCalendar`.
+- **AI calls.**
+  - Every model call goes through `ai/AiService` (`AiTask` describes the call, `AiOutcome` the result, `AiFailure`
+    the ways it can fail). Never call a provider client directly.
+  - `AiInputGuard` masks names and numbers before the text leaves the server. It is opt-in, per task
+    (`.guardedBy(…)`); the lesson builder and the voice note (22) do not use it.
+  - Every attempt writes one row of numbers to the `ai_calls` ledger (V45) — school, feature, tag, provider,
+    tokens, outcome, duration. No prompt and no answer text is ever stored.
+  - Prompts live in `analysis/Prompts`, one constant per feature, named after the feature:
+    `SYSTEM_F` (25, the morning brief), `DOCUMENT_READER` (26), `COMPLAINT_TRIAGE` (27), `EVENING_CARD` (28),
+    `TRANSLATE` (29), `SMART_HINTS` and `TARGETED_PRACTICE` (30). `SYSTEM_A`–`SYSTEM_E` are the lesson builder's;
+    never letter a new one. Each prompt needs an answer in `SampleLlmClient`, or its tests have no model.
+  - Nothing a child's screen calls may reach the AI: `ai/ChildEndpointsHaveNoAiTest` sweeps the handlers under
+    `/children`, `/lessons/` and `/media/`, and the only exemptions are the parent's own routes listed in its
+    `PARENT_ONLY` set. Adding one is a decision, not a fix.
 - **Messaging and real time.**
   - `chat/`: REST plus the `/ws/chat` socket.
   - `ChatBus` uses Postgres LISTEN/NOTIFY across instances (`InMemoryChatBus` in tests).
@@ -113,6 +129,12 @@ infra and docs (doc links are checked).
 ## Git, QA and Firebase
 - **Branches.** Branch from `origin/develop` and open one PR per package into `develop`. Use conventional commits
   passed with `git commit -F`. Never push to `develop` or `main`.
+- **Merging feature branches.** Two features built side by side collide in the same handful of shared lists, and the
+  resolution is always to keep both sides: `flags/FlagKeys` (and the key count in `FlagAdminTest`),
+  `tenancy/IsolationTest`, `quest.api.ContentApi.DEFAULT_FLAGS`, the dashboard's `core/flags` defaults and the rows
+  of its spec, `SampleLlmClient`'s dispatch, the blocks in `analysis/Prompts`, and the blocks in
+  `dashboard/src/assets/i18n/{en,ar}.json`. Merge the branches in Flyway order, lowest migration first, so no
+  migration is ever applied out of sequence.
 - **QA deploy.** A merge to `develop` triggers `.github/workflows/deploy-qa.yml`, which deploys to Cloud Run in GCP
   project `homework-quest-qa` (me-central1). The QA API is
   `https://homework-quest-api-625882725080.me-central1.run.app` and the dashboard is at `/dashboard/`.

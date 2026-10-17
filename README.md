@@ -139,7 +139,8 @@ every tenant row carries `school_id` and is filtered in the server from the call
 (the platform owner, across every school, with an `X-School-Id` switcher), `TEACHER` and `MANAGERIAL` (one school
 each); parents stay in Firebase Auth. Existing data lives in the default school `HQ0001`. Each school also has its own
 **theme** (colours, logo and display name, validated for contrast when Admin saves it) and its own **feature flags** —
-14 keys whose effective value is the school's override, else the platform default; a flag that is off makes its
+one key per feature (36 of them today, `flags/FlagKeys.java`) whose effective value is the school's override, else
+the platform default; everything added since the first fourteen is seeded **off**. A flag that is off makes its
 endpoint a 404 and its screen never compose. Operating it — sleep/wake, accounts and invites, the permission matrix,
 flags, themes, platform settings, seeding two schools, rollback — is [docs/runbook.md](docs/runbook.md).
 

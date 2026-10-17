@@ -65,7 +65,13 @@ object PlayerContract {
     sealed interface Intent : MviIntent {
         data object Load : Intent
         data class Correct(val attempt: Int, val answer: String) : Intent
-        data class Wrong(val attempt: Int, val hint: String, val numberLine: NumberLine?, val answer: String) : Intent
+        /** [stopId]: what the hints are keyed by — a question's own id inside an exit ticket; blank means the stop itself. */
+        data class Wrong(val attempt: Int, val hint: String, val numberLine: NumberLine?, val answer: String, val stopId: String = "") : Intent
+        /**
+         * Feature 30: a multi-answer stop got something wrong on its [attempt]-th try. The teacher's graded hint for
+         * [stopId] is drawn when she approved some; otherwise the stop's own words ([say]) are spoken, as before.
+         */
+        data class Mistake(val stopId: String, val attempt: Int, val say: String = "") : Intent
         data class Completed(val stars: Int, val answer: String, val mistakes: Int, val recording: ByteArray? = null, val drawing: String? = null, val correct: Boolean = true) : Intent
         data object TryAgain : Intent
         /** [Phase.SENDING]: try to hand the queued answers in again. */

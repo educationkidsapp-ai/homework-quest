@@ -56,6 +56,7 @@ private fun PickTiles(id: String, prompt: String, options: List<Tile>, correctId
     var lit by rememberSaveable(id) { mutableStateOf(setOf<String>()) }
     var dimmed by rememberSaveable(id) { mutableStateOf(setOf<String>()) }
     var mistakes by rememberSaveable(id) { mutableIntStateOf(0) }
+    var tries by rememberSaveable(id) { mutableIntStateOf(0) }       // Checks that got something wrong, for feature 30's graded hints
     var done by rememberSaveable(id) { mutableStateOf(false) }
     val remaining = pick?.let { it - lit.size }
     val labels = LocalStopLabels.current
@@ -79,7 +80,7 @@ private fun PickTiles(id: String, prompt: String, options: List<Tile>, correctId
                 return@CheckButton
             }
             lit = lit + right; dimmed = dimmed + wrong; mistakes += wrong.size; selected = emptySet()
-            if (wrong.isNotEmpty()) onEvent(StopEvent.Speak(if (right.isNotEmpty()) labels.someRight else labels.notThose))
+            if (wrong.isNotEmpty()) { tries += 1; onEvent(StopEvent.Mistake(id, tries, if (right.isNotEmpty()) labels.someRight else labels.notThose)) }
             if (lit.containsAll(correctIds)) { done = true; onEvent(StopEvent.Completed(StopScoring.byMistakes(mistakes), answer = lit.joinToString(","), mistakes = mistakes)) }
         }
     }
@@ -122,7 +123,7 @@ fun MatchStop(stop: Stop.Match, onEvent: (StopEvent) -> Unit, modifier: Modifier
                             return@MatchTile
                         }
                         if (l == p.id) { matched = matched + p.id; left = null; if (matched.size == stop.pairs.size) { done = true; onEvent(StopEvent.Completed(StopScoring.byMistakes(mistakes), mistakes = mistakes)) } }
-                        else { mistakes += 1; left = null; onEvent(StopEvent.Speak(notAMatch)) }
+                        else { mistakes += 1; left = null; onEvent(StopEvent.Mistake(stop.id, mistakes, notAMatch)) }
                     })
                 }
             }
@@ -201,7 +202,7 @@ fun OrderStop(stop: Stop.Order, onEvent: (StopEvent) -> Unit, modifier: Modifier
                 return@CheckButton
             }
             if (prefix == stop.correctOrder.size) { locked = prefix; done = true; onEvent(StopEvent.Completed(StopScoring.byAttempts(attempts), answer = placed.joinToString(","), mistakes = attempts - 1)) }
-            else { locked = prefix; placed = placed.take(prefix); onEvent(StopEvent.Speak(partlyRight.replace("{n}", "$prefix"))) }
+            else { locked = prefix; placed = placed.take(prefix); onEvent(StopEvent.Mistake(stop.id, attempts, partlyRight.replace("{n}", "$prefix"))) }
         }
     }
 }
@@ -209,13 +210,14 @@ fun OrderStop(stop: Stop.Order, onEvent: (StopEvent) -> Unit, modifier: Modifier
 @Composable
 fun TraceStop(stop: Stop.Trace, onEvent: (StopEvent) -> Unit, modifier: Modifier = Modifier) {
     val exam = LocalExamMode.current
+    var tries by rememberSaveable(stop.id) { mutableIntStateOf(0) }  // tracings that earned nothing, for feature 30's graded hints
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         TraceCanvas(stop.text, onFinished = { coverage ->
             val stars = TraceScorer.stars(coverage)
             when {
                 // An exam takes the tracing as it is, with no hint and no second go.
                 exam -> onEvent(StopEvent.Completed(stars, answer = "coverage=$coverage", correct = stars > 0))
-                stars == 0 -> onEvent(StopEvent.Speak(stop.hint))
+                stars == 0 -> { tries += 1; onEvent(StopEvent.Mistake(stop.id, tries, stop.hint)) }
                 else -> onEvent(StopEvent.Completed(stars, answer = "coverage=$coverage"))
             }
         })

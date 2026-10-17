@@ -34,6 +34,7 @@ import quest.server.flags.FlagKeys;
 import quest.server.platform.SchoolCalendar;
 import quest.server.staffattendance.AttendanceBoardService;
 import quest.server.staffattendance.AttendanceRequestService;
+import quest.server.staffattendance.AttendanceSettingsService;
 import quest.server.staffattendance.RemoteStudyDayService;
 import quest.server.staffattendance.StaffAttendanceDto;
 import quest.server.tenancy.Entities.ClassEntity;
@@ -52,12 +53,15 @@ import quest.server.tenancy.ManagerScope;
  *
  * <p><strong>What the model is given is counts and labels, and nothing else.</strong> No child, parent or employee is
  * named to the provider, which is the one privacy rule this feature has — it is true by construction, because the
- * facts are numbers, and {@link AiInputGuard#numbersOnly()} is kept on anyway so that a label a school typed into its
- * own data cannot carry an address or a telephone number out.
+ * facts are numbers and every label is one of ours: a remote study day is sent as "today is a remote study day" and
+ * the reason a leader typed for it stays on the server, where she reads it on the brief's own facts.
+ * {@link AiInputGuard#numbersOnly()} is kept on anyway so that a label a school typed into its own data cannot carry
+ * an address or a telephone number out.
  *
  * <p><strong>The numbers are checked, not trusted.</strong> The validator rejects a line carrying any number the
- * facts do not hold (Arabic-Indic digits included — the Arabic lines are written in them) and a line too long for a
- * glance. After two rejected attempts, or a provider that failed, the brief is the deterministic bilingual template
+ * counted facts do not hold (Arabic-Indic digits included — the Arabic lines are written in them) and a line too
+ * long for a glance. The two dates are allowed whole and never by their parts, so a month cannot be read back as a
+ * count ({@link #allowedNumbers}). After two rejected attempts, or a provider that failed, the brief is the deterministic bilingual template
  * built from the very same facts and {@code source} says {@code template}. <em>There is no path on which an invented
  * number reaches a leader.</em>
  *
@@ -78,26 +82,46 @@ public class MorningBriefService {
     /** `(present + late) / marked`, {@link quest.server.attendance.AttendanceService}'s own formula (and RM1's). */
     private static final Set<String> PRESENT = Set.of("PRESENT", "LATE");
     /** ASCII and Arabic-Indic digits: the Arabic lines are written in the second kind. */
-    private static final Pattern DIGITS = Pattern.compile("[0-9٠-٩]+");
+    private static final Pattern DIGITS = Pattern.compile("[0-9٠-٩]{4}-[0-9٠-٩]{2}-[0-9٠-٩]{2}|[0-9٠-٩]+");
 
     private final MorningBriefRepository briefs; private final AttendanceBoardService board;
     private final AttendanceRequestService requests; private final TodayService today;
     private final BroadcastService broadcasts; private final AttendanceRepository register;
-    private final RemoteStudyDayService remoteStudyDays;
+    private final RemoteStudyDayService remoteStudyDays; private final AttendanceSettingsService attendanceSettings;
     private final ManagerScope managers; private final FeatureFlags flags; private final SchoolCalendar calendar;
     private final AiService ai; private final Json json; private final Clock clock; private final TransactionTemplate tx;
 
     public MorningBriefService(MorningBriefRepository briefs, AttendanceBoardService board,
                               AttendanceRequestService requests, TodayService today, BroadcastService broadcasts,
                               AttendanceRepository register, RemoteStudyDayService remoteStudyDays,
+                              AttendanceSettingsService attendanceSettings,
                               ManagerScope managers, FeatureFlags flags,
                               SchoolCalendar calendar, AiService ai, Json json, Clock clock,
                               PlatformTransactionManager transactions) {
         this.briefs = briefs; this.board = board; this.requests = requests; this.today = today;
         this.broadcasts = broadcasts; this.register = register; this.remoteStudyDays = remoteStudyDays;
+        this.attendanceSettings = attendanceSettings;
         this.managers = managers; this.flags = flags;
         this.calendar = calendar; this.ai = ai; this.json = json; this.clock = clock;
         this.tx = new TransactionTemplate(transactions);
+    }
+
+    /**
+     * <strong>A teaching day.</strong> The week decides the days of the week ({@link SchoolCalendar.Week}); feature
+     * 14's declared holidays decide the rest, and they have to be read here as well — "a day the school does not
+     * teach has no brief" is false of an Eid week otherwise, and the day before one is not what yesterday's numbers
+     * are about. Read off `attendance_holidays`, which is where the Admin declares them.
+     */
+    boolean teachingDay(String schoolId, SchoolCalendar.Week week, LocalDate day) {
+        return week.isSchoolDay(day) && !holiday(schoolId, day);
+    }
+
+    private boolean holiday(String schoolId, LocalDate day) {
+        try {
+            for (var h : attendanceSettings.holidays(schoolId))
+                if (!day.isBefore(h.from()) && !day.isAfter(h.to())) return true;
+        } catch (RuntimeException e) { return false; }   // a school whose settings cannot be read still gets a brief
+        return false;
     }
 
     // ---------------------------------------------------------------- GET /me/morning-brief
@@ -112,7 +136,7 @@ public class MorningBriefService {
         if (caller == null) throw ApiException.unauthorized("Sign in first.");
         var week = calendar.of(schoolId);
         LocalDate day = LocalDate.ofInstant(clock.instant(), week.zone());
-        if (!week.isSchoolDay(day)) return null;
+        if (!teachingDay(schoolId, week, day)) return null;
         var existing = briefs.findOneBySchoolIdAndUserIdAndDay(schoolId, caller.userId(), day);
         return view(existing.orElseGet(() -> generate(schoolId, caller, day, week).row));
     }
@@ -162,7 +186,7 @@ public class MorningBriefService {
      * 21's cards take. Each switch is read by the service that owns it, never second-guessed here.
      */
     MorningBriefDto.Facts facts(String schoolId, Principals.User caller, LocalDate day, SchoolCalendar.Week week) {
-        LocalDate yesterday = previousSchoolDay(week, day);
+        LocalDate yesterday = previousSchoolDay(schoolId, week, day);
         boolean attendance = flags.isOn(schoolId, FlagKeys.STAFF_ATTENDANCE);
         var tally = attendance ? board.tally(schoolId, caller, yesterday) : new AttendanceBoardService.DayTally(0, 0, 0);
         int waiting = attendance ? requests.toDecide(caller, AttendanceRequestStatus.PENDING).getRequests().size() : 0;
@@ -174,10 +198,14 @@ public class MorningBriefService {
                 childAttendanceRate(caller, yesterday), remote.on(), remote.reason());
     }
 
-    /** The teaching day before this one, which is what the staff numbers are about — never a Friday's empty board. */
-    private static LocalDate previousSchoolDay(SchoolCalendar.Week week, LocalDate day) {
+    /**
+     * The teaching day before this one, which is what the staff numbers are about — never a Friday's empty board,
+     * and never a declared holiday's either: on the first morning back from Eid, "yesterday" is the last day the
+     * school actually taught. Thirty days back at most, so a school on a long closure cannot loop.
+     */
+    private LocalDate previousSchoolDay(String schoolId, SchoolCalendar.Week week, LocalDate day) {
         LocalDate d = day.minusDays(1);
-        for (int i = 0; i < 7 && !week.isSchoolDay(d); i++) d = d.minusDays(1);
+        for (int i = 0; i < 30 && !teachingDay(schoolId, week, d); i++) d = d.minusDays(1);
         return d;
     }
 
@@ -207,7 +235,7 @@ public class MorningBriefService {
     /** The model's wording, or null when there is none to trust — the caller already stored the template. */
     private Lines phrase(String schoolId, MorningBriefDto.Facts facts, LocalDate day) {
         String user = Prompts.userF(day.toString(), scopeLabel(facts.scope()), promptFacts(facts));
-        Set<String> allowed = numbersIn(user);
+        Set<String> allowed = allowedNumbers(facts, day);
         try {
             JsonNode accepted = ai.run(AiTask.of(FEATURE, "F-" + schoolId, schoolId, Prompts.SYSTEM_F, user)
                     .reading((raw, attempt) -> {
@@ -256,10 +284,24 @@ public class MorningBriefService {
     }
 
     /**
+     * <strong>The numbers a line may hold:</strong> the counted facts themselves, and the two dates — each whole.
+     * Reading them off the rendered prompt instead, as this used to, made a fact of every digit in a date: on
+     * 2026-10-16 the year, the month and both days counted, so "10 employees were absent yesterday" passed with two
+     * absences. A date is therefore matched as one token ({@link #DIGITS}) and its parts are not numbers at all.
+     */
+    static Set<String> allowedNumbers(MorningBriefDto.Facts f, LocalDate today) {
+        var out = new LinkedHashSet<String>();
+        for (int n : new int[] {f.lateYesterday(), f.absentYesterday(), f.missingCheckoutYesterday(),
+                f.requestsWaiting(), f.overdueComplaints(), f.eventsToday()}) out.add(String.valueOf(n));
+        if (f.childAttendanceRate() != null) out.add(String.valueOf(f.childAttendanceRate()));
+        out.add(f.yesterday()); out.add(today.toString());          // the dates, whole: "2026-10-15", never "10"
+        return Set.copyOf(out);
+    }
+
+    /**
      * Every number in a text, as a comparable string: Arabic-Indic digits folded to ASCII and leading zeros dropped,
      * so "٠٢" and "2" are the same number and a model that writes the Arabic lines in Arabic numerals is not rejected
-     * for it. The allowed set is read off the prompt itself, which is the definition: a number is a fact when it is
-     * in what the model was told.
+     * for it. A written date is one token rather than three numbers, for {@link #allowedNumbers}'s reason.
      */
     static Set<String> numbersIn(String text) {
         var out = new LinkedHashSet<String>();
@@ -298,9 +340,10 @@ public class MorningBriefService {
                 + f.absentYesterday() + " were absent, " + f.missingCheckoutYesterday() + " did not check out");
         out.add(f.requestsWaiting() + " attendance requests are waiting for her decision");
         out.add(f.overdueComplaints() + " complaints have been open for more than one day");
-        if (f.remoteStudyDayToday())
-            out.add("today is a remote study day" + (f.remoteStudyDayReason() == null || f.remoteStudyDayReason().isBlank()
-                    ? "" : ", declared because: " + f.remoteStudyDayReason()));
+        // A fixed label, never the reason: the reason is free text a leader typed and "no employee is named to the
+        // provider" would be untrue the first time one of them reads "Mrs Nada is in hospital". The leader still
+        // reads it — it is on the facts the endpoint answers with, and on the dashboard's card.
+        if (f.remoteStudyDayToday()) out.add("today is a remote study day");
         if (f.eventsToday() > 0) out.add(f.eventsToday() + " events are live for parents today");
         if (f.childAttendanceRate() != null)
             out.add("the children's attendance on " + f.yesterday() + " was " + f.childAttendanceRate() + " per cent");

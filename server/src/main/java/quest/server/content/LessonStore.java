@@ -27,12 +27,15 @@ public class LessonStore {
     private final ParentPanelRepository panels; private final PageImageRepository pageImages; private final Json json; private final String publicUrl;
     /** Feature 30: read-only here, and only ever the approved rows — see {@link #assemble}. */
     private final quest.server.hints.StopHintsRepository hints; private final quest.server.hints.PracticePlayRepository practice;
+    /** Feature 30's switch, read where the body is assembled: a school with it off publishes no hints at all. */
+    private final quest.server.flags.FeatureFlags flags;
 
     public LessonStore(LessonRepository lessons, SkillRepository skills, PlayRepository plays, StopRepository stops, ParentPanelRepository panels, PageImageRepository pageImages, Json json, quest.server.config.QuestProperties props,
-                       quest.server.hints.StopHintsRepository hints, quest.server.hints.PracticePlayRepository practice) {
+                       quest.server.hints.StopHintsRepository hints, quest.server.hints.PracticePlayRepository practice,
+                       quest.server.flags.FeatureFlags flags) {
         this.lessons = lessons; this.skills = skills; this.plays = plays; this.stops = stops; this.panels = panels; this.pageImages = pageImages; this.json = json;
         this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl();
-        this.hints = hints; this.practice = practice;
+        this.hints = hints; this.practice = practice; this.flags = flags;
     }
 
     /**
@@ -48,18 +51,22 @@ public class LessonStore {
     public Entities.PlayEntity savePlay(String lessonId, Play play, String promptVersion, int seed) {
         var existing = plays.findByLessonIdAndLevelAndVariant(lessonId, play.getLevel(), play.getVariant());
         var keptText = new java.util.HashMap<String, Entities.StopEntity>();
-        var gone = new java.util.HashSet<String>();
+        var was = new java.util.HashMap<String, String>();
         existing.ifPresent(e -> {
             var old = stops.findByPlayIdOrderByPosition(e.getId());
             for (var se : old) if (se.getText() != null) keptText.put(se.getId() + "\u0000" + se.getContentJson(), se);
-            gone.addAll(answerableIds(json.decodeShared(e.getPlayJson(), Play.Companion.serializer())));
+            was.putAll(answerableJson(json.decodeShared(e.getPlayJson(), Play.Companion.serializer())));
             stops.deleteAll(old); plays.delete(e);
         });
         Play stored = StopKt.withoutTeacherText(play);
-        // Feature 30: the hints of a question this rewrite has taken away. They described *that* question, so leaving
-        // them would publish help for a stop that no longer exists — and `stop_hints` has no foreign key into `stops`
-        // to do it for us, because an exitTicket's questions have no row there at all (V52).
-        gone.removeAll(answerableIds(stored));
+        // Feature 30: the hints of a question this rewrite has taken away — or rewritten. They described *that*
+        // question, so leaving them would publish help for a stop that no longer exists, or help written for an
+        // answer that has changed (the teacher's edit-by-text and Regenerate level both keep the stop's id). The
+        // deletion is ours to make: `stop_hints` has no foreign key into `stops`, because an exitTicket's questions
+        // have no row there at all (V52).
+        var now = answerableJson(stored);
+        var gone = new java.util.HashSet<String>();
+        was.forEach((id, before) -> { if (!before.equals(now.get(id))) gone.add(id); });
         gone.forEach(hints::deleteById);
         var e = new Entities.PlayEntity();
         e.setId(existing.map(Entities.PlayEntity::getId).orElse(UUID.randomUUID().toString()));
@@ -104,12 +111,18 @@ public class LessonStore {
         panels.save(e);
     }
 
-    /** Every stop id of a play that a child answers, the three inside an exitTicket included — what can carry hints. */
-    private static java.util.Set<String> answerableIds(Play play) {
-        var out = new java.util.HashSet<String>();
+    /**
+     * Every stop of a play that a child answers, the three inside an exitTicket included — what can carry hints —
+     * by id, each with its own encoded content. The content is what decides whether hints written for it still
+     * describe it: an id that stays while its question changes is exactly the case a set of approved hints must not
+     * survive.
+     */
+    private java.util.Map<String, String> answerableJson(Play play) {
+        var out = new java.util.LinkedHashMap<String, String>();
         for (Stop s : play.getStops()) {
-            out.add(s.getId());
-            if (s instanceof Stop.ExitTicket et) for (Stop q : et.getQuestions()) out.add(q.getId());
+            out.put(s.getId(), json.encodeShared(s, Stop.Companion.serializer()));
+            if (s instanceof Stop.ExitTicket et)
+                for (Stop q : et.getQuestions()) out.put(q.getId(), json.encodeShared(q, Stop.Companion.serializer()));
         }
         return out;
     }
@@ -138,9 +151,15 @@ public class LessonStore {
         var date = new kotlinx.datetime.LocalDate(lesson.getDate().getYear(), lesson.getDate().getMonthValue(), lesson.getDate().getDayOfMonth());
         // N4.3's four exam fields are left at their homework defaults here: this method knows nothing about exams,
         // and `ExamPlays.decorate` fills them for the one caller that serves a lesson to a child.
+        // Feature 30's switch belongs here and not only on the teacher's routes: an Admin who turns `smartHints` off
+        // because a hint turned out to be wrong must stop the hints reaching children, and while it is off she
+        // cannot unapprove them either (the whole controller answers 404). Off is off, in the body as on the map.
+        boolean smartHints = flags.isOn(lesson.getSchoolId(), quest.server.flags.FlagKeys.SMART_HINTS);
         return new PublishedLesson(lesson.getId(), Math.max(1, lesson.getVersion()), course, Subject.valueOf(lesson.getSubject().toUpperCase()), date,
                 lesson.getTitle() == null ? "Lesson" : lesson.getTitle(), kind, theme, skillRefs, levels, variant, panel, images,
-                "homework", false, false, null, approvedHints(lesson.getId()), approvedPractice(lesson.getId(), all, skillRefs));
+                "homework", false, false, null,
+                smartHints ? approvedHints(lesson.getId()) : java.util.Map.of(),
+                smartHints ? approvedPractice(lesson.getId(), all, skillRefs) : List.of());
     }
 
     /**

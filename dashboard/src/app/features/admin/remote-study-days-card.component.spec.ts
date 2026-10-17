@@ -5,22 +5,28 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { screen } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BASE_PATH } from '../../api';
 import { ADMIN_USER, MANAGERIAL_USER } from '../../../testing/fixtures';
 import { renderHq } from '../../../testing/render';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
 import { FlagService } from '../../core/flags/flag.service';
+import { PlatformService } from '../../core/platform/platform.service';
 import { RemoteStudyDaysCardComponent } from './remote-study-days-card.component';
 
-function providersWith(flagOn: boolean): (Provider | EnvironmentProviders)[] {
+/** The pilot school's own zone (UTC+3) — the one the date field's minimum is read in. */
+const SCHOOL_ZONE = 'Asia/Riyadh';
+
+function providersWith(flagOn: boolean, zone = SCHOOL_ZONE): (Provider | EnvironmentProviders)[] {
   return [
     provideHttpClient(),
     provideHttpClientTesting(),
     provideRouter([{ path: '**', children: [] }]),
     { provide: BASE_PATH, useValue: '' },
     { provide: FlagService, useValue: { isOn: () => flagOn, ready: () => true } },
+    // The zone the school keeps, as `GET /platform-settings` answers it.
+    { provide: PlatformService, useValue: { timezone: () => zone } },
   ];
 }
 
@@ -58,9 +64,15 @@ async function settle(rendered: { fixture: { detectChanges: () => void } }): Pro
   rendered.fixture.detectChanges();
 }
 
-async function renderCard(permissions = ADMIN_PERMISSIONS, user = ADMIN_USER, days = DAYS, flagOn = true) {
+async function renderCard(
+  permissions = ADMIN_PERMISSIONS,
+  user = ADMIN_USER,
+  days = DAYS,
+  flagOn = true,
+  zone = SCHOOL_ZONE,
+) {
   const rendered = await renderHq(RemoteStudyDaysCardComponent, {
-    providers: providersWith(flagOn),
+    providers: providersWith(flagOn, zone),
   });
   const backend = TestBed.inject(HttpTestingController);
 
@@ -82,6 +94,7 @@ async function renderCard(permissions = ADMIN_PERMISSIONS, user = ADMIN_USER, da
 
 describe('feature 23 — the Remote study days card', () => {
   beforeEach(() => localStorage.clear());
+  afterEach(() => vi.useRealTimers());
 
   it('lists today and later, soonest first, with the academy and the grades in scope', async () => {
     await renderCard();
@@ -224,5 +237,17 @@ describe('feature 23 — the Remote study days card', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     backend.expectNone('/admin/remote-study-days');
     backend.expectNone('/management/classes');
+  });
+
+  it('offers no day before today **in the school\u2019s zone**, not today in Greenwich', async () => {
+    // 22:30 UTC is already half past one the next morning in Riyadh. The UTC date is the day
+    // before, which is the past day the picker used to offer and the server then refused.
+    vi.setSystemTime(new Date('2026-10-16T22:30:00Z'));
+
+    await renderCard();
+
+    const date = screen.getByLabelText(/^Day/);
+    expect(date.getAttribute('min')).toBe('2026-10-17');
+    expect(new Date().toISOString().slice(0, 10)).toBe('2026-10-16');
   });
 });

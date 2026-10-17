@@ -163,7 +163,12 @@ class FakeContentApi(
             // Feature 30, as `MapService`: the island plays this skill's approved practice set when there is one.
             MapAssembler.ReviewCandidate(skillId, name, lesson.id, FakeSmartHints.reviewPlayId(lesson.id, skillId))
         }.distinctBy { it.lessonId }
-        val assembled = MapAssembler.assemble(child, Seeds.summaries, completions.map { LessonCompletionInfo(it.lessonId, it.level, it.stars, it.total, it.mostTwo) }, review, emptyMap(), from, to, today())
+        // Only the lesson itself is a completion of a level, as `AttemptService.deriveLessonCompletions` has it
+        // (`variant != 0` is skipped) and as `JourneyRepositoryImpl.completions` reads it back. An Again play or
+        // feature 30's practice set takes its review island off the map (above) and nothing more: finishing a practice
+        // set must not draw the lesson's island as a finished level, which the server never does.
+        val played = completions.filter { it.variant == 0 }
+        val assembled = MapAssembler.assemble(child, Seeds.summaries, played.map { LessonCompletionInfo(it.lessonId, it.level, it.stars, it.total, it.mostTwo) }, review, emptyMap(), from, to, today())
         // As `MapService.withExamWindows`: the exam is on the map only while this child may sit it, and carries the
         // exam's own window (not a re-opening's).
         if (!examOpenFor(childId)) return assembled
@@ -671,6 +676,9 @@ object FakeSmartHints {
         "p1-s1" to listOf("Say the word slowly. What is the very first sound you hear?", "Put a finger on your lips and make the quiet sound at the start."),
         "p1-w1" to listOf("Press Listen again and say the word with it.", "The word starts like shhh — listen to the first sound only."),
         "p1v-s1" to listOf("Say the word slowly, sound by sound.", "Listen to the first sound: is it quiet like shhh, or sharp?"),
+        // A question inside the exit ticket, keyed by its own id — `HintRules.answerableStops` offers these to the
+        // teacher too, so the fake carries one and the player must find it by the question, not by the ticket.
+        "p1-e1" to listOf("Say shell slowly. What sound comes first?", "The start is the quiet shhh, not a t sound."),
     )
 
     /** The teacher's practice set: four answerable stops from the Again variant, under ids of their own. */

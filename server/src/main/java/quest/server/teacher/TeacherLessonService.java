@@ -71,14 +71,18 @@ public class TeacherLessonService {
     private final quest.server.content.StopRepository stops;
     private final Json json; private final FeatureFlags flags; private final SchoolCalendar calendar;
     private final quest.server.grading.GradingService grading;
+    /** Feature 30: the copy carries what the teacher approved — see {@link #copyHintsAndPractice}. */
+    private final quest.server.hints.StopHintsRepository hints; private final quest.server.hints.PracticePlayRepository practice;
 
     public TeacherLessonService(AdminLessonService admin, TeacherScope scope, LessonRepository lessons, LessonStore store,
                                 PlayRepository plays, SkillRepository skills, ParentPanelRepository panels,
                                 PageImageRepository pageImages, quest.server.content.StopRepository stops, Json json,
-                                FeatureFlags flags, SchoolCalendar calendar, quest.server.grading.GradingService grading) {
+                                FeatureFlags flags, SchoolCalendar calendar, quest.server.grading.GradingService grading,
+                                quest.server.hints.StopHintsRepository hints, quest.server.hints.PracticePlayRepository practice) {
         this.admin = admin; this.scope = scope; this.lessons = lessons; this.store = store; this.plays = plays;
         this.skills = skills; this.panels = panels; this.pageImages = pageImages; this.stops = stops; this.json = json;
         this.flags = flags; this.calendar = calendar; this.grading = grading;
+        this.hints = hints; this.practice = practice;
     }
 
     /** The scope check every `/teacher/lessons/{id}/**` alias runs before it delegates: owner, or assigned. */
@@ -199,7 +203,8 @@ public class TeacherLessonService {
 
     /**
      * A full copy of a made lesson into another class of the same grade and subject she teaches: plays, stops with
-     * ids of their own, skills, page images and the parent panel.
+     * ids of their own, skills, page images, the parent panel, and feature 30's approved hints and practice sets
+     * ({@link #copyHintsAndPractice}).
      *
      * <p><strong>Why the ids are rewritten.</strong> Every id a lesson owns starts with the first eight characters of
      * its own id — stops, page images and skills alike ({@link StopIds}) — and an `Attempt` is stored against a stop
@@ -257,18 +262,53 @@ public class TeacherLessonService {
             c.setWidth(image.getWidth()); c.setHeight(image.getHeight()); c.setDescription(image.getDescription());
             pageImages.save(c);
         }
+        var copiedPlays = new java.util.LinkedHashMap<String, String>();        // the source play's id -> the copy's
         for (var play : plays.findByLessonIdOrderByLevelAscVariantAsc(source.getId())) {
             var tree = (ObjectNode) json.tree(play.getPlayJson());
             StopIds.reprefix(tree, source.getId(), copy.getId());
             tree.put("id", copy.getId() + ":" + play.getLevel() + ":" + play.getVariant());
-            store.savePlay(copy.getId(), json.decodeShared(tree.toString(), Play.Companion.serializer()), play.getPromptVersion(), play.getSeed());
+            var stored = store.savePlay(copy.getId(), json.decodeShared(tree.toString(), Play.Companion.serializer()), play.getPromptVersion(), play.getSeed());
+            copiedPlays.put(play.getId(), stored.getId());
         }
+        copyHintsAndPractice(source, copy, copiedPlays);
         panels.findById(source.getId()).ifPresent(panel -> {
             var tree = (ObjectNode) json.tree(panel.getPanelJson());
             StopIds.reprefix(tree, source.getId(), copy.getId());
             store.savePanel(copy.getId(), json.decodeShared(tree.toString(), ParentPanel.Companion.serializer()));
         });
         return copy;
+    }
+
+    /**
+     * Feature 30, the copy's half: <strong>what the teacher approved travels with the lesson.</strong>
+     *
+     * <p>The plays are already copied above, practice sets (variant 2 and up) included — so without this the copy
+     * would hold variants no screen shows and nothing can reject, and 1B's children would get the Again island
+     * where 1A's get their skill's own practice. The `HINTS` step does not run for a copy (nothing is generated for
+     * it at all), so the hints would never arrive either.
+     *
+     * <p><strong>Approved rows only.</strong> An unapproved hint is a draft on 1A's screen about 1A's lesson, and
+     * carrying it would put somebody else's unfinished work in 1B's queue. The approval itself is carried with the
+     * row — the teacher has read exactly these words, and the question they are about is the same question.
+     */
+    private void copyHintsAndPractice(LessonEntity source, LessonEntity copy, java.util.Map<String, String> copiedPlays) {
+        for (var row : hints.findByLessonId(source.getId())) {
+            if (!row.isApproved()) continue;
+            var c = new quest.server.hints.Entities.StopHintsEntity();
+            c.setStopId(reId(row.getStopId(), source.getId(), copy.getId()));
+            c.setLessonId(copy.getId()); c.setSchoolId(copy.getSchoolId()); c.setHintsJson(row.getHintsJson());
+            c.setApprovedBy(row.getApprovedBy()); c.setApprovedAt(row.getApprovedAt()); c.setCreatedAt(Instant.now());
+            hints.save(c);
+        }
+        for (var row : practice.findByLessonIdOrderBySkillIdAsc(source.getId())) {
+            String playId = copiedPlays.get(row.getPlayId());
+            if (playId == null) continue;                            // its play was not copied: nothing to point at
+            var c = new quest.server.hints.Entities.PracticePlayEntity();
+            c.setPlayId(playId); c.setLessonId(copy.getId()); c.setSchoolId(copy.getSchoolId());
+            c.setSkillId(reId(row.getSkillId(), source.getId(), copy.getId()));
+            c.setApprovedBy(row.getApprovedBy()); c.setApprovedAt(row.getApprovedAt()); c.setCreatedAt(Instant.now());
+            practice.save(c);
+        }
     }
 
     // ---------------------------------------------------------------- publish

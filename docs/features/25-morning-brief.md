@@ -137,5 +137,4 @@ off no remote study day. Each switch is read by the service that owns the fact.
   and the bell row opens the dashboard Home. The card itself is on the dashboard only.
 - **The 204 answer is not in `openapi.json`.** The dashboard handles the empty body, but the generated client type
   says 200 only.
-- **Not deployed yet.** The QA deploy follows the merge into `develop`. The switch is off until the school turns it
-  on.
+- **Deployed to QA** with the merge of #230. The switch is off until the school turns it on.

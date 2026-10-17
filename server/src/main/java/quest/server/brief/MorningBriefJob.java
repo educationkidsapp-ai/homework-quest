@@ -32,7 +32,8 @@ import quest.server.tenancy.TenantContext;
  * ({@link MorningBriefService#brief}) and is simply not told twice.
  *
  * <p><strong>School days only, in the school's own zone</strong> ({@link SchoolCalendar}): there is no morning to
- * brief on a Friday, and yesterday's numbers are the previous <em>teaching</em> day's.
+ * brief on a Friday or on a holiday the school has declared (feature 14), and yesterday's numbers are the previous
+ * <em>teaching</em> day's — {@link MorningBriefService#teachingDay} decides both.
  *
  * <p><strong>Scope.</strong> The job has no caller, so it becomes each leader for the length of her own brief —
  * {@link TenantContext#set} with her role and her school, as `SchoolSeed` does — and clears it again. That is what
@@ -77,7 +78,8 @@ public class MorningBriefJob {
         if (!on(schoolId)) return 0;
         var week = calendar.of(schoolId);
         LocalDate today = LocalDate.ofInstant(clock.instant(), week.zone());
-        if (!week.isSchoolDay(today)) return 0;
+        // The week's own days off *and* feature 14's declared holidays: an Eid morning has no brief either.
+        if (!briefs.teachingDay(schoolId, week, today)) return 0;
         if (clock.instant().isBefore(today.atTime(FROM).atZone(week.zone()).toInstant())) return 0;
 
         int written = 0;

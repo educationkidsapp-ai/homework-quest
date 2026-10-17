@@ -69,7 +69,11 @@ public class SmartHintsController {
         return json.encodeShared(smartHints.save(lesson, stopId, request.getHints()), StopHintsView.Companion.serializer());
     }
 
-    /** The named stops, or all of them. The next publish of the lesson carries what she signed here and nothing else. */
+    /**
+     * The named stops, or all of them. The next publish of the lesson carries what she signed here and nothing else;
+     * on a lesson that is <em>already</em> published the approval bumps its version, so the body a phone has cached
+     * cannot disagree with the body the next phone downloads under the same ETag.
+     */
     @PostMapping(value = "/teacher/lessons/{id}/smart-hints/approve", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('lesson.write')")
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = SmartHintsView.class)))

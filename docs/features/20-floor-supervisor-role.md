@@ -20,7 +20,7 @@
 - **Her child page follows `floorSupervisor` only, not `gradebook`.**
 - **An older app fails to sign in with any future new role.** It shows an error rather than crashing. A tolerant
   role in the shared contract would fix it.
-- **Not deployed yet.** The QA deploy follows the merge into `develop`, and feature 21's V43 merges after this V42.
+- **Deployed to QA** with the merge of #224. The switch is off until the school turns it on.
 
 ## Goal
 

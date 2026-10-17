@@ -102,6 +102,16 @@ class MorningBriefApiTest extends ApiTestSupport {
     @Autowired SchoolFlagRepository schoolFlags;
     @Autowired FeatureFlags featureFlags;
     @Autowired AdminJwtService jwt;
+    @Autowired quest.server.staffattendance.AttendanceHolidayRepository holidays;
+    @Autowired TenantContext tenant;
+
+    /** Feature 14: an inclusive range on which the school does not teach. */
+    private void holiday(String schoolId, String name, LocalDate from, LocalDate to) {
+        var row = new quest.server.staffattendance.Entities.AttendanceHolidayEntity();
+        row.setId(UUID.randomUUID().toString()); row.setSchoolId(schoolId);
+        row.setName(name); row.setFromDate(from); row.setToDate(to);
+        holidays.save(row);
+    }
 
     @BeforeEach void pinAndAnswerLikeTheSampleClient() {
         clock.pinTo(NOW);
@@ -252,6 +262,48 @@ class MorningBriefApiTest extends ApiTestSupport {
         assertThat(lines(brief.get("linesAr"))).anyMatch(l -> l.contains("٦٧"));
     }
 
+    /**
+     * The same rule from the other side, which is the only one that proves the Arabic range is really in the
+     * pattern: the English lines are clean and the Arabic line invents ٩. Dropping the Arabic digits from
+     * {@code DIGITS} leaves the accepting test above green — it has to fail <em>here</em>.
+     */
+    @Test void an_invented_arabic_indic_number_in_the_arabic_lines_alone_is_rejected() throws Exception {
+        var s = school("indic-made-up");
+        doReturn(new LlmClient.Result(
+                "{\"linesAr\":[\"\u062a\u0623\u062e\u0631 \u0669 \u0645\u0648\u0638\u0641\u064a\u0646\",\"\u0637\u0644\u0628\u0627\u0646 \u064a\u0646\u062a\u0637\u0631\u0627\u0646 \u0642\u0631\u0627\u0631\u0643\",\"\u0634\u0643\u0648\u064a\u0627\u0646 \u0642\u062f\u064a\u0645\u062a\u0627\u0646\"],"
+                        + "\"linesEn\":[\"One employee arrived late.\",\"Two requests are waiting.\",\"Two complaints are old.\"]}",
+                100, 50)).when(llm).complete(any(), any(), any());
+        var brief = ok(scoped(get("/me/morning-brief"), s.admin(), s.id));
+        assertThat(brief.get("source").asText()).as("\u0669 is not one of the facts, whichever script it is written in")
+                .isEqualTo(MorningBriefDto.SOURCE_TEMPLATE);
+        assertThat(lines(brief.get("linesAr"))).noneMatch(l -> l.contains("\u0669"));
+    }
+
+    /**
+     * And the numbers in the <em>date</em> are not facts. The prompt carries today's and yesterday's date, so a
+     * validator that read its allowed numbers off the prompt made a fact of the year, the month and both days: on
+     * 2026-10-18 the line below would have been accepted with one absence, because 10 is October.
+     */
+    @Test void a_number_that_only_appears_in_the_date_is_not_a_fact() throws Exception {
+        var s = school("date-maths");
+        doReturn(new LlmClient.Result(
+                "{\"linesAr\":[\"\u063a\u0627\u0628 \u0661\u0660 \u0645\u0648\u0638\u0641\u064a\u0646 \u0623\u0645\u0633\",\"\u0637\u0644\u0628\u0627\u0646 \u064a\u0646\u062a\u0637\u0631\u0627\u0646 \u0642\u0631\u0627\u0631\u0643\",\"\u0634\u0643\u0648\u064a\u0627\u0646 \u0642\u062f\u064a\u0645\u062a\u0627\u0646\"],"
+                        + "\"linesEn\":[\"10 employees were absent yesterday.\",\"2 requests are waiting.\",\"2 complaints are old.\"]}",
+                100, 50)).when(llm).complete(any(), any(), any());
+        var brief = ok(scoped(get("/me/morning-brief"), s.admin(), s.id));
+        assertThat(brief.get("source").asText()).as("10 is the month, not a count of anybody")
+                .isEqualTo(MorningBriefDto.SOURCE_TEMPLATE);
+        assertThat(lines(brief.get("linesEn"))).noneMatch(l -> l.contains("10 employees"));
+        // …and a line that writes the date itself is still accepted: the date is allowed whole.
+        var dated = school("dated");
+        doReturn(new LlmClient.Result(
+                "{\"linesAr\":[\"\u0641\u064a " + THURSDAY + " \u062a\u0623\u062e\u0631 \u0645\u0648\u0638\u0641\",\"\u0637\u0644\u0628\u0627\u0646 \u064a\u0646\u062a\u0637\u0631\u0627\u0646 \u0642\u0631\u0627\u0631\u0643\",\"\u0634\u0643\u0648\u064a\u0627\u0646 \u0642\u062f\u064a\u0645\u062a\u0627\u0646\"],"
+                        + "\"linesEn\":[\"On " + THURSDAY + ", 1 employee arrived late.\",\"2 requests are waiting.\",\"2 complaints are old.\"]}",
+                100, 50)).when(llm).complete(any(), any(), any());
+        assertThat(ok(scoped(get("/me/morning-brief"), dated.admin(), dated.id)).get("source").asText())
+                .isEqualTo(MorningBriefDto.SOURCE_AI);
+    }
+
     // ---------------------------------------------------------------- privacy: who is never named
 
     @Test void no_child_parent_or_employee_is_named_to_the_model() throws Exception {
@@ -265,6 +317,25 @@ class MorningBriefApiTest extends ApiTestSupport {
         assertThat(sent).doesNotContain("Nour", "Lina", "Adam", "Amy American", "تالا المعلمة", "Dalia Director",
                 "Walid Worker", "parent@brief.test", "The bus is late");
         assertThat(sent).as("counts and labels only").contains("1 employees arrived late", "2 attendance requests");
+    }
+
+    /**
+     * Feature 23's reason is free text a leader typed, and it is the one field of the facts that could name an
+     * employee. The model is told the day is a remote study day and nothing more; the leader still reads the reason,
+     * because it is on the facts the endpoint answers with.
+     */
+    @Test void the_remote_study_days_reason_is_never_sent_to_the_provider() throws Exception {
+        var s = school("reason");
+        s.flag(FlagKeys.REMOTE_STUDY_DAYS, true);
+        s.remoteStudyDay(null, "Mrs Nada Alqahtani is in hospital");
+
+        var brief = ok(scoped(get("/me/morning-brief"), s.admin(), s.id));
+        var user = ArgumentCaptor.forClass(String.class);
+        verify(llm).complete(any(), user.capture(), any());
+        assertThat(user.getValue()).as("the label, never the words she typed").contains("today is a remote study day")
+                .doesNotContain("Nada").doesNotContain("hospital");
+        assertThat(brief.get("facts").get("remoteStudyDayReason").asText())
+                .as("hers to read, on her own brief").isEqualTo("Mrs Nada Alqahtani is in hospital");
     }
 
     // ---------------------------------------------------------------- the job
@@ -291,11 +362,42 @@ class MorningBriefApiTest extends ApiTestSupport {
         verify(llm, never()).complete(any(), any(), any());
     }
 
-    @Test void the_job_does_nothing_before_the_schools_own_quarter_past_seven() {
+    /**
+     * The gate itself, from both sides: 07:14 writes nothing and 07:15 writes the leaders' briefs. One pin only
+     * proved that the job is quiet *at some point* in the morning — a threshold moved to 07:00, which would brief
+     * the school a quarter of an hour early, passed it.
+     */
+    @Test void the_job_waits_for_the_schools_own_quarter_past_seven_and_then_runs() {
         var s = school("early");
-        clock.pinTo(SUNDAY.atTime(6, 30).atZone(RIYADH).toInstant());
-        assertThat(job.run(s.id)).isZero();
+        clock.pinTo(SUNDAY.atTime(7, 14).atZone(RIYADH).toInstant());
+        assertThat(job.run(s.id)).as("one minute before, nothing").isZero();
         assertThat(briefs.findOneBySchoolIdAndUserIdAndDay(s.id, s.director, SUNDAY)).isEmpty();
+
+        clock.pinTo(SUNDAY.atTime(7, 15).atZone(RIYADH).toInstant());
+        assertThat(job.run(s.id)).as("and on the minute, her brief").isGreaterThanOrEqualTo(1);
+        assertThat(briefs.findOneBySchoolIdAndUserIdAndDay(s.id, s.director, SUNDAY)).isPresent();
+    }
+
+    /**
+     * Feature 14's holidays are not teaching days either. The week says Sunday is one; the school says this Sunday
+     * is Eid, and the brief has to agree with the school — the alternative is a model call and a bell for every
+     * leader on every morning of the break, and "yesterday" being a day on which nobody was marked at all.
+     */
+    @Test void a_holiday_the_school_declared_has_no_brief_and_is_not_yesterday_either() throws Exception {
+        var s = school("eid");
+        holiday(s.id, "Eid", SUNDAY.minusDays(3), SUNDAY);                        // Thursday to Sunday inclusive
+
+        mvc.perform(scoped(get("/me/morning-brief"), s.admin(), s.id)).andExpect(status().isNoContent());
+        mvc.perform(bearer(get("/me/morning-brief"), s.token(s.director, "MANAGERIAL"))).andExpect(status().isNoContent());
+        assertThat(job.run(s.id)).as("and the job rings nobody on a holiday").isZero();
+        verify(llm, never()).complete(any(), any(), any());
+
+        // The first morning back: "yesterday" skips the closure rather than reporting an empty board.
+        var back = school("back");
+        holiday(back.id, "Eid", THURSDAY, FRIDAY);
+        var brief = ok(scoped(get("/me/morning-brief"), back.admin(), back.id)).get("facts");
+        assertThat(brief.get("yesterday").asText()).as("the last day the school actually taught")
+                .isEqualTo(THURSDAY.minusDays(1).toString());
     }
 
     // ---------------------------------------------------------------- the day, the roles and the switch
@@ -337,9 +439,20 @@ class MorningBriefApiTest extends ApiTestSupport {
         assertThat(brief.get("facts").get("lateYesterday").asInt()).as("hers, not both schools'").isEqualTo(1);
         assertThat(brief.get("facts").get("overdueComplaints").asInt()).isEqualTo(1);
 
+        // The other school's briefs really are written — and then invisible to a principal of this one. Asking for
+        // `mine.id` would have answered empty however the filter behaved; the question is asked about `theirs.id`,
+        // under `mine`'s own tenant, which is the only form of it the `school` filter can fail.
         job.run(theirs.id);
-        assertThat(briefs.findOneBySchoolIdAndUserIdAndDay(mine.id, theirs.director, SUNDAY))
-                .as("naming the other school's leader answers nothing").isEmpty();
+        assertThat(briefs.findAll().stream().filter(b -> theirs.id.equals(b.getSchoolId())).toList())
+                .as("the other school was briefed, with no tenant set").isNotEmpty();
+        try {
+            tenant.set("MANAGERIAL", mine.id, null);
+            assertThat(briefs.findOneBySchoolIdAndUserIdAndDay(theirs.id, theirs.director, SUNDAY))
+                    .as("naming the other school's leader and her school answers nothing").isEmpty();
+            assertThat(briefs.findAll()).noneMatch(b -> theirs.id.equals(b.getSchoolId()));
+        } finally {
+            tenant.clear();
+        }
     }
 
     // ---------------------------------------------------------------- helpers

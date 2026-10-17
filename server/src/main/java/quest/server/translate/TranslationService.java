@@ -67,6 +67,8 @@ import quest.server.translate.Entities.TranslationEntity;
 public class TranslationService {
     /** A chat body is ≤ 2,000 characters and a broadcast ≤ 1,000 plus a title; nothing the bridge translates is longer. */
     static final int MAX_SOURCE = 4000;
+    /** `ai_calls.feature` and the flag's own key: what the ledger files a translation under. */
+    static final String FEATURE = quest.server.flags.FlagKeys.LANGUAGE_BRIDGE;
     /** `{ "code": "rephrase" }` — the model could not produce a usable translation, twice. */
     public static final String REPHRASE = "rephrase";
     /** `translations.source_kind`, which is {@link TranslationSource}'s own four words. */
@@ -170,22 +172,26 @@ public class TranslationService {
 
     /**
      * The one path both sides take. The rate guard comes first and counts every request, a cache hit included — the
-     * cache stops the bill but not the traffic, and what is worth refusing is a loop ({@link TranslationRateLimiter}).
+     * cache stops the bill but not the traffic, and what is worth refusing is a loop. {@link #ask} then asks the
+     * ledger's own count, which is the half of {@link TranslationRateLimiter} that holds across instances.
      */
     private Translation run(Source source, String lang, String readerKey) {
         limiter.record(readerKey);
         String sent = GUARD.mask(source.text());
         String hash = sha256(sent);
         var hit = cache.hit(source.schoolId(), source.kind(), source.id(), lang, hash);
-        String text = hit.map(TranslationEntity::getText).orElseGet(() -> store(source, lang, hash, ask(source, lang, sent)));
+        String text = hit.map(TranslationEntity::getText)
+                .orElseGet(() -> store(source, lang, hash, ask(source, lang, sent, readerKey)));
         return new Translation(text, ReadingLanguage.valueOf(lang.toUpperCase(java.util.Locale.ROOT)), true,
                 source.text(), kindOf(source.kind()), source.id());
     }
 
     /** Two attempts with the validator's own words carried into the second, exactly as every other AI feature asks. */
-    private String ask(Source source, String lang, String sent) {
+    private String ask(Source source, String lang, String sent, String readerKey) {
+        // The ceiling that holds across instances, asked only of a request that is really about to call the model.
+        limiter.requireHeadroom(source.schoolId(), FEATURE, readerKey);
         try {
-            return ai.run(AiTask.of("languageBridge", "TRANSLATE-" + lang, source.schoolId(), Prompts.TRANSLATE,
+            return ai.run(AiTask.of(FEATURE, TranslationRateLimiter.tag(readerKey), source.schoolId(), Prompts.TRANSLATE,
                             Prompts.userTranslate(ReadingLanguages.label(lang), sent))
                     // The user turn is already masked, so this masks nothing twice; it is on the task because that is
                     // where the ledger and any future reader of it look to see what the provider was allowed to see.
@@ -196,7 +202,10 @@ public class TranslationService {
                         var wrong = problems(answer, sent);
                         return wrong.isEmpty() ? AiVerdict.ok(answer) : AiVerdict.rejected(wrong);
                     })
-                    .keepingRejects()).text();
+                    // No `keepingRejects()`: a rejected answer here is the whole of a private message in another
+                    // language, and `LlmFailures` writes it to `data/llm-failures/` in clear, with no retention and
+                    // no tenant. What went wrong is in the 422 the reader gets; the text itself stays in its table.
+                    ).text();
         } catch (AiFailure f) {
             if (f.kind() == AiFailure.Kind.INVALID)
                 throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, REPHRASE,

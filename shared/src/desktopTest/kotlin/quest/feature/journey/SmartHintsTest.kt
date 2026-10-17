@@ -132,6 +132,70 @@ class SmartHintsTest {
         assertTrue(vm.state.value.phase != Phase.HINT)
     }
 
+    // ------------------------------------------- post-merge review: the stops whose approvals were never drawn
+
+    /**
+     * The hints for a question inside an exit ticket are keyed by the question, which is what the teacher approved
+     * them for. The player was looking them up by the ticket's own id, so every approval for a ticket question missed.
+     */
+    @Test fun anExitTicketQuestionGetsTheHintApprovedForThatQuestion() = hintTest {
+        val ticket = level1.stops.filterIsInstance<quest.api.dto.Stop.ExitTicket>().first()
+        val question = ticket.questions.first()
+        val lessonWithTicketHints = lesson.copy(smartHints = mapOf(question.id to listOf(nudge, pointer)))
+        val vm = StopPlayerViewModel(lesson.id, 1, 0, level1.stops.indexOf(ticket), FakeLessons(lessonWithTicketHints), FakeJourney(), FakeChildren(maya), media, copy).also { built += it }
+        runCurrent()
+        assertEquals(ticket.id, vm.state.value.stop?.id, "the player is on the ticket; the question is inside it")
+
+        vm.dispatch(PlayerContract.Intent.Wrong(1, question.hintOrEmpty(), null, "b", stopId = question.id)); runCurrent()
+        assertEquals(Phase.HINT, vm.state.value.phase)
+        assertEquals(nudge, vm.state.value.hint)
+
+        vm.dispatch(PlayerContract.Intent.TryAgain); runCurrent()
+        vm.dispatch(PlayerContract.Intent.Wrong(2, question.hintOrEmpty(), null, "c", stopId = question.id)); runCurrent()
+        assertEquals(pointer, vm.state.value.hint)
+
+        // A stop that names nothing still means the stop on screen, which is every stop but a ticket's questions.
+        vm.dispatch(PlayerContract.Intent.TryAgain); runCurrent()
+        vm.dispatch(PlayerContract.Intent.Wrong(1, "The question's own hint.", null, "b")); runCurrent()
+        assertEquals("The question's own hint.", vm.state.value.hint)
+    }
+
+    /**
+     * A multi-answer stop (here the trace) is answered over several goes and corrects itself in place, so it reports a
+     * mistake rather than a wrong answer. Its approved hints were published and never drawn at all.
+     */
+    @Test fun aMistakeOnAMultiAnswerStopDrawsTheApprovedHints() = hintTest {
+        val trace = level1.stops.first { it.category == StopCategory.MULTI }
+        val hintedTrace = lesson.copy(smartHints = mapOf(trace.id to listOf(nudge, pointer)))
+        val (vm, effects) = playerAt(hintedTrace, level1.stops.indexOf(trace))
+
+        vm.dispatch(PlayerContract.Intent.Mistake(trace.id, 1, "Start at the top.")); runCurrent()
+        assertEquals(Phase.HINT, vm.state.value.phase)
+        assertEquals(nudge, vm.state.value.hint)
+        assertTrue(effects.contains(PlayerContract.Effect.Speak(nudge)))
+
+        vm.dispatch(PlayerContract.Intent.TryAgain); runCurrent()
+        vm.dispatch(PlayerContract.Intent.Mistake(trace.id, 2, "Start at the top.")); runCurrent()
+        assertEquals(pointer, vm.state.value.hint)
+    }
+
+    @Test fun aMistakeWithNoApprovedHintsSaysWhatTheStopWouldHaveSaid() = hintTest {
+        val trace = level1.stops.first { it.category == StopCategory.MULTI }
+        val (vm, effects) = playerAt(lesson, level1.stops.indexOf(trace))
+
+        vm.dispatch(PlayerContract.Intent.Mistake(trace.id, 1, "Start at the top.")); runCurrent()
+        assertEquals(Phase.STOP, vm.state.value.phase, "nothing is drawn over a stop the child is still working at")
+        assertTrue(effects.contains(PlayerContract.Effect.Speak("Start at the top.")))
+
+        // An exam has no hints and no second go, so a mistake there says nothing at all.
+        val exam = lesson.copy(type = "exam", hintsOff = true, numbersOff = true, examPlay = level1, smartHints = mapOf(trace.id to listOf(nudge, pointer)))
+        val (sitting, examEffects) = playerAt(exam, level1.stops.indexOf(trace))
+        examEffects.clear()
+        sitting.dispatch(PlayerContract.Intent.Mistake(trace.id, 1, "Start at the top.")); runCurrent()
+        assertTrue(sitting.state.value.phase != Phase.HINT)
+        assertTrue(examEffects.none { it is PlayerContract.Effect.Speak })
+    }
+
     // ---------------------------------------------------------------- the practice set a review island plays
 
     @Test fun aReviewIslandNamingAPracticeVariantOpensThatPracticePlay() = hintTest {
@@ -195,6 +259,32 @@ class SmartHintsTest {
         // A seed with nothing approved still decodes, with both fields empty.
         assertTrue(api.lesson(quest.api.samples.HotSoupSeed.LESSON_ID).smartHints.isEmpty())
         assertTrue(api.lesson(quest.api.samples.HotSoupSeed.LESSON_ID).practice.isEmpty())
+        // The exit ticket's own questions are hintable too, so the fake carries one for `p1-e1` inside `p1-exit`.
+        assertTrue(served.smartHints.containsKey("p1-e1"))
+    }
+
+    /**
+     * Post-merge review: only the lesson itself finishes a level. `AttemptService.deriveLessonCompletions` skips
+     * `variant != 0` and `JourneyRepositoryImpl.completions` keeps only variant 0, so a practice set finished on the
+     * fake must not draw the lesson's island as done either — a fake that says otherwise is a fake that lies.
+     */
+    @Test fun theFakeApisMapDoesNotCountAPracticeSetAsAFinishedLevel() = runTest {
+        val db = Db(DriverFactory(null))
+        val auth = FakeAuth(SettingsStore(db))
+        val api = FakeContentApi(auth, delayMillis = 0, today = { today })
+        auth.signIn("review@example.com", "secret123")
+        val child = api.createChild(quest.api.dto.CreateChildRequest("Nour", "sun", Curriculum.BRITISH, 1))
+        val practice = api.lesson(PhonicsSeed.LESSON_ID).practice.single().play
+
+        // Every stop of the practice set finished with three stars — the whole set, and nothing of Level 1 itself.
+        api.uploadAttempts(child.id, practice.stops.mapIndexed { i, stop ->
+            quest.api.dto.AttemptUpload("pr-$i", stop.id, PhonicsSeed.LESSON_ID, practice.level, "\"a\"", true, 1, 0, 3, 0L)
+        })
+
+        val island = api.map(child.id, LocalDate(2026, 9, 1), LocalDate(2026, 9, 30)).islands
+            .first { it.kind == IslandKind.LESSON && it.lessonId == PhonicsSeed.LESSON_ID }
+        assertTrue(island.state != IslandState.DONE, "the lesson's island is not finished by a practice set")
+        assertTrue(island.completedLevels.isNullOrEmpty(), "no level is completed: ${island.completedLevels}")
     }
 
     // ---------------------------------------------------------------- harness
@@ -216,8 +306,10 @@ class SmartHintsTest {
         block()
     }
 
-    private fun TestScope.player(lesson: PublishedLesson): Pair<StopPlayerViewModel, MutableList<PlayerContract.Effect>> {
-        val vm = StopPlayerViewModel(lesson.id, 1, 0, singleIndex, FakeLessons(lesson), FakeJourney(), FakeChildren(maya), media, copy).also { built += it }
+    private fun TestScope.player(lesson: PublishedLesson) = playerAt(lesson, singleIndex)
+
+    private fun TestScope.playerAt(lesson: PublishedLesson, index: Int): Pair<StopPlayerViewModel, MutableList<PlayerContract.Effect>> {
+        val vm = StopPlayerViewModel(lesson.id, 1, 0, index, FakeLessons(lesson), FakeJourney(), FakeChildren(maya), media, copy).also { built += it }
         val effects = mutableListOf<PlayerContract.Effect>()
         backgroundScope.launch { vm.effects.collect { effects += it } }
         runCurrent()

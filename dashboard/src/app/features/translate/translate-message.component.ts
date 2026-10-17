@@ -10,9 +10,11 @@ import { type StaffSource, StaffTranslationService } from '../../core/translate/
  * with "Show original only" to put it away. What it never does is replace the message: the
  * original bubble above it is untouched, because the original is the record (the owner's rule).
  *
- * Only on a parent's message, and only while `languageBridge` is on — a colleague's Arabic is
- * not what this is for, and with the switch off `POST /staff/translate` is a 404 anyway, so the
- * action is absent rather than broken (§4's three-place rule).
+ * Only on a parent's message, and only while `languageBridge` is on and this account holds
+ * `staff.translate` — a colleague's Arabic is not what this is for, and with the switch off
+ * `POST /staff/translate` is a 404 anyway, so the action is absent rather than broken (§4's
+ * three-place rule). The permission is what keeps it away from an Admin's read-only "View as"
+ * session, where that write is a 403 and retrying could never help.
  *
  * Both staff screens that carry a parent's words draw it: Messages
  * (`features/chat/chat.page.ts`) and one complaint (`features/complaints`).
@@ -99,7 +101,9 @@ export class TranslateMessageComponent {
   /** Nothing to translate: a message that is only files. */
   readonly hasBody = input<boolean>(true);
 
-  protected readonly shows = computed(() => this.bridge.on() && this.fromParent() && this.hasBody());
+  protected readonly shows = computed(
+    () => this.bridge.allowed() && this.fromParent() && this.hasBody(),
+  );
   protected readonly busy = computed(() => this.bridge.busy(this.kind(), this.messageId()));
 
   protected show(): void {

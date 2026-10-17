@@ -253,6 +253,22 @@ class AiServiceTest extends ApiTestSupport {
         assertThat(AiInputGuard.numbersOnly().mask("Grade 3 meets at 7:30 on 2026-10-15")).isEqualTo("Grade 3 meets at 7:30 on 2026-10-15");
     }
 
+    /**
+     * A date with a time on it is still a date. The run "20/10/2026 10" carries ten digits — one more than the
+     * phone threshold — because the separator class allows a space, so the whole thing used to be masked and the
+     * Urdu translation of "the trip is on 20/10/2026 10:30" read "the trip is on [phone]:30". A leading or trailing
+     * date leaves the run before its digits are counted.
+     */
+    @Test void a_date_written_with_a_time_is_not_a_telephone_number() {
+        var guard = AiInputGuard.numbersOnly();
+        assertThat(guard.mask("The trip is on 20/10/2026 10:30.")).isEqualTo("The trip is on 20/10/2026 10:30.");
+        assertThat(guard.mask("The trip is on 2026-10-20 10:30.")).isEqualTo("The trip is on 2026-10-20 10:30.");
+        assertThat(guard.mask("Sports day 20-10-2026 at 9.")).isEqualTo("Sports day 20-10-2026 at 9.");
+        // …and a real number beside one is still masked, date and all intact
+        String masked = guard.mask("On 20/10/2026 ring 0551234567 please.");
+        assertThat(masked).contains("20/10/2026").contains(AiInputGuard.PHONE_MASK).doesNotContain("0551234567");
+    }
+
     @Test void a_guarded_task_sends_the_masked_turn_and_an_unguarded_one_sends_her_words() {
         doReturn(new LlmClient.Result("{\"yes\":true}", 10, 5)).when(llm).complete(any(), any(), any());
         String said = "Call Nada on 0501234567.";

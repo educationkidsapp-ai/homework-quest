@@ -52,6 +52,8 @@ class TranslationApiTest extends ChatTestSupport {
     @Autowired quest.server.chat.ChatMessageRepository messages;
     @Autowired BroadcastRepository broadcasts;
     @Autowired AnnouncementRepository announcements;
+    @Autowired quest.server.chat.ComplaintEventRepository complaintEvents;
+    @Autowired quest.server.ai.AiCallRepository ledger;
 
     private String maya, omar;
 
@@ -68,6 +70,8 @@ class TranslationApiTest extends ChatTestSupport {
     }
 
     @AfterEach void clean() {
+        ledger.deleteAll(ledger.findAll().stream().filter(c -> c.getSchoolId() != null && c.getSchoolId().startsWith(prefix())).toList());
+        complaintEvents.deleteAll(complaintEvents.findAll().stream().filter(e -> e.getSchoolId().startsWith(prefix())).toList());
         translations.deleteAll(translations.findAll().stream().filter(t -> t.getSchoolId().startsWith(prefix())).toList());
         broadcasts.deleteAll(broadcasts.findAll().stream().filter(b -> b.getSchoolId().startsWith(prefix())).toList());
         announcements.deleteAll(announcements.findAll().stream().filter(a -> a.getSchoolId().startsWith(prefix())).toList());
@@ -167,6 +171,41 @@ class TranslationApiTest extends ChatTestSupport {
         translate(maya, "announcement", otherNote, "ur").andExpect(status().isNotFound());
     }
 
+    /**
+     * Feature 29's other reading rule, which the spec names in one breath with the threads: "the threads
+     * <em>and complaints</em> they may read". A complaint is a `chat_threads` row with its own topic and its own
+     * reach — {@link quest.server.chat.ComplaintService#mayRead} for staff, the child's own `child_id` for the
+     * parent — so both sides have a branch of their own, and the branch also refuses a chat id sent as a complaint.
+     */
+    @Test void a_complaint_is_translated_only_for_the_family_and_the_staff_it_belongs_to() throws Exception {
+        String mine = complaintMessage(maya, PARENT, NOOR, "الحافلة تتأخر كل صباح.");
+
+        // Her own complaint, as a complaint: the one kind it is.
+        var urdu = translated(maya, "complaint", mine, "ur");
+        assertThat(urdu.get("text").asText()).isEqualTo("[ur] الحافلة تتأخر كل صباح.");
+        assertThat(urdu.get("sourceKind").asText()).isEqualTo("complaint");
+
+        // The same message named as a chat message is not a source at all: the kind is part of the check.
+        translate(maya, "chat", mine, "ur").andExpect(status().isNotFound());
+
+        // Another family's complaint, on the same section and the same recipient.
+        String theirChild = someoneElsesChild("Theirs");
+        String theirs = complaintMessage(theirChild, OTHER_PARENT, NOOR, "A complaint about somebody else's child.");
+        translate(maya, "complaint", theirs, "ur").andExpect(status().isNotFound());
+
+        // Staff: the recipient reads it, and a teacher of the same section who is not on it does not.
+        var english = json(mvc.perform(as(post("/staff/translate"), noor).contentType(MediaType.APPLICATION_JSON)
+                .content(body("complaint", mine, "en"))).andExpect(status().isOk()).andReturn());
+        assertThat(english.get("sourceKind").asText()).isEqualTo("complaint");
+        mvc.perform(as(post("/staff/translate"), sara).contentType(MediaType.APPLICATION_JSON)
+                .content(body("complaint", mine, "en"))).andExpect(status().isNotFound());
+        mvc.perform(as(post("/staff/translate"), other).contentType(MediaType.APPLICATION_JSON)
+                .content(body("complaint", mine, "en"))).andExpect(status().isNotFound());
+
+        assertThat(messages.findById(mine).orElseThrow().getBody())
+                .as("the complaint's own words are untouched — the owner's rule").isEqualTo("الحافلة تتأخر كل صباح.");
+    }
+
     @Test void staff_translate_only_a_thread_they_may_already_read() throws Exception {
         String mothersMessage = parentWritesTo(maya, NOOR, "ما فهمت الواجب، ممكن توضيح؟");
 
@@ -212,6 +251,42 @@ class TranslationApiTest extends ChatTestSupport {
         verify(llm, times(1)).complete(any(), any(), any());
     }
 
+    /**
+     * The sixty is a ceiling on <strong>model calls per reader per hour</strong>, and the in-memory window cannot
+     * enforce it: it is per instance, so two revisions of the service mean a hundred and twenty and ten mean six
+     * hundred. The durable half counts the `ai_calls` rows every instance writes, under a tag that is this reader's
+     * own — the rows below are what another instance would have left behind.
+     */
+    @Test void the_hours_model_calls_are_counted_in_the_ledger_so_the_ceiling_holds_across_instances() throws Exception {
+        String first = saraWrites("One.");
+        translated(maya, "chat", first, "ur");
+
+        var mine = ledger.findByFeatureOrderByCreatedAtAsc(FlagKeys.LANGUAGE_BRIDGE).stream()
+                .filter(c -> A.equals(c.getSchoolId())).toList();
+        assertThat(mine).as("one call, filed under this reader").hasSize(1);
+        String tag = mine.get(0).getTag();
+        assertThat(tag).as("per reader, not per language").startsWith("TRANSLATE-parent:");
+
+        for (int i = 0; i < 59; i++) {                                   // the other instance's fifty-nine
+            var row = new quest.server.ai.Entities.AiCallEntity();
+            row.setId("ch-ai-" + UUID.randomUUID()); row.setSchoolId(A); row.setFeature(FlagKeys.LANGUAGE_BRIDGE);
+            row.setTag(tag); row.setProvider("sample"); row.setInputTokens(10); row.setOutputTokens(10);
+            row.setOutcome("ok"); row.setDurationMs(5); row.setCreatedAt(Instant.now());
+            ledger.save(row);
+        }
+
+        String second = saraWrites("Two.");
+        translate(maya, "chat", second, "ur")
+                .andExpect(status().isTooManyRequests()).andExpect(jsonPath("$.code").value("rate_limited"));
+        assertThat(translations.of("chat", second)).as("and nothing was translated or stored").isEmpty();
+
+        // …while the cache still answers, because a hit is not a call and costs nobody anything
+        translate(maya, "chat", first, "ur").andExpect(status().isOk());
+        // and another reader is untouched: the tag is hers, not the school's
+        var others = ledger.findByTagOrderByCreatedAtAsc("TRANSLATE-parent:nobody");
+        assertThat(others).isEmpty();
+    }
+
     @Test void the_switch_off_hides_both_routes() throws Exception {
         String messageId = saraWrites("Hidden.");
         setFlag(adminToken, A, FlagKeys.LANGUAGE_BRIDGE, false);
@@ -242,6 +317,15 @@ class TranslationApiTest extends ChatTestSupport {
 
     private String parentWritesTo(String childId, String staffId, String text) throws Exception {
         return parentPost("/children/" + childId + "/chat/threads/" + staffId + "/messages", send(text)).get("id").asText();
+    }
+
+    /** One complaint from one parent to one member of staff; answers the id of her own first message. */
+    private String complaintMessage(String childId, String parent, String staffId, String text) throws Exception {
+        var created = json(mvc.perform(post("/children/" + childId + "/complaints").header("Authorization", parent)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"staffId\":\"" + staffId + "\",\"title\":\"The bus\",\"body\":" + ChatTestSupport.quote(text) + "}"))
+                .andExpect(status().isCreated()).andReturn());
+        return created.get("messages").get(0).get("id").asText();
     }
 
     private JsonNode translated(String childId, String kind, String sourceId, String lang) throws Exception {

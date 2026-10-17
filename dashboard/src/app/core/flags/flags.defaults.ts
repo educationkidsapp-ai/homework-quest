@@ -33,9 +33,11 @@ export const DEFAULT_FLAGS: Readonly<Record<string, boolean>> = {
   'join.byList': false,
   // V15 (C1): off until an Admin turns it on per school.
   chat: false,
+  // V36 (feature 13): off until an Admin turns it on per school.
+  staffMobileApp: false,
   // V37 (feature 14): off until an Admin turns it on per school.
   staffAttendance: false,
-  // V40 (feature 19): off until an Admin turns it on per school.
+  // V41 (feature 19): off until an Admin turns it on per school.
   chatOfficeHours: false,
   // V42 (feature 20): off until an Admin turns it on per school.
   floorSupervisor: false,
@@ -51,6 +53,8 @@ export const DEFAULT_FLAGS: Readonly<Record<string, boolean>> = {
   documentReader: false,
   // V49 (feature 27): off until an Admin turns it on per school.
   complaintTriage: false,
+  // V50 (feature 28): off until an Admin turns it on per school.
+  parentEveningCard: false,
   // V51 (feature 29): off until an Admin turns it on per school.
   languageBridge: false,
   // V52 (feature 30): off until an Admin turns it on per school.

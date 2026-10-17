@@ -599,6 +599,8 @@ public final class Prompts {
         The summary says what the parent is complaining about and what she is asking for, and adds no fact she did
         not give. The draft reply acknowledges the complaint, says what will be looked into, and promises nothing
         specific — no date, no decision, no apology on anyone else's behalf. No emoji, no dialect.
+        Never write [name], [email] or [phone] in a summary or a reply: a member of staff sends the reply as it
+        stands, and a parent reading a placeholder has been written to by nobody. Address her as "Dear parent".
         """;
 
     /**

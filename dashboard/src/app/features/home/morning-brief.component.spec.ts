@@ -1,7 +1,8 @@
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { EnvironmentProviders, Provider } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
 import { screen } from '@testing-library/angular';
 import { TranslocoService } from '@jsverse/transloco';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -10,11 +11,19 @@ import { ADMIN_USER, type DashboardUserFixture } from '../../../testing/fixtures
 import { renderHq } from '../../../testing/render';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionStore } from '../../core/auth/session.store';
+import { BandService } from '../../core/band/band.service';
+import { errorInterceptor } from '../../core/http/error.interceptor';
 import { MorningBriefComponent } from './morning-brief.component';
 
+/**
+ * The real `errorInterceptor` is installed, which is the only way the card's "never a red band"
+ * can be tested at all: the band is the interceptor's, not the component's, and a spec that left
+ * it out passed while every failed brief put a band at the top of Home.
+ */
 const providers: (Provider | EnvironmentProviders)[] = [
-  provideHttpClient(),
+  provideHttpClient(withInterceptors([errorInterceptor])),
   provideHttpClientTesting(),
+  provideRouter([]),
   { provide: BASE_PATH, useValue: '' },
 ];
 
@@ -53,7 +62,7 @@ async function settle(rendered: { fixture: { detectChanges: () => void } }): Pro
  * 204 the server sends on a day the school does not teach, or `'error'` for a request that failed.
  */
 async function renderBrief(
-  answer: MorningBrief | null | 'error',
+  answer: MorningBrief | null | 'error' | number,
   user: DashboardUserFixture = ADMIN_USER,
 ) {
   const rendered = await renderHq(MorningBriefComponent, { providers });
@@ -67,6 +76,9 @@ async function renderBrief(
   for (const request of backend.match('/me/morning-brief')) {
     if (request.cancelled) continue;
     if (answer === 'error') request.flush({ code: 'server_error' }, { status: 500, statusText: 'Boom' });
+    // A status of its own: 404 with the switch newly off, 403, or 0 for a dropped connection.
+    else if (typeof answer === 'number')
+      request.flush({ code: 'refused', message: 'No.' }, { status: answer, statusText: 'Refused' });
     // A 204 reaches the client as a `null` body, which is what "no brief today" looks like here.
     else if (answer === null) request.flush(null, { status: 204, statusText: 'No Content' });
     else request.flush(answer);
@@ -147,6 +159,22 @@ describe('Feature 25 — the morning brief on Home', () => {
 
     expect(card(rendered)).toBeNull();
     expect(screen.queryByText('Good morning')).not.toBeInTheDocument();
+    // And no red band: the request is sent with `silentErrors`, so the interceptor stays out of it.
+    expect(TestBed.inject(BandService).current()).toBeNull();
+  });
+
+  /**
+   * The ways a brief fails that are not a bug: another Admin turned `morningBrief` off a moment
+   * ago and this tab's flags are stale (404), the connection dropped (0), or the account may not
+   * read it (403). None of them is hers to read, and the 403 must not take Home away either.
+   */
+  it.each([404, 403, 0])('leaves Home alone on a %i, with no band and no navigation', async (status) => {
+    const { rendered } = await renderBrief(status);
+
+    expect(card(rendered)).toBeNull();
+    expect(TestBed.inject(BandService).current()).toBeNull();
+    // Still where she was: a 403 would otherwise have taken her to /no-access.
+    expect(TestBed.inject(Router).url).toBe('/');
   });
 
   it('draws nothing when the answer carries no line in this language', async () => {

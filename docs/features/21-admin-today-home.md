@@ -14,8 +14,7 @@
   was refused today because the phone is not the approved one. The Admin resets the device inline, and only she
   sees this part, because only she may reset a device.
 - **Errors show in the red band, not a toast.** That is the dashboard's rule for failures.
-- **Not deployed yet.** The QA deploy follows the merge into `develop`, after feature 20 (migration V42 before V43).
-  The switch is off until the school turns it on.
+- **Deployed to QA** with the merge of #223. The switch is off until the school turns it on.
 
 ## Goal
 

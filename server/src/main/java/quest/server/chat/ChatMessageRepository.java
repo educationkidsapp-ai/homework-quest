@@ -48,4 +48,8 @@ public interface ChatMessageRepository extends JpaRepository<Entities.ChatMessag
     @Modifying @Transactional
     @Query("delete from ChatMessageEntity m where m.threadId in :threadIds")
     int deleteByThreads(@Param("threadIds") List<String> threadIds);
+
+    /** The ids of those messages, read before they are deleted: what has a translation to take with it (V51). */
+    @Query("select m.id from ChatMessageEntity m where m.threadId in :threadIds")
+    List<String> idsOfThreads(@Param("threadIds") List<String> threadIds);
 }

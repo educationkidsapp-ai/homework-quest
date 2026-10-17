@@ -1,8 +1,9 @@
 # Runbook
 
-Operating the platform as it stands on `develop` (phase 1: tenancy, roles, dashboard accounts, the Angular workspace;
-phase 2: feature flags, school themes, platform settings, and the app that reads all three). The Angular dashboard
-screens for flags and themes are phase 3 and are not described here — today those routes are driven with `curl`.
+Operating the platform as it stands on `develop`: tenancy, roles, dashboard accounts, feature flags, school themes,
+platform settings, chat and notifications, push, exams, staff attendance (features 13–23), the AI features (24–30)
+and teaching material tracking (31). Sections written before the dashboard had a screen for something still drive
+that route with `curl`; the dashboard has one for most of them now.
 
 Commands were run against a local server on the in-memory H2 profile unless the line says **needs QA credentials**.
 Secrets appear by name only; nothing here prints a value.
@@ -12,6 +13,8 @@ Secrets appear by name only; nothing here prints a value.
 - [Roles and permissions](#roles-and-permissions)
 - [Dashboard accounts](#dashboard-accounts)
 - [Feature flags](#feature-flags)
+- [AI features (features 24–30)](#ai-features-features-2430)
+- [Teaching material tracking (feature 31)](#teaching-material-tracking-feature-31)
 - [School themes](#school-themes)
 - [Platform settings](#platform-settings)
 - [Environment variables](#environment-variables)
@@ -714,14 +717,22 @@ retires with `webAdmin/` in phase 3. New clients use `POST /auth/sign-in`.
 
 ## Feature flags
 
-Every feature of §6 is behind a flag. `feature_flags` defines the 14 of them platform-wide, `school_feature_flags`
-holds the overrides a school has actually been given, and `flag_audit` records who flipped what. All three are created
-and seeded by `V5__flags_themes.sql`; the same 14 keys and defaults are `DEFAULT_FLAGS` in `shared-api`
-(`quest/api/ContentApi.kt`), which is what the app falls back to before its first sync.
+Every feature is behind a flag. `feature_flags` defines them platform-wide, `school_feature_flags` holds the
+overrides a school has actually been given, and `flag_audit` records who flipped what. All three are created by
+`V5__flags_themes.sql`, which seeds the first fourteen; every feature since has added its own key in its own
+additive migration. The same keys and defaults are `DEFAULT_FLAGS` in `shared-api` (`quest/api/ContentApi.kt`),
+which is what the app falls back to before its first sync.
 
 `schools.feature_flags_json` (added in V4) stays **unused** — the normalised table is the only truth.
 
-### The 14 keys
+### The 36 keys
+
+`flags/FlagKeys.java` is the list in code; `FlagAdminTest.the_flags_are_seeded_exactly_as_the_code_lists_them`
+proves the seed and that list agree, and it asserts the count, so a new key is one line in `FlagKeys`, one
+migration and one number in that test. Read the current list with
+`grep 'String [A-Z_]* = ' server/src/main/java/quest/server/flags/FlagKeys.java`.
+
+#### The first fourteen (V5)
 
 | Key | Seeded default | Stage | What it gates |
 |---|---|---|---|
@@ -740,8 +751,44 @@ and seeded by `V5__flags_themes.sql`; the same 14 keys and defaults are `DEFAULT
 | `teacherQuestions` | **off** | internal | teachers send questions to their students (phase 4) |
 | `progress.weeklyEmail` | **off** | internal | weekly progress email to parents |
 
-On for what ships today, off for what phases 4–6 still have to build — so the migration switches nothing off that a
-school already uses.
+On for what shipped in §6, off for what came later — so the migration switches nothing off that a school already
+uses.
+
+#### The one-school build (V7)
+
+All seven seeded **off**, stage `internal`.
+
+| Key | What it gates |
+|---|---|
+| `multiSchool` | more than one school: the Admin's school screens and the switcher |
+| `webPlayer` | the dashboard web player and its test-parent accounts |
+| `gradebook` | the gradebook grid, bands and exports |
+| `openStopMarking` | teachers mark open stops and release the marks |
+| `exams` | exams: the window, the single attempt and the result sheets |
+| `teacher.rosterEdit` | teachers add and edit children in their own classes |
+| `join.byList` | parents join by picking their child from the class list |
+
+#### Everything since (one key per feature)
+
+All fifteen seeded **off**, stage `internal`. A school turns on what it uses.
+
+| Key | Migration | Feature | What it gates |
+|---|---|---|---|
+| `chat` | V15 | C1 | parent ↔ teacher chat: `/children/{id}/chat/**`, `/teacher/chat/**`, `/ws/chat`. V16 wrote an **on** override for every school that already existed, so the default-off definition does not switch chat off for them |
+| `staffMobileApp` | V36 | 13 | staff sign in to the parents' app: `/staff/**`, the staff half of `/me/devices`, and every staff push (the morning brief's, the material reminder's) |
+| `staffAttendance` | V37 | 14–18 | attendance settings, the direct manager, geofenced check-in and check-out, statuses and alerts, the board and the monthly report, remote days and corrections |
+| `chatOfficeHours` | V41 | 19 | a parent's out-of-hours message arrives quietly and is summarised when the member of staff's next working day starts; also the expected reply time on a complaint |
+| `floorSupervisor` | V42 | 20 | the floor supervisor's area `/floor/**`, her Messages, and the Admin's Floors and Floor supervisors pages. It stays off until an app build that can decode the `FLOOR_SUPERVISOR` chat role is distributed |
+| `todayHome` | V43 | 21 | the Admin's and the department manager's "what needs me today?" Home (`GET /me/today`) |
+| `voiceAnnouncement` | V44 | 22 | a leader's voice note becomes a bilingual announcement (`POST /management/broadcasts/voice-drafts`). The button also needs `announcements` |
+| `remoteStudyDays` | V46 | 23 | remote study days for the school, one academy or chosen grades (`/admin/remote-study-days`). V46 copied feature 18's school-wide rows in, so turning it on restores every day already declared |
+| `morningBrief` | V47 | 25 | the leader's morning brief (`GET /me/morning-brief`) and the job that writes it |
+| `documentReader` | V48 | 26 | the circular reader (`/management/documents/**`) |
+| `complaintTriage` | V49 | 27 | the AI triage beside a complaint only. The complaint itself stays behind `chat`, and the parent's expected reply time behind `chatOfficeHours` |
+| `parentEveningCard` | V50 | 28 | the parent's evening card (`GET /children/{id}/evening-card`) and the 18:00 push |
+| `languageBridge` | V51 | 29 | `POST /children/{id}/translate` and `POST /staff/translate`. A chat source also needs `chat`, a broadcast or announcement also needs `announcements`. `PUT /parent/me/reading-language` is deliberately **not** gated, so a parent's choice survives the switch |
+| `smartHints` | V52 | 30 | the lesson's `HINTS` pipeline step and `/teacher/lessons/{id}/smart-hints`; nothing is published until the teacher approves it |
+| `teachingMaterials` | V53 | 31 | `/teacher/materials/**`, `/materials/**`, `/admin/material-settings` and the reminder job |
 
 **The effective value** of a flag for a school is that school's row in `school_feature_flags`, and the flag's
 `default_on` when it has none. A new school therefore inherits the defaults without a row being written, and a new
@@ -757,9 +804,15 @@ annotation *replaces* its controller's rather than adding to it. Whose flags dec
 (or the one an ADMIN picked with `X-School-Id`); a parent's child's school on `/children/{id}/**` and her **first**
 child's school on every other parent route; nobody → the defaults.
 
-Nothing on `develop` carries `@FeatureFlag` yet: the phase-1 controllers predate the flags and the flag, theme and
-platform-settings controllers are infrastructure (a flag that could switch off the endpoint which switches flags has
-no way back on). P3.0 and P4.0 annotate the routes they add.
+Almost every controller added since P3.0 carries `@FeatureFlag`; `grep -c '@FeatureFlag(' -r server/src/main/java`
+counts them. The exceptions are closed lists in `FeatureFlagCoverageTest`: the phase-1 controllers, which predate
+the flags, and the flag, theme and platform-settings controllers, which are infrastructure (a flag that could
+switch off the endpoint which switches flags has no way back on).
+
+Two features are gated without an annotation of their own, because they add no controller: feature 27's triage,
+which `ComplaintTriageService` checks before it calls the model — so a school with it off is billed for no AI call
+— and feature 30's `HINTS` pipeline step, which marks itself done when the flag is off so the lesson still reaches
+Review.
 
 ### Reading and flipping them
 
@@ -772,7 +825,7 @@ SCHOOL=$(jq -r .schools.A.id e2e/.seed.json)          # school A of the e2e fixt
 TOKEN=$(curl -s -X POST "$API/auth/sign-in" -H 'Content-Type: application/json' \
   -d '{"email":"admin@quest.local","password":"…"}' | jq -r .token)
 
-curl -s "$API/schools/$SCHOOL/flags"                  # public: all 14 as {key: boolean}, ETag + max-age=300
+curl -s "$API/schools/$SCHOOL/flags"                  # public: every key as {key: boolean}, ETag + max-age=300
 curl -s "$API/admin/flags" -H "Authorization: Bearer $TOKEN"          # definitions + a row per visible school
 curl -s "$API/admin/flags/audit?limit=5" -H "Authorization: Bearer $TOKEN"
 
@@ -782,7 +835,8 @@ curl -s -X PUT "$API/admin/flags/certificates/all" -H "Authorization: Bearer $TO
   -H 'Content-Type: application/json' -d '{"enabled":true}'           # the whole column
 ```
 
-Verified locally: the public read answered 14 keys (10 on, 4 off, exactly the table above); flipping `certificates`
+Verified locally: the public read answered every key in `FlagKeys.ALL`, with exactly the defaults the tables above
+give; flipping `certificates`
 off for A answered `false` on the very next public fetch and left school B `true`; the audit gained one row naming the
 flag, the school and `admin@quest.local`. The column action leaves **one** row with `school_id` null — that null is
 what "for all schools" means; the trail is append-only and nothing removes it.
@@ -1038,8 +1092,19 @@ Names only — never paste a value into a PR, a commit, a log or a chat. Values 
 | `QUEST_LLM_TIMEOUT_SECONDS`, `QUEST_LLM_CONNECT_TIMEOUT_SECONDS` | every environment | per model call: read (120 s, and 120 s is also the cap) and connect (10 s) — see [Stuck lessons](#stuck-lessons) |
 | `QUEST_PIPELINE_DEADLINE_GENERATE_SECONDS`, `QUEST_PIPELINE_DEADLINE_ANALYZE_SECONDS`, `QUEST_PIPELINE_DEADLINE_CONVERT_SECONDS` | every environment | how long one step may run before it is `error`/`timeout` (360 / 240 / 180 s) |
 | `QUEST_PIPELINE_WATCHDOG_ENABLED`, `QUEST_PIPELINE_WATCHDOG_INTERVAL_SECONDS`, `QUEST_PIPELINE_WATCHDOG_GRACE_SECONDS` | every environment | the sweep that recovers a job a recycled instance left behind (on, every 60 s, 60 s of slack) |
+| `QUEST_EXAMS_RELEASE_SWEEP_ENABLED`, `QUEST_EXAMS_RELEASE_SWEEP_INTERVAL_SECONDS` | every environment | N4.3: the sweep that releases an exam's results when its window closes (on, every 60 s) |
+| `QUEST_STAFF_ATTENDANCE_JOB_ENABLED`, `QUEST_STAFF_ATTENDANCE_JOB_INTERVAL_SECONDS` | every environment | feature 16: check-ins become statuses, reminders and alerts (on, every 300 s) |
+| `QUEST_CHAT_OFFICE_HOURS_JOB_ENABLED`, `QUEST_CHAT_OFFICE_HOURS_JOB_INTERVAL_SECONDS` | every environment | feature 19: the summary of out-of-hours parent messages at the start of the next working day (on, every 300 s) |
+| `QUEST_MORNING_BRIEF_JOB_ENABLED`, `QUEST_MORNING_BRIEF_JOB_INTERVAL_SECONDS` | every environment | feature 25: writes each leader's morning brief from 07:15 school time (on, every 300 s). Off pauses the brief; a leader who opens Home still generates her own |
+| `QUEST_EVENING_CARD_JOB_ENABLED`, `QUEST_EVENING_CARD_JOB_INTERVAL_SECONDS` | every environment | feature 28: the 18:00 evening push and the cards nobody has asked for yet (on, every 300 s). Off pauses the push; a parent who opens the card after 16:00 still generates her own |
+| `QUEST_MATERIALS_JOB_ENABLED`, `QUEST_MATERIALS_JOB_INTERVAL_SECONDS` | every environment | feature 31: the teaching-material reminder, between `remindHoursBefore` and the deadline (on, every 300 s) |
 | `QUEST_PUSH_ENABLED` | QA, prod | B4: send parents' push through Firebase Cloud Messaging. Defaults to on under the `qa` and `prod` profiles and off everywhere else (sends are recorded, not sent) — see [Push notifications](#push-notifications-b4) |
 | `quest.pipeline.convert.allow-builtin-fallback` | `h2`/`test` profiles only | not an environment variable: hard `false` in the base config, `true` only under those two profiles, and the code checks the profile too |
+
+Every `*_JOB_ENABLED` sweep above also runs **once at startup**, because on Cloud Run the instance that would have
+held the timer is usually gone; each claims its rows in a table of its own before it sends, so a rerun or a second
+instance sends nothing twice. All of them are forced off under the `test` profile, where the tests call `run(…)`
+directly. Setting one to `false` pauses only that sweep — the flag is what switches a feature off for a school.
 
 `ADMIN_JWT_SECRET` has a placeholder default in `application.yml` so a developer can boot without one. **Any deployed
 environment must set it** — Terraform does, from `random_password.jwt`.
@@ -1817,6 +1882,7 @@ chat ones.
 | `question.sent` | B4: a teacher sent the child a question to answer (`POST /teacher/questions/{id}/send`), once | `/children/{childId}/teacher-questions/{id}` |
 | `complaint.status` | B4/B6: a staff member resolved her complaint or opened it again (title "Complaint resolved" / "Complaint reopened") — one row per real change | `/children/{childId}/complaints/{complaintId}` |
 | `complaint.message` | B6: the recipient replied in her complaint — one unread row per complaint, read when she calls `…/complaints/{id}/read` | `/children/{childId}/complaints/{complaintId}` |
+| `evening.card` | feature 28: the evening card about one child's day is ready, from 18:00 school time, once per child per day (collapse key `evening:{childId}:{day}`) | `/children/{childId}/evening-card` |
 
 Every parent row except `chat.message` is written after the release, publish, post or status change has committed, in a
 transaction of its own — a failure there is logged and never undoes the release — and only once per recipient, lesson and
@@ -1833,7 +1899,8 @@ methods behind a key (`pnpm gen:permissions`): a single key covering the GETs an
 bell a write and take it off the screen during View-as.
 
 A row is `{id, kind, title, body, link, lessonId, readAt, createdAt}`. `kind` is `lesson.needs_skills`,
-`lesson.ready`, `lesson.failed`, `teacher.message`, `broadcast.posted` (RM2) or `chat.message` (T1) — **localise from
+`lesson.ready`, `lesson.failed`, `teacher.message`, `broadcast.posted` (RM2), `chat.message` (T1), the three
+attendance kinds of feature 16, `morning.brief` (25) or `material.reminder` (31) — **localise from
 `kind`**; `title` and `body` are English server strings to fall
 back on. `link` is a dashboard *path*, never a URL, and since MG1 **every row carries one, correct for the recipient's own
 role** — a coordinator sent to `/teacher/…` reaches a screen she has no route to:
@@ -1844,6 +1911,8 @@ role** — a coordinator sent to `/teacher/…` reaches a screen she has no rout
 | `broadcast.posted` | `/<area>/broadcasts?open=<broadcastId>`, `<area>` = `teacher` \| `coordinator` \| `management` by the **recipient's** role |
 | `teacher.message` | `/management/messages?thread=<threadId>`, or `/management/messages` for a manager who holds no department of the sender's |
 | `chat.message` | the recipient's own inbox on that thread: `/teacher/chat?thread=…`, `/coordinator/messages?thread=…`, `/management/messages?thread=…`, `/admin/messages?thread=…` — the four dashboards do not agree on the path, so the link is the one the **recipient's** router has |
+| `morning.brief` | feature 25: `/` — the brief sits above the leader's own Home cards. One row per leader per day, collapse key `morning-brief:{day}` |
+| `material.reminder` | feature 31: `/notifications?type=…&week=…&missing=…` (`quest.api.dashboard.MaterialLink`). One row per teacher per week, collapse key `material:reminder:{week}` |
 
 The entity id the link points at is also on the row: `lessonId` for the three lesson kinds, the broadcast id for
 `broadcast.posted` (which is how a replaced weekly plan's bell entries are withdrawn with it) and — T1 — the **thread**
@@ -2353,6 +2422,202 @@ V40 and V46.
   Feature 17's board shows a remote check-in as "عن بعد", and its monthly report counts the days with
   `mode = correction`.
 
+## AI features (features 24–30)
+
+Specs: [24](features/24-ai-service-layer.md), [25](features/25-morning-brief.md),
+[26](features/26-document-reader.md), [27](features/27-complaint-triage.md),
+[28](features/28-parent-evening-card.md), [29](features/29-parent-language-bridge.md),
+[30](features/30-smart-hints-targeted-practice.md).
+
+Every one of them is off until the school turns its key on, and every one of them degrades to something true when
+the model fails — nothing an AI writes is the record.
+
+### The service layer (feature 24)
+
+`ai/AiService` is the one retry loop; no feature calls a provider client itself. It has **no route, no UI and no
+flag of its own**, so there is nothing to switch on. The provider is global: `LLM_PROVIDER` (`deepseek` |
+`anthropic` | `fake`), with `QUEST_LLM_TIMEOUT_SECONDS` (120 s, also the cap) and
+`QUEST_LLM_CONNECT_TIMEOUT_SECONDS` (10 s) bounding every call. `LlmConfig` logs the chosen provider at startup.
+
+- **The ledger.** Every *attempt* writes one row to `ai_calls` (V45): `school_id`, `feature`, `tag`, `provider`,
+  `input_tokens`, `output_tokens`, `outcome`, `duration_ms`, `created_at`, indexed on `(school_id, created_at)`.
+  `outcome` is `ok`, `rejected`, `transient`, `provider` or `aborted`. **Numbers only** — no prompt and no answer
+  text is ever stored, and the write is in its own transaction and never throws, so a failed ledger write never
+  fails a feature. No screen reads it yet; the Admin's usage page still shows per-lesson totals, so the ledger is a
+  SQL question today.
+- **How a call fails.** Provider busy or unreachable → `TRANSIENT`; a malformed provider answer → `PROVIDER`; every
+  attempt rejected by the feature's own validator → `INVALID`. Each feature decides what that means for its caller
+  (below).
+- **The input guard.** `AiInputGuard` masks e-mail addresses and runs of nine or more digits before the text leaves
+  the server, plus any names the caller lists. It is **opt-in per call**: features 25–29 use it, the lesson builder,
+  the voice note (22) and smart hints (30) do not.
+- **No child-facing route may reach the model.** `ai/ChildEndpointsHaveNoAiTest` walks the call graph from every
+  handler under `/children`, `/lessons/` and `/media/`; `children/NoAiFromChildEndpointsTest` is its run-time twin.
+  The exemptions are listed route by route in the test and are the parent's own: the evening card and parent
+  translate.
+- Rejected answers are written to `data/llm-failures/` only for the tasks that ask for it, which is how a QA pass
+  can read what the model actually said.
+
+### The morning brief (feature 25)
+
+`morningBrief`, V47, table `morning_briefs` (unique on school + user + day).
+
+| Route | Permission | Answers |
+|---|---|---|
+| `GET /me/morning-brief` | `brief.read` (ADMIN, MANAGERIAL) | the brief for today, or **204** on a day the school does not teach |
+
+`brief/MorningBriefJob` writes one brief per Admin and per department manager from **07:15** in the school's own
+zone, every `QUEST_MORNING_BRIEF_JOB_INTERVAL_SECONDS` (300) and once at startup. The claim is the trick worth
+knowing: the job **inserts the deterministic bilingual template first**, against the unique key, and only the writer
+that won the claim calls the model and rings the bell. So the model never runs twice for one leader's day, and when
+it fails the template already in the row stands with `source = "template"` — logged at INFO, never a 502.
+
+The server counts and the model only phrases: a line carrying a number the facts do not hold is rejected (ASCII and
+Arabic-Indic digits), as is a line over 110 characters; 3–5 lines. A source feature that is switched off contributes
+zero. Bell row `morning.brief`, link `/`, collapse key `morning-brief:<day>`; staff push only when
+`staffMobileApp` is on.
+
+### The document reader (feature 26)
+
+`documentReader`, V48, table `document_summaries`.
+
+| Route | Permission | Answers |
+|---|---|---|
+| `POST /management/documents/read` (multipart `file`) | `document.read` (ADMIN, MANAGERIAL) | **201** with the title, an Arabic and an English summary, the key dates, the action items and a suggested announcement |
+| `GET /management/documents` | `document.read` | her own last 20 summaries, newest first |
+| `GET /management/documents/{id}` | `document.read` | one of her own; another author's or another school's is 404 |
+
+**The uploaded file is never stored.** The temporary copy is deleted in a `finally` and there is no download route;
+only the summary is kept, and `documents/DocumentRetention` deletes summaries older than **30 days** every six
+hours (no switch of its own). After that she re-uploads.
+
+Refusals an operator will be asked about: over 10 MB → `413 too_large`; over 20 pages → `422 too_long`; a type that
+is not PDF, a real .docx or JPEG/PNG/WebP → `400`; a password-protected PDF → `422 encrypted`; one with no text at
+all → `422 unreadable_file`. Both attempts rejected → `422 rephrase`, a provider failure → `502 model_failed`. Text
+extraction uses the same binaries as the lesson pipeline (`QUEST_ANYDOC_BIN`, `QUEST_TESSERACT_BIN`), and the
+built-in fallback is unavailable off the `h2`/`test` profiles — a missing converter on QA or production is an
+operator error, not a silent downgrade. No bell row, no push.
+
+### Complaint triage (feature 27)
+
+`complaintTriage`, V49, table `complaint_triage` (the complaint id is the primary key).
+
+**No route of its own.** The triage is a field on the complaint rows the staff already read
+(`/teacher|coordinator|management|admin/complaints`), and `null` for a parent. `ComplaintService.create` publishes
+an event, and `ComplaintTriageService` runs **after the complaint has committed, on a task thread**: the parent's
+complaint is created, answered and pushed exactly as before whether the model succeeds, is slow, fails or is
+switched off. The flag is read before the model call, so a school with it off is billed for nothing.
+
+- **Exactly once, never rewritten:** the primary key is the complaint id and the service checks it first. "No row"
+  is the normal state for a flag-off school, for the seconds before the answer arrives, and for a failed model —
+  every reader treats it that way.
+- **When it fails** it is logged at WARN and dropped. There is no path back into the complaint.
+- Only the title and the first message reach the provider, with the child's, the parent's and the recipient's names,
+  e-mails and numbers masked.
+- `category` is one of academic, behaviour, transport, fees, facilities, staff, other; `urgency` low, normal or
+  high. **High** writes a `complaint.new` bell row to the department's manager(s) ("Urgent complaint needs
+  attention"), skipping the complaint's own recipient. No new notification kind.
+- The suggested reply is a string a staff member edits and sends herself through the existing
+  `POST /{area}/complaints/{id}/messages`. **Nothing is ever sent automatically.**
+- The parent's expected reply time, added by the same feature, is not behind this flag — it is `chatOfficeHours`.
+
+### The parent's evening card (feature 28)
+
+`parentEveningCard`, V50, table `evening_cards` (unique on school + child + day).
+
+| Route | Permission | Answers |
+|---|---|---|
+| `GET /children/{id}/evening-card` | `child.eveningCard.read` (PARENT only) | the card for today, or **204** before 16:00 school time, on a day the school does not teach, or when there is nothing to say |
+
+`children/EveningCardJob` runs every `QUEST_EVENING_CARD_JOB_INTERVAL_SECONDS` (300) and at startup, and from
+**18:00** school time writes the cards nobody has asked for yet and pushes one bell row per child
+(`evening.card`, link `/children/{childId}/evening-card`, collapse key `evening:{childId}:{day}`). A parent who
+opens the card from 16:00 generates her own, through the same unique key. One child's failure is logged and the
+pass continues.
+
+**The card never carries a score.** The validator rejects digits the teacher's own lesson text does not hold, `%`,
+the score words, and anything over 400 characters. On any failure the fixed bilingual template is stored with
+`source = "template"` — read `source` on the row to see which path a QA card took.
+
+### The parent's own language (feature 29)
+
+`languageBridge`, V51: `parents.reading_language` plus the `translations` cache.
+
+| Route | Permission | Answers |
+|---|---|---|
+| `POST /children/{id}/translate` | `child.translate` (PARENT) | one message of her own child's, translated into her reading language, `machine: true`, with the original beside it |
+| `POST /staff/translate` | `staff.translate` (ADMIN, TEACHER, MANAGERIAL, COORDINATOR, FLOOR_SUPERVISOR) | the same for a chat or complaint message the caller may already read |
+| `PUT /parent/me/reading-language` | `parent.me.write` (PARENT) | her profile. One of `ar, en, ur, hi, bn, fil, fr, id`; anything else 400 |
+
+The reading-language route is deliberately **not** behind the flag, so her choice survives the switch being turned
+off and on. A chat source additionally needs `chat`, a broadcast or an announcement `announcements` — a 404 here
+usually means one of those two, not `languageBridge`.
+
+**The original is always the record.** A translation is an extra row in `translations`, keyed by source kind, source
+id, language and a SHA-256 of the exact text sent, and labelled machine-translated. A cache hit costs no model
+call; an edited source hashes differently and is translated again, and the old row stays. The rate limit is **60
+requests an hour per reader**, cache hits included, counted **in memory per instance** — so two instances allow
+roughly twice that. Over it → `429 rate_limited`. A provider failure → `502 model_failed`, two rejected answers →
+`422 rephrase`. E-mails and numbers are masked, names deliberately are not; the cache key is taken after masking,
+so correcting only a phone number reuses the old translation. No bell row, no push, no job.
+
+### Smart hints and targeted practice (feature 30)
+
+`smartHints`, V52, tables `stop_hints` and `practice_plays`.
+
+| Route | Permission | Answers |
+|---|---|---|
+| `GET /teacher/lessons/{id}/smart-hints` | `lesson.read` | every stop's hints and the practice plays, with their approval state |
+| `PUT /teacher/lessons/{id}/smart-hints/{stopId}` | `lesson.write` | the stop's two replaced hints; editing clears that stop's approval |
+| `POST /teacher/lessons/{id}/smart-hints/approve` | `lesson.write` | approves the named stops, or all of them |
+| `POST /teacher/lessons/{id}/practice/{playId}/approve` | `lesson.write` | the practice play, now publishable |
+| `POST /teacher/lessons/{id}/practice/{playId}/reject` | `lesson.write` | **204**; the play and its row are deleted |
+
+A colleague of the same school gets 403, another school 404, the flag off 404. Everything is written **only by the
+lesson's `HINTS` pipeline step at build time** and reaches a child only once the teacher has approved it — see
+[Stuck lessons](#stuck-lessons) for the step itself, which is the one optional step in the pipeline.
+
+## Teaching material tracking (feature 31)
+
+Spec: `docs/features/31-teaching-material-tracking.md`. Behind
+`teachingMaterials`, V53. Each teacher hands in her weekly teaching material — the lesson preparation, دفتر
+التحضير — for every class and subject she teaches, and the leaders of feature 17's board track it. No model is
+involved anywhere in this feature.
+
+| Route | Permission | Answers |
+|---|---|---|
+| `GET /teacher/materials?week=` | `materials.self` (TEACHER) | one row per class and subject her assignments give her that week, with status, file, note and any review |
+| `POST /teacher/materials/attachments` | `materials.self` | the stored PDF or image (purpose `material`) |
+| `PUT /teacher/materials/{classId}/{subject}?week=` | `materials.self` | the row she handed in or replaced; **409** once it has been reviewed |
+| `GET /materials/board?week=` | `materials.board` (ADMIN, MANAGERIAL, COORDINATOR, FLOOR_SUPERVISOR, TEACHER) | one row per teacher with her counts and her class-and-subject rows |
+| `GET /materials/board.csv?week=` | `materials.board` | the same rows as a CSV attachment |
+| `POST /materials/{id}/review` | `materials.board` | the reviewed row; a second review of the same row is **409** |
+| `GET`/`PUT /admin/material-settings` | `attendance.settings.read` / `.write` (feature 14's keys) | the deadline rule: `dueWeekday`, `dueTime`, `remindHoursBefore`, `zone` |
+
+- **Who a leader sees** is not the permission but feature 17's board scope (`staffattendance/StaffBoardScope`),
+  narrowed to the employees who hold teaching assignments. A teacher outside her scope is 404. `/materials/**` sits
+  behind the same security rule as `/staff-attendance/**`, so a parent's or a child's token gets **403, not 404**.
+- **The deadline** lives in `materials/MaterialDeadlines`: with no settings row, **Thursday 12:00, remind 4 hours
+  before** (at most 72). It is computed a week back from the week's first teaching day, always in the school's own
+  zone, so next week's material is due during this week. `?week=` takes any day of a week; a bad date is 400.
+- **Status is never stored.** `REVIEWED`, `ON_TIME`, `LATE` and `MISSING` are computed from `submitted_at` against
+  that week's deadline and from `reviewed_at`, so moving the deadline re-reads every row — useful, and worth saying
+  out loud before someone moves it mid-term.
+- **Tables** (V53): `material_settings` (one row per school), `material_submissions` (unique on school, teacher,
+  class, subject and week — a replacement updates that row) and the `material_reminders` claim table (unique on
+  school, teacher and week).
+- **The reminder.** `materials/MaterialReminderJob` runs every `QUEST_MATERIALS_JOB_INTERVAL_SECONDS` (300) and at
+  startup, and sends only between `remindHoursBefore` before the deadline and the deadline itself — never after it.
+  One bell row per teacher per week, `material.reminder`, collapse key `material:reminder:{week}`, with a staff push
+  only when `staffMobileApp` is on. The insert into `material_reminders` is the claim, so a rerun or a second
+  instance sends one reminder between them.
+- **The file.** Image metadata is stripped like every other attachment, and `MediaAccess` lets only the teacher who
+  uploaded it and the leaders whose board scope covers her read it — never a parent, whatever the flags say.
+  Handed-in material is excluded from the orphan sweep, so retention cannot delete it.
+- **Dashboard.** "My teaching material" for the teacher (This week / Next week), the "Teaching material" board for
+  the Admin, manager, coordinator, floor supervisor and teacher areas, and the deadline card on the Admin's
+  Attendance settings page.
+
 ## The app and the contract
 
 **The app's JSON is strict, so app and server ship together.** `SchemaValidator.json` — the one `Json` the app's
@@ -2550,14 +2815,34 @@ step that fails or hangs inside a batch ends exactly as it would alone while its
 still running while a batch is in flight. The practical effect: the generate phase's worst case is **two step
 deadlines, not five**.
 
+**`hints` is a sixth generate step, and the only optional one (feature 30).** With `smartHints` on and the lesson
+not an exam, `HINTS` runs **alone, after** the Again + panel batch — `analysis/SmartHintsGenerator` writes two hints
+per stop and one short practice set per weak skill. It is in no batch, so it adds a third generate deadline: the
+worst case becomes **three**, about 18 minutes more. What makes it different from every other step:
+
+- **A failed `hints` does not fail the lesson.** `PipelineStep.optional` is true for it alone; the walk continues,
+  `allDone` counts the non-optional steps only, and the lesson still reaches `review` and can be published — with
+  no hints on it.
+- So `currentStep = hints`, or a lesson sitting in `review` with an `error` `hints` row, is **not** a stuck lesson.
+  The step strip offers Retry for it like any other, and nobody has to press it.
+- With the flag off, or on an exam, the row is marked `done` rather than left pending, so the lesson is never held
+  up by a feature the school does not use.
+- Inside the step the model's bad answers degrade rather than fail: a hint that gives the answer away or runs over
+  90 characters is rejected, asked again with the errors, and **dropped** if it still breaks a rule. The step
+  succeeds with the good hints.
+- Nothing reaches a child until the teacher approves it (`/teacher/lessons/{id}/smart-hints`), and hints are not
+  cached — a rebuild pays the model again.
+
 **How long is the worst case?** One step at a time: its deadline, times the number of attempts. A step retries a
 transient failure **3 times** (`LessonSteps.TRANSIENT_ATTEMPTS`), each attempt bounded by the step's own deadline,
 with `quest.pipeline.retry-delay-ms` (2 s) doubling between them — so a generate step is at most
 **3 × 360 s + 6 s ≈ 18 minutes**, Analyse **3 × 240 s ≈ 12 minutes** and Convert **3 × 180 s ≈ 9 minutes**. A whole
 lesson that fails at the last step is Upload + Convert + Analyse plus **two** generate batches rather than five
-generate steps. The sweep's own bound is different and smaller: it only ever waits one deadline +
+generate steps, plus the optional `hints` step when `smartHints` is on (another 18 minutes, after which the lesson
+is publishable either way). The sweep's own bound is different and smaller: it only ever waits one deadline +
 60 s grace + up to one 60 s interval for a row *nothing in this process is holding*. If a lesson has been
-`analyzing`/`generating` for more than 20 minutes, it is not slow — check the logs.
+`analyzing`/`generating` for more than 20 minutes, it is not slow — check the logs; with `smartHints` on, read
+`currentStep` first, because `hints` legitimately adds one more generate deadline after the panel.
 
 **Tokens of a call that was abandoned.** A step that is interrupted at its deadline while waiting for a model
 answer books nothing for that call: no `usage` block ever arrived, so the server does not know what it cost and does
