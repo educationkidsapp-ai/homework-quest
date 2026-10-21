@@ -1,0 +1,188 @@
+<hq-page [title]="'nav.myEvaluations' | transloco" [subtitle]="'evaluations.teacher.subtitle' | transloco">
+  @if (roundOptions().length > 0) {
+    <hq-select
+      class="evaluations__round"
+      [label]="'evaluations.roundLabel' | transloco"
+      [options]="roundOptions()"
+      [value]="pickedRound()"
+      (valueChange)="pickRound($event)"
+    />
+  }
+
+  @if (evaluations.isLoading() && !evaluations.hasValue()) {
+    <hq-skeleton [loading]="true" [lines]="5" [label]="'evaluations.loading' | transloco" />
+  } @else if (evaluations.error()) {
+    <hq-card>
+      <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco" [dismissible]="false">
+        {{ 'band.unreachable' | transloco }}
+      </hq-band>
+      <hq-button variant="secondary" (pressed)="evaluations.reload()">{{ 'ui.retry' | transloco }}</hq-button>
+    </hq-card>
+  } @else if (noRounds()) {
+    <hq-empty-state
+      data-hq-no-rounds
+      [message]="'evaluations.teacher.noRounds' | transloco"
+      [detail]="'evaluations.teacher.noRoundsDetail' | transloco"
+    />
+  } @else {
+    <div class="evaluations" data-hq-my-evaluations>
+      <p class="evaluations__due" data-hq-due>
+        <span class="evaluations__round-name">{{ roundLabel() }}</span>
+        <span class="hq-muted">{{ dueLabel() }}</span>
+      </p>
+
+      <ul class="evaluations__counts" [attr.aria-label]="'evaluations.countsLabel' | transloco">
+        @for (card of cards; track card) {
+          <li class="evaluations__count" [attr.data-hq-count]="card">
+            <span class="evaluations__number" [attr.data-status]="card">{{ count(card) }}</span>
+            <span>{{ 'evaluations.card.' + card | transloco }}</span>
+          </li>
+        }
+      </ul>
+
+      @if (failure(); as message) {
+        <hq-band
+          variant="error"
+          [open]="true"
+          [title]="'band.failed' | transloco"
+          (dismissed)="failure.set(null)"
+        >
+          {{ message }}
+        </hq-band>
+      }
+
+      @for (group of groups(); track group.key) {
+        <section class="evaluations__group" [attr.data-hq-group]="group.key">
+          <h2 class="evaluations__group-head">{{ group.className }} · {{ subjectLabel(group.subject) }}</h2>
+          <hq-table
+            [rows]="group.rows"
+            [columns]="columns()"
+            [cellTemplate]="cell"
+            [trackBy]="trackRow"
+            [label]="
+              'evaluations.teacher.tableLabel'
+                | transloco: { class: group.className, subject: subjectLabel(group.subject) }
+            "
+          >
+            <hq-empty-state table-empty [message]="'evaluations.teacher.noChildren' | transloco" />
+          </hq-table>
+        </section>
+      } @empty {
+        <hq-empty-state
+          [message]="'evaluations.teacher.empty' | transloco"
+          [detail]="'evaluations.teacher.emptyDetail' | transloco"
+        />
+      }
+    </div>
+  }
+</hq-page>
+
+<ng-template #cell let-row let-column="column">
+  @switch (column.key) {
+    @case ('childName') {
+      {{ row.childName ?? '—' }}
+    }
+    @case ('status') {
+      <span class="evaluations__status" [attr.data-status]="statusOf(row)">
+        {{ statusLabel(statusOf(row)) }}
+      </span>
+      @if (row.submittedAt) {
+        <span class="hq-muted evaluations__at">{{ at(row.submittedAt) }}</span>
+      }
+    }
+    @case ('ratings') {
+      {{ ratingsLabel(row) }}
+    }
+    @case ('review') {
+      {{ reviewLabel(row) }}
+    }
+    @case ('act') {
+      @if (canEdit(row)) {
+        <hq-button variant="primary" data-hq-write (pressed)="open(row)">
+          {{ (isReturned(row) ? 'evaluations.fix' : 'evaluations.write') | transloco }}
+        </hq-button>
+      } @else {
+        <span class="hq-muted" data-hq-locked>{{ 'evaluations.lockedBySubmit' | transloco }}</span>
+      }
+    }
+  }
+</ng-template>
+
+<hq-dialog
+  [open]="dialogOpen()"
+  (openChange)="onDialog($event)"
+  [title]="'evaluations.editorTitle' | transloco"
+  [confirmLabel]="'evaluations.submit' | transloco"
+  [confirmDisabled]="!ready() || saving()"
+  [loading]="saving()"
+  [confirmReason]="ready() ? null : ('evaluations.needAll' | transloco)"
+  (confirmed)="submit()"
+>
+  @if (editing(); as row) {
+    <div class="editor">
+      <p class="editor__child">
+        {{ row.childName }} · {{ row.className }} · {{ subjectLabel(row.subject) }}
+      </p>
+
+      @if (isReturned(row)) {
+        <hq-band
+          variant="notice"
+          [open]="true"
+          data-hq-returned
+          [title]="'evaluations.returnedTitle' | transloco"
+          [dismissible]="false"
+        >
+          {{ reviewLabel(row) }}
+        </hq-band>
+      }
+
+      @if (failure(); as message) {
+        <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco" [dismissible]="false">
+          {{ message }}
+        </hq-band>
+      }
+
+      <fieldset class="editor__ratings">
+        <legend class="editor__legend">{{ 'evaluations.ratingsLegend' | transloco }}</legend>
+        @for (criterion of criteria; track criterion) {
+          <hq-select
+            [attr.data-hq-rating]="criterion"
+            [label]="criterionLabel(criterion)"
+            [placeholder]="'evaluations.ratePlaceholder' | transloco"
+            [options]="rateOptions()"
+            [required]="true"
+            [value]="rated(criterion)"
+            (valueChange)="rate(criterion, $event)"
+          />
+        }
+      </fieldset>
+
+      <hq-textarea
+        [label]="'evaluations.comment' | transloco"
+        [rows]="3"
+        [required]="true"
+        [value]="draft().comment"
+        (valueChange)="setText('comment', $event)"
+        [hint]="'evaluations.commentHint' | transloco"
+      />
+      <hq-textarea
+        [label]="'evaluations.goingWell' | transloco"
+        [rows]="2"
+        [value]="draft().goingWell"
+        (valueChange)="setText('goingWell', $event)"
+        [hint]="'evaluations.goingWellHint' | transloco"
+      />
+      <hq-textarea
+        [label]="'evaluations.nextStep' | transloco"
+        [rows]="2"
+        [value]="draft().nextStep"
+        (valueChange)="setText('nextStep', $event)"
+        [hint]="'evaluations.nextStepHint' | transloco"
+      />
+    </div>
+  }
+
+  <hq-button hqDialogAction variant="secondary" data-hq-save-draft (pressed)="saveDraft()">
+    {{ 'evaluations.saveDraft' | transloco }}
+  </hq-button>
+</hq-dialog>

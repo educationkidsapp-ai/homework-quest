@@ -1,0 +1,10 @@
+.rounds__form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--hq-space-12);
+}
+
+.rounds__released {
+  font-weight: var(--hq-text-weight-medium);
+  color: var(--hq-color-success-ink);
+}

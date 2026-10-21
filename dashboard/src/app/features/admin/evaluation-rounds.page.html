@@ -1,0 +1,161 @@
+<hq-page [title]="'admin.rounds.title' | transloco" [subtitle]="'admin.rounds.subtitle' | transloco">
+  <ng-container *hqFeature="flag">
+    @if (releasing(); as round) {
+      <hq-band
+        variant="confirm"
+        [open]="true"
+        data-hq-release-confirm
+        [title]="confirmTitle()"
+        [confirmLabel]="'admin.rounds.release' | transloco"
+        (confirmed)="confirmRelease()"
+        (dismissed)="cancelRelease()"
+      >
+        {{ 'admin.rounds.releaseWarning' | transloco }}
+      </hq-band>
+    }
+
+    @if (failure(); as message) {
+      <hq-band
+        variant="error"
+        [open]="true"
+        [title]="'band.failed' | transloco"
+        (dismissed)="failure.set(null)"
+      >
+        {{ message }}
+      </hq-band>
+    }
+
+    @if (rounds.isLoading() && !rounds.hasValue()) {
+      <hq-skeleton
+        [loading]="true"
+        [lines]="4"
+        height="var(--hq-size-row-height)"
+        [label]="'admin.rounds.loading' | transloco"
+      />
+    } @else if (rounds.error()) {
+      <hq-card>
+        <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco" [dismissible]="false">
+          {{ 'band.unreachable' | transloco }}
+        </hq-band>
+        <hq-button variant="secondary" (pressed)="rounds.reload()">{{ 'ui.retry' | transloco }}</hq-button>
+      </hq-card>
+    } @else {
+      <hq-card [flush]="true">
+        <hq-table
+          [rows]="rows()"
+          [columns]="columns()"
+          [cellTemplate]="cell"
+          [trackBy]="trackRow"
+          [label]="'admin.rounds.title' | transloco"
+        >
+          <hq-empty-state
+            table-empty
+            [message]="'admin.rounds.empty' | transloco"
+            [detail]="'admin.rounds.emptyDetail' | transloco"
+            [actionLabel]="'admin.rounds.create' | transloco"
+            (action)="openCreate()"
+          />
+        </hq-table>
+      </hq-card>
+    }
+  </ng-container>
+
+  <ng-template #cell let-row let-column="column">
+    @switch (column.key) {
+      @case ('name') {
+        {{ name(row) }}
+      }
+      @case ('opensOn') {
+        {{ row.opensOn ?? '—' }}
+      }
+      @case ('dueAt') {
+        {{ dueLabel(row) }}
+      }
+      @case ('remindHoursBefore') {
+        {{ 'admin.rounds.hoursBefore' | transloco: { hours: row.remindHoursBefore ?? 0 } }}
+      }
+      @case ('released') {
+        @if (row.released) {
+          <span class="rounds__released" data-hq-released>{{ releasedLabel(row) }}</span>
+        } @else {
+          <span class="hq-muted">{{ releasedLabel(row) }}</span>
+        }
+      }
+      @case ('act') {
+        @if (row.released) {
+          <span class="hq-muted" data-hq-locked>{{ 'admin.rounds.lockedByRelease' | transloco }}</span>
+        } @else {
+          <hq-button *hqCan="roundsKey" variant="secondary" data-hq-edit (pressed)="openEdit(row)">
+            {{ 'admin.rounds.edit' | transloco }}
+          </hq-button>
+          <hq-button *hqCan="roundsKey" variant="primary" data-hq-release (pressed)="requestRelease(row)">
+            {{ 'admin.rounds.release' | transloco }}
+          </hq-button>
+        }
+      }
+    }
+  </ng-template>
+
+  <hq-dialog
+    [open]="formOpen()"
+    (openChange)="formOpen.set($event)"
+    [title]="formTitle()"
+    [confirmLabel]="'ui.save' | transloco"
+    [confirmDisabled]="!canSave() || saving()"
+    [confirmReason]="canSave() ? null : ('admin.rounds.formReason' | transloco)"
+    [loading]="saving()"
+    (confirmed)="save()"
+  >
+    <div class="rounds__form">
+      <hq-input
+        [label]="'admin.rounds.form.nameEn' | transloco"
+        [required]="true"
+        [dir]="'ltr'"
+        [value]="nameEn()"
+        (valueChange)="nameEn.set($event)"
+      />
+      <hq-input
+        [label]="'admin.rounds.form.nameAr' | transloco"
+        [required]="true"
+        [dir]="'rtl'"
+        [value]="nameAr()"
+        (valueChange)="nameAr.set($event)"
+      />
+      <hq-input
+        type="date"
+        [label]="'admin.rounds.form.opensOn' | transloco"
+        [hint]="'admin.rounds.form.opensOnHint' | transloco"
+        [value]="opensOn()"
+        (valueChange)="opensOn.set($event)"
+      />
+      <hq-input
+        type="date"
+        [label]="'admin.rounds.form.dueDate' | transloco"
+        [required]="true"
+        [value]="due().date"
+        (valueChange)="setDueDate($event)"
+      />
+      <hq-input
+        type="time"
+        [label]="'admin.rounds.form.dueTime' | transloco"
+        [required]="true"
+        [hint]="'admin.rounds.form.zoneHint' | transloco: { zone: formZone() }"
+        [value]="due().time"
+        (valueChange)="setDueTime($event)"
+      />
+      <hq-input
+        type="number"
+        [label]="'admin.rounds.form.remind' | transloco"
+        [hint]="'admin.rounds.form.remindHint' | transloco"
+        [value]="remindHours()"
+        (valueChange)="remindHours.set($event)"
+      />
+    </div>
+  </hq-dialog>
+
+  <div page-actions>
+    <hq-button *hqCan="roundsKey" variant="primary" data-hq-create (pressed)="openCreate()">
+      {{ 'admin.rounds.create' | transloco }}
+    </hq-button>
+  </div>
+</hq-page>

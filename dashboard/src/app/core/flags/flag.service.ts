@@ -104,6 +104,10 @@ export const FLAGS = {
   // and it rides on `chat` the way the server's `ClassChannelService` does: a channel is a chat
   // thread of its own kind, so a school without chat has no channel either.
   classChannel: 'classChannel',
+  // Feature 33: the few rounds a year in which every teacher evaluates each child she teaches,
+  // the leaders' tracking board over them, and the Admin's rounds. On by default (D30) — the
+  // server answers 404 without it, and none of the three screens has an older one behind it.
+  childEvaluations: 'childEvaluations',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];
