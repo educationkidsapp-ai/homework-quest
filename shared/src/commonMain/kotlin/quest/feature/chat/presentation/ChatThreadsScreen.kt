@@ -33,6 +33,8 @@ import quest.core.mvi.MviEffect
 import quest.core.mvi.MviIntent
 import quest.core.mvi.MviState
 import quest.core.mvi.MviViewModel
+import quest.core.runCancellable
+import quest.feature.channel.domain.ClassChannelRepository
 import quest.feature.chat.domain.ChatRepository
 import quest.feature.chat.domain.TYPING_TIMEOUT_MS
 import quest.feature.chat.domain.applyPresence
@@ -44,6 +46,12 @@ import quest.feature.parent.presentation.SectionTitle
 import quest.feature.parent.presentation.Strings
 import quest.feature.school.domain.Flags
 import quest.feature.school.presentation.FeatureGate
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.font.FontWeight
+import quest.feature.parent.presentation.Chip
 import quest.ui.design.Dimens
 
 object ChatThreadsContract {
@@ -56,6 +64,11 @@ object ChatThreadsContract {
         val curriculum: Curriculum? = null,
         /** M7: the threads whose staff side is typing right now, from `typing` frames; each lapses on its own. */
         val typing: Set<String> = emptySet(),
+        /**
+         * Feature 32: how many posts of her class's channel she has not read, for the badge on its row. Asked only
+         * while `classChannel` is on, and 0 whenever it could not be asked — a badge is never guessed.
+         */
+        val channelUnread: Int = 0,
     ) : MviState {
         /** Her teachers, the coordinators (R8) and the department manager (RM4) she has a thread with — three headings. */
         val teacherThreads: List<ChatThread> get() = threads.filter { it.staffRole == ChatStaffRole.TEACHER }
@@ -81,6 +94,10 @@ object ChatThreadsContract {
 class ChatThreadsViewModel(
     private val children: ChildrenRepository,
     private val chat: ChatRepository,
+    /** Feature 32: the channel's own unread count for the row at the top of this list. */
+    private val channel: ClassChannelRepository? = null,
+    /** False for a school without `classChannel`: the count is not asked at all rather than asked and refused. */
+    private val channelOn: () -> Boolean = { false },
 ) : MviViewModel<ChatThreadsContract.State, ChatThreadsContract.Intent, ChatThreadsContract.Effect>(ChatThreadsContract.State()) {
 
     override suspend fun handle(intent: ChatThreadsContract.Intent) {
@@ -97,6 +114,7 @@ class ChatThreadsViewModel(
         }
 
         chat.connect()
+        refreshChannelUnread(child.id)
 
         try {
             val list = chat.threads(child.id)
@@ -110,6 +128,17 @@ class ChatThreadsViewModel(
         } catch (e: Throwable) {
             reduce { copy(loading = false, errorMessage = e.message, threads = emptyList()) }
         }
+    }
+
+    /**
+     * Feature 32: the channel's badge. One page of one post is enough — the count is the page's own `unread` — and a
+     * channel that cannot be read (the switch is off, the child has no class) leaves the badge at nothing rather than
+     * failing the whole list, which is about her threads and not about the channel.
+     */
+    private suspend fun refreshChannelUnread(childId: String) {
+        val repo = channel?.takeIf { channelOn() } ?: return
+        val count = runCancellable { repo.page(childId, limit = 1).unread }.getOrNull() ?: 0
+        reduce { copy(channelUnread = count) }
     }
 
     /** One timer per typing thread, so one person stopping does not clear another who is still at it. */
@@ -154,6 +183,9 @@ fun ChatThreadsRoute(
     onBack: () -> Unit,
     onOpenConversation: (ChatThread) -> Unit,
     onMessageCoordinator: () -> Unit,
+    /** Feature 32: the two pages at the top of this list — her class's channel, and her child's team. */
+    onOpenChannel: () -> Unit = {},
+    onOpenTeam: () -> Unit = {},
     onHome: () -> Unit = onBack,
     onNotifications: () -> Unit = {},
     onSettings: () -> Unit = {},
@@ -186,6 +218,8 @@ fun ChatThreadsRoute(
                 strings = strings,
                 onSelectThread = onOpenConversation,
                 onMessageCoordinator = onMessageCoordinator,
+                onOpenChannel = onOpenChannel,
+                onOpenTeam = onOpenTeam,
             )
         }
     }
@@ -197,6 +231,8 @@ fun ChatThreadsScreen(
     strings: Strings,
     onSelectThread: (ChatThread) -> Unit,
     onMessageCoordinator: () -> Unit = {},
+    onOpenChannel: () -> Unit = {},
+    onOpenTeam: () -> Unit = {},
 ) {
     Column(
         Modifier.fillMaxSize()
@@ -208,6 +244,25 @@ fun ChatThreadsScreen(
                 AnimatedDotsLoader(dotSize = 12.dp, spacing = 8.dp)
             }
             return
+        }
+
+        // Feature 32: the two pages above her threads — the class's channel (with what she has not read on it) and
+        // everyone who looks after her child. Each sits in its own gate, so a school that has turned one off never
+        // learns it exists; both are also inside the `chat` gate this screen is drawn in.
+        FeatureGate(Flags.CLASS_CHANNEL) {
+            PageRow(
+                title = strings.teamChannel.channelTitle,
+                subtitle = strings.teamChannel.channelRowSubtitle,
+                badge = state.channelUnread.takeIf { it > 0 }?.toString(),
+                onClick = onOpenChannel,
+            )
+        }
+        FeatureGate(Flags.CHILD_TEAM) {
+            PageRow(
+                title = strings.teamChannel.teamTitle,
+                subtitle = strings.teamChannel.teamRowSubtitle,
+                onClick = onOpenTeam,
+            )
         }
 
         // M1: the one way to start anything — a question or a complaint, to a teacher, a coordinator or the manager.
@@ -255,5 +310,31 @@ fun ChatThreadsScreen(
         }
 
         Spacer(Modifier.height(Dimens.s16))
+    }
+}
+
+/**
+ * Feature 32: one of the two pages at the top of the Messages tab — a title, a line saying what is behind it, and an
+ * unread count where there is one. It is a card like a thread row rather than a button, because what it opens is a
+ * page of its own and not an action.
+ */
+@Composable
+private fun PageRow(title: String, subtitle: String, badge: String? = null, onClick: () -> Unit) {
+    ParentCard(
+        modifier = Modifier.fillMaxWidth().padding(bottom = Dimens.s8)
+            .clearAndSetSemantics { contentDescription = listOfNotNull(title, subtitle, badge).joinToString(", ") },
+        onClick = onClick,
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, color = DashboardTokens.ink, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(Dimens.s4))
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
+            }
+            if (badge != null) {
+                Spacer(Modifier.width(Dimens.s8))
+                Chip(badge, DashboardTokens.secondarySoft)
+            }
+        }
     }
 }

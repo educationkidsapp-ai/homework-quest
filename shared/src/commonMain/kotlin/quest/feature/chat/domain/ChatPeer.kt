@@ -70,3 +70,15 @@ fun resolverOf(peerRole: ChatPeerRole?, staffRole: ChatStaffRole, withAdmin: Boo
     staffRole == ChatStaffRole.FLOOR_SUPERVISOR -> Resolver.FLOOR_SUPERVISOR
     else -> Resolver.MANAGER
 }
+
+/**
+ * Feature 32: the staff role a thread row carries, from the person's own [ChatPeerRole] — the shape the team page and
+ * the class channel are given, where a thread may not exist yet and only the person is known. `PARENT` cannot be the
+ * staff side of a parent's thread and reads as a teacher, which is what the row said before any of this.
+ */
+fun staffRoleOf(role: ChatPeerRole): ChatStaffRole = when (role) {
+    ChatPeerRole.COORDINATOR -> ChatStaffRole.COORDINATOR
+    ChatPeerRole.MANAGERIAL, ChatPeerRole.ADMIN -> ChatStaffRole.MANAGERIAL
+    ChatPeerRole.FLOOR_SUPERVISOR -> ChatStaffRole.FLOOR_SUPERVISOR
+    ChatPeerRole.TEACHER, ChatPeerRole.PARENT -> ChatStaffRole.TEACHER
+}

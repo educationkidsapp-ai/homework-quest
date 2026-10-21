@@ -52,6 +52,11 @@ sealed interface Destination {
      * top. The router has already made her the current child, so the home opens on her.
      */
     data object ParentHome : Destination
+    /**
+     * Feature 32: `channel.post` — her class's channel, on the child the row names. There is no page per post: the
+     * channel is one page per class, opened at its newest end, which is where the post she was told about is.
+     */
+    data object ClassChannel : Destination
     /** `exam.published` (or any `…/map` link): the child's home, where the exam's card is — title and window, never the paper. */
     data object ExamCard : Destination
     /** The parent's Progress page — an `…/progress` link that names no exam. */
@@ -109,6 +114,9 @@ class NotificationRouter(
             "exam.released" -> tap.idFor("lesson")?.let { Destination.ExamResult(it) } ?: Destination.Progress
             // Feature 28: the card has no page of its own — it is the top of her parent home.
             EVENING_CARD -> if (child != null) Destination.ParentHome else notifications(tap)
+            // Feature 32: the channel of the class the child the row names is in. Without her there is no channel to
+            // open — the route is `/children/{id}/channel` — so it falls back to the row on the Notifications tab.
+            CHANNEL_POST -> if (child != null) Destination.ClassChannel else notifications(tap)
             "announcement.posted", "question.sent" -> notifications(tap)
             else -> byLink(tap, child)                  // a kind still to come: its link decides
         }
@@ -265,6 +273,12 @@ fun isStaffOnlyKind(kind: String?): Boolean =
  * rest of them.
  */
 const val EVENING_CARD = "evening.card"
+
+/**
+ * Feature 32: `NotificationKind.CHANNEL_POST` — a teacher posted in her child's class channel, linking
+ * `/children/{id}/channel`. A parent's kind, always about a child, so it goes through the parent gate like the rest.
+ */
+const val CHANNEL_POST = "channel.post"
 
 /** The `?count=` of an after-hours summary's link, when it carries a positive one. */
 fun afterHoursCount(link: String?): Int? =

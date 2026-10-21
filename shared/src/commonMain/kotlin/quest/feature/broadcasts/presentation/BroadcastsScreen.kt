@@ -352,6 +352,8 @@ fun NotificationRowCard(row: NotificationView, strings: Strings, focused: Boolea
         NotificationKind.COMPLAINT_MESSAGE -> strings.notices.updateComplaintReply
         NotificationKind.BROADCAST_POSTED -> strings.notices.updateNews
         NotificationKind.EVENING_CARD -> strings.eveningCardUpdate
+        // Feature 32: a teacher posted in her child's class channel.
+        NotificationKind.CHANNEL_POST -> strings.teamChannel.channelUpdate
         else -> strings.updateOther
     }
     ParentCard(
