@@ -35,6 +35,8 @@ class ChildTeamApiTest extends ChatTestSupport {
     @Autowired quest.server.floors.FloorRepository floorRows;
     @Autowired quest.server.floors.FloorClassRepository floorClassRows;
     @Autowired quest.server.floors.FloorSupervisorRepository floorSupervisorRows;
+    @Autowired quest.server.evaluations.EvaluationRoundRepository evaluationRounds;
+    @Autowired quest.server.evaluations.ChildEvaluationRepository childEvaluations;
 
     private String maya, omar, nadia;
 
@@ -58,6 +60,10 @@ class ChildTeamApiTest extends ChatTestSupport {
         floorRows.deleteAll(floorRows.findBySchoolIdOrderByNameAsc(A));
         if (nadia != null) users.deleteById(nadia);
         staffScopes.deleteAll(staffScopes.findAll().stream().filter(r -> r.getSchoolId().startsWith(prefix())).toList());
+        // Feature 33's rows outlive `removeSeed` too, and the one test that writes them must not leave a round
+        // behind for the next test's team page to find.
+        childEvaluations.deleteAll(childEvaluations.findAll().stream().filter(r -> r.getSchoolId().startsWith(prefix())).toList());
+        evaluationRounds.deleteAll(evaluationRounds.findAll().stream().filter(r -> r.getSchoolId().startsWith(prefix())).toList());
         removeSeed();
     }
 
@@ -105,6 +111,62 @@ class ChildTeamApiTest extends ChatTestSupport {
         assertThat(row(team, SARA).get("officeHours").get("schoolPhone").asText())
                 .as("the school's number for urgent matters, which is the one number a parent is given")
                 .isEqualTo(SCHOOL_PHONE);
+    }
+
+    // ---------------------------------------------------------------- feature 33: "Latest evaluation"
+
+    /**
+     * Feature 33's hook on this page: a teacher's row carries the newest evaluation of this child that the parent may
+     * read, and <strong>only</strong> once the round is released and the evaluation approved. A draft, a submitted or
+     * an approved evaluation of a round nobody has released is not there, and no row carries a rating, a state or a
+     * reviewer — the field is a cue to open the evaluations screen.
+     */
+    @Test void a_teachers_row_names_her_latest_evaluation_only_after_the_release_and_the_approval() throws Exception {
+        var round = round();
+        var evaluation = evaluation(round.getId(), SARA, "math", "SUBMITTED");
+
+        assertThat(row(parentGet("/children/" + maya + "/team"), SARA).has("latestEvaluation"))
+                .as("submitted, and the round not released").isFalse();
+
+        evaluation.setState("APPROVED");
+        childEvaluations.save(evaluation);
+        assertThat(row(parentGet("/children/" + maya + "/team"), SARA).has("latestEvaluation"))
+                .as("approved, but the round is still the school's own business").isFalse();
+
+        round.setReleasedAt(java.time.Instant.now());
+        evaluationRounds.save(round);
+        var latest = row(parentGet("/children/" + maya + "/team"), SARA).get("latestEvaluation");
+        assertThat(latest.get("roundName").asText()).isEqualTo("Term 1 — mid-term");
+        assertThat(latest.get("roundNameAr").asText()).isEqualTo("الفصل الأول");
+        assertThat(latest.get("subject").asText()).isEqualTo("math");
+        assertThat(keys(latest)).containsExactlyInAnyOrder("roundName", "roundNameAr", "subject");
+        // Nobody else's row carries one, and Omar — whom she wrote nothing about — has none either.
+        assertThat(row(parentGet("/children/" + maya + "/team"), NOOR).has("latestEvaluation")).isFalse();
+        assertThat(row(parentGet("/children/" + omar + "/team"), NOOR).has("latestEvaluation")).isFalse();
+
+        // And nothing at all while the school has the switch off.
+        setFlag(adminToken, A, FlagKeys.CHILD_EVALUATIONS, false);
+        assertThat(row(parentGet("/children/" + maya + "/team"), SARA).has("latestEvaluation")).isFalse();
+        setFlag(adminToken, A, FlagKeys.CHILD_EVALUATIONS, true);
+    }
+
+    private quest.server.evaluations.Entities.EvaluationRoundEntity round() {
+        var round = new quest.server.evaluations.Entities.EvaluationRoundEntity();
+        round.setId("ch-round-1"); round.setSchoolId(A); round.setNameEn("Term 1 — mid-term"); round.setNameAr("الفصل الأول");
+        round.setOpensOn(java.time.LocalDate.of(2026, 11, 1)); round.setDueAt(Instant.now().plusSeconds(86_400));
+        round.setRemindHoursBefore(24); round.setCreatedAt(Instant.now()); round.setUpdatedAt(Instant.now());
+        return evaluationRounds.save(round);
+    }
+
+    private quest.server.evaluations.Entities.ChildEvaluationEntity evaluation(String roundId, String teacherId,
+                                                                               String subject, String state) {
+        var row = new quest.server.evaluations.Entities.ChildEvaluationEntity();
+        row.setId("ch-evaluation-" + teacherId + "-" + subject); row.setSchoolId(A); row.setRoundId(roundId);
+        row.setTeacherId(teacherId); row.setClassId(CLASS_1A); row.setSubject(subject); row.setChildId(maya);
+        row.setParticipation((short) 4); row.setEffort((short) 3); row.setBehaviour((short) 4);
+        row.setUnderstanding((short) 3); row.setComment("A pleasure to teach."); row.setState(state);
+        row.setSubmittedAt(Instant.now()); row.setCreatedAt(Instant.now()); row.setUpdatedAt(Instant.now());
+        return childEvaluations.save(row);
     }
 
     // ---------------------------------------------------------------- no staff phone number, ever

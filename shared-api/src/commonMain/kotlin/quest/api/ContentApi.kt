@@ -174,6 +174,17 @@ interface ContentApi {
     suspend fun markChannelRead(childId: String): quest.api.dto.ChannelPage =
         quest.api.dto.ChannelPage(posts = emptyList())
 
+    /**
+     * Feature 33 `GET /children/{id}/evaluations` — the teachers' evaluations of this child that she may read:
+     * **approved** evaluations of **released** rounds, newest round first and then by subject. Each criterion comes
+     * as a word key and never as a number, and there is no draft, no state and no reviewer in the answer at all
+     * ([quest.api.dto.ParentEvaluation]). The round list is implied by the rows: each one names its round.
+     *
+     * Behind `childEvaluations`, and defaulted to empty so `FakeContentApi` and every test double keep compiling —
+     * an app with no backend simply shows no evaluations.
+     */
+    suspend fun childEvaluations(childId: String): List<quest.api.dto.ParentEvaluation> = emptyList()
+
     // ---------------------------------------------------------------- B6: complaints, apart from Messages
 
     /**
@@ -362,6 +373,8 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "childTeam" to true,
     // Feature 32: one channel per class, written by its teachers and read by its parents (V55).
     "classChannel" to true,
+    // Feature 33: teachers evaluate each child they teach, leaders review it and parents read it in words (V56).
+    "childEvaluations" to true,
 )
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */
