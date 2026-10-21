@@ -78,6 +78,9 @@ class PushNavigator(
             Destination.Progress -> Step.Parent(Routes.Progress())
             Destination.ParentHome -> Step.Parent(Routes.ParentHome)
             Destination.ClassChannel -> Step.Parent(Routes.ClassChannel)
+            // Feature 33: the parent's evaluations page, and a teacher's own notifications.
+            Destination.ChildEvaluations -> Step.Parent(Routes.ChildEvaluations)
+            Destination.StaffNotices -> Step.Staff(Routes.StaffNotifications)
             is Destination.Lesson -> Step.Parent(Routes.LessonPanel(destination.lessonId))
             Destination.ExamCard -> Step.Child(null)
             is Destination.ExamResult -> Step.Parent(Routes.Progress(focusExam = destination.lessonId))

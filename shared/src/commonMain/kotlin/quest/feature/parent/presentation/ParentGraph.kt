@@ -15,6 +15,8 @@ import quest.api.dto.TeamMember
 import quest.feature.channel.presentation.ClassChannelRoute
 import quest.feature.children.domain.ChildrenRepository
 import quest.feature.team.presentation.ChildTeamRoute
+import quest.api.dto.ParentEvaluation
+import quest.feature.evaluations.presentation.ChildEvaluationsRoute
 import quest.feature.chat.domain.ChatPeer
 import quest.feature.chat.domain.staffRoleOf
 import quest.feature.chat.presentation.ChatConversationRoute
@@ -65,7 +67,15 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
         )
     }
     composable<Routes.Calendar> { CalendarRoute(onLessonPanel = { nav.navigate(Routes.LessonPanel(it)) }, onBack = { nav.popBackStack() }) }
-    composable<Routes.Progress> { entry -> ProgressRoute(focusExam = entry.toRoute<Routes.Progress>().focusExam, onBack = { nav.popBackStack() }) }
+    composable<Routes.Progress> { entry ->
+        ProgressRoute(
+            focusExam = entry.toRoute<Routes.Progress>().focusExam,
+            onBack = { nav.popBackStack() },
+            // Feature 33: "Teacher evaluations", one tap from Progress — which is where a parent already looks for
+            // what the school thinks of her child.
+            onEvaluations = { nav.navigate(Routes.ChildEvaluations) },
+        )
+    }
     composable<Routes.Settings> {
         SettingsRoute(
             onChangePin = { nav.navigate(Routes.ChangePin) },
@@ -142,6 +152,8 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
         ChildTeamRoute(
             onBack = { nav.popBackStack() },
             onMessage = { member -> childId?.let { nav.navigate(member.asConversation(it)) } },
+            // Feature 33: "Latest evaluation" on a teacher's row opens the page where the words themselves are.
+            onLatestEvaluation = { nav.navigate(Routes.ChildEvaluations) },
         )
     }
     composable<Routes.ClassChannel> {
@@ -149,6 +161,15 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
         ClassChannelRoute(
             onBack = { nav.popBackStack() },
             onReplyPrivately = { post -> childId?.let { nav.navigate(post.asConversation(it)) } },
+        )
+    }
+    // Feature 33: the teachers' evaluations of the current child. Reply privately is the same conversation the team
+    // page and the channel open — a parent has one thread per staff member, however she reached it.
+    composable<Routes.ChildEvaluations> {
+        val childId = koinInject<ChildrenRepository>().currentChild.collectAsStateWithLifecycle().value?.id
+        ChildEvaluationsRoute(
+            onBack = { nav.popBackStack() },
+            onReplyPrivately = { row -> childId?.let { nav.navigate(row.asConversation(it)) } },
         )
     }
     composable<Routes.ChatConversation> { entry ->
@@ -212,6 +233,20 @@ internal fun ChannelPost.asConversation(childId: String) = Routes.ChatConversati
     staffRole = staffRoleOf(authorRole).name,
     subject = subject,
     peerRole = authorRole.name,
+)
+
+/**
+ * Feature 33: **Reply privately** on an evaluation — the parent's own one-to-one thread with the teacher who wrote
+ * it, which is the only way she answers one. The row names no thread (an evaluation is not a message), so the
+ * conversation finds or starts hers from the teacher's id, exactly as a channel post's reply does.
+ */
+internal fun ParentEvaluation.asConversation(childId: String) = Routes.ChatConversation(
+    childId = childId,
+    teacherId = teacherId,
+    teacherName = teacherName,
+    staffRole = ChatStaffRole.TEACHER.name,
+    subject = subject,
+    peerRole = ChatPeerRole.TEACHER.name,
 )
 
 internal fun ChatThread.asConversation() = Routes.ChatConversation(

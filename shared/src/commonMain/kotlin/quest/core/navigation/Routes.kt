@@ -56,6 +56,14 @@ object Routes {
     @Serializable object ClassChannel
 
     /**
+     * Feature 33: **Teacher evaluations** — what the current child's teachers wrote about her, in words.
+     *
+     * It is added to the parent graph **only**: a child never sees an evaluation, which `ChildModeEvaluationsTest`
+     * keeps true. Like [ChildTeam] it names no child, because a tap about another one has already made her current.
+     */
+    @Serializable object ChildEvaluations
+
+    /**
      * R8 widened this with what the list row already knew, so the conversation draws its header without a second
      * request. [staffRole] is the contract's own spelling (`TEACHER`/`COORDINATOR`/`MANAGERIAL`).
      */

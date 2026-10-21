@@ -354,6 +354,9 @@ fun NotificationRowCard(row: NotificationView, strings: Strings, focused: Boolea
         NotificationKind.EVENING_CARD -> strings.eveningCardUpdate
         // Feature 32: a teacher posted in her child's class channel.
         NotificationKind.CHANNEL_POST -> strings.teamChannel.channelUpdate
+        // Feature 33: the teachers' evaluations of her child are ready to read. The reminder and the returned
+        // evaluation are a teacher's own notices and never reach a parent's list, so they are not named here.
+        NotificationKind.EVALUATION_RELEASED -> strings.evaluations.title
         else -> strings.updateOther
     }
     ParentCard(

@@ -83,11 +83,17 @@ object Flags {
      */
     const val CLASS_CHANNEL = "classChannel"
 
+    /**
+     * Feature 33: the teachers' evaluations of a child, as the parent reads them. On by default (D30): a school that
+     * runs evaluation rounds at all releases them to parents, and one that does not simply has no round to show.
+     */
+    const val CHILD_EVALUATIONS = "childEvaluations"
+
     /** Every key this app gates on. */
     val used = listOf(
         RETELL_RECORDING, OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, CERTIFICATES, LEVEL_THREE, CHAT, ANNOUNCEMENTS,
         EXAMS, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, VOICE_ANNOUNCEMENT, PARENT_EVENING_CARD, LANGUAGE_BRIDGE,
-        CHILD_TEAM, CLASS_CHANNEL,
+        CHILD_TEAM, CLASS_CHANNEL, CHILD_EVALUATIONS,
     )
 
     /** True when the platform defines [key] at all — the contract's `DEFAULT_FLAGS` is the list of what exists. */

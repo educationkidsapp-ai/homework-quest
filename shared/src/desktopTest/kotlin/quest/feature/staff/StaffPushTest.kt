@@ -250,6 +250,28 @@ class StaffPushTest {
         assertEquals(PushNavigator.Step.Gate, navigator.follow(NotificationTap("morning.brief", link = "/", outside = true)))
     }
 
+    // ------------------------------------------- feature 33: a teacher's own evaluation notices
+
+    @Test fun `the evaluation reminder and a returned evaluation open her notifications, after the app lock`() = runTest {
+        // She writes evaluations on the dashboard, so the app has no staff page of her own for them: the notice
+        // itself says which round is near its deadline, or what a leader sent back, and that is where it opens.
+        for (kind in listOf("evaluation.reminder", "evaluation.returned")) {
+            var locked = true
+            val navigator = PushNavigator(
+                router(staffThreads = emptyList()), ParentGate(elapsed = { 0L }), signedIn = { true },
+                awaitUnlocked = { locked = false },
+            )
+            val step = navigator.follow(NotificationTap(kind, link = "/notifications", outside = true))
+            assertEquals(PushNavigator.Step.Staff(Routes.StaffNotifications), step, "$kind: her notifications, not Routes.ParentPin")
+            assertTrue(!locked, "$kind: and only once the app lock was past")
+        }
+    }
+
+    @Test fun `an evaluation notice without a staff session is still the parent's road`() = runTest {
+        val navigator = PushNavigator(router(staffThreads = null, staffSignedIn = false), ParentGate(elapsed = { 0L }), signedIn = { true })
+        assertEquals(PushNavigator.Step.Gate, navigator.follow(NotificationTap("evaluation.reminder", link = "/notifications", outside = true)))
+    }
+
     // ---------------------------------------------------------------- feature 19: chat office hours
 
     @Test fun `a message outside her office hours is quiet, and the same message inside them is not`() {
