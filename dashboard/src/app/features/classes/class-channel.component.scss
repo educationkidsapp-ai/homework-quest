@@ -1,0 +1,109 @@
+:host {
+  display: block;
+}
+
+.channel__skeleton,
+.channel__confirm {
+  display: block;
+}
+
+.channel__older {
+  display: flex;
+  justify-content: center;
+  margin-block-end: var(--hq-space-16);
+}
+
+// One post per row, oldest first — a feed, not a conversation: nothing is right-aligned here,
+// because every post comes from the staff side.
+.channel__posts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.channel-post {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-8);
+  padding: var(--hq-space-card);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-rule);
+  border-radius: var(--hq-radius-xs);
+  background: var(--hq-color-surface);
+}
+
+.channel-post--removed {
+  background: var(--hq-color-surface-sunken);
+}
+
+.channel-post__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hq-space-8);
+}
+
+.channel-post__author {
+  font-weight: var(--hq-font-label-weight);
+  color: var(--hq-color-ink-strong);
+}
+
+.channel-post__role,
+.channel-post__subjects,
+.channel-post__time {
+  font-size: var(--hq-text-note);
+  color: var(--hq-color-ink-muted);
+}
+
+// The time, and the Delete beside it, sit at the end of the row whichever way the page reads.
+.channel-post__time {
+  margin-inline-start: auto;
+}
+
+.channel-post__body {
+  margin: 0;
+  color: var(--hq-color-ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.channel-post__gone {
+  margin: 0;
+  color: var(--hq-color-ink-soft);
+  font-size: var(--hq-text-note);
+  font-style: italic;
+}
+
+.channel__composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-12);
+  margin-block-start: var(--hq-space-24);
+  padding-block-start: var(--hq-space-16);
+  border-block-start: var(--hq-size-rule) solid var(--hq-color-rule);
+}
+
+.channel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hq-space-8);
+}
+
+.channel__count {
+  margin-inline-start: auto;
+  color: var(--hq-color-ink-muted);
+  font-size: var(--hq-text-note);
+}
+
+.channel__failed {
+  display: block;
+}
+
+.channel__note {
+  margin-block: var(--hq-space-24) 0;
+  color: var(--hq-color-ink-soft);
+  font-size: var(--hq-text-note);
+}

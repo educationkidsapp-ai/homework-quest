@@ -40,6 +40,29 @@ public interface ChatMessageRepository extends JpaRepository<Entities.ChatMessag
     @Query("select m from ChatMessageEntity m where m.id = :id")
     Optional<Entities.ChatMessageEntity> findOneById(@Param("id") String id);
 
+    /**
+     * Feature 32: how many posts of a channel one parent has not read — everything after her mark, which is the
+     * (created_at, id) pair the rest of this class pages by, and nothing she has had taken down since.
+     */
+    @Query("select count(m) from ChatMessageEntity m where m.threadId = :threadId and m.deletedAt is null"
+            + " and (m.createdAt > :at or (m.createdAt = :at and m.id > :id))")
+    long countAfter(@Param("threadId") String threadId, @Param("at") Instant at, @Param("id") String id);
+
+    /** The same count for a parent who has never marked the channel read: every post still standing. */
+    @Query("select count(m) from ChatMessageEntity m where m.threadId = :threadId and m.deletedAt is null")
+    long countIn(@Param("threadId") String threadId);
+
+    /**
+     * Feature 32: one channel post taken down — by its author or by the Admin, which the caller has already decided.
+     * One conditional statement, so a second delete of the same post answers 0 and the row keeps the first one's
+     * author and time; the body and the attachment list are cleared here, because a post nobody may read any more
+     * must not travel in a page as text.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true) @Transactional
+    @Query("update ChatMessageEntity m set m.deletedAt = :at, m.deletedBy = :by, m.body = '', m.attachments = null"
+            + " where m.id = :id and m.deletedAt is null")
+    int softDelete(@Param("id") String id, @Param("at") Instant at, @Param("by") String by);
+
     /** Everything the other party wrote and nobody has read yet, read now. */
     @Modifying @Transactional
     @Query("update ChatMessageEntity m set m.readAt = :at where m.threadId = :threadId and m.senderRole = :role and m.readAt is null")

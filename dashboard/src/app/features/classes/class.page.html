@@ -91,5 +91,13 @@
         }
       </div>
     }
+    @if (hasVisited('channel')) {
+      <div class="class-tab-pane" [hidden]="tab() !== 'channel'">
+        <!-- Feature 32. The tab is in the strip only behind `classChannel`, `chat` and
+             `channel.read`, which is also exactly what the server's channel routes answer to —
+             so a school or an account without it never reaches a panel at all. -->
+        <hq-class-channel [classId]="classId()" [className]="className()" />
+      </div>
+    }
   </div>
 </hq-page>

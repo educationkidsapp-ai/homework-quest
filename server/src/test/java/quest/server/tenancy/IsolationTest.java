@@ -99,6 +99,8 @@ class IsolationTest extends ApiTestSupport {
     @Autowired quest.server.materials.MaterialSettingsRepository materialSettings;
     @Autowired quest.server.materials.MaterialSubmissionRepository materialSubmissions;
     @Autowired quest.server.materials.MaterialReminderRepository materialReminders;
+    @Autowired quest.server.chat.ClassChannelRepository classChannels;
+    @Autowired quest.server.chat.ChannelReadRepository channelReads;
 
     @BeforeEach void seedTwoSchools() {
         school(A, "Alpha Academy", "SCHLAA"); school(B, "Beta School", "SCHLBB");
@@ -1030,6 +1032,44 @@ class IsolationTest extends ApiTestSupport {
             tenant.clear();
             complaintTriage.deleteById("iso-complaint-b");
             chatThreads.deleteById("iso-complaint-b");
+        }
+    }
+
+    /**
+     * Feature 32's two tenant tables. A class channel belongs to one school's section and the parents' read marks to
+     * one school's families, so a principal of A finds neither the map, nor the channel thread it points at, nor a
+     * mark — by `findAll` or by naming B's own section outright.
+     */
+    @Test void feature_32s_class_channel_tables_stay_in_their_school() {
+        var channel = new quest.server.chat.Entities.ChatThreadEntity();
+        channel.setId("iso-channel-b"); channel.setSchoolId(B); channel.setTeacherId(CLASS_B); channel.setClassId(CLASS_B);
+        channel.setKind("class_channel"); channel.setStaffRole("TEACHER"); channel.setTopic("question");
+        channel.setStatus("open"); channel.setCreatedAt(Instant.now());
+        chatThreads.save(channel);
+        var map = new quest.server.chat.Entities.ClassChannelEntity();
+        map.setId("iso-channel-map-b"); map.setSchoolId(B); map.setClassId(CLASS_B); map.setThreadId("iso-channel-b");
+        map.setCreatedAt(Instant.now());
+        classChannels.save(map);
+        var mark = new quest.server.chat.Entities.ChannelReadEntity();
+        mark.setId("iso-channel-read-b"); mark.setSchoolId(B); mark.setThreadId("iso-channel-b");
+        mark.setParentId("iso-parent-b"); mark.setLastReadMessageId("iso-post-b"); mark.setReadAt(Instant.now());
+        channelReads.save(mark);
+        try {
+            tenant.set("MANAGERIAL", A, null);
+            assertThat(classChannels.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(classChannels.findOneByClassId(CLASS_B)).as("not A's, whichever section she names").isEmpty();
+            assertThat(chatThreads.findChannelOf(CLASS_B)).as("nor the channel thread itself").isEmpty();
+            assertThat(channelReads.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(channelReads.findOne("iso-channel-b", "iso-parent-b")).isEmpty();
+            tenant.set("MANAGERIAL", B, null);
+            assertThat(classChannels.findOneByClassId(CLASS_B)).map(r -> r.getThreadId()).contains("iso-channel-b");
+            assertThat(chatThreads.findChannelOf(CLASS_B)).isPresent();
+            assertThat(channelReads.findOne("iso-channel-b", "iso-parent-b")).isPresent();
+        } finally {
+            tenant.clear();
+            channelReads.deleteById("iso-channel-read-b");
+            classChannels.deleteById("iso-channel-map-b");
+            chatThreads.deleteById("iso-channel-b");
         }
     }
 }

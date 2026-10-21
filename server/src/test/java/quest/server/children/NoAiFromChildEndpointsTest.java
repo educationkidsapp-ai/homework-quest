@@ -116,7 +116,11 @@ class NoAiFromChildEndpointsTest extends ApiTestSupport {
         for (JsonNode stop : lesson.get("plays").get(0).get("stops")) uploads.add(attempt("noai-" + i++, stop.get("id").asText(), HOMEWORK));
         parentPost("/children/" + child + "/attempts", "[" + String.join(",", uploads) + "]");
         var examUploads = new ArrayList<String>();
-        for (JsonNode stop : lesson.get("plays").get(0).get("stops")) examUploads.add(attempt("noai-exam-" + i++, stop.get("id").asText(), EXAM));
+        // The paper's stops are the seed's under the paper's own prefix (`examPaper`), which is what makes them its
+        // rows rather than the seeded lesson's.
+        String papers = quest.server.analysis.StopIds.prefix(EXAM, 1, 0);
+        for (JsonNode stop : lesson.get("plays").get(0).get("stops"))
+            examUploads.add(attempt("noai-exam-" + i++, papers + stop.get("id").asText(), EXAM));
         parentPost("/children/" + child + "/attempts", "[" + String.join(",", examUploads) + "]");
 
         // the recording she uploads and reads back, and a page crop of a page that is not there
@@ -205,7 +209,19 @@ class NoAiFromChildEndpointsTest extends ApiTestSupport {
         paper.setType("exam"); paper.setClassId(seed.getClassId()); paper.setSchoolId(seed.getSchoolId());
         paper.setCreatedBy("test"); paper.setCreatedAt(Instant.now()); paper.setUpdatedAt(Instant.now()); paper.setPublishedAt(Instant.now());
         lessons.save(paper);
-        for (var play : store.plays(seed.getId())) store.savePlay(EXAM, store.play(play), quest.api.CacheKeys.PROMPT_B_VERSION, 0);
+        // The paper borrows the seed's plays, and it must take **its own** stop ids with them. A `stops` row is keyed
+        // by the stop's own id (`LessonStore.savePlay`), and the sample seed's ids ("hs1-retell") carry no lesson
+        // prefix at all — so attaching the play to a second lesson unprefixed moved every stop row of
+        // `lesson-hot-soup-1` onto this paper, and the seeded lesson was left with none. `MapService` drops a lesson
+        // with no level-one stop, so from then on it was on no child's map at all and
+        // `ParentFlowTest.child_map_lesson_attempts_progress` failed — in whichever order it happened to run after
+        // this test. `StopIds.relabel` is what production does when a cached play is attached to a lesson.
+        for (var play : store.plays(seed.getId())) {
+            var tree = (com.fasterxml.jackson.databind.node.ObjectNode) codec.tree(play.getPlayJson());
+            quest.server.analysis.StopIds.relabel(tree, EXAM, play.getLevel(), play.getVariant());
+            store.savePlay(EXAM, codec.decodeShared(tree.toString(), quest.api.dto.Play.Companion.serializer()),
+                    quest.api.CacheKeys.PROMPT_B_VERSION, 0);
+        }
         // …and the panel, without which `LessonStore.assemble` has nothing to assemble and the paper is a 404 — which
         // is how the exam half of this test used to pass without ever reaching `ExamAttemptService`.
         store.savePanel(EXAM, java.util.Objects.requireNonNull(store.assemble(seed)).getParentPanel());

@@ -44,6 +44,18 @@ object Routes {
     @Serializable object ChatCoordinators
 
     /**
+     * Feature 32: everyone who looks after the current child, on one page — her teachers, the subject coordinators,
+     * the floor supervisor and the department manager, each with a Message that opens the one-to-one thread.
+     *
+     * It names no child, exactly as [ChatThreads] does not: the page is about whoever the current child is, and a tap
+     * about another one has already made her current (`NotificationRouter`).
+     */
+    @Serializable object ChildTeam
+
+    /** Feature 32: the current child's class channel — what her class's teachers posted for every parent in it. */
+    @Serializable object ClassChannel
+
+    /**
      * R8 widened this with what the list row already knew, so the conversation draws its header without a second
      * request. [staffRole] is the contract's own spelling (`TEACHER`/`COORDINATOR`/`MANAGERIAL`).
      */

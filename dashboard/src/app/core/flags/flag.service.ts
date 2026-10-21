@@ -96,6 +96,14 @@ export const FLAGS = {
   // subject, the leaders' board over it, and the Admin's deadline card. Off until an Admin turns
   // it on — the server answers 404 without it, and neither page has an older screen behind it.
   teachingMaterials: 'teachingMaterials',
+  // Feature 32: a parent's one page with everyone who looks after her child. The dashboard has
+  // no screen of its own for it — the page is the app's — but the switch is the Admin's to turn
+  // off on Feature switches, so the key lives here with the rest.
+  childTeam: 'childTeam',
+  // Feature 32: one channel per class. On the dashboard it is the class page's Class channel tab,
+  // and it rides on `chat` the way the server's `ClassChannelService` does: a channel is a chat
+  // thread of its own kind, so a school without chat has no channel either.
+  classChannel: 'classChannel',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];

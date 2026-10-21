@@ -46,7 +46,8 @@ import quest.server.translate.Entities.TranslationEntity;
  *
  * <p><strong>This class adds no reading rule of its own.</strong> Whether a source may be translated is exactly
  * whether the caller may already read it, asked of the code that already decides:
- * {@link ChildService#owned} and the thread's own {@code childId} for a parent, {@link ChatService#mayReadThread}
+ * {@link ChildService#owned} and the thread's own {@code childId} for a parent — or, on a class channel, which has
+ * none, her child's own section against the channel's ({@link #channelPost}) — {@link ChatService#mayReadThread}
  * and {@link ComplaintService#mayRead} for a member of staff, {@link BroadcastService#readableByParent} and
  * {@link AnnouncementService#readableByParent} for a feed. Anything else is a 404 and never a 403: whether another
  * family's message exists is not this caller's to learn. The feature's own switch is on the controller; the switch
@@ -143,8 +144,31 @@ public class TranslationService {
         requireOn(child.getSchoolId(), FlagKeys.CHAT);
         var message = messages.findOneById(messageId).orElseThrow(TranslationService::noSource);
         var thread = threads.findOneById(message.getThreadId()).orElseThrow(TranslationService::noSource);
+        if (!complaint && ChatService.CLASS_CHANNEL.equals(thread.getKind())) return channelPost(child, message, thread);
         if (!child.getId().equals(thread.getChildId()) || complaint != isComplaint(thread)) throw noSource();
         return body(message, complaint);
+    }
+
+    /**
+     * Feature 32: one post of a class channel. A channel is nobody's conversation, so it carries no `child_id` at all
+     * and the rule above can never reach it — and this class adds no reading rule of its own, so what makes the post
+     * hers is the very thing that put it on the page she read it on: <strong>her child sits in the section the
+     * channel belongs to</strong> ({@code ClassChannelService.parentChannel}). The school is checked beside it, as the
+     * `child_id` comparison above checks it for a conversation: a parent carries no tenant scope, so the thread was
+     * read unfiltered and something has to pin it to her child's school.
+     *
+     * <p>A post that has been <strong>taken down</strong> is a 404 here exactly as its files are: the tombstone has no
+     * body any more, and a translation of a post nobody may read is not a translation of anything.
+     *
+     * <p>A complaint is never this shape — {@code complaint} is false on every path in — and the staff side is
+     * unchanged: {@code ChatService.mayReadThread} names no channel, so `POST /staff/translate` still refuses one.
+     */
+    private Source channelPost(ChildEntity child, ChatMessageEntity message, ChatThreadEntity thread) {
+        requireOn(child.getSchoolId(), FlagKeys.CLASS_CHANNEL);
+        if (message.getDeletedAt() != null) throw noSource();
+        if (!child.getSchoolId().equals(thread.getSchoolId())) throw noSource();
+        if (child.getClassId() == null || !child.getClassId().equals(thread.getClassId())) throw noSource();
+        return body(message, false);
     }
 
     // ---------------------------------------------------------------- the staff (dashboard and the staff app)

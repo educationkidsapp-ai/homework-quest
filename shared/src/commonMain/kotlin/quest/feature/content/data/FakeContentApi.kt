@@ -317,6 +317,83 @@ class FakeContentApi(
         return fakeManagers.map { (id, name) -> fakeRow(childId, id, name, null, ChatStaffRole.MANAGERIAL) }
     }
 
+    // ---- Feature 32 parity: the child's team on one page, and her class's channel, so the demo mode shows both.
+
+    /**
+     * The team the server would answer with, in the page's own order: her two subject teachers, the two subject
+     * coordinators, the floor supervisor and the department manager. A row carries the thread she already has (the
+     * fake messages decide) and **no phone number**, exactly as the contract has none.
+     */
+    override suspend fun childTeam(childId: String): List<quest.api.dto.TeamMember> {
+        net()
+        fun member(staffId: String, name: String, role: quest.api.dto.ChatPeerRole, subjects: String?, hours: quest.api.dto.OfficeHoursStatus?) =
+            quest.api.dto.TeamMember(
+                staffId = staffId, name = name, role = role, subjects = subjects, officeHours = hours,
+                threadId = fakeMessages["$childId:$staffId"]?.takeIf { it.isNotEmpty() }?.let { "th-$childId-$staffId" },
+            )
+        // Feature 19: one teacher is in her office hours and one is not, so both lines can be read in the demo.
+        val open = quest.api.dto.OfficeHoursStatus(open = true, today = "2026-10-21")
+        val closed = quest.api.dto.OfficeHoursStatus(open = false, nextStart = "2026-10-22T07:30", today = "2026-10-21", schoolPhone = "+966 11 555 0100")
+        return listOf(
+            member("t-sara", "Ms. Sara", quest.api.dto.ChatPeerRole.TEACHER, "math", open),
+            member("t-noor", "Ms. Noor", quest.api.dto.ChatPeerRole.TEACHER, "english", closed),
+            member("co-lina", "Ms. Lina", quest.api.dto.ChatPeerRole.COORDINATOR, "math", closed),
+            member("co-omar", "Mr. Omar", quest.api.dto.ChatPeerRole.COORDINATOR, "english, science", closed),
+            member("fs-huda", "Ms. Huda", quest.api.dto.ChatPeerRole.FLOOR_SUPERVISOR, null, open),
+            member("mg-nour", "Ms. Nour", quest.api.dto.ChatPeerRole.MANAGERIAL, null, closed),
+        )
+    }
+
+    /** The posts this parent has not read yet; cleared by [markChannelRead], as the server's read mark does. */
+    private val fakeChannelRead = mutableSetOf<String>()
+
+    private fun fakeChannelPosts(): List<quest.api.dto.ChannelPost> = listOf(
+        quest.api.dto.ChannelPost(
+            id = "ch-1", authorId = "t-sara", authorName = "Ms. Sara", authorRole = quest.api.dto.ChatPeerRole.TEACHER,
+            subject = "math", body = "Tomorrow we start counting in fives. Please practise at home with the number line.",
+            createdAt = 1_758_300_000_000L,
+        ),
+        quest.api.dto.ChannelPost(
+            id = "ch-2", authorId = "t-noor", authorName = "Ms. Noor", authorRole = quest.api.dto.ChatPeerRole.TEACHER,
+            subject = "english", body = "A photo of today's board, for anyone who copied it in a hurry.",
+            attachments = listOf(quest.api.dto.ChatAttachment("ch-a1", "image/jpeg", "board.jpg", 380_000, width = 1024, height = 768)),
+            createdAt = 1_758_360_000_000L,
+        ),
+        // A post the author took down: the row stays so the dates around it still read in order.
+        quest.api.dto.ChannelPost(
+            id = "ch-3", authorId = "t-sara", authorName = "Ms. Sara", authorRole = quest.api.dto.ChatPeerRole.TEACHER,
+            subject = "math", body = "", createdAt = 1_758_400_000_000L, deleted = true,
+        ),
+        quest.api.dto.ChannelPost(
+            id = "ch-4", authorId = "t-noor", authorName = "Ms. Noor", authorRole = quest.api.dto.ChatPeerRole.TEACHER,
+            subject = "english", body = "This week's reading worksheet is attached. It is due on Thursday.",
+            attachments = listOf(quest.api.dto.ChatAttachment("ch-a2", "application/pdf", "Reading week 6.pdf", 1_140_000)),
+            createdAt = 1_758_430_000_000L,
+        ),
+    )
+
+    private fun fakeChannelPage(before: String?, limit: Int?): quest.api.dto.ChannelPage {
+        val all = fakeChannelPosts()
+        val upTo = before?.let { id -> all.indexOfFirst { it.id == id }.takeIf { it >= 0 } } ?: all.size
+        val window = all.take(upTo).takeLast(limit ?: all.size)
+        return quest.api.dto.ChannelPage(
+            posts = window,
+            unread = all.count { it.id !in fakeChannelRead },
+            classId = "sec-1a", className = "1A British",
+        )
+    }
+
+    override suspend fun childChannel(childId: String, before: String?, since: String?, limit: Int?): quest.api.dto.ChannelPage {
+        net()
+        return fakeChannelPage(before, limit)
+    }
+
+    override suspend fun markChannelRead(childId: String): quest.api.dto.ChannelPage {
+        net()
+        fakeChannelRead += fakeChannelPosts().map { it.id }
+        return fakeChannelPage(before = null, limit = null)
+    }
+
     // ---- M8 parity: B6's complaints, apart from Messages (`FakeComplaints`).
     // Its messages name M7's uploads (`fakeUploads`, below) by id, as the server's do.
     private val fakeComplaints = FakeComplaints(parentId = { uid() }, now = now, upload = { fakeUploads[it] })
@@ -435,6 +512,7 @@ class FakeContentApi(
         // M8: B6's two complaint kinds a parent receives, linked to the complaint's own page.
         NotificationView("nt-cp-msg", NotificationKind.COMPLAINT_MESSAGE, "Ms. Nour replied to your complaint", "Thank you for telling us. I am checking the route with the transport team today.", "/children/$MAYA/complaints/cp-bus", lessonId = "cp-bus", createdAt = 1_758_465_000_000L, childId = MAYA),
         NotificationView("nt-cp-status", NotificationKind.COMPLAINT_STATUS, "Your complaint was resolved", "Homework is too long every night", "/children/$MAYA/complaints/cp-homework", lessonId = "cp-homework", createdAt = 1_758_455_000_000L, childId = MAYA),
+        NotificationView("nt-channel", NotificationKind.CHANNEL_POST, "Class channel: Ms. Noor", "This week's reading worksheet is attached. It is due on Thursday.", "/children/$MAYA/channel", createdAt = 1_758_445_000_000L, childId = MAYA),
         NotificationView("nt-msg", NotificationKind.CHAT_MESSAGE, "Message from Ms. Sara", "Maya did very well today.", "/children/$MAYA/chat/t-sara", createdAt = 1_758_450_000_000L, childId = MAYA),
         NotificationView("nt-hw", NotificationKind.HOMEWORK_PUBLISHED, "New homework", "Counting by 2s", "/children/$MAYA/map", lessonId = "l1", createdAt = 1_758_440_000_000L, childId = MAYA),
         // M5: one row of each newer kind B4 writes, so every tap target can be tried without a server.

@@ -11,7 +11,9 @@ import { BASE_PATH } from '../../api';
 import { translocoTesting } from '../../../testing/render';
 import { BandService } from '../../core/band/band.service';
 import { errorInterceptor } from '../../core/http/error.interceptor';
+import { FlagService } from '../../core/flags/flag.service';
 import { ClassContextService } from '../../core/nav/class-context.service';
+import { PermissionService } from '../../core/permissions/permission.service';
 import { ClassPage } from './class.page';
 
 @Component({ template: '<h1>My classes</h1>' })
@@ -84,9 +86,19 @@ describe('the class page', () => {
 
   const tab = (name: string) => screen.getByRole('tab', { name });
 
+  /**
+   * Feature 32: the flags and permissions this session holds. Empty by default — which is what
+   * every test below the channel ones expects: no Class channel tab, and Gradebook and Exams
+   * standing there saying what they would hold.
+   */
+  let flagsOn: Set<string>;
+  let permissions: Set<string>;
+
   beforeEach(() => {
     localStorage.clear();
     sessionStorage.clear();
+    flagsOn = new Set();
+    permissions = new Set();
     TestBed.configureTestingModule({
       imports: [translocoTesting()],
       providers: [
@@ -98,6 +110,11 @@ describe('the class page', () => {
           { path: 'sign-in', component: MyClassesStub },
         ]),
         { provide: BASE_PATH, useValue: '' },
+        {
+          provide: FlagService,
+          useValue: { isOn: (key: string) => flagsOn.has(key), reload: () => undefined },
+        },
+        { provide: PermissionService, useValue: { can: (key: string) => permissions.has(key) } },
       ],
     });
     backend = TestBed.inject(HttpTestingController);
@@ -222,7 +239,9 @@ describe('the class page', () => {
       .flush({ code: 'unauthorized', message: 'no' }, { status: 401, statusText: 'Unauthorized' });
     await settle(harness);
 
-    expect(router.url).toBe(`/sign-in?returnTo=${encodeURIComponent('/teacher/classes/c-1a?tab=attendance')}`);
+    expect(router.url).toBe(
+      `/sign-in?returnTo=${encodeURIComponent('/teacher/classes/c-1a?tab=attendance')}`,
+    );
     expect(TestBed.inject(BandService).current()?.titleKey).toBe('band.signedOut');
   });
 
@@ -283,5 +302,46 @@ describe('the class page', () => {
 
     expect(router.url).toBe('/teacher/classes/c-1a');
     expect(TestBed.inject(BandService).current()?.message).toBe('The calendar is unavailable.');
+  });
+
+  /**
+   * Feature 32 — the Class channel tab. It is in the strip only behind `classChannel`, `chat`
+   * and `channel.read`, the same three answers the server's channel routes give; with any of
+   * them missing the tab is absent, and `?tab=channel` opens on the calendar rather than on a
+   * panel nothing draws.
+   */
+  describe('the Class channel tab', () => {
+    it('is in the strip, and opens its own panel, for a teacher of a school that has it', async () => {
+      flagsOn = new Set(['classChannel', 'chat']);
+      permissions = new Set(['channel.read']);
+      const harness = await openClass();
+
+      await userEvent.click(tab('Class channel'));
+      await settle(harness);
+      backend.expectOne((request) => request.url.endsWith('/channel')).flush({ posts: [], unread: 0 });
+      await settle(harness);
+
+      expect(router.url).toBe('/teacher/classes/c-1a?tab=channel');
+      expect(tab('Class channel')).toHaveAttribute('aria-selected', 'true');
+    });
+
+    it('is absent when the school has no class channel, and its deep link opens the calendar', async () => {
+      flagsOn = new Set(['chat']);
+      permissions = new Set(['channel.read']);
+      const harness = await openClass('/teacher/classes/c-1a?tab=channel');
+
+      expect(screen.queryByRole('tab', { name: 'Class channel' })).toBeNull();
+      expect(tab('Calendar')).toHaveAttribute('aria-selected', 'true');
+      // Nothing asked the channel for anything.
+      backend.expectNone((request) => request.url.endsWith('/channel'));
+      await settle(harness);
+    });
+
+    it('is absent for an account that reads no channel, however the flags stand', async () => {
+      flagsOn = new Set(['classChannel', 'chat']);
+      await openClass();
+
+      expect(screen.queryByRole('tab', { name: 'Class channel' })).toBeNull();
+    });
   });
 });

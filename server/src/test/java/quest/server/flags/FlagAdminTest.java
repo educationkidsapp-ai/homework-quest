@@ -25,7 +25,7 @@ class FlagAdminTest extends ApiTestSupport {
     @Test void the_flags_are_seeded_exactly_as_the_code_lists_them() {
         assertThat(definitions.findAllByOrderByKeyAsc()).extracting(Entities.FeatureFlagEntity::getKey)
                 .containsExactlyInAnyOrderElementsOf(FlagKeys.ALL);
-        assertThat(FlagKeys.ALL).hasSize(36);
+        assertThat(FlagKeys.ALL).hasSize(38);
         assertThat(definitions.findAllByOrderByKeyAsc()).allSatisfy(f ->
                 assertThat(f.getRolloutStage()).isIn("internal", "beta", "ga"));
     }
@@ -54,12 +54,17 @@ class FlagAdminTest extends ApiTestSupport {
      * "every row of the `default` school is on" would not.
      */
     @Test void the_rows_the_migration_rewrote_are_on_and_audited() {
+        // V54 could only audit the keys that existed when it ran. A switch a later migration seeds is seeded `TRUE`
+        // from the start (feature 32's two, V55), so it never needed a flip and has no `v54-` row; naming them here
+        // is what the next migration updates, beside `FlagKeys.ALL`'s size above.
+        var afterV54 = List.of(FlagKeys.CHILD_TEAM, FlagKeys.CLASS_CHANNEL);
         assertThat(jdbc.queryForList(
                 "SELECT flag_key FROM school_feature_flags WHERE updated_by = 'migration:V54' AND enabled = FALSE", String.class))
                 .as("V54 left no override off").isEmpty();
         assertThat(jdbc.queryForList("SELECT flag_key FROM flag_audit WHERE id LIKE 'v54-%' AND school_id IS NULL", String.class))
-                .as("one 'for every school' audit row per key, `multiSchool` apart")
-                .containsExactlyInAnyOrderElementsOf(FlagKeys.ALL.stream().filter(k -> !k.equals(FlagKeys.MULTI_SCHOOL)).toList());
+                .as("one 'for every school' audit row per key V54 could see, `multiSchool` apart")
+                .containsExactlyInAnyOrderElementsOf(FlagKeys.ALL.stream()
+                        .filter(k -> !k.equals(FlagKeys.MULTI_SCHOOL) && !afterV54.contains(k)).toList());
     }
 
     /** A school created after V54 has no override rows at all, so it reads the defaults — every switch on. */

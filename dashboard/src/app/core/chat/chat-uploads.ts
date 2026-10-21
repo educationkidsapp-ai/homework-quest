@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
-import { Subscription } from 'rxjs';
-import { ChatApi } from '../../api';
+import { Observable, Subscription } from 'rxjs';
+import { AttachmentRef, ChatApi } from '../../api';
 import { apiErrorCodeOf } from '../../api/api-error';
 import { silentErrors } from '../http/error.interceptor';
 import {
@@ -28,6 +28,16 @@ export interface StagedUpload {
   /** A picture's own pixels as a `data:` URL for the chip — the CSP's `img-src` takes `data:`, not `blob:`. */
   readonly preview: string | null;
 }
+
+/**
+ * Where a composer's bytes go.
+ *
+ * `POST /media/chat-attachments` for a conversation; feature 32's class channel sets its own —
+ * `POST /teacher/classes/{classId}/channel/attachments`, which takes the same files under the same
+ * limits but checks that the caller teaches *that* class. The staging, the chips, the bars and
+ * every refusal sentence are the same for both, which is the point of this seam.
+ */
+export type ChatUploader = (file: File) => Observable<AttachmentRef>;
 
 /** A sentence for the composer's band: what was refused, and the file it was about. */
 export interface UploadProblem {
@@ -61,6 +71,12 @@ function failureOf(error: unknown, kind: ChatFileKind): ChatUploadFailure {
 export class ChatUploads {
   private readonly chat = inject(ChatApi);
   private readonly running = new Map<string, Subscription>();
+
+  /**
+   * The route the bytes go to. Null is the chat's own; a composer on another endpoint sets it
+   * before the first pick (feature 32's channel does it in its constructor).
+   */
+  readonly uploader = signal<ChatUploader | null>(null);
 
   readonly staged = signal<readonly StagedUpload[]>([]);
   /** The last thing refused, until she picks again, removes a file or sends. */
@@ -130,25 +146,31 @@ export class ChatUploads {
     ]);
     if (kind === 'image') this.preview(key, file);
 
-    // `POST /media/chat-attachments` (B5). The browser's `FormData` sends the Content-Length the
-    // server insists on; an Admin's request gets `X-School-Id` from the auth interceptor.
+    // `POST /media/chat-attachments` (B5), or whatever route this composer was given. The
+    // browser's `FormData` sends the Content-Length the server insists on; an Admin's request gets `X-School-Id` from the auth interceptor.
     // No percentage: the app's `withFetch()` backend reports no upload progress, so the bar is
     // indeterminate while the request is in flight rather than a 0 % that never moves.
-    const reading = this.chat
-      .uploadChatAttachment(file, 'body', false, { context: silentErrors() })
-      .subscribe({
-        next: (ref) => {
-          const id = ref.id ?? '';
-          if (id === '') {
-            this.fail(key, file.name, 'failed');
-            return;
-          }
-          this.patch(key, { id, state: 'done' });
-        },
-        error: (error: unknown) => this.fail(key, file.name, failureOf(error, kind)),
-        complete: () => this.running.delete(key),
-      });
+    const reading = this.upload(file).subscribe({
+      next: (ref) => {
+        const id = ref.id ?? '';
+        if (id === '') {
+          this.fail(key, file.name, 'failed');
+          return;
+        }
+        this.patch(key, { id, state: 'done' });
+      },
+      error: (error: unknown) => this.fail(key, file.name, failureOf(error, kind)),
+      complete: () => this.running.delete(key),
+    });
     this.running.set(key, reading);
+  }
+
+  /** The chat's own upload, or the one this composer was given. */
+  private upload(file: File): Observable<AttachmentRef> {
+    const override = this.uploader();
+    return override
+      ? override(file)
+      : this.chat.uploadChatAttachment(file, 'body', false, { context: silentErrors() });
   }
 
   private fail(key: string, name: string, reason: ChatUploadFailure): void {

@@ -50,6 +50,7 @@ in its header.
 | Parent language bridge | `29-parent-language-bridge.md` | 24 | Done (#235) |
 | Smart hints and targeted practice | `30-smart-hints-targeted-practice.md` | 24 | Done (#234) |
 | Teaching material tracking | `31-teaching-material-tracking.md` | 14, 17, 20 | Done |
+| A child's team and the class channel | `32-child-team-class-channel.md` | 19, 20, 29 | Done |
 
 Feature 24 comes first in substance: 25–30 all call it. Branches merge in Flyway order, lowest migration first.
 

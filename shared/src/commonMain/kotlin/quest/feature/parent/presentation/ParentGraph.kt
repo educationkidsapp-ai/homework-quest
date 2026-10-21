@@ -9,7 +9,14 @@ import quest.core.navigation.Routes
 import quest.api.dto.ChatPeerRole
 import quest.api.dto.ChatStaffRole
 import quest.api.dto.ChatThread
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import quest.api.dto.ChannelPost
+import quest.api.dto.TeamMember
+import quest.feature.channel.presentation.ClassChannelRoute
+import quest.feature.children.domain.ChildrenRepository
+import quest.feature.team.presentation.ChildTeamRoute
 import quest.feature.chat.domain.ChatPeer
+import quest.feature.chat.domain.staffRoleOf
 import quest.feature.chat.presentation.ChatConversationRoute
 import quest.feature.chat.presentation.ChatThreadsRoute
 import quest.feature.chat.presentation.CoordinatorPickerRoute
@@ -76,6 +83,9 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
             onBack = { nav.popBackStack() },
             onOpenConversation = { nav.navigate(it.asConversation()) },
             onMessageCoordinator = { nav.navigate(Routes.ChatCoordinators) },
+            // Feature 32: the class channel and the child's team, each one tap from the Messages tab.
+            onOpenChannel = { nav.navigate(Routes.ClassChannel) },
+            onOpenTeam = { nav.navigate(Routes.ChildTeam) },
             onHome = { nav.navigate(Routes.ParentHome) { popUpTo(Routes.ParentHome) { inclusive = false } } },
             onNotifications = { nav.navigate(Routes.Broadcasts()) { popUpTo(Routes.ParentHome) { inclusive = false } } },
             onSettings = { nav.navigate(Routes.Settings) { popUpTo(Routes.ParentHome) { inclusive = false } } },
@@ -125,6 +135,22 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
             onOpenConversation = { nav.navigate(it.asConversation()) },
         )
     }
+    // Feature 32: the child's team, and her class's channel. Both go on to the same conversation the thread list and
+    // the coordinator picker open — a parent has one thread per staff member, however she reached it.
+    composable<Routes.ChildTeam> {
+        val childId = koinInject<ChildrenRepository>().currentChild.collectAsStateWithLifecycle().value?.id
+        ChildTeamRoute(
+            onBack = { nav.popBackStack() },
+            onMessage = { member -> childId?.let { nav.navigate(member.asConversation(it)) } },
+        )
+    }
+    composable<Routes.ClassChannel> {
+        val childId = koinInject<ChildrenRepository>().currentChild.collectAsStateWithLifecycle().value?.id
+        ClassChannelRoute(
+            onBack = { nav.popBackStack() },
+            onReplyPrivately = { post -> childId?.let { nav.navigate(post.asConversation(it)) } },
+        )
+    }
     composable<Routes.ChatConversation> { entry ->
         val route = entry.toRoute<Routes.ChatConversation>()
         ChatConversationRoute(
@@ -156,6 +182,38 @@ fun NavGraphBuilder.parentGraph(nav: NavHostController) {
  * R8: the row the parent tapped already knows the role and the subject, so the conversation opens with its header
  * right rather than asking the server again for what it was just told.
  */
+/**
+ * Feature 32: a team row's **Message**. The row carries everything the conversation's header needs — who she is, what
+ * she teaches, the thread if one exists — so, exactly as a thread row does, it opens without asking the server again.
+ * A null `threadId` is a thread that does not exist yet: the first message she sends creates it.
+ */
+internal fun TeamMember.asConversation(childId: String) = Routes.ChatConversation(
+    childId = childId,
+    teacherId = staffId,
+    teacherName = name,
+    staffRole = staffRoleOf(role).name,
+    subject = subjects,
+    threadId = threadId,
+    peerRole = role.name,
+    officeNextStart = officeHours?.takeIf { !it.open }?.nextStart,
+    officeToday = officeHours?.takeIf { !it.open && it.nextStart != null }?.today,
+    officePhone = officeHours?.takeIf { !it.open }?.schoolPhone,
+)
+
+/**
+ * Feature 32: **Reply privately** on a channel post — the parent's own one-to-one thread with the teacher who wrote
+ * it, which is the only way she answers. The post names no thread (it is not one of hers), so the conversation finds
+ * or starts hers from the staff id, as the coordinator picker's rows do.
+ */
+internal fun ChannelPost.asConversation(childId: String) = Routes.ChatConversation(
+    childId = childId,
+    teacherId = authorId,
+    teacherName = authorName,
+    staffRole = staffRoleOf(authorRole).name,
+    subject = subject,
+    peerRole = authorRole.name,
+)
+
 internal fun ChatThread.asConversation() = Routes.ChatConversation(
     childId = childId,
     teacherId = teacherId,

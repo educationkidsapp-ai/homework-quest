@@ -1,0 +1,114 @@
+<!-- Destructive and not undoable: it asks in a red band, never a dialog and never a toast. -->
+@if (removing()) {
+  <hq-band
+    class="channel__confirm"
+    variant="confirm"
+    [open]="true"
+    [title]="'classes.channel.delete.title' | transloco"
+    [confirmLabel]="'classes.channel.delete.confirm' | transloco"
+    (confirmed)="confirmDelete()"
+    (dismissed)="cancelDelete()"
+  >
+    {{ deleteMessage() }}
+  </hq-band>
+}
+
+@if (loading()) {
+  <hq-skeleton
+    class="channel__skeleton"
+    [loading]="true"
+    [lines]="4"
+    height="var(--hq-size-row-height)"
+    [label]="'classes.channel.loading' | transloco"
+  />
+} @else if (rows().length === 0) {
+  <hq-empty-state [message]="'classes.channel.empty' | transloco" [detail]="emptyDetail()" />
+} @else {
+  @if (more()) {
+    <div class="channel__older">
+      <hq-button [loading]="loadingOlder()" (pressed)="loadOlder()">
+        {{ 'classes.channel.older' | transloco }}
+      </hq-button>
+    </div>
+  }
+
+  <ol class="channel__posts" [attr.aria-label]="'classes.channel.list' | transloco">
+    @for (row of rows(); track row.post.id) {
+      <li class="channel-post" [class.channel-post--removed]="row.post.deleted">
+        <div class="channel-post__head">
+          <span class="channel-post__author" dir="auto">{{ row.post.authorName }}</span>
+          <span class="channel-post__role">{{ row.roleLabel }}</span>
+          @if (row.subjects) {
+            <span class="channel-post__subjects">{{ row.subjects }}</span>
+          }
+          <span class="channel-post__time">{{ row.post.createdAt | date: 'short' }}</span>
+          @if (row.removable) {
+            <hq-button
+              variant="quiet"
+              [ariaLabel]="'classes.channel.delete.named' | transloco: { name: row.post.authorName }"
+              (pressed)="askDelete(row.post)"
+            >
+              {{ 'classes.channel.delete.action' | transloco }}
+            </hq-button>
+          }
+        </div>
+
+        @if (row.post.deleted) {
+          <p class="channel-post__gone">{{ 'classes.channel.removed' | transloco }}</p>
+        } @else {
+          @if (row.post.body) {
+            <p class="channel-post__body" dir="auto">{{ row.post.body }}</p>
+          }
+          @if (row.attachments.length > 0) {
+            <hq-chat-attachments [attachments]="row.attachments" />
+          }
+        }
+      </li>
+    }
+  </ol>
+}
+
+<!-- `channel.post` is the teacher's. The Admin moderates here and is told so, rather than
+     looking for a box that was never hers (feature 32). -->
+<div class="channel__composer" *hqCan="'channel.post'">
+  <hq-textarea
+    [label]="'classes.channel.composer.label' | transloco"
+    [placeholder]="'classes.channel.composer.placeholder' | transloco"
+    [rows]="3"
+    [autoGrow]="true"
+    [maxLength]="maxBody"
+    [disabled]="sending()"
+    [(value)]="draft"
+  />
+
+  <hq-chat-staged-files />
+
+  @if (failed()) {
+    <hq-band class="channel__failed" variant="error" [open]="true" (dismissed)="failed.set(false)">
+      {{ 'classes.channel.failed' | transloco }}
+    </hq-band>
+  }
+
+  <div class="channel__actions">
+    <hq-button
+      variant="secondary"
+      [disabled]="uploads.staged().length >= maxFiles"
+      [reason]="'chat.upload.tooMany' | transloco"
+      (pressed)="pickFiles()"
+    >
+      {{ 'classes.channel.composer.attach' | transloco }}
+    </hq-button>
+    <input #fileInput type="file" multiple hidden [accept]="accept" (change)="onFilesPicked($event)" />
+
+    <span class="channel__count">{{ 'chat.charCount' | transloco: { count: draft().length } }}</span>
+
+    <!-- The one primary action of this tab. -->
+    <hq-button variant="primary" [loading]="sending()" [disabled]="!canSend()" (pressed)="send()">
+      {{ 'classes.channel.composer.post' | transloco }}
+    </hq-button>
+  </div>
+</div>
+
+@if (!canPost()) {
+  <p class="channel__note">{{ 'classes.channel.moderatorNote' | transloco }}</p>
+}

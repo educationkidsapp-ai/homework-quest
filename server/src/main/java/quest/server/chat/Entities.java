@@ -52,6 +52,14 @@ public final class Entities {
         @Column(name = "thread_key", nullable = false) private String threadKey = "";
         @Column private String title;
         @Column private String subject;
+        /**
+         * V55 (feature 32): `direct` on every conversation — the only kind there was until today — and
+         * `class_channel` on a class's channel, whose {@code classId} is the section and whose {@code childId} and
+         * {@code peerUserId} are null. Every query of a conversation names `direct`, so a channel is in no thread
+         * list, no inbox and no support view; the channel's own routes read it by {@code classId}.
+         */
+        @Column(nullable = false) private String kind = ChatService.DIRECT;
+        @Column(name = "class_id") private String classId;
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
         public String getChildId() { return childId; } public void setChildId(String v) { childId = v; }
@@ -69,6 +77,8 @@ public final class Entities {
         public String getThreadKey() { return threadKey; } public void setThreadKey(String v) { threadKey = v; }
         public String getTitle() { return title; } public void setTitle(String v) { title = v; }
         public String getSubject() { return subject; } public void setSubject(String v) { subject = v; }
+        public String getKind() { return kind; } public void setKind(String v) { kind = v; }
+        public String getClassId() { return classId; } public void setClassId(String v) { classId = v; }
     }
 
     /**
@@ -92,6 +102,13 @@ public final class Entities {
         @Column private String attachments;
         /** V35 (B5b): the sender's `clientId`, so a retried send answers this row instead of writing a second one. */
         @Column(name = "client_id") private String clientId;
+        /**
+         * V55 (feature 32): when a <strong>channel post</strong> was taken down, by its author or by the Admin. The
+         * row stays so paging cursors and unread counts hold, and the clients draw a tombstone. Nothing else in the
+         * chat deletes a message: on every conversation's message this is null and always will be.
+         */
+        @Column(name = "deleted_at") private Instant deletedAt;
+        @Column(name = "deleted_by") private String deletedBy;
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
         public String getThreadId() { return threadId; } public void setThreadId(String v) { threadId = v; }
@@ -102,6 +119,8 @@ public final class Entities {
         public Instant getReadAt() { return readAt; } public void setReadAt(Instant v) { readAt = v; }
         public String getAttachments() { return attachments; } public void setAttachments(String v) { attachments = v; }
         public String getClientId() { return clientId; } public void setClientId(String v) { clientId = v; }
+        public Instant getDeletedAt() { return deletedAt; } public void setDeletedAt(Instant v) { deletedAt = v; }
+        public String getDeletedBy() { return deletedBy; } public void setDeletedBy(String v) { deletedBy = v; }
     }
 
     /**
@@ -186,5 +205,49 @@ public final class Entities {
         public String getReplyAr() { return replyAr; } public void setReplyAr(String v) { replyAr = v; }
         public String getReplyEn() { return replyEn; } public void setReplyEn(String v) { replyEn = v; }
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
+    }
+
+    /**
+     * V55 (feature 32): the one channel of one section — the map from `class_id` to the `chat_threads` row that holds
+     * its posts, written the first time the channel is used ({@link ClassChannelService}). The unique index on
+     * (school, class) is what makes two first posts land in one channel; the row is never updated.
+     *
+     * <p>A table rather than a partial unique index on `chat_threads`, because H2 — the test profile — has none.
+     */
+    @Entity(name = "ClassChannelEntity") @Table(name = "class_channels")
+    @Filter(name = "school", condition = "school_id = :schoolId")
+    public static class ClassChannelEntity {
+        @Id private String id;
+        @Column(name = "school_id", nullable = false) private String schoolId;
+        @Column(name = "class_id", nullable = false) private String classId;
+        @Column(name = "thread_id", nullable = false) private String threadId;
+        @Column(name = "created_at", nullable = false) private Instant createdAt;
+        public String getId() { return id; } public void setId(String v) { id = v; }
+        public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
+        public String getClassId() { return classId; } public void setClassId(String v) { classId = v; }
+        public String getThreadId() { return threadId; } public void setThreadId(String v) { threadId = v; }
+        public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
+    }
+
+    /**
+     * V55 (feature 32): one parent's read mark in one channel, as V22's `broadcast_reads` keeps a reader's — the
+     * channel's unread count cannot be a column on the thread, because a channel has as many unread counts as it has
+     * parents. {@code lastReadMessageId} is the post she had read, and the unread count is the posts after it.
+     */
+    @Entity(name = "ChannelReadEntity") @Table(name = "channel_reads")
+    @Filter(name = "school", condition = "school_id = :schoolId")
+    public static class ChannelReadEntity {
+        @Id private String id;
+        @Column(name = "school_id", nullable = false) private String schoolId;
+        @Column(name = "thread_id", nullable = false) private String threadId;
+        @Column(name = "parent_id", nullable = false) private String parentId;
+        @Column(name = "last_read_message_id") private String lastReadMessageId;
+        @Column(name = "read_at", nullable = false) private Instant readAt;
+        public String getId() { return id; } public void setId(String v) { id = v; }
+        public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
+        public String getThreadId() { return threadId; } public void setThreadId(String v) { threadId = v; }
+        public String getParentId() { return parentId; } public void setParentId(String v) { parentId = v; }
+        public String getLastReadMessageId() { return lastReadMessageId; } public void setLastReadMessageId(String v) { lastReadMessageId = v; }
+        public Instant getReadAt() { return readAt; } public void setReadAt(Instant v) { readAt = v; }
     }
 }

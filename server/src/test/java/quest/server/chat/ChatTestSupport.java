@@ -25,6 +25,9 @@ public abstract class ChatTestSupport extends GradingTestSupport {
 
     @Autowired ChatThreadRepository threadRows;
     @Autowired ChatMessageRepository messageRows;
+    /** Feature 32: a class channel outlives its thread otherwise, and its map row would refuse the next one. */
+    @Autowired ClassChannelRepository channelRows;
+    @Autowired ChannelReadRepository channelReadRows;
 
     protected final String OTHER_PARENT = "Bearer fake-token-parent-" + java.util.UUID.randomUUID().toString().substring(0, 8);
     public String adminToken, sara, noor, other;
@@ -78,6 +81,8 @@ public abstract class ChatTestSupport extends GradingTestSupport {
 
     @Override public void removeSeed() {
         var threads = threadRows.findAll().stream().filter(t -> t.getSchoolId().startsWith(prefix())).toList();
+        channelReadRows.deleteAll(channelReadRows.findAll().stream().filter(r -> r.getSchoolId().startsWith(prefix())).toList());
+        channelRows.deleteAll(channelRows.findAll().stream().filter(r -> r.getSchoolId().startsWith(prefix())).toList());
         messageRows.deleteAll(messageRows.findAll().stream().filter(m -> m.getSchoolId().startsWith(prefix())).toList());
         threadRows.deleteAll(threads);
         super.removeSeed();
