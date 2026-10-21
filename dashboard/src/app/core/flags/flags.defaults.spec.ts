@@ -40,6 +40,7 @@ const ROWS: Readonly<Record<string, number>> = {
   'V51__language_bridge.sql': 1,
   'V52__smart_hints.sql': 1,
   'V53__teaching_materials.sql': 1,
+  'V55__child_team_class_channel.sql': 2,
 };
 
 /**

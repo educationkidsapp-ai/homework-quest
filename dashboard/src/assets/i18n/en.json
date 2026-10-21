@@ -680,6 +680,14 @@
         "certificates": {
           "name": "Certificates",
           "what": "A certificate for a child who finishes a level, to print or send home."
+        },
+        "childTeam": {
+          "name": "My child's team",
+          "what": "A parent opens one page with everyone who looks after her child — the subject teachers, the coordinators, the floor supervisor and the department manager — and writes to any of them in two taps. No staff phone number is ever shown."
+        },
+        "classChannel": {
+          "name": "Class channel",
+          "what": "Each class has one channel: its teachers post what the whole class needs to know, with pictures and files, and every parent of the class reads it. Parents do not post there and never see each other; each post has Reply privately."
         }
       }
     }
@@ -862,7 +870,8 @@
       "children": "Children",
       "attendance": "Attendance",
       "gradebook": "Gradebook",
-      "exams": "Exams"
+      "exams": "Exams",
+      "channel": "Class channel"
     },
     "calendar": {
       "prevMonth": "Previous month",
@@ -968,6 +977,30 @@
       "saving": "Saving...",
       "save": "Save Attendance",
       "empty": "No students found in this class."
+    },
+    "channel": {
+      "loading": "Loading the class channel",
+      "list": "Posts in this class channel",
+      "empty": "Nothing has been posted in this class channel yet.",
+      "emptyHint": "Write once here and every parent of this class reads it — a reminder, a photo of the board, a worksheet.",
+      "older": "Show earlier posts",
+      "removed": "This post was taken down.",
+      "failed": "This post was not sent. Try again — nothing was posted twice.",
+      "moderatorNote": "Only this class's teachers post here. You can take any post down.",
+      "subjectSeparator": ", ",
+      "delete": {
+        "action": "Take down",
+        "named": "Take down the post by {{name}}",
+        "title": "Take this post down?",
+        "message": "The post by {{name}}, and its files, stop being readable for every parent of this class. This cannot be undone.",
+        "confirm": "Take the post down"
+      },
+      "composer": {
+        "label": "Post to the class",
+        "placeholder": "What does the whole class need to know?",
+        "attach": "Attach a file",
+        "post": "Post to the class"
+      }
     }
   },
   "curriculum": {

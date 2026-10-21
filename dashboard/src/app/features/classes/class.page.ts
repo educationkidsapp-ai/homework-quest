@@ -22,6 +22,7 @@ import { quietNotFound } from '../../core/http/error.interceptor';
 import { activeLang } from '../../core/i18n/active-lang';
 import { FLAGS, FlagService } from '../../core/flags/flag.service';
 import { ClassContextService } from '../../core/nav/class-context.service';
+import { PermissionService } from '../../core/permissions/permission.service';
 import {
   EmptyStateComponent,
   PageComponent,
@@ -33,11 +34,12 @@ import {
 import { ClassCalendarComponent } from './class-calendar.component';
 import { GradebookComponent } from '../results/gradebook.component';
 import { ExamsTabComponent } from '../exams/exams-tab.component';
+import { ClassChannelComponent } from './class-channel.component';
 import { ClassChildrenComponent } from './class-children.component';
 import { ClassAttendanceComponent } from './class-attendance.component';
 import { calendarCells, monthParam, shiftMonth } from './classes.models';
 
-const TAB_IDS = ['calendar', 'children', 'attendance', 'gradebook', 'exams'] as const;
+const TAB_IDS = ['calendar', 'children', 'attendance', 'gradebook', 'exams', 'channel'] as const;
 type TabId = (typeof TAB_IDS)[number];
 
 /**
@@ -57,6 +59,8 @@ const DEPENDENTS: Readonly<Record<TabId, readonly TabId[]>> = {
   attendance: ['children'],
   gradebook: ['calendar', 'children', 'exams'],
   exams: [],
+  // Feature 32: the channel writes posts, which no other tab reads.
+  channel: [],
 };
 
 function isTabId(value: string | null): value is TabId {
@@ -105,6 +109,7 @@ function isTabId(value: string | null): value is TabId {
     ClassCalendarComponent,
     ClassChildrenComponent,
     ClassAttendanceComponent,
+    ClassChannelComponent,
     GradebookComponent,
     ExamsTabComponent,
     RouterLink,
@@ -121,6 +126,7 @@ export class ClassPage {
   private readonly transloco = inject(TranslocoService);
   private readonly classContext = inject(ClassContextService);
   private readonly flags = inject(FlagService);
+  private readonly permissions = inject(PermissionService);
   private readonly lang = activeLang();
 
   private readonly path = toSignal(this.route.paramMap, { initialValue: this.route.snapshot.paramMap });
@@ -139,10 +145,31 @@ export class ClassPage {
 
   // ---- the tabs: the URL is the state ---------------------------------------------------------
 
+  /**
+   * Feature 32: the Class channel tab.
+   *
+   * Unlike Gradebook and Exams this one *disappears* when it is off, rather than standing there
+   * saying what it would hold: the two flags and the permission are three different answers —
+   * a school without the channel, a school without chat at all, and an account (a coordinator
+   * reaching a class page) that reads no channel anywhere — and a tab that explained each of
+   * them would be three sentences about a feature she may never have heard of.
+   */
+  protected readonly channelOn = computed(
+    () =>
+      this.flags.isOn(FLAGS.classChannel) &&
+      this.flags.isOn(FLAGS.chat) &&
+      this.permissions.can('channel.read'),
+  );
+
   /** `?tab=` — read, never mirrored. An absent or unknown value is the calendar. */
   protected readonly tab = computed<TabId>(() => {
     const value = this.query().get('tab');
-    return isTabId(value) ? value : 'calendar';
+    if (!isTabId(value)) return 'calendar';
+    // Feature 32: `?tab=channel` on a school without the channel is an address from elsewhere —
+    // a bookmark, a colleague's link — and the tab it names is not in the strip, so it opens on
+    // the calendar rather than on a panel nothing draws.
+    if (value === 'channel' && !this.channelOn()) return 'calendar';
+    return value;
   });
 
   /** The tabs opened on this visit to this class: each is created once and then kept. */
@@ -170,7 +197,9 @@ export class ClassPage {
    */
   protected onChanged(source: TabId): void {
     const stale = DEPENDENTS[source];
-    this.visitedTabs.update((seen) => new Set([...seen].filter((id) => id === this.tab() || !stale.includes(id))));
+    this.visitedTabs.update(
+      (seen) => new Set([...seen].filter((id) => id === this.tab() || !stale.includes(id))),
+    );
     if (stale.includes('calendar')) this.calendar.reload();
   }
 
@@ -266,6 +295,9 @@ export class ClassPage {
       { id: 'attendance', label: this.t('classes.tabs.attendance'), controls: 'hq-class-panel' },
       { id: 'gradebook', label: this.t('classes.tabs.gradebook'), controls: 'hq-class-panel' },
       { id: 'exams', label: this.t('classes.tabs.exams'), controls: 'hq-class-panel' },
+      ...(this.channelOn()
+        ? [{ id: 'channel' as TabId, label: this.t('classes.tabs.channel'), controls: 'hq-class-panel' }]
+        : []),
     ];
   });
 
