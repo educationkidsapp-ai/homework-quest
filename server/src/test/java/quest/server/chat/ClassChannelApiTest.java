@@ -40,8 +40,6 @@ class ClassChannelApiTest extends ChatTestSupport {
 
     @Autowired PushSender pushes;
     @Autowired quest.server.push.ParentDeviceRepository parentDevices;
-    @Autowired ChannelReadRepository channelReads;
-    @Autowired ClassChannelRepository channelRows;
 
     private String maya, omar, rania, rula, phone;
 
@@ -60,8 +58,6 @@ class ClassChannelApiTest extends ChatTestSupport {
 
     @AfterEach void clean() {
         parentDevices.deleteByTokenValue(phone);
-        channelReads.deleteAll(channelReads.findAll().stream().filter(r -> r.getSchoolId().startsWith(prefix())).toList());
-        channelRows.deleteAll(channelRows.findAll().stream().filter(r -> r.getSchoolId().startsWith(prefix())).toList());
         removeSeed();
     }
 

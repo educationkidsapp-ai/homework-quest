@@ -6,6 +6,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -228,6 +229,50 @@ class TranslationApiTest extends ChatTestSupport {
         assertThat(messages.findById(mothersMessage).orElseThrow().getBody()).isEqualTo("ما فهمت الواجب، ممكن توضيح؟");
     }
 
+    // ---------------------------------------------------------------- feature 32: a class-channel post
+
+    /**
+     * A channel post is a chat message on a thread with no `child_id`, so it reaches the parent through her child's
+     * <em>section</em> instead — and through nothing else: the same mother asking about her child in another class is
+     * refused, which is the whole of the isolation on a source that names no child.
+     */
+    @Test void a_class_channel_post_is_translated_for_the_parents_of_that_class_only() throws Exception {
+        String post = channelPost(CLASS_1A, "Bring a ruler tomorrow.");
+
+        var urdu = translated(maya, "chat", post, "ur");
+        assertThat(urdu.get("text").asText()).isEqualTo("[ur] Bring a ruler tomorrow.");
+        assertThat(urdu.get("sourceKind").asText()).isEqualTo("chat");
+        assertThat(urdu.get("sourceId").asText()).isEqualTo(post);
+        assertThat(urdu.get("machine").asBoolean()).isTrue();
+        assertThat(messages.findById(post).orElseThrow().getBody())
+                .as("the post itself is untouched — the owner's rule holds here too").isEqualTo("Bring a ruler tomorrow.");
+
+        // The second ask is the cache, as it is for every other source: one model call between the two.
+        assertThat(translated(maya, "chat", post, "ur").get("text").asText()).isEqualTo("[ur] Bring a ruler tomorrow.");
+        verify(llm, times(1)).complete(any(), any(), any());
+
+        // Omar is the same mother's child in 1B, so 1A's channel is no class of his and the post is no source of hers.
+        translate(omar, "chat", post, "ur").andExpect(status().isNotFound());
+        // Nor is it a complaint, whatever a request calls it.
+        translate(maya, "complaint", post, "ur").andExpect(status().isNotFound());
+    }
+
+    @Test void a_class_channel_post_that_was_taken_down_is_no_source() throws Exception {
+        String post = channelPost(CLASS_1A, "Wrong day, sorry.");
+        mvc.perform(as(delete("/teacher/classes/" + CLASS_1A + "/channel/posts/" + post), sara))
+                .andExpect(status().isNoContent());
+        translate(maya, "chat", post, "ur").andExpect(status().isNotFound());
+        verifyNoInteractions(llm);
+    }
+
+    @Test void with_the_channel_switched_off_its_posts_are_no_source_either() throws Exception {
+        String post = channelPost(CLASS_1A, "Swimming on Thursday.");
+        setFlag(adminToken, A, FlagKeys.CLASS_CHANNEL, false);
+        translate(maya, "chat", post, "ur").andExpect(status().isNotFound());
+        setFlag(adminToken, A, FlagKeys.CLASS_CHANNEL, true);
+        translate(maya, "chat", post, "ur").andExpect(status().isOk());
+    }
+
     // ---------------------------------------------------------------- the language, and hers
 
     @Test void only_the_eight_languages_are_accepted_and_hers_comes_back_on_parent_me() throws Exception {
@@ -307,6 +352,13 @@ class TranslationApiTest extends ChatTestSupport {
     // ---------------------------------------------------------------- fixtures
 
     /** Sara writes to Maya's mother; answers the message id. */
+    /** Feature 32: one post in a class's channel, written on the staff route the dashboard uses. */
+    private String channelPost(String classId, String text) throws Exception {
+        return json(mvc.perform(as(post("/teacher/classes/" + classId + "/channel/posts"), sara)
+                .contentType(MediaType.APPLICATION_JSON).content(send(text))).andExpect(status().isCreated()).andReturn())
+                .get("id").asText();
+    }
+
     private String saraWrites(String text) throws Exception { return saraWritesTo(maya, text); }
 
     private String saraWritesTo(String childId, String text) throws Exception {
