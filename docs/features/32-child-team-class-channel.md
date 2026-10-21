@@ -1,8 +1,17 @@
 # Feature 32 — A child's team and the class channel
 
-**Status:** In progress · **Area:** server, mobile app (Parent), dashboard (Teacher, Admin) ·
+**Status:** Done · **Area:** server, mobile app (Parent), dashboard (Teacher, Admin) ·
 **Depends on:** C1 chat, B5 attachments, 19 (office hours), 20 (floor supervisor), 29 (translate) ·
 **Feature switches:** `childTeam`, `classChannel` (both on by default, D30; both also need `chat`)
+
+**Leftovers:**
+- **No live update for parents.** A channel post reaches the parent by bell and push, and the channel refreshes when
+  she opens it; no socket frame is sent to parents. The badge on Messages refreshes each time Messages loads.
+- **No channel in the staff app.** Teachers post from the dashboard's class page.
+- **Leaders other than the Admin cannot read a class channel** (coordinator, floor supervisor, department manager).
+- **Staff cannot translate a channel post** (`POST /staff/translate` refuses it); parents can.
+- **`ChannelPost.bodyAr` is always empty** — Arabic comes from the translate button, not from the teacher.
+- **No dashboard screenshot test** for the Class channel tab (no class-page tab has one).
 
 *Spec drafted by the planner from the owner's brief (the owner gave no spec file); review it in the PR.*
 
