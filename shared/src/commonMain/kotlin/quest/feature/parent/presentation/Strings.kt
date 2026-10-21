@@ -242,6 +242,8 @@ data class Strings(
      * language setting. The app's interface stays English or Arabic; only the content of a message is translated.
      */
     val translate: quest.feature.translate.presentation.TranslateStrings = quest.feature.translate.presentation.TranslateStrings.en,
+    /** Feature 32: the child's team page and her class's channel, both opened from the Messages tab. */
+    val teamChannel: TeamChannelStrings = TeamChannelStrings.en,
 ) {
     fun accuracy(words: String) = accuracyWords[words] ?: words
 
@@ -447,6 +449,7 @@ data class Strings(
             complaints = ComplaintStrings.ar,
             officeHours = OfficeHoursWords.ar,
             translate = quest.feature.translate.presentation.TranslateStrings.ar,
+            teamChannel = TeamChannelStrings.ar,
         )
 
         fun forLanguage(code: String) = if (code == "ar") ar else en
@@ -516,6 +519,68 @@ data class NoticeStrings(
             updateExam = "اختبار جديد", updateClassNote = "ملاحظة للصف", updateQuestion = "سؤال من المعلّم",
             updateComplaint = "تحديث على الشكوى", updateComplaintReply = "رد على الشكوى", updateNews = "أخبار المدرسة",
             fromYourNotification = "من الإشعار", itemGone = "هذا العنصر لم يعد متاحاً.",
+        )
+    }
+}
+
+/**
+ * Feature 32: the two pages the Messages tab now opens — everyone who looks after the child, and her class's channel.
+ *
+ * The group headings are deliberately not here: a team row sits under the same "Your child's teachers", "Subject
+ * coordinators", "Floor supervisor" and "Department manager" the thread list already writes, and one spelling of each
+ * is what keeps the two pages reading alike.
+ */
+data class TeamChannelStrings(
+    /** The row on the Messages tab, and the page's own title. */
+    val teamTitle: String,
+    val teamRowSubtitle: String,
+    val teamEmpty: String,
+    /** The button on a row: the one-to-one thread she already has with this person, or the one it starts. */
+    val message: String,
+    /** Feature 19: she is inside her office hours right now, so there is nothing to wait for. */
+    val availableNow: String,
+    val channelTitle: String,
+    val channelRowSubtitle: String,
+    val channelEmpty: String,
+    /** The one line that says why there is no composer: the channel is the teachers', and an answer is private. */
+    val channelReadOnly: String,
+    val replyPrivately: String,
+    val showEarlier: String,
+    /** A post the author or the Admin took down. The row stays, so the dates around it still read in order. */
+    val postRemoved: String,
+    /** `channel.post` on the Notifications tab. */
+    val channelUpdate: String,
+) {
+    companion object {
+        val en = TeamChannelStrings(
+            teamTitle = "My child's team",
+            teamRowSubtitle = "Everyone who looks after your child",
+            teamEmpty = "Your child's team is not ready yet.",
+            message = "Message",
+            availableNow = "Available now",
+            channelTitle = "Class channel",
+            channelRowSubtitle = "What your child's class was told",
+            channelEmpty = "Nothing has been posted yet.",
+            channelReadOnly = "Only the class's teachers post here. To answer one of them, use Reply privately.",
+            replyPrivately = "Reply privately",
+            showEarlier = "Show earlier posts",
+            postRemoved = "This post was removed",
+            channelUpdate = "Class channel",
+        )
+        val ar = TeamChannelStrings(
+            teamTitle = "فريق طفلي",
+            teamRowSubtitle = "كل من يعتني بطفلك",
+            teamEmpty = "فريق طفلك غير جاهز بعد.",
+            message = "راسل",
+            availableNow = "متاحة الآن",
+            channelTitle = "قناة الصف",
+            channelRowSubtitle = "ما أُبلغ به صف طفلك",
+            channelEmpty = "لا توجد منشورات بعد.",
+            channelReadOnly = "ينشر هنا معلّمو الصف فقط. وللرد على إحداهن استخدم «رد خاص».",
+            replyPrivately = "رد خاص",
+            showEarlier = "إظهار المنشورات الأقدم",
+            postRemoved = "تم حذف هذا المنشور",
+            channelUpdate = "قناة الصف",
         )
     }
 }

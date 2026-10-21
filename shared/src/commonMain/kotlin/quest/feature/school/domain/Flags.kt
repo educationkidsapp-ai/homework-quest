@@ -71,10 +71,23 @@ object Flags {
      */
     const val LANGUAGE_BRIDGE = "languageBridge"
 
+    /**
+     * Feature 32: the one page naming everyone who looks after the child. It rides **beside** [CHAT], as the server's
+     * route does — a school without chat has nobody to write to, so the page would be a list of names and no button.
+     */
+    const val CHILD_TEAM = "childTeam"
+
+    /**
+     * Feature 32: one channel per class, written by its teachers and read by its parents. Also beside [CHAT], because
+     * the channel is a chat thread of its own kind and "Reply privately" is an ordinary one-to-one message.
+     */
+    const val CLASS_CHANNEL = "classChannel"
+
     /** Every key this app gates on. */
     val used = listOf(
         RETELL_RECORDING, OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, CERTIFICATES, LEVEL_THREE, CHAT, ANNOUNCEMENTS,
         EXAMS, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, VOICE_ANNOUNCEMENT, PARENT_EVENING_CARD, LANGUAGE_BRIDGE,
+        CHILD_TEAM, CLASS_CHANNEL,
     )
 
     /** True when the platform defines [key] at all — the contract's `DEFAULT_FLAGS` is the list of what exists. */

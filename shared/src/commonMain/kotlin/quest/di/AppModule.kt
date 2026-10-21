@@ -40,6 +40,12 @@ import quest.feature.broadcasts.domain.BroadcastsRepository
 import quest.feature.broadcasts.presentation.BroadcastsViewModel
 import quest.feature.broadcasts.presentation.WeeklyPlanViewModel
 import quest.feature.chat.presentation.CoordinatorPickerViewModel
+import quest.feature.team.data.ChildTeamRepositoryImpl
+import quest.feature.team.domain.ChildTeamRepository
+import quest.feature.team.presentation.ChildTeamViewModel
+import quest.feature.channel.data.ClassChannelRepositoryImpl
+import quest.feature.channel.domain.ClassChannelRepository
+import quest.feature.channel.presentation.ClassChannelViewModel
 import quest.feature.complaints.data.ComplaintsRepositoryImpl
 import quest.feature.complaints.domain.ComplaintsRepository
 import quest.feature.complaints.presentation.ComplaintViewModel
@@ -306,10 +312,22 @@ val parentModule = module {
 }
 
 val chatModule = module {
-    viewModel { ChatThreadsViewModel(get(), get()) }
+    // Feature 32: the Messages tab also carries the class channel's unread badge, asked only where the school has it.
+    viewModel { ChatThreadsViewModel(get(), get(), get(), channelOn = { get<FlagStore>().isEnabled(Flags.CLASS_CHANNEL) }) }
     viewModel { CoordinatorPickerViewModel(get(), get()) }
     // Feature 13: the parent's end of a conversation — the same view model the staff end uses, with her source.
     viewModel { (peer: ChatPeer) -> ChatConversationViewModel(ParentConversationSource(peer, get()), peer.conversationState(), get()) }
+}
+
+/**
+ * Feature 32: the child's team and her class's channel. Both are read-only pages over the contract's own routes, and
+ * both go on to the chat's one conversation rather than keeping any sending of their own.
+ */
+val teamChannelModule = module {
+    single<ChildTeamRepository> { ChildTeamRepositoryImpl(get()) }
+    single<ClassChannelRepository> { ClassChannelRepositoryImpl(get()) }
+    viewModel { ChildTeamViewModel(get(), get()) }
+    viewModel { ClassChannelViewModel(get(), get()) }
 }
 
 /** M8: B6's complaints — their own conversations and their own tab, apart from Messages. */
@@ -448,4 +466,4 @@ fun staffModule(config: ApiConfig): Module = module {
 /** The staff member's own `/ws/chat` connection, told apart from the parent's by name. */
 private const val STAFF_SOCKET = "staffChatSocket"
 
-fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), connectivityModule(), apiModule(config), coreModule, schoolModule, contentModule, rewardsModule, parentModule, chatModule, complaintsModule, broadcastsModule, pushModule, staffModule(config))
+fun appModules(config: ApiConfig): List<Module> = listOf(platformModule(), connectivityModule(), apiModule(config), coreModule, schoolModule, contentModule, rewardsModule, parentModule, chatModule, teamChannelModule, complaintsModule, broadcastsModule, pushModule, staffModule(config))
