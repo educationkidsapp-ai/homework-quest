@@ -86,6 +86,12 @@ public class ChatService {
     public static final String QUESTION = "question", COMPLAINT = "complaint", OPEN = "open", RESOLVED = "resolved";
     /** D26: every dashboard role shares one socket key, so the hub finds a person's sessions without knowing her role. */
     public static final String USER = "user";
+    /**
+     * V55 `chat_threads.kind` (feature 32): {@code DIRECT} is a conversation between two people — every thread
+     * written before today — and {@code CLASS_CHANNEL} is a class's channel, which is nobody's conversation and
+     * therefore in no list here ({@link ClassChannelService}).
+     */
+    public static final String DIRECT = "direct", CLASS_CHANNEL = "class_channel";
 
     private final ChatThreadRepository threads; private final ChatMessageRepository messages; private final ChatThreads threadRows;
     private final ChatRateLimiter limiter; private final ChatBus bus; private final ChildService childService; private final ChildRepository children;
@@ -1118,17 +1124,25 @@ public class ChatService {
      * everything after a message id, which is the reconnect refetch. Either cursor must belong to the thread.
      */
     List<ChatMessage> page(String threadId, String before, String since, Integer limit) {
+        return pageRows(threadId, before, since, limit).stream().map(ChatService::dto).toList();
+    }
+
+    /**
+     * The same page as rows. Feature 32 reads it: a channel's posts are these very messages, shown with their
+     * author's name and role instead of as a {@link ChatMessage}, and there is exactly one paging rule for both.
+     */
+    List<ChatMessageEntity> pageRows(String threadId, String before, String since, Integer limit) {
         int n = limit == null ? DEFAULT_PAGE : Math.max(1, Math.min(MAX_PAGE, limit));
         var pageable = PageRequest.of(0, n);
         if (since != null && !since.isBlank()) {
             var cursor = cursor(threadId, since, "since");
-            return messages.since(threadId, cursor.getCreatedAt(), cursor.getId(), pageable).stream().map(ChatService::dto).toList();
+            return messages.since(threadId, cursor.getCreatedAt(), cursor.getId(), pageable);
         }
         List<ChatMessageEntity> newestFirst;
         if (before == null || before.isBlank()) newestFirst = messages.newest(threadId, pageable);
         else { var cursor = cursor(threadId, before, "before"); newestFirst = messages.before(threadId, cursor.getCreatedAt(), cursor.getId(), pageable); }
         var oldestFirst = new ArrayList<>(newestFirst); Collections.reverse(oldestFirst);
-        return oldestFirst.stream().map(ChatService::dto).toList();
+        return List.copyOf(oldestFirst);
     }
 
     private ChatMessageEntity cursor(String threadId, String id, String name) {
@@ -1158,6 +1172,11 @@ public class ChatService {
         // RM2 (DR5): the manager of the department the section is in — "parents message the manager about the school, a
         // child or a coordinator". Anyone else is 404, because a parent is told of no staff beyond her own child's.
         if (peers.managersOn(child.getSchoolId(), section).stream().anyMatch(u -> u.getId().equals(staffId))) return MANAGERIAL;
+        // Feature 32: the floor supervisor of the floor her child's section sits on. Until today only she could open
+        // that thread; the team page offers her, so the parent may write first. Only while `floorSupervisor` is on,
+        // and only for her own child's floors — anyone else's supervisor is 404 like any other member of staff.
+        if (flags.isOn(child.getSchoolId(), FlagKeys.FLOOR_SUPERVISOR)
+                && floorScope.supervisorsOfSection(child.getSchoolId(), child.getClassId()).contains(staffId)) return FLOOR_SUPERVISOR;
         // S1, and feature 20: the admin and the floor supervisor, once one of them has written — a parent answers
         // that thread and cannot start one, because neither is offered by a chooser of hers.
         var opened = threads.findByChildIdAndTeacherId(child.getId(), staffId)
@@ -1180,7 +1199,8 @@ public class ChatService {
      * and answered on the Complaints routes only. Every thread-keyed Messages route goes through it.
      */
     private ChatThreadEntity messageThread(String threadId) {
-        return threads.findOneById(threadId).filter(t -> !COMPLAINT.equals(t.getTopic())).orElseThrow(() -> ApiException.notFound("thread"));
+        return threads.findOneById(threadId).filter(t -> !COMPLAINT.equals(t.getTopic())).filter(t -> DIRECT.equals(t.getKind()))
+                .orElseThrow(() -> ApiException.notFound("thread"));
     }
 
     private ChatThreadEntity threadOf(String childId, String teacherId) {

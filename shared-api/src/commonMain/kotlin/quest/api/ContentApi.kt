@@ -149,6 +149,31 @@ interface ContentApi {
      */
     suspend fun childManagers(childId: String): List<ChatThread> = throw NotImplementedError("childManagers needs a backend")
 
+    // ---- Feature 32: the child's team on one page, and the class channel she reads (no second chat system).
+
+    /**
+     * Feature 32 `GET /children/{id}/team` — everyone who looks after this child, in the order the page reads: the
+     * subject teachers, the subject coordinators, the floor supervisor (only while `floorSupervisor` is on and the
+     * class sits on a floor) and the department manager. `officeHours` is filled only while `chatOfficeHours` is on,
+     * and **no row ever carries a staff phone number** ([quest.api.dto.TeamMember]).
+     *
+     * **Message** on a row is the ordinary [sendChatMessage] to `staffId`; `threadId` says whether one exists already.
+     * Behind `childTeam` and `chat`, and defaulted to empty so every test double keeps compiling.
+     */
+    suspend fun childTeam(childId: String): List<quest.api.dto.TeamMember> = emptyList()
+
+    /**
+     * Feature 32 `GET /children/{id}/channel?before=&since=` — her class's channel: the posts its teachers wrote,
+     * oldest first, paged on a post id exactly as [chatMessages] is, with her own unread count. Parents **do not
+     * post**; "Reply privately" is [sendChatMessage] to the post's author. Behind `classChannel` and `chat`.
+     */
+    suspend fun childChannel(childId: String, before: String? = null, since: String? = null, limit: Int? = null): quest.api.dto.ChannelPage =
+        quest.api.dto.ChannelPage(posts = emptyList())
+
+    /** Feature 32 `POST /children/{id}/channel/read` — every post in her class's channel is read; answers her page. */
+    suspend fun markChannelRead(childId: String): quest.api.dto.ChannelPage =
+        quest.api.dto.ChannelPage(posts = emptyList())
+
     // ---------------------------------------------------------------- B6: complaints, apart from Messages
 
     /**
@@ -333,6 +358,10 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "smartHints" to true,
     // Feature 31: teachers hand in their weekly teaching material and leaders track and review it (V53).
     "teachingMaterials" to true,
+    // Feature 32: the parent's "my child's team" page (V55).
+    "childTeam" to true,
+    // Feature 32: one channel per class, written by its teachers and read by its parents (V55).
+    "classChannel" to true,
 )
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */

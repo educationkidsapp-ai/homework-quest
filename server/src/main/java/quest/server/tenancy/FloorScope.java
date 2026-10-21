@@ -183,6 +183,28 @@ public class FloorScope {
         return out;
     }
 
+    /**
+     * Feature 32, from the parent's end: the floor supervisors of the floors this <strong>section</strong> sits on —
+     * the supervisor row of "my child's team", and the check that lets a parent now <em>start</em> a thread with her
+     * (`ChatService.requireStaffOf`). {@link #supervisorsOfTeacher}'s shape with the section given rather than
+     * derived from a timetable: `floor_classes` names the floors the section is on, `floor_supervisors` who holds
+     * them. A section on no floor has none, which is how the team page leaves the row out.
+     *
+     * <p>The school is a parameter because a parent carries no tenant scope and the school is her child's own, as
+     * {@code ChatPeers.coordinatorsOn} takes it; both queries name it.
+     */
+    public Set<String> supervisorsOfSection(String schoolId, String sectionId) {
+        if (sectionId == null || sectionId.isBlank()) return Set.of();
+        var floorIds = floorClasses.findBySchoolIdOrderBySectionIdAsc(schoolId).stream()
+                .filter(r -> sectionId.equals(r.getSectionId()))
+                .map(quest.server.floors.Entities.FloorClassEntity::getFloorId).distinct().toList();
+        if (floorIds.isEmpty()) return Set.of();
+        var out = new LinkedHashSet<String>();
+        for (var row : supervisors.findBySchoolIdOrderByFloorIdAsc(schoolId))
+            if (floorIds.contains(row.getFloorId())) out.add(row.getUserId());
+        return out;
+    }
+
     private Set<String> sectionIdsOn(String schoolId, List<FloorEntity> mine) {
         if (mine.isEmpty()) return Set.of();
         var ids = mine.stream().map(FloorEntity::getId).toList();

@@ -1008,6 +1008,87 @@
         "required" : [ "currentPassword", "newPassword" ],
         "type" : "object"
       },
+      "ChannelPage" : {
+        "properties" : {
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "posts" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ChannelPost"
+            },
+            "type" : "array"
+          },
+          "unread" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "posts", "unread" ],
+        "type" : "object"
+      },
+      "ChannelPost" : {
+        "properties" : {
+          "attachments" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ChatAttachment"
+            },
+            "type" : "array"
+          },
+          "authorId" : {
+            "type" : "string"
+          },
+          "authorName" : {
+            "type" : "string"
+          },
+          "authorRole" : {
+            "enum" : [ "TEACHER", "COORDINATOR", "MANAGERIAL", "ADMIN", "PARENT", "FLOOR_SUPERVISOR" ],
+            "type" : "string"
+          },
+          "body" : {
+            "type" : "string"
+          },
+          "bodyAr" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "deleted" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "subject" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "authorId", "authorName", "authorRole", "body", "createdAt", "id" ],
+        "type" : "object"
+      },
+      "ChannelPostRequest" : {
+        "properties" : {
+          "attachmentIds" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "body" : {
+            "type" : "string"
+          },
+          "clientId" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "body" ],
+        "type" : "object"
+      },
       "ChatAttachment" : {
         "properties" : {
           "contentType" : {
@@ -5595,7 +5676,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message", "attendance.reminder", "attendance.alert", "attendance.digest", "attendance.request", "attendance.decision", "attendance.remote_day", "chat.after_hours_summary", "morning.brief", "evening.card", "material.reminder" ],
+            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message", "attendance.reminder", "attendance.alert", "attendance.digest", "attendance.request", "attendance.decision", "attendance.remote_day", "chat.after_hours_summary", "morning.brief", "evening.card", "material.reminder", "channel.post" ],
             "type" : "string"
           },
           "lessonId" : {
@@ -8813,6 +8894,34 @@
             "type" : "string"
           }
         },
+        "type" : "object"
+      },
+      "TeamMember" : {
+        "properties" : {
+          "canMessage" : {
+            "type" : "boolean"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "officeHours" : {
+            "$ref" : "#/components/schemas/OfficeHoursStatus"
+          },
+          "role" : {
+            "enum" : [ "TEACHER", "COORDINATOR", "MANAGERIAL", "ADMIN", "PARENT", "FLOOR_SUPERVISOR" ],
+            "type" : "string"
+          },
+          "staffId" : {
+            "type" : "string"
+          },
+          "subjects" : {
+            "type" : "string"
+          },
+          "threadId" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "canMessage", "name", "role", "staffId" ],
         "type" : "object"
       },
       "TemporaryPassword" : {
@@ -14474,6 +14583,80 @@
         "tags" : [ "Broadcasts" ]
       }
     },
+    "/children/{id}/channel" : {
+      "get" : {
+        "operationId" : "childChannel",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "before",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "since",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChannelPage"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Chat" ]
+      }
+    },
+    "/children/{id}/channel/read" : {
+      "post" : {
+        "operationId" : "markChildChannelRead",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChannelPage"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Chat" ]
+      }
+    },
     "/children/{id}/chat/attachments" : {
       "post" : {
         "operationId" : "uploadParentChatAttachment",
@@ -15244,6 +15427,35 @@
           }
         },
         "tags" : [ "Teacher questions" ]
+      }
+    },
+    "/children/{id}/team" : {
+      "get" : {
+        "operationId" : "childTeam",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/TeamMember"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Chat" ]
       }
     },
     "/children/{id}/translate" : {
@@ -19826,6 +20038,158 @@
           }
         },
         "tags" : [ "Teacher" ]
+      }
+    },
+    "/teacher/classes/{classId}/channel" : {
+      "get" : {
+        "operationId" : "classChannel",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "before",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "since",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChannelPage"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Chat" ]
+      }
+    },
+    "/teacher/classes/{classId}/channel/attachments" : {
+      "post" : {
+        "operationId" : "uploadChannelAttachment",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "file" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "file" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttachmentRef"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Chat" ]
+      }
+    },
+    "/teacher/classes/{classId}/channel/posts" : {
+      "post" : {
+        "operationId" : "postToChannel",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ChannelPostRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChannelPost"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "Chat" ]
+      }
+    },
+    "/teacher/classes/{classId}/channel/posts/{messageId}" : {
+      "delete" : {
+        "operationId" : "deleteChannelPost",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "messageId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "tags" : [ "Chat" ]
       }
     },
     "/teacher/classes/{classId}/children" : {

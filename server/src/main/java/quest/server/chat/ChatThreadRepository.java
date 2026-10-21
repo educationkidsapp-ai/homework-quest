@@ -31,8 +31,11 @@ public interface ChatThreadRepository extends JpaRepository<Entities.ChatThreadE
     @Query("select t from ChatThreadEntity t where t.childId = :childId and t.topic <> 'complaint' order by t.lastMessageAt desc")
     List<Entities.ChatThreadEntity> findMessageThreadsOf(@Param("childId") String childId);
 
-    /** The Admin's support list: every Messages thread of the school, newest first (B6: no complaint). */
-    @Query("select t from ChatThreadEntity t where t.topic <> 'complaint' order by t.lastMessageAt desc")
+    /**
+     * The Admin's support list: every Messages thread of the school, newest first (B6: no complaint). V55: and no
+     * class channel — `direct` is the kind of a conversation, and a channel is nobody's conversation.
+     */
+    @Query("select t from ChatThreadEntity t where t.topic <> 'complaint' and t.kind = 'direct' order by t.lastMessageAt desc")
     List<Entities.ChatThreadEntity> findMessageThreads();
 
     /** B6: every complaint of the school (the `school` filter), newest activity first. */
@@ -48,7 +51,8 @@ public interface ChatThreadRepository extends JpaRepository<Entities.ChatThreadE
     List<Entities.ChatThreadEntity> findComplaintsTo(@Param("staffId") String staffId);
 
     /** The teacher's list: unread first, then newest. B6: Messages only. */
-    @Query("select t from ChatThreadEntity t where t.teacherId = :teacherId and t.topic <> 'complaint' order by case when t.teacherUnread > 0 then 0 else 1 end, t.lastMessageAt desc")
+    @Query("select t from ChatThreadEntity t where t.teacherId = :teacherId and t.topic <> 'complaint' and t.kind = 'direct'"
+            + " order by case when t.teacherUnread > 0 then 0 else 1 end, t.lastMessageAt desc")
     List<Entities.ChatThreadEntity> findForTeacher(@Param("teacherId") String teacherId);
 
     /**
@@ -58,7 +62,7 @@ public interface ChatThreadRepository extends JpaRepository<Entities.ChatThreadE
      * only — a complaint addressed to her is on her Complaints page.
      */
     @Query("select t from ChatThreadEntity t where (t.teacherId = :staffId or t.peerUserId = :staffId) and t.topic <> 'complaint'"
-            + " order by case when t.teacherUnread > 0 or t.parentUnread > 0 then 0 else 1 end, t.lastMessageAt desc")
+            + " and t.kind = 'direct' order by case when t.teacherUnread > 0 or t.parentUnread > 0 then 0 else 1 end, t.lastMessageAt desc")
     List<Entities.ChatThreadEntity> findForStaff(@Param("staffId") String staffId);
 
     /**
@@ -99,6 +103,13 @@ public interface ChatThreadRepository extends JpaRepository<Entities.ChatThreadE
     @Query("update ChatThreadEntity t set t.status = :status, t.resolvedAt = :at, t.resolvedBy = :by"
             + " where t.id = :id and t.topic = 'complaint' and t.status <> :status")
     int moveComplaint(@Param("id") String id, @Param("status") String status, @Param("at") Instant at, @Param("by") String by);
+
+    /**
+     * V55 (feature 32): the class channel of one section — the `class_channel` row {@code ClassChannelService}
+     * creates on first use, scoped by the `school` filter like every other query here.
+     */
+    @Query("select t from ChatThreadEntity t where t.kind = 'class_channel' and t.classId = :classId")
+    Optional<Entities.ChatThreadEntity> findChannelOf(@Param("classId") String classId);
 
     /** The child's hard delete (`RosterService.delete`): no foreign key cascades here, so her threads go by hand. */
     @Modifying @Transactional

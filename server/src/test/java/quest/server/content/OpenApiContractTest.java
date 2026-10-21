@@ -156,6 +156,16 @@ class OpenApiContractTest extends ApiTestSupport {
             "/children/{id}/managers");
 
     /**
+     * Feature 32: the child's team and the class channel (`quest.api.dto.Channel.kt`) — the parent's two channel
+     * routes and her team page, and the staff side's four under the class. Behind `childTeam` / `classChannel`, and
+     * behind `chat` as well, because a channel is a chat thread of its own kind.
+     */
+    static final List<String> CHILD_TEAM_AND_CHANNEL_API = List.of(
+            "/children/{id}/team", "/children/{id}/channel", "/children/{id}/channel/read",
+            "/teacher/classes/{classId}/channel", "/teacher/classes/{classId}/channel/attachments",
+            "/teacher/classes/{classId}/channel/posts", "/teacher/classes/{classId}/channel/posts/{messageId}");
+
+    /**
      * B6: complaints as their own conversations (`quest.api.dto.Complaints.kt`) — the parent's, the teacher's and
      * support's here; the coordinator's and the manager's with the rest of their areas. Behind the `chat` flag.
      */
@@ -333,6 +343,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(EXAMS_API);
         assertThat(paths).containsAll(CLASSES_API);
         assertThat(paths).containsAll(CHAT_API);
+        assertThat(paths).containsAll(CHILD_TEAM_AND_CHANNEL_API);
         assertThat(paths).containsAll(COMPLAINTS_API);
         assertThat(paths).containsAll(NOTIFICATIONS_API);
         assertThat(paths).containsAll(DEVICES_API);

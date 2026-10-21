@@ -51,12 +51,16 @@ public class ChatAttachments {
     private final FeatureFlags flags; private final TenantContext tenant;
     /** B6b: lazily, because `ComplaintService` writes its messages through `ChatService`, which claims files through this class. */
     private final org.springframework.beans.factory.ObjectProvider<ComplaintService> complaints;
+    /** Feature 32: lazily for the same reason — a channel's upload and its posts both go through this class. */
+    private final org.springframework.beans.factory.ObjectProvider<ClassChannelService> channels;
 
     public ChatAttachments(AttachmentRepository files, AttachmentService uploads, ChatMessageRepository messages, ChatThreadRepository threads,
                            ChildRepository children, ChildService childService, FeatureFlags flags, TenantContext tenant,
-                           org.springframework.beans.factory.ObjectProvider<ComplaintService> complaints) {
+                           org.springframework.beans.factory.ObjectProvider<ComplaintService> complaints,
+                           org.springframework.beans.factory.ObjectProvider<ClassChannelService> channels) {
         this.files = files; this.uploads = uploads; this.messages = messages; this.threads = threads; this.children = children;
         this.childService = childService; this.flags = flags; this.tenant = tenant; this.complaints = complaints;
+        this.channels = channels;
     }
 
     // ---------------------------------------------------------------- upload
@@ -145,8 +149,15 @@ public class ChatAttachments {
      */
     public boolean readable(AttachmentEntity row, Principals.Parent parent, Principals.User user) {
         if (!row.isChat() || row.getMessageId() == null) return false;
-        var thread = messages.findOneById(row.getMessageId()).flatMap(m -> threads.findOneById(m.getThreadId())).orElse(null);
+        var message = messages.findOneById(row.getMessageId()).orElse(null);
+        // Feature 32: a channel post that was taken down answers to nobody, author and Admin included — the post is
+        // gone, and its files are the post.
+        if (message == null || message.getDeletedAt() != null) return false;
+        var thread = threads.findOneById(message.getThreadId()).orElse(null);
         if (thread == null || !flags.isOn(thread.getSchoolId(), FlagKeys.CHAT)) return false;
+        // Feature 32: a channel is nobody's conversation, so neither of the two checks below fits it — the parents of
+        // the section's children read its files, and on the staff side its teachers and the Admin.
+        if (ChatService.CLASS_CHANNEL.equals(thread.getKind())) return channels.getObject().mayReadFiles(thread, parent, user);
         if (user != null) return user.userId().equals(thread.getTeacherId()) || user.userId().equals(thread.getPeerUserId())
                 || (ChatService.COMPLAINT.equals(thread.getTopic()) && complaints.getObject().mayRead(thread, user));
         if (parent == null || thread.getChildId() == null) return false;

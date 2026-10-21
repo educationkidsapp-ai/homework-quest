@@ -132,7 +132,7 @@ public class NotificationService {
             case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS,
                  COMPLAINT_NEW, COMPLAINT_MESSAGE, ATTENDANCE_REMINDER, ATTENDANCE_ALERT, ATTENDANCE_DIGEST,
                  ATTENDANCE_REQUEST, ATTENDANCE_DECISION, ATTENDANCE_REMOTE_DAY,
-                 CHAT_AFTER_HOURS_SUMMARY, MORNING_BRIEF, EVENING_CARD, MATERIAL_REMINDER
+                 CHAT_AFTER_HOURS_SUMMARY, MORNING_BRIEF, EVENING_CARD, MATERIAL_REMINDER, CHANNEL_POST
                  -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         String name = lesson.getTitle() == null || lesson.getTitle().isBlank() ? "Your lesson" : lesson.getTitle().trim();
@@ -143,7 +143,7 @@ public class NotificationService {
             case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS,
                  COMPLAINT_NEW, COMPLAINT_MESSAGE, ATTENDANCE_REMINDER, ATTENDANCE_ALERT, ATTENDANCE_DIGEST,
                  ATTENDANCE_REQUEST, ATTENDANCE_DECISION, ATTENDANCE_REMOTE_DAY,
-                 CHAT_AFTER_HOURS_SUMMARY, MORNING_BRIEF, EVENING_CARD, MATERIAL_REMINDER
+                 CHAT_AFTER_HOURS_SUMMARY, MORNING_BRIEF, EVENING_CARD, MATERIAL_REMINDER, CHANNEL_POST
                  -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         try {
@@ -396,6 +396,28 @@ public class NotificationService {
                         "Note from " + (named ? author : "your child's teacher"), cue(bodyEn),
                         "/children/" + kid.getId() + "/announcements?open=" + announcementId, "announcement:" + announcementId)
                         .arabic(named ? "ملاحظة من " + author : "ملاحظة من المعلمة", cue(bodyAr == null || bodyAr.isBlank() ? bodyEn : bodyAr)), true));
+            push.toParents(told);
+        });
+    }
+
+    /**
+     * Feature 32: a teacher posted in a class channel. One row and one push <strong>per parent</strong>, whatever the
+     * number of her children in that class ({@link #onePerParent}), after the post commits, and deduplicated by the
+     * post's own id — so a retried post ({@code clientId}) tells nobody twice. {@code parentsOfAnnouncement}'s shape,
+     * one feature over: the link is the channel of the child the row names, which is the screen the push opens.
+     */
+    public void parentsOfChannelPost(String schoolId, List<quest.server.children.Entities.ChildEntity> kids, String postId,
+                                     String author, String bodyEn, String bodyAr) {
+        var once = onePerParent(kids);
+        if (once.isEmpty()) return;
+        boolean named = author != null && !author.isBlank();
+        afterCommit(postId + " (channel.post)", () -> {
+            var told = new ArrayList<ParentPush.Delivery>();
+            for (var kid : once)
+                add(told, tell(schoolId, kid.getParentId(), kid.getId(), new Note(NotificationKind.CHANNEL_POST, postId,
+                        "Class channel: " + (named ? author : "your child's teacher"), cue(bodyEn),
+                        "/children/" + kid.getId() + "/channel", "channel:" + postId)
+                        .arabic("قناة الصف: " + (named ? author : "معلمة طفلك"), cue(bodyAr == null || bodyAr.isBlank() ? bodyEn : bodyAr)), true));
             push.toParents(told);
         });
     }

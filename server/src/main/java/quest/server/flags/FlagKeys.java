@@ -136,6 +136,21 @@ public final class FlagKeys {
      */
     public static final String TEACHING_MATERIALS = "teachingMaterials";
 
+    /**
+     * Feature 32: a parent opens one page with everyone who looks after her child — the subject teachers, the
+     * coordinators, the floor supervisor and the department manager — and writes to any of them
+     * (`GET /children/{id}/team`). Seeded by V55, and it also needs `chat`: the page is a way into the conversations
+     * chat already holds.
+     */
+    public static final String CHILD_TEAM = "childTeam";
+
+    /**
+     * Feature 32: one channel per class — its teachers post what the whole class needs to know and every parent of
+     * the class reads it (`/children/{id}/channel`, `/teacher/classes/{classId}/channel/**`). Seeded by V55, and it
+     * also needs `chat`: a channel is a chat thread of its own kind and its posts are chat messages.
+     */
+    public static final String CLASS_CHANNEL = "classChannel";
+
     public static final List<String> ALL = List.of(
             LESSONS_PDF, LESSONS_SLIDES, LESSONS_IMAGES, LESSONS_MANUAL, LEVELS_THREE, RETELL_RECORDING,
             OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, COMPLAINTS, ANNOUNCEMENTS, TEACHER_QUESTIONS,
@@ -143,5 +158,5 @@ public final class FlagKeys {
             MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST,
             CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, FLOOR_SUPERVISOR, TODAY_HOME,
             VOICE_ANNOUNCEMENT, REMOTE_STUDY_DAYS, MORNING_BRIEF, DOCUMENT_READER, COMPLAINT_TRIAGE, PARENT_EVENING_CARD, LANGUAGE_BRIDGE, SMART_HINTS,
-            TEACHING_MATERIALS);
+            TEACHING_MATERIALS, CHILD_TEAM, CLASS_CHANNEL);
 }

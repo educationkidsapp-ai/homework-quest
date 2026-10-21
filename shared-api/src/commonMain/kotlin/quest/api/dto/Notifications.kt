@@ -155,6 +155,15 @@ enum class NotificationKind {
      * are missing — so both clients word the row in her language. Once per teacher and week.
      */
     @SerialName("material.reminder") MATERIAL_REMINDER,
+
+    /**
+     * Feature 32 (parents only): a teacher posted in the channel of the class [NotificationView.childId] sits in.
+     * [NotificationView.title] names the teacher, [NotificationView.body] is the first lines of the post (or
+     * the one-line cue a chat message uses when it is files alone),
+     * [NotificationView.lessonId] is the **post's** id and [NotificationView.link] `/children/{childId}/channel`. One
+     * row and one push per parent per post, whatever the number of her children in that class ([ChannelPost]).
+     */
+    @SerialName("channel.post") CHANNEL_POST,
 }
 
 /**
