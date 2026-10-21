@@ -20,7 +20,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import quest.server.ClassFixtures;
 import quest.server.flags.FlagKeys;
 import quest.server.push.PushProbe;
 import quest.server.push.PushSender;
@@ -30,27 +29,31 @@ import quest.server.tenancy.TenantContext;
  * Feature 32, second half: the class channel. One channel per section, its teachers post, every parent of the class
  * reads — and everybody else, a teacher of another class and a parent of another class alike, gets 404.
  *
- * <p>The cast is {@link ChatTestSupport}'s: 1A is taught by Sara (math, and its homeroom teacher) and Noor (english),
- * 1B by Noor alone. Maya is the test parent's child on 1A, Omar hers on 1B, and Rania another parent's on 1A. Rula
- * teaches 1B only, so 1A is no class of hers.
+ * <p>The cast is {@link ChatTestSupport}'s and <strong>nothing is added to it</strong>: 1A is taught by Sara (math,
+ * and its homeroom teacher) and Noor (english), 1B by Noor alone. Maya is the test parent's child on 1A, Omar hers on
+ * 1B, and Rania another parent's on 1A. So Sara is already "a teacher of another class" for 1B, and no new teacher or
+ * assignment is seeded here — `removeSeed` deliberately leaves users, classes and assignments behind for the next
+ * test, so a teacher added here would still be teaching 1B in every test that runs after this one
+ * (`ChatApiTest.a_parent_lists_the_teachers_of_her_childs_section_and_nobody_else` is what fails then).
+ *
+ * <p>The one row this test does make is {@code 1C}, a section with a homeroom teacher and no assignment at all —
+ * there is no other way to tell "she teaches it" from "she is its homeroom teacher" — and it is deleted again in
+ * {@code clean}.
  */
 class ClassChannelApiTest extends ChatTestSupport {
-    private static final String RULA = "ch-teacher-rula";
     private static final String PHONE_SARA = "0500000111";
 
     @Autowired PushSender pushes;
     @Autowired quest.server.push.ParentDeviceRepository parentDevices;
 
-    private String maya, omar, rania, rula, phone;
+    private String maya, omar, rania, phone, homeroomOnly;
 
     @BeforeEach void seed() throws Exception {
         seedSchools();
         maya = child("Maya", "CHSCHA", section1a);
         omar = child("Omar", "CHSCHA", section1b);
         rania = someoneElsesChild("Rania");
-        teacher(RULA, A, "Ms Rula");
-        ClassFixtures.assign(assignments, section1b, "art", RULA);
-        rula = token(RULA, "TEACHER", A);
+        homeroomOnly = homeroomOnlySection();
         users.findById(SARA).ifPresent(u -> { u.setPhone(PHONE_SARA); users.save(u); });
         phone = PushProbe.token("f32-parent-phone");
         PushProbe.register(mvc, PARENT, phone, "en");
@@ -58,7 +61,8 @@ class ClassChannelApiTest extends ChatTestSupport {
 
     @AfterEach void clean() {
         parentDevices.deleteByTokenValue(phone);
-        removeSeed();
+        removeSeed();                               // the channel rows go with it; the section is this test's own
+        classes.deleteById(homeroomOnly);
     }
 
     // ---------------------------------------------------------------- the post, its file, and the parents
@@ -125,15 +129,29 @@ class ClassChannelApiTest extends ChatTestSupport {
     // ---------------------------------------------------------------- everybody else gets 404
 
     @Test void a_teacher_who_does_not_teach_the_class_is_not_found() throws Exception {
-        postTo(CLASS_1A, sara, "Bring a ruler");
-        mvc.perform(bearer(get(staff(CLASS_1A)), rula)).andExpect(status().isNotFound());
-        mvc.perform(bearer(post(staff(CLASS_1A) + "/posts"), rula).contentType(MediaType.APPLICATION_JSON)
+        postTo(CLASS_1B, noor, "1B stays inside today.");
+        // Sara teaches 1A, so 1B's channel is no channel of hers — neither to read nor to post in.
+        mvc.perform(bearer(get(staff(CLASS_1B)), sara)).andExpect(status().isNotFound());
+        mvc.perform(bearer(post(staff(CLASS_1B) + "/posts"), sara).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"body\":\"hello\"}")).andExpect(status().isNotFound());
         // Another school's teacher does not even see that the class exists.
         mvc.perform(bearer(get(staff(CLASS_1A)), other)).andExpect(status().isNotFound());
-        // Her own 1B channel is hers, and the homeroom teacher of a section may post in it too.
-        mvc.perform(bearer(post(staff(CLASS_1B) + "/posts"), rula).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"body\":\"Art tomorrow.\"}")).andExpect(status().isCreated());
+        // And her own 1A is hers.
+        mvc.perform(bearer(get(staff(CLASS_1A)), sara)).andExpect(status().isOk());
+    }
+
+    /**
+     * The spec's second author: the section's <strong>homeroom teacher</strong> (`classes.teacher_id`), who may post
+     * although she holds no assignment on it — 1C has none at all, so it is the only way to tell the two apart.
+     */
+    @Test void the_homeroom_teacher_posts_although_she_holds_no_assignment() throws Exception {
+        mvc.perform(bearer(post(staff(homeroomOnly) + "/posts"), sara).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"body\":\"Welcome to 1C.\"}")).andExpect(status().isCreated());
+        mvc.perform(bearer(get(staff(homeroomOnly)), sara)).andExpect(status().isOk());
+        // Noor is neither its homeroom teacher nor assigned to it.
+        mvc.perform(bearer(get(staff(homeroomOnly)), noor)).andExpect(status().isNotFound());
+        mvc.perform(bearer(post(staff(homeroomOnly) + "/posts"), noor).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"body\":\"hello\"}")).andExpect(status().isNotFound());
     }
 
     @Test void a_parent_of_another_class_is_not_found_for_the_post_and_for_its_file() throws Exception {
@@ -228,6 +246,17 @@ class ClassChannelApiTest extends ChatTestSupport {
     // ---------------------------------------------------------------- helpers
 
     private static String staff(String classId) { return "/teacher/classes/" + classId + "/channel"; }
+
+    /** 1C of school A: Sara is its homeroom teacher (`teacher_id`) and nobody holds an assignment on it. */
+    private String homeroomOnlySection() {
+        String id = CLASS_1A + "c";
+        var k = classes.findById(id).orElseGet(quest.server.tenancy.Entities.ClassEntity::new);
+        k.setId(id); k.setSchoolId(A); k.setCurriculum("british"); k.setGrade(1); k.setName("1C");
+        k.setTeacherId(SARA); k.setActive(true); k.setJoinCodeEnabled(false);
+        k.setJoinCode("CH1C" + java.util.UUID.randomUUID().toString().substring(0, 6).toUpperCase(java.util.Locale.ROOT));
+        if (k.getCreatedAt() == null) k.setCreatedAt(java.time.Instant.now());
+        return classes.save(k).getId();
+    }
 
     private void postTo(String classId, String token, String body) throws Exception {
         mvc.perform(bearer(post(staff(classId) + "/posts"), token).contentType(MediaType.APPLICATION_JSON)
