@@ -1,8 +1,18 @@
 # Feature 33 — Teacher evaluation of a child
 
-**Status:** In progress · **Area:** server, dashboard (Teacher, leaders, Admin), mobile app (Parent) ·
+**Status:** Done · **Area:** server, dashboard (Teacher, leaders, Admin), mobile app (Parent) ·
 **Depends on:** 31 (the compliance pattern), 32 (a child's team), 17/20 (board scope) ·
 **Feature switch:** `childEvaluations` (on by default, D30)
+
+**Leftovers:**
+- **One deadline per round** for the whole school; no per-class or per-subject deadline. The reminder defaults to 24
+  hours before it, and a draft counts as missing.
+- **No staff screen in the app.** Teachers write and leaders review on the dashboard; the reminder and the
+  "returned" notice reach the staff app's notifications only.
+- **No Playwright e2e or screenshots** for the three dashboard pages (their specs cover them).
+- **The app screen was tested against demo data only**, not a live server; the server test covers the real answer.
+- **`withBom` (CSV byte-order mark) is now defined in three dashboard features**; worth moving into `core/download`.
+- **Return requires a comment on the dashboard**, though the server accepts an empty one.
 
 *Spec drafted by the planner from the owner's brief (the owner gave no spec file); review it in the PR.*
 
