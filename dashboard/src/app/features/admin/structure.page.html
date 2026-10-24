@@ -1,0 +1,739 @@
+<hq-page [title]="'admin.structure.title' | transloco" [subtitle]="'admin.structure.subtitle' | transloco">
+  <ng-container *hqFeature="structureFlag">
+    @if (replaceAsk(); as ask) {
+      <hq-band
+        variant="confirm"
+        [open]="true"
+        [title]="'admin.structure.replace.title' | transloco"
+        [confirmLabel]="'admin.structure.replace.confirm' | transloco"
+        (confirmed)="confirmReplace()"
+        (dismissed)="cancelReplace()"
+      >
+        {{ ask.message }}
+      </hq-band>
+    }
+
+    @if (releasedConfirm(); as message) {
+      <hq-band
+        variant="confirm"
+        [open]="true"
+        [title]="'admin.structure.released.title' | transloco"
+        [confirmLabel]="'admin.structure.released.confirm' | transloco"
+        (confirmed)="confirmScheme()"
+        (dismissed)="releasedConfirm.set(null)"
+      >
+        {{ message }}
+      </hq-band>
+    }
+
+    @if (moveConfirm(); as message) {
+      <hq-band
+        variant="confirm"
+        [open]="true"
+        [title]="'admin.structure.released.title' | transloco"
+        [confirmLabel]="'admin.structure.released.confirm' | transloco"
+        (confirmed)="confirmMove()"
+        (dismissed)="moveConfirm.set(null)"
+      >
+        {{ message }}
+      </hq-band>
+    }
+
+    @if (tree.isLoading()) {
+      <hq-skeleton
+        [loading]="true"
+        [lines]="6"
+        height="var(--hq-size-row-height)"
+        [label]="'admin.structure.loading' | transloco"
+      />
+    } @else if (tree.error()) {
+      <hq-card>
+        <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco" [dismissible]="false">
+          {{ 'band.unreachable' | transloco }}
+        </hq-band>
+        <div class="structure__retry">
+          <hq-button variant="secondary" (pressed)="tree.reload()">{{ 'ui.retry' | transloco }}</hq-button>
+        </div>
+      </hq-card>
+    } @else if (academies().length === 0) {
+      <hq-card>
+        <hq-empty-state [message]="'admin.structure.empty' | transloco" />
+      </hq-card>
+    } @else {
+      @if (anySpot()) {
+        <hq-band
+          variant="notice"
+          [open]="true"
+          [title]="'admin.structure.spots.title' | transloco"
+          [dismissible]="false"
+        >
+          {{ spotsMessage() }}
+        </hq-band>
+      }
+
+      <div class="structure__layout">
+        <hq-card class="structure__tree-card" [title]="'admin.structure.tree.title' | transloco">
+          <div class="structure__tree" role="tree" cdkDropListGroup>
+            @for (academy of academies(); track academyNode(academy).academyKey) {
+              <div
+                class="structure__node"
+                role="treeitem"
+                [attr.aria-expanded]="isOpen(academyNode(academy))"
+                [attr.aria-selected]="isSelected(academyNode(academy))"
+              >
+                <div class="structure__row structure__row--academy">
+                  <button
+                    type="button"
+                    class="structure__twisty"
+                    (click)="toggle(academyNode(academy))"
+                    [attr.aria-label]="
+                      (isOpen(academyNode(academy))
+                        ? 'admin.structure.tree.collapse'
+                        : 'admin.structure.tree.expand'
+                      ) | transloco: { name: academyName(academy.academy) }
+                    "
+                  >
+                    {{ isOpen(academyNode(academy)) ? '−' : '+' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="structure__label"
+                    [class.structure__label--selected]="isSelected(academyNode(academy))"
+                    (click)="select(academyNode(academy))"
+                  >
+                    <span class="structure__name">{{ academyName(academy.academy) }}</span>
+                    @if (academy.academy?.director; as director) {
+                      <span class="structure__meta">{{ director.name }}</span>
+                    } @else {
+                      <span class="structure__meta structure__meta--empty">
+                        {{ 'admin.structure.tree.noDirector' | transloco }}
+                      </span>
+                    }
+                  </button>
+                </div>
+
+                @if (isOpen(academyNode(academy))) {
+                  <div class="structure__children" role="group">
+                    @for (grade of academy.grades ?? []; track grade.grade) {
+                      <div
+                        class="structure__node"
+                        role="treeitem"
+                        [attr.aria-expanded]="isOpen(gradeNode(academy, grade))"
+                        [attr.aria-selected]="isSelected(gradeNode(academy, grade))"
+                      >
+                        <div class="structure__row structure__row--grade">
+                          <button
+                            type="button"
+                            class="structure__twisty"
+                            (click)="toggle(gradeNode(academy, grade))"
+                            [attr.aria-label]="
+                              (isOpen(gradeNode(academy, grade))
+                                ? 'admin.structure.tree.collapse'
+                                : 'admin.structure.tree.expand'
+                              ) | transloco: { name: gradeLabel(academy, grade) }
+                            "
+                          >
+                            {{ isOpen(gradeNode(academy, grade)) ? '−' : '+' }}
+                          </button>
+                          <button
+                            type="button"
+                            class="structure__label"
+                            [class.structure__label--selected]="isSelected(gradeNode(academy, grade))"
+                            (click)="select(gradeNode(academy, grade))"
+                          >
+                            <span class="structure__name">{{ gradeLabel(academy, grade) }}</span>
+                            @if ((grade.classes ?? []).length === 0) {
+                              <span class="structure__meta structure__meta--empty">
+                                {{ 'admin.structure.tree.noClasses' | transloco }}
+                              </span>
+                            }
+                          </button>
+                        </div>
+
+                        @if (isOpen(gradeNode(academy, grade))) {
+                          <div class="structure__children" role="group">
+                            @for (section of grade.classes ?? []; track section.classId) {
+                              <div
+                                class="structure__node"
+                                role="treeitem"
+                                [attr.aria-expanded]="true"
+                                [attr.aria-selected]="isSelected(classNode(academy, section))"
+                              >
+                                <div class="structure__row structure__row--class">
+                                  <button
+                                    type="button"
+                                    class="structure__label"
+                                    [class.structure__label--selected]="
+                                      isSelected(classNode(academy, section))
+                                    "
+                                    (click)="select(classNode(academy, section))"
+                                  >
+                                    <span class="structure__name">{{ section.name }}</span>
+                                    <span class="structure__meta">
+                                      {{
+                                        'admin.structure.tree.children'
+                                          | transloco: { count: section.children ?? 0 }
+                                      }}
+                                    </span>
+                                    @if ((section.floorSupervisors ?? []).length > 0) {
+                                      <span class="structure__meta">
+                                        {{ staffNames(section.floorSupervisors) }}
+                                      </span>
+                                    }
+                                  </button>
+                                </div>
+
+                                <div class="structure__slots" role="group">
+                                  @for (slot of section.subjects ?? []; track slot.subject) {
+                                    <div
+                                      class="structure__slot"
+                                      [class.structure__slot--empty]="!slot.teacher"
+                                      cdkDropList
+                                      [cdkDropListData]="{
+                                        classId: section.classId ?? '',
+                                        subject: slot.subject ?? '',
+                                        teacher: slot.teacher ?? {},
+                                      }"
+                                      [cdkDropListEnterPredicate]="allowDrop"
+                                      (cdkDropListDropped)="dropped($event)"
+                                    >
+                                      <span class="structure__subject">{{ subjectName(slot) }}</span>
+                                      @if (slot.teacher; as teacher) {
+                                        <span
+                                          class="structure__chip"
+                                          cdkDrag
+                                          [cdkDragData]="slotRef(section, slot)"
+                                          (cdkDragStarted)="dragStarted(slotRef(section, slot))"
+                                          (cdkDragEnded)="dragEnded()"
+                                          [attr.title]="'admin.structure.tree.drag' | transloco"
+                                        >
+                                          {{ teacher.name }}
+                                        </span>
+                                      } @else {
+                                        <span class="structure__chip structure__chip--empty">
+                                          {{ 'admin.structure.tree.noTeacher' | transloco }}
+                                        </span>
+                                      }
+                                      @if ((slot.coordinators ?? []).length > 0) {
+                                        <span class="structure__meta">{{
+                                          staffNames(slot.coordinators)
+                                        }}</span>
+                                      }
+                                    </div>
+                                  }
+                                </div>
+                              </div>
+                            }
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </hq-card>
+
+        <!-- The side panel: whatever node is selected, edited where it was clicked. -->
+        @if (selected(); as node) {
+          <hq-card class="structure__panel" [title]="panelTitle()">
+            @if (panelError(); as err) {
+              <hq-band
+                variant="error"
+                [open]="true"
+                [title]="'band.failed' | transloco"
+                (dismissed)="panelError.set(null)"
+              >
+                {{ err }}
+              </hq-band>
+            }
+
+            @switch (node.kind) {
+              @case ('academy') {
+                <hq-tabs
+                  [tabs]="panelTabs()"
+                  [(selected)]="panelTab"
+                  [label]="'admin.structure.tabs.label' | transloco"
+                  variant="chips"
+                />
+
+                @switch (panelTab()) {
+                  @case ('settings') {
+                    <hq-input
+                      [label]="'admin.structure.settings.nameEn' | transloco"
+                      [value]="nameEn()"
+                      [required]="true"
+                      (valueChange)="nameEn.set($event)"
+                    />
+                    <hq-input
+                      [label]="'admin.structure.settings.nameAr' | transloco"
+                      [value]="nameAr()"
+                      [required]="true"
+                      dir="rtl"
+                      (valueChange)="nameAr.set($event)"
+                    />
+                    <hq-select
+                      [label]="'admin.structure.settings.curriculum' | transloco"
+                      [options]="curriculumOptions()"
+                      [value]="curriculumType()"
+                      (valueChange)="curriculumType.set($event)"
+                    />
+                    <hq-select
+                      [label]="'admin.structure.settings.director' | transloco"
+                      [options]="directorOptions()"
+                      [value]="directorId()"
+                      [hint]="'admin.structure.settings.directorHint' | transloco"
+                      (valueChange)="directorId.set($event)"
+                    />
+                    <div class="structure__actions">
+                      <hq-button
+                        *hqCan="manageKey"
+                        variant="primary"
+                        [loading]="saving()"
+                        [disabled]="!canSaveSettings()"
+                        (pressed)="saveSettings()"
+                      >
+                        {{ 'ui.save' | transloco }}
+                      </hq-button>
+                    </div>
+                  }
+
+                  @case ('naming') {
+                    <p class="structure__note">
+                      {{
+                        'admin.structure.naming.current'
+                          | transloco
+                            : {
+                                word: selectedAcademy()?.naming?.wordEn ?? '',
+                                offset: selectedAcademy()?.naming?.offset ?? 0,
+                              }
+                      }}
+                    </p>
+                    <div class="structure__actions">
+                      <hq-button *hqCan="manageKey" variant="primary" (pressed)="openRename()">
+                        {{ 'admin.structure.naming.rename' | transloco }}
+                      </hq-button>
+                    </div>
+                  }
+
+                  @case ('scheme') {
+                    <p class="structure__note">
+                      {{
+                        (selectedAcademy()?.scheme?.custom
+                          ? 'admin.structure.scheme.custom'
+                          : 'admin.structure.scheme.default'
+                        ) | transloco
+                      }}
+                    </p>
+                    <hq-select
+                      [label]="'admin.structure.scheme.kindLabel' | transloco"
+                      [options]="kindOptions()"
+                      [value]="schemeKind()"
+                      (valueChange)="schemeKind.set($event)"
+                    />
+                    @for (draft of bands(); track $index) {
+                      <div class="structure__grid">
+                        <hq-input
+                          [label]="'admin.structure.scheme.band' | transloco"
+                          [value]="draft.band"
+                          (valueChange)="setBand($index, 'band', $event)"
+                        />
+                        <hq-input
+                          [label]="'admin.structure.scheme.lower' | transloco"
+                          type="number"
+                          [value]="draft.lower"
+                          (valueChange)="setBand($index, 'lower', $event)"
+                        />
+                        <hq-input
+                          [label]="'admin.structure.scheme.nameEn' | transloco"
+                          [value]="draft.nameEn"
+                          (valueChange)="setBand($index, 'nameEn', $event)"
+                        />
+                        <hq-input
+                          [label]="'admin.structure.scheme.nameAr' | transloco"
+                          [value]="draft.nameAr"
+                          dir="rtl"
+                          (valueChange)="setBand($index, 'nameAr', $event)"
+                        />
+                        <hq-button
+                          variant="secondary"
+                          [ariaLabel]="'admin.structure.scheme.remove' | transloco: { band: draft.band }"
+                          (pressed)="removeBand($index)"
+                        >
+                          {{ 'admin.structure.scheme.removeShort' | transloco }}
+                        </hq-button>
+                      </div>
+                    }
+                    <div class="structure__actions">
+                      <hq-button variant="secondary" (pressed)="addBand()">
+                        {{ 'admin.structure.scheme.add' | transloco }}
+                      </hq-button>
+                      <hq-button
+                        *hqCan="manageKey"
+                        variant="primary"
+                        [loading]="saving()"
+                        [disabled]="schemeError() !== null"
+                        [reason]="schemeReason()"
+                        (pressed)="saveScheme()"
+                      >
+                        {{ 'ui.save' | transloco }}
+                      </hq-button>
+                    </div>
+                  }
+
+                  @case ('terms') {
+                    @if (terms().length === 0) {
+                      <p class="hq-muted">{{ 'admin.structure.terms.empty' | transloco }}</p>
+                    }
+                    @for (draft of terms(); track $index) {
+                      <div class="structure__grid">
+                        <hq-input
+                          [label]="'admin.structure.terms.schoolYear' | transloco"
+                          [value]="draft.schoolYear"
+                          (valueChange)="setTerm($index, 'schoolYear', $event)"
+                        />
+                        <hq-input
+                          [label]="'admin.structure.terms.nameEn' | transloco"
+                          [value]="draft.nameEn"
+                          (valueChange)="setTerm($index, 'nameEn', $event)"
+                        />
+                        <hq-input
+                          [label]="'admin.structure.terms.nameAr' | transloco"
+                          [value]="draft.nameAr"
+                          dir="rtl"
+                          (valueChange)="setTerm($index, 'nameAr', $event)"
+                        />
+                        <hq-input
+                          [label]="'admin.structure.terms.startsOn' | transloco"
+                          type="date"
+                          [value]="draft.startsOn"
+                          (valueChange)="setTerm($index, 'startsOn', $event)"
+                        />
+                        <hq-input
+                          [label]="'admin.structure.terms.endsOn' | transloco"
+                          type="date"
+                          [value]="draft.endsOn"
+                          (valueChange)="setTerm($index, 'endsOn', $event)"
+                        />
+                        <hq-button
+                          variant="secondary"
+                          [ariaLabel]="'admin.structure.terms.remove' | transloco: { name: draft.nameEn }"
+                          (pressed)="removeTerm($index)"
+                        >
+                          {{ 'admin.structure.scheme.removeShort' | transloco }}
+                        </hq-button>
+                      </div>
+                    }
+                    <div class="structure__actions">
+                      <hq-button variant="secondary" (pressed)="addTerm()">
+                        {{ 'admin.structure.terms.add' | transloco }}
+                      </hq-button>
+                      <hq-button
+                        *hqCan="manageKey"
+                        variant="primary"
+                        [loading]="saving()"
+                        [disabled]="termsError() !== null"
+                        [reason]="termsReason()"
+                        (pressed)="saveTerms()"
+                      >
+                        {{ 'ui.save' | transloco }}
+                      </hq-button>
+                    </div>
+                  }
+
+                  @case ('subjects') {
+                    @if (subjects().length === 0) {
+                      <p class="hq-muted">{{ 'admin.structure.subjects.empty' | transloco }}</p>
+                    }
+                    @for (draft of subjects(); track draft.subject) {
+                      <div class="structure__grid">
+                        <span class="structure__subject-key">{{ draft.subject }}</span>
+                        <hq-input
+                          [label]="'admin.structure.subjects.nameEn' | transloco"
+                          [value]="draft.nameEn"
+                          (valueChange)="setSubject($index, 'nameEn', $event)"
+                        />
+                        <hq-input
+                          [label]="'admin.structure.subjects.nameAr' | transloco"
+                          [value]="draft.nameAr"
+                          dir="rtl"
+                          (valueChange)="setSubject($index, 'nameAr', $event)"
+                        />
+                        <hq-toggle
+                          [label]="'admin.structure.subjects.ministry' | transloco"
+                          [checked]="draft.ministry"
+                          (checkedChange)="setMinistry($index, $event)"
+                        />
+                      </div>
+                    }
+                    <div class="structure__actions">
+                      <hq-button
+                        *hqCan="manageKey"
+                        variant="primary"
+                        [loading]="saving()"
+                        [disabled]="subjectsError() !== null"
+                        [reason]="subjectsReason()"
+                        (pressed)="saveSubjects()"
+                      >
+                        {{ 'ui.save' | transloco }}
+                      </hq-button>
+                    </div>
+                  }
+                }
+              }
+
+              @case ('grade') {
+                <p class="structure__note">
+                  {{
+                    'admin.structure.grade.classes'
+                      | transloco: { count: (selectedGrade()?.classes ?? []).length }
+                  }}
+                </p>
+                <div class="structure__actions">
+                  <hq-button *hqCan="manageKey" variant="secondary" (pressed)="openRename()">
+                    {{ 'admin.structure.naming.rename' | transloco }}
+                  </hq-button>
+                </div>
+              }
+
+              @case ('class') {
+                <p class="structure__note">
+                  {{ 'admin.structure.tree.children' | transloco: { count: selectedClass()?.children ?? 0 } }}
+                </p>
+                @if ((selectedClass()?.floorSupervisors ?? []).length > 0) {
+                  <p class="structure__note">
+                    {{ 'admin.structure.class.supervisors' | transloco }}:
+                    {{ staffNames(selectedClass()?.floorSupervisors) }}
+                  </p>
+                }
+                <hq-select
+                  [label]="'admin.structure.move.to' | transloco"
+                  [options]="moveOptions()"
+                  [placeholder]="'admin.structure.move.placeholder' | transloco"
+                  [value]="moveTarget()"
+                  (valueChange)="moveTarget.set($event)"
+                />
+                <div class="structure__actions">
+                  <hq-button
+                    *hqCan="manageKey"
+                    variant="primary"
+                    [loading]="saving()"
+                    [disabled]="moveTarget() === ''"
+                    [reason]="moveTarget() === '' ? ('admin.structure.move.noTarget' | transloco) : null"
+                    (pressed)="previewMove()"
+                  >
+                    {{ 'admin.structure.move.preview' | transloco }}
+                  </hq-button>
+                </div>
+              }
+            }
+
+            <div class="structure__actions">
+              <hq-button variant="secondary" (pressed)="closePanel()">
+                {{ 'admin.structure.panel.close' | transloco }}
+              </hq-button>
+            </div>
+          </hq-card>
+        }
+      </div>
+    }
+
+    <!-- Bulk: next year's classes. Preview first, always. -->
+    <hq-dialog
+      [(open)]="nextYearOpen"
+      [title]="'admin.structure.nextYear.title' | transloco"
+      [confirmLabel]="
+        (nextYear() === null ? 'admin.structure.nextYear.preview' : 'admin.structure.nextYear.apply')
+          | transloco
+      "
+      [confirmDisabled]="nextYearAcademy() === ''"
+      [loading]="saving()"
+      (confirmed)="nextYear() === null ? previewNextYear() : applyNextYear()"
+    >
+      @if (nextYearError(); as err) {
+        <hq-band
+          variant="error"
+          [open]="true"
+          [title]="'band.failed' | transloco"
+          (dismissed)="nextYearError.set(null)"
+        >
+          {{ err }}
+        </hq-band>
+      }
+
+      <hq-select
+        [label]="'admin.structure.nextYear.academy' | transloco"
+        [options]="academyOptions()"
+        [value]="nextYearAcademy()"
+        (valueChange)="nextYearAcademy.set($event); nextYear.set(null)"
+      />
+      <hq-checkbox
+        [label]="'admin.structure.nextYear.carryChildren' | transloco"
+        [hint]="'admin.structure.nextYear.carryHint' | transloco"
+        [checked]="carryChildren()"
+        (checkedChange)="carryChildren.set($event); nextYear.set(null)"
+      />
+
+      @if (nextYear(); as preview) {
+        <p class="structure__note">
+          {{
+            'admin.structure.nextYear.counts'
+              | transloco
+                : {
+                    classes: preview.classesCreated ?? 0,
+                    children: preview.childrenMoved ?? 0,
+                    graduating: preview.graduating ?? 0,
+                  }
+          }}
+        </p>
+        <ul class="structure__list">
+          @for (row of preview.classes ?? []; track row.fromClassId) {
+            <li [class.structure__list-item--graduating]="row.graduating">
+              {{ row.name }} —
+              @if (row.graduating) {
+                {{ 'admin.structure.nextYear.graduating' | transloco: { children: row.children ?? 0 } }}
+              } @else {
+                {{
+                  'admin.structure.nextYear.moves'
+                    | transloco: { label: row.toLabelEn ?? '', children: row.children ?? 0 }
+                }}
+              }
+            </li>
+          }
+        </ul>
+      }
+    </hq-dialog>
+
+    <!-- Bulk: the grade names of one academy, with the labels they would produce. -->
+    <hq-dialog
+      [(open)]="renameOpen"
+      [title]="'admin.structure.rename.title' | transloco"
+      [confirmLabel]="'admin.structure.rename.confirm' | transloco"
+      [confirmDisabled]="!canRename()"
+      [loading]="saving()"
+      (confirmed)="applyRename()"
+    >
+      @if (renameError(); as err) {
+        <hq-band
+          variant="error"
+          [open]="true"
+          [title]="'band.failed' | transloco"
+          (dismissed)="renameError.set(null)"
+        >
+          {{ err }}
+        </hq-band>
+      }
+
+      <hq-select
+        [label]="'admin.structure.naming.style' | transloco"
+        [options]="styleOptions()"
+        [value]="gradeStyle()"
+        (valueChange)="gradeStyle.set($event)"
+      />
+      <hq-input
+        [label]="'admin.structure.naming.wordEn' | transloco"
+        [value]="gradeWordEn()"
+        [required]="true"
+        (valueChange)="gradeWordEn.set($event)"
+      />
+      <hq-input
+        [label]="'admin.structure.naming.wordAr' | transloco"
+        [value]="gradeWordAr()"
+        [required]="true"
+        dir="rtl"
+        (valueChange)="gradeWordAr.set($event)"
+      />
+      <hq-input
+        [label]="'admin.structure.naming.offset' | transloco"
+        type="number"
+        [value]="gradeOffset()"
+        [hint]="'admin.structure.naming.offsetHint' | transloco"
+        (valueChange)="gradeOffset.set($event)"
+      />
+
+      <p class="structure__note">{{ 'admin.structure.naming.preview' | transloco }}</p>
+      <ul class="structure__list">
+        @for (label of renamePreview(); track $index) {
+          <li>{{ label }}</li>
+        }
+      </ul>
+    </hq-dialog>
+
+    <!-- Bulk: moving a class, with every change the server found listed before anything is written. -->
+    <hq-dialog
+      [(open)]="moveOpen"
+      [title]="'admin.structure.move.title' | transloco"
+      [confirmLabel]="'admin.structure.move.apply' | transloco"
+      [loading]="saving()"
+      (confirmed)="applyMove()"
+    >
+      @if (moveError(); as err) {
+        <hq-band
+          variant="error"
+          [open]="true"
+          [title]="'band.failed' | transloco"
+          (dismissed)="moveError.set(null)"
+        >
+          {{ err }}
+        </hq-band>
+      }
+
+      @if (movePreview(); as preview) {
+        <ul class="structure__list">
+          <li>
+            {{
+              'admin.structure.move.academies'
+                | transloco: { from: preview.fromAcademyKey ?? '', to: preview.toAcademyKey ?? '' }
+            }}
+          </li>
+          <li>{{ 'admin.structure.move.children' | transloco: { count: preview.children ?? 0 } }}</li>
+          <li>
+            {{
+              'admin.structure.move.dropped' | transloco: { count: (preview.droppedAssignments ?? []).length }
+            }}
+          </li>
+          <li>
+            {{
+              'admin.structure.move.director'
+                | transloco
+                  : {
+                      from: preview.fromDirector?.name ?? ('admin.structure.move.none' | transloco),
+                      to: preview.toDirector?.name ?? ('admin.structure.move.none' | transloco),
+                    }
+            }}
+          </li>
+          <li>
+            {{
+              'admin.structure.move.coordinators'
+                | transloco
+                  : {
+                      from: (preview.fromCoordinators ?? []).length,
+                      to: (preview.toCoordinators ?? []).length,
+                    }
+            }}
+          </li>
+          <li>
+            {{
+              'admin.structure.move.scheme'
+                | transloco: { from: preview.fromScheme?.kind ?? '', to: preview.toScheme?.kind ?? '' }
+            }}
+          </li>
+          <li>
+            {{
+              'admin.structure.move.released'
+                | transloco
+                  : { released: preview.releasedResults ?? 0, rebanded: preview.rebandedResults ?? 0 }
+            }}
+          </li>
+        </ul>
+      }
+    </hq-dialog>
+  </ng-container>
+
+  <div page-actions>
+    <hq-button *hqCan="manageKey" variant="primary" (pressed)="openNextYear()">
+      {{ 'admin.structure.nextYear.open' | transloco }}
+    </hq-button>
+  </div>
+</hq-page>

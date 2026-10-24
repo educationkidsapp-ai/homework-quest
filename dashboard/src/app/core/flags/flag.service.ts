@@ -108,6 +108,11 @@ export const FLAGS = {
   // the leaders' tracking board over them, and the Admin's rounds. On by default (D30) — the
   // server answers 404 without it, and none of the three screens has an older one behind it.
   childEvaluations: 'childEvaluations',
+  // Feature 36: the Admin's School structure screen — the academies, their grade naming, grading
+  // schemes, terms and subjects, and the tree of who teaches what. On by default (D30); with it
+  // off every `/admin/structure*` route answers 404 and the row is absent, and the gradebook,
+  // exports and child page fall back to today's four bands, which is what they show now.
+  schoolStructure: 'schoolStructure',
 } as const;
 
 export type FlagKey = (typeof FLAGS)[keyof typeof FLAGS];

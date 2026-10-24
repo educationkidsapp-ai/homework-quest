@@ -567,6 +567,161 @@
         "floorsHint": "Her floors are assigned on the Floors page, together with the classes on them."
       }
     },
+    "structure": {
+      "title": "School structure",
+      "subtitle": "The academies, their grades and classes, and who is responsible for what.",
+      "loading": "Reading the school structure…",
+      "empty": "No academy yet. The school's curricula become academies the first time this screen is opened.",
+      "spots": {
+        "title": "Spots nobody fills yet",
+        "message": "{{directors}} academies with no director, {{grades}} grades with no class, and {{slots}} subjects nobody teaches."
+      },
+      "tabs": {
+        "label": "What to edit about this academy",
+        "settings": "Settings",
+        "naming": "Grade naming",
+        "scheme": "Grading scheme",
+        "terms": "Terms",
+        "subjects": "Subjects"
+      },
+      "curriculumType": {
+        "BRITISH": "British",
+        "AMERICAN": "American",
+        "MINISTRY": "Ministry",
+        "OTHER": "Other"
+      },
+      "gradeStyle": {
+        "YEAR": "Year 7 style",
+        "GRADE": "Grade 6 style"
+      },
+      "tree": {
+        "title": "The school",
+        "expand": "Show what is inside {{name}}",
+        "collapse": "Hide what is inside {{name}}",
+        "children": "{{count}} children",
+        "noTeacher": "Nobody teaches this",
+        "noClasses": "No class yet",
+        "noDirector": "No director yet",
+        "drag": "Drag this teacher onto another subject to move her"
+      },
+      "settings": {
+        "nameEn": "Name in English",
+        "nameAr": "Name in Arabic",
+        "curriculum": "Curriculum type",
+        "director": "Academy director",
+        "directorHint": "A manager of the school. Changing her here changes what she can see.",
+        "noDirector": "No director"
+      },
+      "naming": {
+        "style": "Naming style",
+        "wordEn": "The word in English",
+        "wordAr": "The word in Arabic",
+        "offset": "Offset",
+        "offsetHint": "Added to the stored grade: a British Year 2 is stored as grade 1, so the offset is 1.",
+        "preview": "The grades would be called:",
+        "current": "Grades are called \"{{word}}\" with an offset of {{offset}}.",
+        "rename": "Rename grades"
+      },
+      "scheme": {
+        "kindLabel": "Kind",
+        "kind": {
+          "LETTER": "Letters",
+          "NUMERIC": "Numbers"
+        },
+        "band": "Band",
+        "lower": "From score",
+        "nameEn": "Name in English",
+        "nameAr": "Name in Arabic",
+        "add": "Add a band",
+        "remove": "Remove the band {{band}}",
+        "removeShort": "Remove",
+        "default": "This academy uses the school's four default bands.",
+        "custom": "This academy has a grading scheme of its own.",
+        "errors": {
+          "tooFew": "A grading scheme needs at least two bands.",
+          "keyMissing": "Every band needs a key.",
+          "nameMissing": "Every band needs a name in English and in Arabic.",
+          "lowerRange": "A band starts at a score between 0 and 100.",
+          "duplicateKey": "Two bands cannot share a key.",
+          "duplicateLower": "Two bands cannot start at the same score.",
+          "noZero": "The lowest band must start at 0, so every score has a band."
+        }
+      },
+      "terms": {
+        "schoolYear": "School year",
+        "nameEn": "Name in English",
+        "nameAr": "Name in Arabic",
+        "startsOn": "Starts on",
+        "endsOn": "Ends on",
+        "add": "Add a term",
+        "remove": "Remove the term {{name}}",
+        "empty": "No term yet for this academy.",
+        "errors": {
+          "incomplete": "Every term needs a school year, both names and both dates.",
+          "backwards": "A term cannot end before it starts.",
+          "overlap": "Two terms of one school year cannot share a day."
+        }
+      },
+      "subjects": {
+        "nameEn": "Name in English",
+        "nameAr": "Name in Arabic",
+        "ministry": "A Ministry subject",
+        "empty": "This academy offers every subject.",
+        "errors": {
+          "nameMissing": "Every subject needs a name in English and in Arabic."
+        }
+      },
+      "grade": {
+        "classes": "{{count}} classes in this grade."
+      },
+      "class": {
+        "supervisors": "Floor supervisors"
+      },
+      "nextYear": {
+        "open": "Create next year's classes",
+        "title": "Next year's classes",
+        "academy": "Academy",
+        "carryChildren": "Carry the children over",
+        "carryHint": "The teachers are never carried over.",
+        "preview": "Preview",
+        "apply": "Create them",
+        "counts": "{{classes}} classes created, {{children}} children moved, {{graduating}} graduating.",
+        "moves": "moves to {{label}} with {{children}} children",
+        "graduating": "graduates: {{children}} children leave"
+      },
+      "rename": {
+        "title": "Rename the grades",
+        "confirm": "Rename them"
+      },
+      "move": {
+        "title": "Move the class",
+        "to": "Move to",
+        "placeholder": "Choose an academy",
+        "preview": "See what changes",
+        "apply": "Move it",
+        "noTarget": "Choose the academy to move it to.",
+        "academies": "The class moves from {{from}} to {{to}}.",
+        "children": "{{count}} children move with it.",
+        "dropped": "{{count}} assignments are dropped, because the target academy does not offer the subject.",
+        "director": "The director changes from {{from}} to {{to}}.",
+        "coordinators": "{{from}} coordinators lose it, {{to}} gain it.",
+        "scheme": "The grading scheme changes from {{from}} to {{to}}.",
+        "released": "{{released}} released results, of which {{rebanded}} would show a different band.",
+        "none": "nobody"
+      },
+      "replace": {
+        "title": "Someone already teaches that",
+        "confirm": "Replace her",
+        "fallback": "Another teacher already has that subject in that class."
+      },
+      "released": {
+        "title": "Released results would change",
+        "confirm": "Change them anyway"
+      },
+      "panel": {
+        "close": "Close"
+      }
+    },
     "rounds": {
       "title": "Evaluation rounds",
       "subtitle": "The few times a year every teacher evaluates each child she teaches.",
@@ -733,6 +888,10 @@
         "childEvaluations": {
           "name": "Child evaluations",
           "what": "Each teacher evaluates every child she teaches a few times a year, the leaders track and review it, and the parents read it in words."
+        },
+        "schoolStructure": {
+          "name": "School structure",
+          "what": "The Admin models the school as academies — each with its own grade naming, grading scheme, terms and subjects — and edits the tree of who teaches what in one place."
         }
       }
     }
@@ -1929,6 +2088,7 @@
     "attendanceSettings": "Attendance settings",
     "attendanceRequests": "Attendance requests",
     "floors": "Floors",
+    "schoolStructure": "School structure",
     "floorSupervisors": "Floor supervisors",
     "documents": "Document reader",
     "myMaterials": "My teaching material",

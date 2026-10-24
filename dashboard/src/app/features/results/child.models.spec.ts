@@ -53,8 +53,10 @@ const REPORT: ChildReport = {
 describe('the child’s levels', () => {
   it('reads a row per subject, with its band and direction', () => {
     expect(levelsOf(REPORT)).toEqual([
-      { subject: 'math', band: 'secure', levelScore: 64, trend: 'up', lessons: 6 },
-      { subject: 'english', band: 'emerging', levelScore: 32, trend: 'flat', lessons: 4 },
+      // Feature 36: `bandLabel` rides beside `band` and is null until the academy has a scheme
+      // of its own, which is what keeps every existing screen reading §7's four words.
+      { subject: 'math', band: 'secure', bandLabel: null, levelScore: 64, trend: 'up', lessons: 6 },
+      { subject: 'english', band: 'emerging', bandLabel: null, levelScore: 32, trend: 'flat', lessons: 4 },
     ]);
   });
 

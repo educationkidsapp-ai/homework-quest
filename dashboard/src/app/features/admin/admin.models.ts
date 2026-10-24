@@ -27,6 +27,11 @@ export type AdminClass = SchoolClass & {
 export interface ClassRow {
   readonly id: string;
   readonly course: string;
+  /** Feature 36: the academy and the grade apart, so the Course cell can name the grade the way
+   * that academy does (`hqGradeLabel`) while `course` stays the one string everything else reads. */
+  readonly academy: string;
+  readonly academyKey: string;
+  readonly grade: number;
   readonly name: string;
   readonly joinCode: string;
   readonly children: number;

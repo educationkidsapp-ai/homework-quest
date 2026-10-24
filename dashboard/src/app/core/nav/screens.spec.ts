@@ -83,6 +83,8 @@ describe('the screen table', () => {
       // Feature 20: the floors the classes are grouped into, beside Classes because that is what
       // a floor is. Behind `floorSupervisor`, so a school without the feature has neither row.
       'floors',
+      // Feature 36: the structure tree, between the floors and the people who staff it.
+      'structure',
       'teachers',
       // MA2 (items 3–5): the three staff lists that carry a login, then the staff who have none,
       // then the families. Coordinators and Managers are one component, two rows.
@@ -650,7 +652,9 @@ describe('the screen table', () => {
    * bell silently, and this is the assertion that says so out loud.
    */
   it('puts the evaluation board in every area that has the attendance board, behind one flag', () => {
-    const boards = ROLES.map((role) => AREAS[role].screens.find((screen) => screen.id === 'evaluation-board'));
+    const boards = ROLES.map((role) =>
+      AREAS[role].screens.find((screen) => screen.id === 'evaluation-board'),
+    );
     expect(boards.map((row) => row?.path)).toEqual(ROLES.map(() => 'evaluation-tracking'));
     for (const row of boards)
       expect([row?.flag, row?.permission, row?.labelKey]).toEqual([

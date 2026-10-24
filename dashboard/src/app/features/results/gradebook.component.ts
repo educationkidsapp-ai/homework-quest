@@ -140,6 +140,9 @@ export class GradebookComponent {
 
   protected readonly columns = computed(() => columnsOf(this.book.value()));
   protected readonly rows = computed(() => rowsOf(this.book.value()));
+
+  /** Feature 36: the class's academy grading scheme, which is what names a band in the grid. */
+  protected readonly scheme = computed(() => this.book.value().scheme ?? null);
   protected readonly onlyUnmarked = signal(false);
 
   protected readonly visibleRows = computed(() =>

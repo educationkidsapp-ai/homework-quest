@@ -17,6 +17,8 @@ export interface Cell {
   readonly autoScore: number | null;
   readonly teacherScore: number | null;
   readonly band: Band | null;
+  /** Feature 36: the band key of the academy's own scheme, drawn in its words when it has one. */
+  readonly bandLabel: string | null;
   readonly needsMarking: boolean;
   /** The teacher has moved this score: the automatic one is shown struck through beside it. */
   readonly overridden: boolean;
@@ -31,6 +33,7 @@ export interface Row {
   /** The plain mean of the row, as the server computed it over the range on screen. */
   readonly average: number | null;
   readonly band: Band | null;
+  readonly bandLabel: string | null;
   readonly trend: Trend;
   readonly needsMarking: boolean;
   /** One per column, in the columns' own order, whether she played that lesson or not. */
@@ -82,6 +85,7 @@ export function rowsOf(book: Gradebook): readonly Row[] {
         autoScore,
         teacherScore,
         band: bandOf(cell?.band),
+        bandLabel: cell?.bandLabel ?? null,
         needsMarking: cell?.needsMarking === true,
         overridden: teacherScore !== null && teacherScore !== autoScore,
       };
@@ -91,6 +95,7 @@ export function rowsOf(book: Gradebook): readonly Row[] {
       name: child.name ?? '',
       average: child.average ?? null,
       band: bandOf(child.band),
+      bandLabel: child.bandLabel ?? null,
       trend: trendOf(child.trend),
       needsMarking: cells.some((cell) => cell.needsMarking),
       cells,

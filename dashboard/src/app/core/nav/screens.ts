@@ -129,6 +129,16 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.floorSupervisor,
         permission: 'floor.manage',
       },
+      // Feature 36: the school as it really is — academies, their grades, classes and the teacher
+      // per subject — in one tree she edits in place. Next to Classes and Floors, because the
+      // three are the same question at three sizes, and behind `structure.manage`, her key alone.
+      {
+        id: 'structure',
+        path: 'structure',
+        labelKey: 'nav.schoolStructure',
+        flag: FLAGS.schoolStructure,
+        permission: 'structure.manage',
+      },
       { id: 'teachers', path: 'teachers', labelKey: 'nav.teachers', permission: 'teacher.read' },
       // MA2 (the owner's admin list, 2026-09-30, items 3–5): the four people screens that were
       // missing. Their order is the order she reads them in — the three staff lists that carry a

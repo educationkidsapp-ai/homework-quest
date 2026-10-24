@@ -153,6 +153,9 @@ export class ResultsPage {
   // ---- the table ------------------------------------------------------------------------------
 
   protected readonly rows = computed(() => resultRows(this.results.value()));
+
+  /** Feature 36: the class's academy grading scheme, which is what names a band on this page. */
+  protected readonly scheme = computed(() => this.results.value().scheme ?? null);
   protected readonly weak = computed(() => weakestStopIds(this.rows()));
   protected readonly onlyUnmarked = signal(false);
 
