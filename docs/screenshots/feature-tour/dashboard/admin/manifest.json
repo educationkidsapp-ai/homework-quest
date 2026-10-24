@@ -1,0 +1,79 @@
+[
+  {
+    "feature": "Home counts",
+    "file": "01-home.png",
+    "caption": "Admin home: managers, coordinators, teachers, children, classes, workers, schools and this week’s lessons at a glance."
+  },
+  {
+    "feature": "Teachers",
+    "file": "02-teachers.png",
+    "caption": "Every teacher with email, phone, subjects, curriculum and classes; the row menu holds Message, Assignments, Edit, Reset password and Disable account."
+  },
+  {
+    "feature": "Coordinators",
+    "file": "03-coordinators.png",
+    "caption": "Subject coordinators with their scope (grade, subject, curriculum) and contact details."
+  },
+  {
+    "feature": "Managers",
+    "file": "04-managers.png",
+    "caption": "School managers and the curriculum each one runs."
+  },
+  {
+    "feature": "Workers",
+    "file": "05-workers.png",
+    "caption": "Non-teaching staff — driver, nurse, caretaker — with job and phone."
+  },
+  {
+    "feature": "Children & parents",
+    "file": "06-children-parents.png",
+    "caption": "Children with their class and parent (name, email, phone), searchable and paged."
+  },
+  {
+    "feature": "Add a Child dialog",
+    "file": "07-add-child-dialog.png",
+    "caption": "Admitting a child: class, child’s name and the parent login that is created with it."
+  },
+  {
+    "feature": "Classes",
+    "file": "08-classes.png",
+    "caption": "All 30 classes by curriculum and grade, with teachers, roster size and the class join code."
+  },
+  {
+    "feature": "Class join code — Copy",
+    "file": "09-class-join-code-copied.png",
+    "caption": "Copying a class’s join code to hand to parents; the code puts a child straight into that class."
+  },
+  {
+    "feature": "Messages",
+    "file": "10-messages-thread.png",
+    "caption": "A conversation with a parent: text, a photo and a PDF, with read state and the reply box."
+  },
+  {
+    "feature": "Complaints (read-only)",
+    "file": "11-complaints.png",
+    "caption": "The Admin sees every complaint in the school and its history, but answering is left to the recipient."
+  },
+  {
+    "feature": "School logo card",
+    "file": "12-school-logo.png",
+    "caption": "The school card on Home: the logo shown in the menu and on the sign-in page, with Replace and Remove."
+  },
+  {
+    "feature": "Notification bell",
+    "file": "13-notifications.png",
+    "caption": "The bell opens the latest notifications — new messages and complaints — with Mark all as read."
+  },
+  {
+    "feature": "Home in Arabic (right-to-left)",
+    "file": "14-home-arabic.png",
+    "caption": "The same Home in Arabic: the whole dashboard mirrors right-to-left.",
+    "language": "ar"
+  },
+  {
+    "feature": "Messages in dark mode",
+    "file": "15-messages-dark.png",
+    "caption": "Messages in dark mode.",
+    "theme": "dark"
+  }
+]

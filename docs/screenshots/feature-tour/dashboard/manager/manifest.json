@@ -1,0 +1,94 @@
+[
+  {
+    "feature": "Home statistics",
+    "file": "01-home-statistics.png",
+    "caption": "Manager home: classes, teachers, coordinators and children, how the department is doing, and what needs her."
+  },
+  {
+    "feature": "Coordinators",
+    "file": "02-coordinators.png",
+    "caption": "The coordinators in her school with scope, phone and Message."
+  },
+  {
+    "feature": "Teachers",
+    "file": "03-teachers.png",
+    "caption": "Teachers with subjects and classes, phone and Message."
+  },
+  {
+    "feature": "Children",
+    "file": "04-children.png",
+    "caption": "Every child with class and parent; Message parent and Export CSV."
+  },
+  {
+    "feature": "Weekly plans — this week and archive",
+    "file": "05-weekly-plans.png",
+    "caption": "This week at a glance per grade, and every earlier plan with how many parents have read it."
+  },
+  {
+    "feature": "Weekly plan — PDF card",
+    "file": "06-weekly-plan-pdf.png",
+    "caption": "A plan posted as a PDF: the card opens the file in place."
+  },
+  {
+    "feature": "Compose a weekly plan",
+    "file": "07-weekly-plan-compose.png",
+    "caption": "Posting a weekly plan: week, grade and an image or PDF of the plan."
+  },
+  {
+    "feature": "Announcements",
+    "file": "08-announcements.png",
+    "caption": "Announcements and events for parents and teachers, with what she posted and weekly plans in tabs."
+  },
+  {
+    "feature": "Compose an announcement",
+    "file": "09-announcement-compose.png",
+    "caption": "Writing an announcement: English and Arabic text, who reads it (parents, teachers, coordinators), the whole department or one grade, and an end date."
+  },
+  {
+    "feature": "Messages",
+    "file": "10-messages-thread.png",
+    "caption": "A parent conversation with a PDF and a photo; tabs for parents, teachers, coordinators and admin."
+  },
+  {
+    "feature": "Complaints — list",
+    "file": "11-complaints.png",
+    "caption": "Complaints addressed to her and those she supervises, by status."
+  },
+  {
+    "feature": "Complaint — open, with Resolve and reply",
+    "file": "12-complaint-open.png",
+    "caption": "An open complaint with its history (resolved, reopened by the parent), the reply box and Resolve."
+  },
+  {
+    "feature": "Staff attendance — one day",
+    "file": "13-staff-attendance-day.png",
+    "caption": "Marking staff present, absent, late or on leave for a day."
+  },
+  {
+    "feature": "Staff attendance — monthly summary",
+    "file": "14-staff-attendance-month.png",
+    "caption": "The month per person: present, absent, late, leave and the attendance rate."
+  },
+  {
+    "feature": "School usage",
+    "file": "15-school-usage.png",
+    "caption": "How often each teacher publishes, with totals and Export CSV."
+  },
+  {
+    "feature": "Attendance (read-only)",
+    "file": "16-attendance.png",
+    "caption": "Children’s attendance by class over a date range — present, late, absent, excused and the rate — read-only, with Export CSV."
+  },
+  {
+    "feature": "Weekly plans in Arabic (right-to-left)",
+    "file": "17-weekly-plans-arabic.png",
+    "caption": "Weekly plans in Arabic.",
+    "language": "ar"
+  },
+  {
+    "feature": "Home in dark mode",
+    "file": "18-home-dark.png",
+    "caption": "Manager home in dark mode.",
+    "theme": "dark"
+  }
+]
