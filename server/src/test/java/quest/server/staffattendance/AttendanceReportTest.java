@@ -94,7 +94,7 @@ class AttendanceReportTest {
 
     private static final StaffAttendanceDto.AttendanceReport REPORT = new StaffAttendanceDto.AttendanceReport("2026-10", "SCHOOL",
             List.of(new StaffAttendanceDto.ReportRow("USER", "u1", "تالا المعلمة", "TEACHER", List.of("british"),
-                    7, 5, 1, 1, 20, 1, 90, 1, 1)));
+                    7, 5, 1, 1, 20, 1, 90, 1, 1, 2, 1, 45)));
 
     @Test void the_csv_has_the_columns_payroll_reads_and_keeps_an_arabic_name() {
         byte[] csv = AttendanceReportExport.csv(REPORT);
@@ -103,8 +103,10 @@ class AttendanceReportTest {
         var lines = new String(csv, 3, csv.length - 3, StandardCharsets.UTF_8).split("\n");
         assertThat(lines[0]).isEqualTo(String.join(",", AttendanceReportExport.HEADER.stream().map(String::valueOf).toList()));
         assertThat(lines[0]).contains("Working days", "Present onsite", "Present remote", "Late count", "Late minutes",
-                "Absent days", "Early leave minutes", "Missing check-outs", "Corrections", "الموظف");
-        assertThat(lines[1]).isEqualTo("تالا المعلمة,TEACHER,british,7,5,1,1,20,1,90,1,1");
+                "Absent days", "Early leave minutes", "Missing check-outs", "Corrections", "الموظف",
+                // Feature 34's three columns.
+                "Leave days", "Permissions", "Excused minutes");
+        assertThat(lines[1]).isEqualTo("تالا المعلمة,TEACHER,british,7,5,1,1,20,1,90,1,1,2,1,45");
         assertThat(AttendanceReportExport.filename(REPORT, "csv")).isEqualTo("staff-attendance-2026-10.csv");
     }
 

@@ -16,7 +16,9 @@ final class AttendanceReportExport {
             "Employee / الموظف", "Category / الفئة", "Academy / الأكاديمية", "Working days / أيام العمل",
             "Present onsite / حضور في المدرسة", "Present remote / حضور عن بعد", "Late count / مرات التأخر",
             "Late minutes / دقائق التأخر", "Absent days / أيام الغياب", "Early leave minutes / دقائق الانصراف المبكر",
-            "Missing check-outs / انصراف غير مسجل", "Corrections / التصحيحات");
+            "Missing check-outs / انصراف غير مسجل", "Corrections / التصحيحات",
+            // Feature 34: what leave and permission took out of the month.
+            "Leave days / أيام الإجازة", "Permissions / مرات الاستئذان", "Excused minutes / الدقائق المستأذن عنها");
 
     static byte[] csv(StaffAttendanceDto.AttendanceReport report) { return GradingExports.csv(rows(report)); }
 
@@ -28,7 +30,7 @@ final class AttendanceReportExport {
         for (var r : report.rows())
             rows.add(List.of(r.fullName(), r.category(), String.join(" ", r.academies()), r.workingDays(), r.presentOnsite(),
                     r.presentRemote(), r.lateCount(), r.lateMinutes(), r.absentDays(), r.earlyLeaveMinutes(),
-                    r.missingCheckOuts(), r.corrections()));
+                    r.missingCheckOuts(), r.corrections(), r.leaveDays(), r.permissionCount(), r.excusedMinutes()));
         return rows;
     }
 

@@ -160,10 +160,18 @@ public final class FlagKeys {
     public static final String CHILD_EVALUATIONS = "childEvaluations";
 
     /**
+     * Feature 34: a member of staff asks for leave or a short permission from the app, her direct manager decides it,
+     * and attendance excuses the days and the minutes (`/staff/attendance/leave/**`, the LEAVE and PERMISSION types of
+     * `/staff/attendance/requests`, `/staff-attendance/leave/**` and the Admin's Leave settings card). Seeded by V57,
+     * and it also needs `staffAttendance`: leave is an answer to a question the attendance board asks.
+     */
+    public static final String STAFF_LEAVE = "staffLeave";
+
+    /**
      * Feature 36: the Admin models the school as academies — the British and American departments, each with its own
      * names, curriculum type, grade naming, grading scheme, terms, subjects and director — and reads one visual tree
-     * of who is responsible for what (`/admin/structure/**`). Seeded by V58. With it off nothing is lost: an academy
-     * without a grading scheme reads exactly today's four bands
+     * of who is responsible for what (every `/admin/structure` route). Seeded by V58. With it off nothing is lost: an
+     * academy without a grading scheme reads exactly today's four bands
      * ({@link quest.server.structure.GradingSchemes#DEFAULT}).
      */
     public static final String SCHOOL_STRUCTURE = "schoolStructure";
@@ -175,5 +183,5 @@ public final class FlagKeys {
             MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST,
             CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, FLOOR_SUPERVISOR, TODAY_HOME,
             VOICE_ANNOUNCEMENT, REMOTE_STUDY_DAYS, MORNING_BRIEF, DOCUMENT_READER, COMPLAINT_TRIAGE, PARENT_EVENING_CARD, LANGUAGE_BRIDGE, SMART_HINTS,
-            TEACHING_MATERIALS, CHILD_TEAM, CLASS_CHANNEL, CHILD_EVALUATIONS, SCHOOL_STRUCTURE);
+            TEACHING_MATERIALS, CHILD_TEAM, CLASS_CHANNEL, CHILD_EVALUATIONS, STAFF_LEAVE, SCHOOL_STRUCTURE);
 }

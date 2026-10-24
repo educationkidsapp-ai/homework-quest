@@ -49,6 +49,7 @@ export const SWITCH_GROUPS: readonly SwitchGroup[] = [
       { key: 'staffMobileApp', id: 'staffMobileApp', feature: 13 },
       { key: 'staffAttendance', id: 'staffAttendance', feature: 14, needs: ['staffMobileApp'] },
       { key: 'remoteStudyDays', id: 'remoteStudyDays', feature: 23, needs: ['staffAttendance'] },
+      { key: 'staffLeave', id: 'staffLeave', feature: 34, needs: ['staffAttendance'] },
       { key: 'chatOfficeHours', id: 'chatOfficeHours', feature: 19, needs: ['chat'] },
       { key: 'floorSupervisor', id: 'floorSupervisor', feature: 20, noteKey: 'needsLatestApp' },
       { key: 'teachingMaterials', id: 'teachingMaterials', feature: 31 },

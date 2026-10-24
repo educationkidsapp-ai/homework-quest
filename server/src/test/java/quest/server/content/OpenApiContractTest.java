@@ -307,7 +307,14 @@ class OpenApiContractTest extends ApiTestSupport {
             "/staff-attendance/report.csv", "/staff-attendance/report.xlsx",
             // Feature 23 (`quest.api.staff.RemoteStudyDays`): the Admin's remote study days, which replaced feature
             // 18's `/admin/attendance/remote-days`. Same page, same permissions, its own flag.
-            "/admin/remote-study-days", "/admin/remote-study-days/{id}");
+            "/admin/remote-study-days", "/admin/remote-study-days/{id}",
+            // Feature 34 (`quest.api.staff.AttendanceRequests`, `quest.api.dashboard.AttendanceBoard`): leave and
+            // permission. The two new request types ride on feature 18's `/staff/attendance/requests`; these are the
+            // routes they add. Behind `staffLeave` at run time and still in the document, for the reason every
+            // flagged area is.
+            "/staff/attendance/requests/{id}/cancel", "/staff/attendance/leave/balance", "/staff/attendance/leave/preview",
+            "/staff-attendance/leave/balances", "/staff-attendance/leave/balances.csv", "/staff-attendance/leave/balances.xlsx",
+            "/staff-attendance/leave/requests", "/staff-attendance/leave/requests.csv", "/staff-attendance/leave/requests.xlsx");
 
     /**
      * Feature 29: the language bridge (`quest.api.dto.Translation.kt`, `ContentApi.translate`,

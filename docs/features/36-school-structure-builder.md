@@ -1,8 +1,30 @@
 # Feature 36 — School structure builder
 
-**Status:** Draft · **Area:** dashboard (Admin), server · **Depends on:** 14 (settings, academy directors),
+**Status:** Done · **Area:** dashboard (Admin), server · **Depends on:** 14 (settings, academy directors),
 06 (departments), 03 (gradebook and exports), 20 (floor supervisor) · **Feature switch:** `schoolStructure`
 (on by default, D30)
+
+**Leftovers:**
+- **No third academy, and no new subject key.** `quest.api.dto.Curriculum` (`british`, `american`) and
+  `quest.api.dto.Subject` (six values) are closed enums in the shared contract, in about 41 OpenAPI enums and in the
+  Android builds already on testers' phones, so a new key would make a released app fail to read its own data. The
+  academies are therefore the two existing keys, and an academy's subjects are a choice among the six under its own
+  names. Both need a contract change and a coordinated app release.
+- **`curriculumType` is descriptive only.** British / American / Ministry / other is a label on the academy; nothing
+  in the server branches on it.
+- **The academy's grade naming reaches the Admin's screens only.** `hqGradeLabel` and the `gradeLabel` pipe read the
+  naming from `GET /admin/structure`, which is `structure.manage` — the Admin's alone — so a teacher's, a
+  coordinator's, a manager's and a parent's screens still say "Grade N", and so do the CSV and Excel exports. Giving
+  the other roles the labels needs a read route of its own.
+- **Two band displays still use the legacy words.** The exam results' distribution chart and the child page's skill
+  pills are computed from `Bands` rather than from the academy's scheme; the gradebook, the child page's levels, the
+  Results page, both exports and the exam table all follow the scheme.
+- **The director cache can go stale.** `academies.director_id` mirrors the MANAGERIAL `staff_scopes` row, and only
+  `AcademyService` writes both. Changing a manager's department from Admin → Managers instead
+  (`PUT /admin/managers/{id}/scopes`) leaves the cached id behind until the structure screen is read again.
+- **The subjects list is enforced on new writes only.** A drag onto a subject the academy does not offer is refused
+  and a class move drops those assignments, but V58 does not revisit assignments already in the database.
+- **No Playwright screenshots** for the structure tree or its dialogs.
 
 ## Goal
 

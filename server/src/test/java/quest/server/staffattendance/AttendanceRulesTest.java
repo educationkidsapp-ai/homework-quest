@@ -103,6 +103,79 @@ class AttendanceRulesTest {
         assertThat(absent.absent()).as("the Ramadan day ends at 13:00").isTrue();
     }
 
+    // ---------------------------------------------------------------- feature 34: leave and permission windows
+
+    @Test void a_day_of_approved_leave_has_no_status_and_nothing_due() {
+        var leave = AttendanceRules.evaluate(ScheduleResolver.excused(ScheduleResolver.resolve(HOURS, List.of(), SUNDAY),
+                new Excuses.DayExcuse(true, "ANNUAL", List.of())), T, SUNDAY, RIYADH, null, null, at("15:00"));
+        assertThat(leave.absent()).as("never absent on a day of leave").isFalse();
+        assertThat(leave.notArrived()).isFalse();
+        assertThat(leave.due()).isEmpty();
+        assertThat(leave.excusedMinutes()).isZero();
+    }
+
+    @Test void a_permission_window_excuses_the_lateness_inside_it_and_leaves_the_rest_late() {
+        // The spec's case: 07:00–09:00 approved, in at 08:30 — ninety minutes, all of them excused.
+        var onTime = withWindow("07:00", "09:00", at("08:30"), null, "09:00");
+        assertThat(onTime.lateMinutes()).isNull();
+        assertThat(onTime.excusedMinutes()).isEqualTo(90);
+        assertThat(onTime.due()).doesNotContain(Event.LATE);
+
+        // In at 09:40: 160 minutes after the start, 120 of which the window covered.
+        var late = withWindow("07:00", "09:00", at("09:40"), null, "10:00");
+        assertThat(late.lateMinutes()).isEqualTo(40);
+        assertThat(late.excusedMinutes()).isEqualTo(120);
+
+        // A window that does not reach the start excuses only what it covers of the lateness.
+        var afternoon = withWindow("12:00", "13:00", at("07:30"), null, "09:00");
+        assertThat(afternoon.lateMinutes()).as("nothing of the morning was excused").isEqualTo(30);
+        assertThat(afternoon.excusedMinutes()).isZero();
+    }
+
+    @Test void a_permission_window_excuses_an_early_leave_inside_it_and_not_one_outside_it() {
+        var excused = withWindow("13:00", "14:00", at("06:55"), at("13:00"), "15:00");
+        assertThat(excused.earlyLeaveMinutes()).as("the whole hour was hers").isNull();
+        assertThat(excused.excusedMinutes()).isEqualTo(60);
+
+        var partly = withWindow("13:30", "14:00", at("06:55"), at("13:00"), "15:00");
+        assertThat(partly.earlyLeaveMinutes()).isEqualTo(30);
+        assertThat(partly.excusedMinutes()).isEqualTo(30);
+
+        var untouched = withWindow("07:00", "08:00", at("06:55"), at("13:00"), "15:00");
+        assertThat(untouched.earlyLeaveMinutes()).as("a morning window says nothing about the afternoon").isEqualTo(60);
+        assertThat(untouched.excusedMinutes()).isZero();
+    }
+
+    @Test void a_permission_window_moves_the_not_arrived_threshold_and_never_the_end_of_the_day() {
+        // 07:00–09:00 approved and nothing recorded: at 09:30 she is half an hour into her own time, not an hour late.
+        var inside = withWindow("07:00", "09:00", null, null, "09:30");
+        assertThat(inside.notArrived()).as("the hour counts from the end of the window").isFalse();
+        assertThat(inside.excusedMinutes()).isEqualTo(120);
+        assertThat(withWindow("07:00", "09:00", null, null, "10:01").notArrived()).isTrue();
+        // A window of two hours does not excuse a whole day: the end of the day is still absent.
+        assertThat(withWindow("07:00", "09:00", null, null, "14:00").absent()).isTrue();
+    }
+
+    @Test void two_overlapping_windows_are_counted_once() {
+        assertThat(AttendanceRules.overlapMinutes(List.of(window("07:00", "09:00"), window("08:00", "10:00")),
+                LocalTime.of(7, 0), LocalTime.of(10, 0))).isEqualTo(180);
+        assertThat(AttendanceRules.overlapMinutes(List.of(window("07:00", "08:00"), window("09:00", "10:00")),
+                LocalTime.of(7, 0), LocalTime.of(10, 0))).as("a gap between them counts for nothing").isEqualTo(120);
+        assertThat(AttendanceRules.overlapMinutes(List.of(), LocalTime.of(7, 0), LocalTime.of(10, 0))).isZero();
+        assertThat(AttendanceRules.overlapMinutes(List.of(window("07:00", "09:00")),
+                LocalTime.of(9, 0), LocalTime.of(9, 0))).as("an empty span").isZero();
+    }
+
+    private static Excuses.Window window(String from, String to) {
+        return new Excuses.Window(LocalTime.parse(from), LocalTime.parse(to));
+    }
+
+    private static AttendanceRules.Day withWindow(String from, String to, Instant in, Instant out, String now) {
+        var expected = ScheduleResolver.excused(ScheduleResolver.resolve(HOURS, List.of(), SUNDAY),
+                new Excuses.DayExcuse(false, null, List.of(window(from, to))));
+        return AttendanceRules.evaluate(expected, T, SUNDAY, RIYADH, in, out, at(now));
+    }
+
     @Test void the_rules_read_the_schools_clock_not_utc() {
         // 04:00Z is 07:00 in Riyadh: the start reminder is due although it is four in the morning in UTC.
         assertThat(day(SUNDAY, null, null, Instant.parse("2026-10-18T04:00:00Z")).due()).containsExactly(Event.START_REMINDER);

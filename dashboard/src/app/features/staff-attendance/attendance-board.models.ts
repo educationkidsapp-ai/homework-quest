@@ -23,6 +23,8 @@ export const STATUSES = [
   'UPCOMING',
   'OFF',
   'HOLIDAY',
+  // Feature 34: a day of approved leave — never absent and never "not arrived".
+  'ON_LEAVE',
 ] as const;
 export type Status = (typeof STATUSES)[number];
 

@@ -5,12 +5,13 @@ import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import type { Observable } from 'rxjs';
 import {
   type Academy,
-  type AcademyNode,
-  type ClassNode,
-  type GradeNode,
   type MoveClassPreview,
   type NextYearPreview,
-  type SubjectSlot,
+  type StructureAcademyNode,
+  type StructureClassNode,
+  type StructureGradeNode,
+  type StructureStaffRef,
+  type StructureSubjectSlot,
   ManagersApi,
   SchoolStructureApi,
   apiErrorCodeOf,
@@ -69,11 +70,11 @@ import {
 } from '../../ui';
 
 /**
- * A member of staff as the tree shows her, taken from the slot that carries her rather than from
- * the schema's own name: the contract has two records called `StaffRef` (feature 36's and staff
- * attendance's), so naming this one structurally is how a rename of either cannot reach this file.
+ * A member of staff as the tree shows her. `StructureStaffRef` carries the prefix because the plain
+ * `StaffRef` is feature 14's `(kind, id)`: two records of that name would share one schema, and the
+ * contract keeps them apart so the generated client cannot hand the wrong shape to either page.
  */
-type Staff = NonNullable<SubjectSlot['teacher']>;
+type Staff = StructureStaffRef;
 
 /** Which drag is in the air, and which slot it came from. */
 interface SlotRef {
@@ -164,7 +165,7 @@ export class StructurePage {
     if (academies.length > 0) this.namings.remember(academies);
   });
 
-  protected readonly academies = computed<readonly AcademyNode[]>(() => this.tree.value().academies ?? []);
+  protected readonly academies = computed<readonly StructureAcademyNode[]>(() => this.tree.value().academies ?? []);
 
   protected readonly spots = computed<EmptySpots>(() => emptySpotsOf(this.tree.value()));
   protected readonly anySpot = computed(() => hasEmptySpot(this.spots()));
@@ -210,11 +211,11 @@ export class StructurePage {
     this.expanded.set(next);
   }
 
-  protected academyNode(node: AcademyNode): SelectedNode {
+  protected academyNode(node: StructureAcademyNode): SelectedNode {
     return { kind: 'academy', academyKey: academyKeyOf(node.academy?.academyKey) };
   }
 
-  protected gradeNode(academy: AcademyNode, grade: GradeNode): SelectedNode {
+  protected gradeNode(academy: StructureAcademyNode, grade: StructureGradeNode): SelectedNode {
     return {
       kind: 'grade',
       academyKey: academyKeyOf(academy.academy?.academyKey),
@@ -222,7 +223,7 @@ export class StructurePage {
     };
   }
 
-  protected classNode(academy: AcademyNode, section: ClassNode): SelectedNode {
+  protected classNode(academy: StructureAcademyNode, section: StructureClassNode): SelectedNode {
     return {
       kind: 'class',
       academyKey: academyKeyOf(academy.academy?.academyKey),
@@ -233,7 +234,7 @@ export class StructurePage {
   protected trackNode = (node: SelectedNode): string => nodeKey(node);
 
   /** The label of a grade in its academy's own words — the same arithmetic as the pipe. */
-  protected gradeLabel(academy: AcademyNode, grade: GradeNode): string {
+  protected gradeLabel(academy: StructureAcademyNode, grade: StructureGradeNode): string {
     this.lang();
     const label = gradeLabelOf(grade.grade, academy.academy?.naming, this.transloco.getActiveLang());
     return (
@@ -249,7 +250,7 @@ export class StructurePage {
     return name?.trim() || academyKeyOf(academy?.academyKey);
   }
 
-  protected subjectName(slot: SubjectSlot): string {
+  protected subjectName(slot: StructureSubjectSlot): string {
     this.lang();
     const name = this.transloco.getActiveLang().startsWith('ar') ? slot.nameAr : slot.nameEn;
     return name?.trim() || this.word(`subject.${slot.subject ?? ''}`, slot.subject ?? '');
@@ -287,13 +288,13 @@ export class StructurePage {
     return academyOf(this.tree.value(), node.academyKey)?.academy ?? null;
   });
 
-  protected readonly selectedClass = computed<ClassNode | null>(() => {
+  protected readonly selectedClass = computed<StructureClassNode | null>(() => {
     const node = this.selected();
     if (node?.kind !== 'class' || node.classId === undefined) return null;
     return classOf(this.tree.value(), node.classId)?.node ?? null;
   });
 
-  protected readonly selectedGrade = computed<GradeNode | null>(() => {
+  protected readonly selectedGrade = computed<StructureGradeNode | null>(() => {
     const node = this.selected();
     if (node?.kind !== 'grade') return null;
     const academy = academyOf(this.tree.value(), node.academyKey);
@@ -537,7 +538,7 @@ export class StructurePage {
 
   protected readonly dragging = signal<SlotRef | null>(null);
 
-  protected slotRef(section: ClassNode, slot: SubjectSlot): SlotRef | null {
+  protected slotRef(section: StructureClassNode, slot: StructureSubjectSlot): SlotRef | null {
     return slot.teacher
       ? { classId: section.classId ?? '', subject: slot.subject ?? '', teacher: slot.teacher }
       : null;

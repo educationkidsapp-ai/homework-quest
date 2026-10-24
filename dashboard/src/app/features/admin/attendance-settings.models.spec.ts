@@ -128,6 +128,86 @@ describe('attendance settings draft', () => {
     expect(draft.schedules[0]!.start).toBe('07:00');
   });
 
+  // ---- feature 34: the leave rules ------------------------------------------------------------
+
+  it('defaults the leave rules to the spec: the manager alone, three hours, every type offered', () => {
+    const { leave } = base();
+    expect(leave.chain).toBe('MANAGER');
+    expect(leave.permissionMax).toBe('180');
+    expect(leave.types.map((type) => type.type)).toEqual([
+      'ANNUAL',
+      'SICK',
+      'EMERGENCY',
+      'UNPAID',
+      'OTHER',
+    ]);
+    expect(leave.types.every((type) => type.enabled && type.documentAfterDays === '')).toBe(true);
+    expect(leave.balances).toEqual({});
+  });
+
+  it('reads the leave rules the server saved, balances keyed by type and category', () => {
+    const { leave } = draftOf({
+      leaveChain: 'MANAGER_THEN_ADMIN',
+      permissionMaxMinutes: 120,
+      leaveTypes: [
+        { type: 'SICK', enabled: true, documentAfterDays: 3 },
+        { type: 'UNPAID', enabled: false },
+      ],
+      leaveBalances: [{ type: 'ANNUAL', category: 'TEACHER', yearlyDays: 30 }],
+    });
+    expect(leave.chain).toBe('MANAGER_THEN_ADMIN');
+    expect(leave.permissionMax).toBe('120');
+    expect(leave.types[1]).toEqual({ type: 'SICK', enabled: true, documentAfterDays: '3' });
+    // A type the answer never mentioned is offered, which is the server's own default.
+    expect(leave.types[0]).toEqual({ type: 'ANNUAL', enabled: true, documentAfterDays: '' });
+    expect(leave.types[3]!.enabled).toBe(false);
+    expect(leave.balances).toEqual({ 'ANNUAL:TEACHER': '30' });
+  });
+
+  it('sends all five types and only the balances that have a value', () => {
+    const draft = base();
+    const request = requestOf({
+      ...draft,
+      leave: {
+        ...draft.leave,
+        balances: { 'ANNUAL:TEACHER': '30', 'ANNUAL:WORKER': '', 'SICK:ADMINISTRATIVE': '15' },
+      },
+    });
+    expect(request.leaveTypes).toHaveLength(5);
+    expect(request.leaveChain).toBe('MANAGER');
+    expect(request.permissionMaxMinutes).toBe(180);
+    // An emptied pair is left out, which is how the server deletes it.
+    expect(request.leaveBalances).toEqual([
+      { type: 'ANNUAL', category: 'TEACHER', yearlyDays: 30 },
+      { type: 'SICK', category: 'ADMINISTRATIVE', yearlyDays: 15 },
+    ]);
+  });
+
+  it('refuses a permission limit and a balance the server would answer 400 to', () => {
+    const draft = base();
+    const bad = (leave: Partial<SettingsDraft['leave']>): SettingsDraft => ({
+      ...draft,
+      leave: { ...draft.leave, ...leave },
+    });
+    expect(errorsOf(bad({ permissionMax: '0' }))['leave.permissionMax']).toBe('permissionMax');
+    expect(errorsOf(bad({ permissionMax: '601' }))['leave.permissionMax']).toBe('permissionMax');
+    expect(errorsOf(bad({ permissionMax: '600' }))['leave.permissionMax']).toBeUndefined();
+    expect(errorsOf(bad({ balances: { 'ANNUAL:TEACHER': '366' } }))['leave.balance.ANNUAL:TEACHER']).toBe(
+      'leaveDays',
+    );
+    // Empty is "no balance", not a mistake.
+    expect(errorsOf(bad({ balances: { 'ANNUAL:TEACHER': '' } }))).toEqual({});
+    expect(
+      errorsOf(
+        bad({
+          types: draft.leave.types.map((type) =>
+            type.type === 'SICK' ? { ...type, documentAfterDays: '400' } : type,
+          ),
+        }),
+      )['leave.document.SICK'],
+    ).toBe('leaveDays');
+  });
+
   it('grows the preview circle with the radius and defaults a category from the role', () => {
     expect(previewRadius(50)).toBeLessThan(previewRadius(500));
     expect(previewRadius(9999)).toBe(previewRadius(500));

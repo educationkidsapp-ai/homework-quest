@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { EnvironmentProviders, Provider } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { screen } from '@testing-library/angular';
+import { screen, within } from '@testing-library/angular';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { BASE_PATH } from '../../api';
@@ -59,6 +59,38 @@ const CORRECTION = {
   createdAt: 1_760_000_500_000,
 };
 
+/** Feature 34: three days of annual leave, waiting for the Admin's second step. */
+const LEAVE = {
+  id: 'r-4',
+  type: 'LEAVE',
+  leaveType: 'ANNUAL',
+  status: 'PENDING',
+  stage: 'ADMIN',
+  staff: 'USER:u-nada',
+  staffName: 'Nada',
+  date: '2026-11-01',
+  toDate: '2026-11-03',
+  days: 3,
+  reason: 'My sister is getting married',
+  createdAt: 1_760_001_000_000,
+};
+
+/** Feature 34: two hours of permission, still with her direct manager. */
+const PERMISSION = {
+  id: 'r-5',
+  type: 'PERMISSION',
+  status: 'PENDING',
+  stage: 'MANAGER',
+  staff: 'USER:u-tala',
+  staffName: 'Tala',
+  date: '2026-10-21',
+  fromTime: '07:00',
+  toTime: '09:00',
+  minutes: 120,
+  reason: 'A hospital appointment',
+  createdAt: 1_760_001_500_000,
+};
+
 const DECIDED = {
   ...CORRECTION,
   id: 'r-3',
@@ -100,12 +132,19 @@ async function renderPage(
   TestBed.tick();
   backend.expectOne('/me/permissions').flush(permissions);
 
+  // Pending is the filter the screen opens on: nothing else is asked for.
   backend.expectOne('/attendance/requests?status=PENDING').flush({ requests: pending });
   await settle(rendered);
   return { rendered, backend };
 }
 
-describe('feature 18 — Attendance requests', () => {
+/** The dialog's own fields, so the filter bar's "Employee" is not matched instead. */
+const inDialog = () => within(screen.getByRole('dialog'));
+
+/** And the filter bar's own, so the correction dialog's "Employee" is not matched instead. */
+const inFilters = () => within(document.querySelector<HTMLElement>('[data-hq-filters]')!);
+
+describe('features 18 and 34 — Requests', () => {
   beforeEach(() => localStorage.clear());
 
   it('shows what is pending: who asked, what for, the day, the claimed time and the reason', async () => {
@@ -125,6 +164,57 @@ describe('feature 18 — Attendance requests', () => {
     expect(screen.getByRole('button', { name: 'Open attachment' })).toBeInTheDocument();
   });
 
+  it('reads a leave as its range, its days and its type, and a permission as its window', async () => {
+    await renderPage(ADMIN_PERMISSIONS, ADMIN_USER, [LEAVE, PERMISSION]);
+
+    const [leave, permission] = screen.getAllByRole('row').slice(1);
+    expect(leave).toHaveTextContent('Leave · Annual');
+    expect(leave).toHaveTextContent('2026-11-01 to 2026-11-03');
+    expect(leave).toHaveTextContent('3 days');
+    expect(permission).toHaveTextContent('Permission');
+    expect(permission).toHaveTextContent('2026-10-21');
+    expect(permission).toHaveTextContent('07:00–09:00');
+    expect(permission).toHaveTextContent('120 minutes');
+  });
+
+  it('marks the request her manager approved as waiting for the Admin, and no other', async () => {
+    await renderPage(ADMIN_PERMISSIONS, ADMIN_USER, [LEAVE, PERMISSION]);
+
+    const stages = screen.getAllByText('Waiting for the Admin');
+    expect(stages).toHaveLength(1);
+    expect(screen.getAllByRole('row')[1]).toHaveTextContent('Waiting for the Admin');
+  });
+
+  it('asks the server again for each of the four filters', async () => {
+    const { rendered, backend } = await renderPage();
+
+    await userEvent.selectOptions(inFilters().getByLabelText(/^Request type/), 'LEAVE');
+    await settle(rendered);
+    backend.expectOne('/attendance/requests?status=PENDING&type=LEAVE').flush({ requests: [LEAVE] });
+    await settle(rendered);
+
+    await userEvent.selectOptions(inFilters().getByLabelText(/^Status/), 'APPROVED');
+    await settle(rendered);
+    backend.expectOne('/attendance/requests?status=APPROVED&type=LEAVE').flush({ requests: [] });
+    await settle(rendered);
+
+    // The employee list is the people the screen has seen, not a read of the staff directory.
+    await userEvent.selectOptions(inFilters().getByLabelText(/^Employee/), 'USER:u-nada');
+    await settle(rendered);
+    backend
+      .expectOne('/attendance/requests?status=APPROVED&type=LEAVE&staff=USER%3Au-nada')
+      .flush({ requests: [] });
+    await settle(rendered);
+
+    await userEvent.type(inFilters().getByLabelText(/^Month/), '2026-11');
+    await settle(rendered);
+    backend
+      .expectOne('/attendance/requests?status=APPROVED&type=LEAVE&staff=USER%3Au-nada&month=2026-11')
+      .flush({ requests: [] });
+    await settle(rendered);
+    expect(screen.getByText('Nothing has been decided yet.')).toBeInTheDocument();
+  });
+
   it('approves a request and reads the list again without it', async () => {
     const { rendered, backend } = await renderPage();
 
@@ -140,15 +230,44 @@ describe('feature 18 — Attendance requests', () => {
     expect(screen.getByText('My phone was dead')).toBeInTheDocument();
   });
 
-  it('rejects a request through the reject route', async () => {
-    const { rendered, backend } = await renderPage();
+  it('refuses to reject a leave without a reason, then posts the reason it was given', async () => {
+    const { rendered, backend } = await renderPage(ADMIN_PERMISSIONS, ADMIN_USER, [LEAVE]);
 
-    await userEvent.click(screen.getAllByRole('button', { name: 'Reject' })[0]!);
+    await userEvent.click(screen.getByRole('button', { name: 'Reject' }));
+    await settle(rendered);
+    expect(screen.getByText(/Nada will read this reason, so it is required./)).toBeInTheDocument();
+
+    await userEvent.click(inDialog().getByRole('button', { name: 'Reject the request' }));
+    await settle(rendered);
+    backend.expectNone('/attendance/requests/r-4/reject');
+    expect(screen.getByText('A reason is required.')).toBeInTheDocument();
+
+    await userEvent.type(inDialog().getByLabelText(/^Reason for rejecting/), 'The week is exam week');
+    await settle(rendered);
+    await userEvent.click(inDialog().getByRole('button', { name: 'Reject the request' }));
+
+    const post = backend.expectOne('/attendance/requests/r-4/reject');
+    expect(post.request.method).toBe('POST');
+    expect(post.request.body).toEqual({ reason: 'The week is exam week' });
+    post.flush({ ...LEAVE, status: 'REJECTED' });
+    await settle(rendered);
+    backend.expectOne('/attendance/requests?status=PENDING').flush({ requests: [] });
+  });
+
+  it('rejects a remote day with no reason at all, as feature 18 did', async () => {
+    const { rendered, backend } = await renderPage(ADMIN_PERMISSIONS, ADMIN_USER, [REMOTE]);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reject' }));
+    await settle(rendered);
+    expect(screen.getByText(/Tala will read this reason if you give one./)).toBeInTheDocument();
+
+    await userEvent.click(inDialog().getByRole('button', { name: 'Reject the request' }));
     const post = backend.expectOne('/attendance/requests/r-1/reject');
     expect(post.request.method).toBe('POST');
+    expect(post.request.body).toBeNull();
     post.flush({ ...REMOTE, status: 'REJECTED' });
     await settle(rendered);
-    backend.expectOne('/attendance/requests?status=PENDING').flush({ requests: [CORRECTION] });
+    backend.expectOne('/attendance/requests?status=PENDING').flush({ requests: [] });
   });
 
   it('says in a red band when somebody decided it first (409)', async () => {
@@ -170,20 +289,34 @@ describe('feature 18 — Attendance requests', () => {
     backend.expectOne('/attendance/requests?status=PENDING').flush({ requests: [CORRECTION] });
   });
 
-  it('shows the decision, who took it and the times that were there before', async () => {
+  it('shows the decision, who took it, the times that were there before and no decide buttons', async () => {
     const { rendered, backend } = await renderPage();
 
-    await userEvent.click(screen.getByRole('tab', { name: /Decided/ }));
+    await userEvent.selectOptions(inFilters().getByLabelText(/^Status/), 'APPROVED');
     await settle(rendered);
     backend.expectOne('/attendance/requests?status=APPROVED').flush({ requests: [DECIDED] });
-    backend.expectOne('/attendance/requests?status=REJECTED').flush({ requests: [] });
     await settle(rendered);
 
-    expect(screen.getByText('Approved')).toBeInTheDocument();
-    expect(screen.getByText(/Dalia/)).toBeInTheDocument();
+    const row = screen.getAllByRole('row')[1]!;
+    expect(row).toHaveTextContent('Approved');
+    expect(row).toHaveTextContent('Dalia');
     expect(screen.getByText(/Was In 08:10/)).toBeInTheDocument();
     // Nothing is decided twice.
     expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+  });
+
+  it('says why a rejected request was refused', async () => {
+    const { rendered, backend } = await renderPage();
+
+    await userEvent.selectOptions(inFilters().getByLabelText(/^Status/), 'REJECTED');
+    await settle(rendered);
+    backend
+      .expectOne('/attendance/requests?status=REJECTED')
+      .flush({ requests: [{ ...LEAVE, status: 'REJECTED', stage: undefined, rejectReason: 'Exam week' }] });
+    await settle(rendered);
+
+    expect(screen.getByText('Reason: Exam week')).toBeInTheDocument();
+    expect(screen.queryByText('Waiting for the Admin')).not.toBeInTheDocument();
   });
 
   it('says so when nothing is waiting', async () => {
@@ -206,9 +339,9 @@ describe('feature 18 — Attendance requests', () => {
     // The staff list is read when the dialog opens, never on the way in to the screen.
     backend.expectOne('/admin/staff/attendance-profiles').flush(STAFF);
     await settle(rendered);
-    await userEvent.selectOptions(screen.getByLabelText(/^Employee/), 'WORKER:w-walid');
-    await userEvent.clear(screen.getByLabelText(/^Day/));
-    await userEvent.type(screen.getByLabelText(/^Day/), '2026-10-12');
+    await userEvent.selectOptions(inDialog().getByLabelText(/^Employee/), 'WORKER:w-walid');
+    await userEvent.clear(inDialog().getByLabelText(/^Day/));
+    await userEvent.type(inDialog().getByLabelText(/^Day/), '2026-10-12');
     await settle(rendered);
 
     // The reason is the audit trail: without it nothing is sent.
@@ -217,8 +350,8 @@ describe('feature 18 — Attendance requests', () => {
     backend.expectNone('/admin/staff/WORKER/w-walid/attendance-corrections');
     expect(screen.getByText('A reason is required.')).toBeInTheDocument();
 
-    await userEvent.type(screen.getByLabelText(/^Reason/), 'Device was broken');
-    await userEvent.type(screen.getByLabelText(/^Check-in/), '07:30');
+    await userEvent.type(inDialog().getByLabelText(/^Reason/), 'Device was broken');
+    await userEvent.type(inDialog().getByLabelText(/^Check-in/), '07:30');
     await settle(rendered);
     await userEvent.click(screen.getByRole('button', { name: 'Save correction' }));
 

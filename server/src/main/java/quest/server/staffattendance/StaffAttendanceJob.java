@@ -117,8 +117,10 @@ public class StaffAttendanceJob {
         int sent = 0;
         var digestRows = new ArrayList<DigestRow>();
         for (var employee : staff.all(schoolId)) {
-            var expected = schedules.expected(schoolId, attendanceDays.category(schoolId, employee), today);
-            if (expected.kind() != ScheduleResolver.Kind.WORK) continue;              // holidays and days off: nothing
+            var expected = schedules.expected(schoolId, attendanceDays.category(schoolId, employee), today,
+                    employee.kind(), employee.id());
+            // Holidays, days off and — feature 34 — a day of approved leave: no status, and no alert about it.
+            if (expected.kind() != ScheduleResolver.Kind.WORK) continue;
             var row = byStaff.get(key(employee.kind(), employee.id()));
             var day = AttendanceRules.evaluate(expected, alertSettings.thresholds(), today, zone,
                     row == null ? null : row.getCheckInAt(), row == null ? null : row.getCheckOutAt(), now);

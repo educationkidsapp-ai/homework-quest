@@ -134,6 +134,19 @@ object Routes {
     @Serializable object StaffMyRecord
 
     /**
+     * Feature 34: "رصيدي / My balance" — her yearly leave allowance per type, what is used and what is left. Behind
+     * `staffLeave`, which itself needs `staffAttendance`.
+     */
+    @Serializable object StaffMyBalance
+
+    /**
+     * Feature 34: "طلباتي / My requests" — every request of hers with its status, a rejection's reason and Cancel
+     * while it is still pending. A screen of its own rather than the section on My record, because a decision push
+     * now lands on it.
+     */
+    @Serializable object StaffMyRequests
+
+    /**
      * Feature 22: "سجّل رسالة صوتية" — a leader's spoken note turned into an announcement she reviews and sends.
      * Behind `announcements` **and** `voiceAnnouncement`, and only for the Admin and a department manager.
      */

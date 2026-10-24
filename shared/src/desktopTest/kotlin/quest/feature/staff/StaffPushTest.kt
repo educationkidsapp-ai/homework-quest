@@ -30,6 +30,9 @@ import quest.api.dto.NotificationView
 import quest.api.dto.PushMessage
 import quest.api.dto.RegisterDeviceRequest
 import quest.api.dto.WeeklyPlanArchive
+import quest.api.ApiException
+import quest.api.dto.ApiError
+import quest.api.dto.AttendanceLink
 import quest.core.navigation.Routes
 import quest.feature.broadcasts.domain.BroadcastsRepository
 import quest.feature.chat.domain.ChatConnectionState
@@ -50,10 +53,15 @@ import quest.feature.push.domain.PushRegistration
 import quest.feature.push.domain.PushTokens
 import quest.feature.push.domain.decidableRequestId
 import quest.feature.push.presentation.PushNavigator
+import quest.feature.staff.domain.ShadeDecision
+import quest.feature.staff.domain.shadeDecision
+import quest.feature.staff.presentation.StaffStrings
+import quest.feature.staff.presentation.attendanceText
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -353,6 +361,86 @@ class StaffPushTest {
         assertNull(decidableRequestId("attendance.decision", "/notifications?attendance=correction_decided&request=r-7"))
         assertNull(decidableRequestId("attendance.reminder", "/notifications?attendance=start_reminder"))
         assertNull(decidableRequestId(null, null))
+    }
+
+    // ---------------------------------------------------------------- feature 34: leave and permission
+
+    /** The decision she cares about is her own: a leave or a permission opens "طلباتي", where the reason and Cancel are. */
+    @Test fun `a decision on a leave or a permission opens her requests, not her record`() = runTest {
+        val navigator = PushNavigator(router(staffThreads = emptyList()), ParentGate(elapsed = { 0L }), signedIn = { true })
+        listOf(AttendanceLink.DECIDED_LEAVE, AttendanceLink.DECIDED_PERMISSION).forEach { type ->
+            val link = "/notifications?attendance=$type&request=r-3&decision=rejected&date=2026-10-20"
+            assertEquals(
+                PushNavigator.Step.Staff(Routes.StaffMyRequests),
+                navigator.follow(NotificationTap("attendance.decision", link = link, outside = true)),
+                type,
+            )
+        }
+        // A correction's decision is unchanged: the corrected day is on her record.
+        assertEquals(
+            PushNavigator.Step.Staff(Routes.StaffMyRecord),
+            navigator.follow(
+                NotificationTap(
+                    "attendance.decision",
+                    link = "/notifications?attendance=${AttendanceLink.DECIDED_CORRECTION}&request=r-1&decision=approved",
+                    outside = true,
+                ),
+            ),
+        )
+    }
+
+    /** A leave or a permission to decide keeps feature 18's two buttons: only the link's type is new. */
+    @Test fun `a leave and a permission request carry Approve and Reject from the shade`() = runTest {
+        listOf(AttendanceLink.REQUEST_LEAVE, AttendanceLink.REQUEST_PERMISSION).forEach { type ->
+            assertEquals("r-8", decidableRequestId("attendance.request", "/notifications?attendance=$type&request=r-8"), type)
+        }
+        val navigator = PushNavigator(router(staffThreads = emptyList()), ParentGate(elapsed = { 0L }), signedIn = { true })
+        assertEquals(
+            PushNavigator.Step.Staff(Routes.StaffNotifications),
+            navigator.follow(
+                NotificationTap(
+                    "attendance.request",
+                    link = "/notifications?attendance=${AttendanceLink.REQUEST_LEAVE}&request=r-8&name=%D8%A3.+%D8%AE%D8%A7%D9%84%D8%AF&date=2026-10-20",
+                    outside = true,
+                ),
+            ),
+        )
+    }
+
+    /**
+     * Feature 34's push fallback. The shade's **Reject** posts no body, and the server answers 400 for a leave or a
+     * permission because a rejection needs a reason. The app has no in-app decide list, so that one case becomes its
+     * own outcome: the notification is replaced by "open to add a reason" and its tap carries the request's own link
+     * to her notifications, where the notice is. Approve from the shade is untouched.
+     */
+    @Test fun `a bare Reject the server refuses for want of a reason asks her to open the app`() {
+        val noReason = ApiException(ApiError(ApiError.BAD_REQUEST, "A rejection needs a reason."))
+        assertEquals(ShadeDecision.REASON_NEEDED, shadeDecision(approve = false, failure = noReason))
+        // Everything else is unchanged: a success is a decision, any other failure is a flat failure.
+        assertEquals(ShadeDecision.REJECTED, shadeDecision(approve = false, failure = null))
+        assertEquals(ShadeDecision.APPROVED, shadeDecision(approve = true, failure = null))
+        assertEquals(ShadeDecision.FAILED, shadeDecision(approve = true, failure = noReason))
+        assertEquals(ShadeDecision.FAILED, shadeDecision(approve = false, failure = ApiException(ApiError(ApiError.NETWORK, "offline"))))
+        assertEquals(ShadeDecision.FAILED, shadeDecision(approve = false, failure = IllegalStateException("no staff session")))
+    }
+
+    /** The four new link types read in her own language, from the link alone. */
+    @Test fun `the leave and permission notices are worded in both languages`() {
+        val request = "/notifications?attendance=${AttendanceLink.REQUEST_LEAVE}&request=r-1&name=Noor&date=2026-10-20"
+        val (_, body) = assertNotNull(attendanceText("attendance.request", request, StaffStrings.en))
+        assertEquals("Noor asks for leave on 2026-10-20", body)
+        val permission = "/notifications?attendance=${AttendanceLink.REQUEST_PERMISSION}&request=r-2&name=Noor&date=2026-10-20"
+        assertNotNull(attendanceText("attendance.request", permission, StaffStrings.ar)).let { (_, text) ->
+            assertTrue(text.contains("استئذان"), text)
+        }
+        listOf(AttendanceLink.DECIDED_LEAVE, AttendanceLink.DECIDED_PERMISSION).forEach { type ->
+            val rejected = "/notifications?attendance=$type&request=r-1&decision=rejected&date=2026-10-20"
+            assertEquals(
+                StaffStrings.en.attDecisionRejected.replace("{date}", "2026-10-20"),
+                assertNotNull(attendanceText("attendance.decision", rejected, StaffStrings.en)).second,
+                type,
+            )
+        }
     }
 
     // ---------------------------------------------------------------- the parent side's doubles, unchanged

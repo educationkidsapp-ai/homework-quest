@@ -102,6 +102,8 @@ class IsolationTest extends ApiTestSupport {
     @Autowired quest.server.chat.ClassChannelRepository classChannels;
     @Autowired quest.server.evaluations.EvaluationRoundRepository evaluationRounds;
     @Autowired quest.server.evaluations.ChildEvaluationRepository childEvaluations;
+    @Autowired quest.server.staffattendance.LeaveTypeRepository leaveTypes;
+    @Autowired quest.server.staffattendance.LeaveBalanceRepository leaveBalances;
     @Autowired quest.server.evaluations.EvaluationReminderRepository evaluationReminders;
     @Autowired quest.server.chat.ChannelReadRepository channelReads;
     @Autowired quest.server.structure.AcademyRepository academyRows;
@@ -1126,6 +1128,40 @@ class IsolationTest extends ApiTestSupport {
             evaluationReminders.deleteById("iso-evaluation-reminder-b");
             childEvaluations.deleteById("iso-evaluation-b");
             evaluationRounds.deleteById("iso-round-b");
+        }
+    }
+
+    /**
+     * Feature 34's two settings tables. Which kinds of leave a school offers, when it asks for a document and how
+     * many days a year each category gets are that school's own policy: a principal of A reads none of B's rows, and
+     * naming B's school id, type or category outright does not help her.
+     */
+    @Test void feature_34s_leave_settings_tables_stay_in_their_school() {
+        var type = new quest.server.staffattendance.Entities.LeaveTypeEntity();
+        type.setId("iso-leave-type-b"); type.setSchoolId(B); type.setLeaveType("SICK");
+        type.setEnabled(true); type.setDocumentAfterDays(3); type.setUpdatedAt(Instant.now());
+        leaveTypes.save(type);
+        var balance = new quest.server.staffattendance.Entities.LeaveBalanceEntity();
+        balance.setId("iso-leave-balance-b"); balance.setSchoolId(B); balance.setLeaveType("ANNUAL");
+        balance.setCategory("TEACHER"); balance.setYearlyDays(21); balance.setUpdatedAt(Instant.now());
+        leaveBalances.save(balance);
+        try {
+            tenant.set("MANAGERIAL", A, null);
+            assertThat(leaveTypes.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(leaveTypes.findBySchoolIdOrderByLeaveTypeAsc(B)).as("nor by naming B outright").isEmpty();
+            assertThat(leaveTypes.findOneBySchoolIdAndLeaveType(B, "SICK")).isEmpty();
+            assertThat(leaveBalances.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(leaveBalances.findBySchoolIdOrderByLeaveTypeAscCategoryAsc(B)).isEmpty();
+            assertThat(leaveBalances.findOneBySchoolIdAndLeaveTypeAndCategory(B, "ANNUAL", "TEACHER")).isEmpty();
+            tenant.set("MANAGERIAL", B, null);
+            assertThat(leaveTypes.findOneBySchoolIdAndLeaveType(B, "SICK"))
+                    .map(quest.server.staffattendance.Entities.LeaveTypeEntity::getDocumentAfterDays).contains(3);
+            assertThat(leaveBalances.findOneBySchoolIdAndLeaveTypeAndCategory(B, "ANNUAL", "TEACHER"))
+                    .map(quest.server.staffattendance.Entities.LeaveBalanceEntity::getYearlyDays).contains(21);
+        } finally {
+            tenant.clear();
+            leaveBalances.deleteById("iso-leave-balance-b");
+            leaveTypes.deleteById("iso-leave-type-b");
         }
     }
 

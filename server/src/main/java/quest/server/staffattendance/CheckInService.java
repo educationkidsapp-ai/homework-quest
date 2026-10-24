@@ -63,6 +63,8 @@ public class CheckInService {
     /** `CheckInDay.status`, which feature 16 will reuse for its alerts. */
     static final String ON_TIME = "ON_TIME", LATE = "LATE", ABSENT = "ABSENT", DAY_OFF = "DAY_OFF",
             HOLIDAY = "HOLIDAY", UPCOMING = "UPCOMING";
+    /** Feature 34: a day of approved leave, which is never {@link #ABSENT}. */
+    static final String ON_LEAVE = "ON_LEAVE";
     private static final DateTimeFormatter HH_MM = DateTimeFormatter.ofPattern("HH:mm");
     private static final DateTimeFormatter YYYY_MM = DateTimeFormatter.ofPattern("yyyy-MM");
     /** The phone's claimed time is audit material; a long string is not worth a column's width. */
@@ -72,15 +74,18 @@ public class CheckInService {
     private final AttendanceDeviceService devices; private final AttendanceSettingsService settings;
     private final ScheduleResolver schedules; private final StaffAttendanceProfileRepository profiles;
     private final AttendanceStaff staff; private final TenantContext tenant; private final SchoolCalendar calendar;
-    private final FeatureFlags flags; private final RemoteDayService remoteDays; private final Clock clock;
+    private final FeatureFlags flags; private final RemoteDayService remoteDays; private final Excuses excuses;
+    private final Clock clock;
 
     public CheckInService(StaffCheckInRepository records, StaffCheckInAttemptRepository attempts,
                           AttendanceDeviceService devices, AttendanceSettingsService settings, ScheduleResolver schedules,
                           StaffAttendanceProfileRepository profiles, AttendanceStaff staff, TenantContext tenant,
-                          SchoolCalendar calendar, FeatureFlags flags, RemoteDayService remoteDays, Clock clock) {
+                          SchoolCalendar calendar, FeatureFlags flags, RemoteDayService remoteDays, Excuses excuses,
+                          Clock clock) {
         this.records = records; this.attempts = attempts; this.devices = devices; this.settings = settings;
         this.schedules = schedules; this.profiles = profiles; this.staff = staff; this.tenant = tenant;
-        this.calendar = calendar; this.flags = flags; this.remoteDays = remoteDays; this.clock = clock;
+        this.calendar = calendar; this.flags = flags; this.remoteDays = remoteDays; this.excuses = excuses;
+        this.clock = clock;
     }
 
     @Transactional
@@ -154,7 +159,7 @@ public class CheckInService {
         var employee = me(schoolId, caller);
         ZoneId zone = calendar.of(schoolId).zone();
         LocalDate day = LocalDate.ofInstant(Instant.now(clock), zone);
-        var expected = schedules.expected(schoolId, category(schoolId, employee), day);
+        var expected = schedules.expected(schoolId, category(schoolId, employee), day, employee.kind(), employee.id());
         var row = records.findOneBySchoolIdAndStaffKindAndStaffIdAndDay(schoolId, employee.kind(), employee.id(), day).orElse(null);
         return new CheckInToday(day.toString(), time(row == null ? null : row.getCheckInAt(), zone),
                 time(row == null ? null : row.getCheckOutAt(), zone),
@@ -191,9 +196,13 @@ public class CheckInService {
                 schoolId, employee.kind(), employee.id(), ym.atDay(1), ym.atEndOfMonth()))
             byDay.put(row.getDay(), row);
 
+        // Feature 34: the month's approved leave and permissions in one query, then applied day by day.
+        var excused = excuses.between(schoolId, employee.kind(), employee.id(), ym.atDay(1), ym.atEndOfMonth());
+
         var days = new ArrayList<CheckInDay>(ym.lengthOfMonth());
         for (LocalDate date = ym.atDay(1); !date.isAfter(ym.atEndOfMonth()); date = date.plusDays(1)) {
-            var expected = schedules.expected(schoolId, category, date);
+            var expected = ScheduleResolver.excused(schedules.expected(schoolId, category, date),
+                    excused.getOrDefault(date, Excuses.DayExcuse.NONE));
             var row = byDay.get(date);
             Integer late = row == null ? null : lateness(expected, grace, row.getCheckInAt(), zone);
             days.add(new CheckInDay(date.toString(), time(row == null ? null : row.getCheckInAt(), zone),
@@ -209,6 +218,7 @@ public class CheckInService {
         return switch (expected.kind()) {
             case HOLIDAY -> HOLIDAY;
             case DAY_OFF -> DAY_OFF;
+            case LEAVE -> ON_LEAVE;                                                  // feature 34: never ABSENT
             case WORK -> date.isBefore(today) ? ABSENT : UPCOMING;
         };
     }
@@ -216,7 +226,8 @@ public class CheckInService {
     // ---------------------------------------------------------------- lateness
 
     private Integer lateMinutes(String schoolId, AttendanceStaff.Employee employee, LocalDate day, Instant at, ZoneId zone) {
-        return lateness(schedules.expected(schoolId, category(schoolId, employee), day), settings.rules(schoolId).graceMinutes(), at, zone);
+        return lateness(schedules.expected(schoolId, category(schoolId, employee), day, employee.kind(), employee.id()),
+                settings.rules(schoolId).graceMinutes(), at, zone);
     }
 
     /**

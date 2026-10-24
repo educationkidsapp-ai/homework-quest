@@ -52,6 +52,7 @@ in its header.
 | Teaching material tracking | `31-teaching-material-tracking.md` | 14, 17, 20 | Done |
 | A child's team and the class channel | `32-child-team-class-channel.md` | 19, 20, 29 | Done |
 | Teacher evaluation of a child | `33-teacher-evaluation-of-child.md` | 31, 32 | Done |
+| School structure builder | `36-school-structure-builder.md` | 06, 14, 03, 20 | Done |
 
 Feature 24 comes first in substance: 25–30 all call it. Branches merge in Flyway order, lowest migration first.
 
@@ -131,7 +132,8 @@ At the end, set the spec's Status line to "Done" and list anything you could not
 
 ## Still without a spec
 
-Leave and permission requests, automatic substitution, school structure with both curricula, calendar and bell
-times, import from Excel, automatic admin letters, and the rest of the idea bank.
+Automatic substitution, calendar and bell times, import from Excel, automatic admin letters, and the rest of the
+idea bank. Leave and permission requests became feature 34, and school structure with both curricula became feature
+36 — the academies are the two existing curriculum keys, because both are closed enums in the shared contract.
 
 The parent translator left this list: it is feature 29, the parent language bridge, merged as #235.

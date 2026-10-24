@@ -1,9 +1,9 @@
 import type {
-  AcademyNode,
   AcademySubject,
   AcademyTerm,
-  ClassNode,
   GradingBand,
+  StructureAcademyNode,
+  StructureClassNode,
   StructureTreeView,
 } from '../../api';
 import { academyKeyOf } from '../../core/structure/academy-naming';
@@ -44,7 +44,7 @@ export function sameNode(a: SelectedNode | null, b: SelectedNode | null): boolea
   return a !== null && b !== null && nodeKey(a) === nodeKey(b);
 }
 
-export function academyOf(view: StructureTreeView, academyKey: string): AcademyNode | null {
+export function academyOf(view: StructureTreeView, academyKey: string): StructureAcademyNode | null {
   const key = academyKeyOf(academyKey);
   return (view.academies ?? []).find((one) => academyKeyOf(one.academy?.academyKey) === key) ?? null;
 }
@@ -53,7 +53,7 @@ export function academyOf(view: StructureTreeView, academyKey: string): AcademyN
 export function classOf(
   view: StructureTreeView,
   classId: string,
-): { readonly academyKey: string; readonly node: ClassNode } | null {
+): { readonly academyKey: string; readonly node: StructureClassNode } | null {
   for (const academy of view.academies ?? []) {
     for (const grade of academy.grades ?? []) {
       const node = (grade.classes ?? []).find((one) => one.classId === classId);
@@ -64,7 +64,7 @@ export function classOf(
 }
 
 /** Every class of the tree, newest-first order left as the server gave it. */
-export function allClasses(view: StructureTreeView): readonly ClassNode[] {
+export function allClasses(view: StructureTreeView): readonly StructureClassNode[] {
   return (view.academies ?? []).flatMap((academy) =>
     (academy.grades ?? []).flatMap((grade) => grade.classes ?? []),
   );

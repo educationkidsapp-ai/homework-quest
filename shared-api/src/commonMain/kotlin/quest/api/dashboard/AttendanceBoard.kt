@@ -22,6 +22,12 @@ object BoardStatus {
     const val UPCOMING = "UPCOMING"
     const val OFF = "OFF"
     const val HOLIDAY = "HOLIDAY"
+    /**
+     * Feature 34: she is on approved leave that day. With no check-in it wins over every other status — she is never
+     * `NOT_ARRIVED` or `ABSENT` on it and no attendance alert is sent about it — and the board and the report show
+     * "إجازة / On leave".
+     */
+    const val ON_LEAVE = "ON_LEAVE"
 }
 
 /** How wide the caller's view is: the whole school (Admin), her academy and reports (manager), her reports only. */
@@ -111,8 +117,92 @@ data class ReportRow(
     val earlyLeaveMinutes: Int,
     val missingCheckOuts: Int,
     val corrections: Int,
+    /** Feature 34: the days of approved leave inside the month, counted as school days of her own schedule. */
+    val leaveDays: Int = 0,
+    /** Feature 34: how many approved permissions fell inside the month. */
+    val permissionCount: Int = 0,
+    /** Feature 34: the minutes of lateness and early leaving an approved permission excused. */
+    val excusedMinutes: Int = 0,
 )
 
 /** `GET /staff-attendance/report?month=yyyy-MM`; `.csv` and `.xlsx` are the same rows as files. */
 @Serializable
 data class AttendanceReport(val month: String, val scope: String, val rows: List<ReportRow>)
+
+// ---------------------------------------------------------------- feature 34: the two leave reports
+
+/**
+ * Feature 34, one employee's balance of one leave type for the year. [allowanceDays] and [remainingDays] are null for
+ * a type with no balance.
+ */
+@Serializable
+data class LeaveBalanceCell(
+    val type: String,
+    val allowanceDays: Int? = null,
+    val usedDays: Int = 0,
+    val remainingDays: Int? = null,
+)
+
+/** Feature 34, one row of the balance report: one employee and her balance of every enabled leave type. */
+@Serializable
+data class LeaveBalanceRow(
+    val kind: String,
+    val id: String,
+    val fullName: String,
+    val category: String,
+    val academies: List<String> = emptyList(),
+    val balances: List<LeaveBalanceCell> = emptyList(),
+)
+
+/**
+ * `GET /staff-attendance/leave/balances?year=`; `.csv` and `.xlsx` are the same rows as files. [types] is the order
+ * the cells come in, so a file's columns and a table's are the same.
+ */
+@Serializable
+data class LeaveBalanceReport(
+    val year: Int,
+    val scope: String,
+    val types: List<String> = emptyList(),
+    val rows: List<LeaveBalanceRow> = emptyList(),
+)
+
+/**
+ * Feature 34, one row of the monthly requests report: every request of the month with its employee, type, dates or
+ * times, days or minutes, status and decider. [date] / [toDate] are `yyyy-MM-dd`, [fromTime] / [toTime] `HH:mm`.
+ */
+@Serializable
+data class LeaveRequestRow(
+    val id: String,
+    val kind: String,
+    val staffId: String,
+    val fullName: String,
+    val category: String,
+    val type: String,
+    val leaveType: String? = null,
+    val date: String,
+    val toDate: String? = null,
+    val fromTime: String? = null,
+    val toTime: String? = null,
+    val days: Int? = null,
+    val minutes: Int? = null,
+    val status: String,
+    val stage: String? = null,
+    val reason: String,
+    val rejectReason: String? = null,
+    val decidedBy: String? = null,
+    val decidedOn: String? = null,
+)
+
+/** `GET /staff-attendance/leave/requests?month=yyyy-MM`; `.csv` and `.xlsx` are the same rows as files. */
+@Serializable
+data class LeaveRequestReport(val month: String, val scope: String, val rows: List<LeaveRequestRow> = emptyList())
+
+// ---------------------------------------------------------------- feature 34: the Admin's Leave settings
+
+/** Feature 34, the Admin's row per leave type: whether the school offers it and when it needs a document. */
+@Serializable
+data class LeaveTypeSetting(val type: String, val enabled: Boolean = true, val documentAfterDays: Int? = null)
+
+/** Feature 34, the Admin's yearly allowance of one leave type for one staff category, in days. */
+@Serializable
+data class LeaveBalanceSetting(val type: String, val category: String, val yearlyDays: Int)

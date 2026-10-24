@@ -235,6 +235,16 @@
            absent while `teachingMaterials` is off (the card asks the flag itself). -->
       <hq-material-deadline-card />
 
+      <!-- Feature 34: leave types, balances, the approval chain and the permission limit. Fields
+           of this page's own settings document, so the card edits the draft and the page's one
+           Save sends them; absent while `staffLeave` is off (the card asks the flag itself). -->
+      <hq-leave-card
+        [leave]="draft().leave"
+        [disabled]="!canWrite()"
+        [errors]="errors()"
+        (leaveChange)="set('leave', $event)"
+      />
+
       <!-- Rules -->
       <hq-card [title]="'admin.attendanceSettings.rules.title' | transloco">
         <div class="settings__fields">
