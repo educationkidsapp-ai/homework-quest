@@ -70,4 +70,6 @@ export const DEFAULT_FLAGS: Readonly<Record<string, boolean>> = {
   classChannel: true,
   // V56 (feature 33).
   childEvaluations: true,
+  // V57 (feature 34).
+  staffLeave: true,
 };

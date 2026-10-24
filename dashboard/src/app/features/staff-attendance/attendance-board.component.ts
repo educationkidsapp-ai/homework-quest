@@ -14,9 +14,17 @@ import {
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import { type Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
-import { type BoardRow, type EmployeeDay, type ReportRow, StaffAttendanceBoardApi } from '../../api';
+import {
+  type BoardRow,
+  type EmployeeDay,
+  type ReportRow,
+  StaffAttendanceBoardApi,
+  StaffLeaveApi,
+} from '../../api';
 import { saveFile } from '../../core/download/download';
+import { FLAGS, FlagService } from '../../core/flags/flag.service';
 import { activeLang } from '../../core/i18n/active-lang';
 import { PlatformService } from '../../core/platform/platform.service';
 import {
@@ -86,8 +94,10 @@ const CATEGORIES = ['TEACHER', 'ADMINISTRATIVE', 'WORKER'] as const;
 })
 export class AttendanceBoardComponent {
   private readonly api = inject(StaffAttendanceBoardApi);
+  private readonly leaveApi = inject(StaffLeaveApi);
   private readonly transloco = inject(TranslocoService);
   private readonly platform = inject(PlatformService);
+  private readonly flagService = inject(FlagService);
   private readonly lang = activeLang();
 
   readonly view = input<BoardView>('today');
@@ -235,10 +245,20 @@ export class AttendanceBoardComponent {
       number('earlyLeaveMinutes'),
       number('missingCheckOuts'),
       number('corrections'),
+      // Feature 34: excused rather than late or absent, which is what payroll reads.
+      number('leaveDays'),
+      number('permissionCount'),
+      number('excusedMinutes'),
     ];
   });
 
   protected readonly exporting = signal(false);
+
+  /** Feature 34's two reports; with `staffLeave` off their routes answer 404 and nothing is drawn. */
+  protected readonly leaveEnabled = computed(() => this.flagService.isOn(FLAGS.staffLeave));
+
+  /** The calendar year of the month on screen — the year a balance is counted in. */
+  protected readonly year = linkedSignal(() => this.month().slice(0, 4));
 
   protected exportCsv(): void {
     const month = this.month();
@@ -260,6 +280,43 @@ export class AttendanceBoardComponent {
       next: (sheet) => {
         this.exporting.set(false);
         saveFile(sheet, `staff-attendance-${month}.xlsx`, XLSX);
+      },
+      error: () => this.exporting.set(false),
+    });
+  }
+
+  // ---- feature 34: the leave reports --------------------------------------------------------
+
+  /**
+   * Balances by year and requests by month, each as CSV and as Excel, straight from the server:
+   * the file payroll opens is the one the server wrote, as the monthly report's two exports are.
+   */
+  protected exportLeaveBalances(sheet: boolean): void {
+    const year = this.year();
+    this.download(
+      sheet ? this.leaveApi.leaveBalancesXlsx(year) : this.leaveApi.leaveBalancesCsv(year),
+      `staff-leave-balances-${year}`,
+      sheet,
+    );
+  }
+
+  protected exportLeaveRequests(sheet: boolean): void {
+    const month = this.month();
+    this.download(
+      sheet ? this.leaveApi.leaveRequestsXlsx(month) : this.leaveApi.leaveRequestsCsv(month),
+      `staff-leave-requests-${month}`,
+      sheet,
+    );
+  }
+
+  private download(call: Observable<string>, name: string, sheet: boolean): void {
+    this.exporting.set(true);
+    call.subscribe({
+      next: (body) => {
+        this.exporting.set(false);
+        // Neither text nor JSON, so the generated client hands an `.xlsx` back as a blob.
+        if (sheet) saveFile(body, `${name}.xlsx`, XLSX);
+        else saveFile(withBom(body), `${name}.csv`, 'text/csv;charset=utf-8');
       },
       error: () => this.exporting.set(false),
     });

@@ -20,6 +20,7 @@ import quest.api.staff.AdminCorrection;
 import quest.api.staff.AttendanceRequestList;
 import quest.api.staff.AttendanceRequestView;
 import quest.api.staff.NewAttendanceRequest;
+import quest.api.staff.RejectRequest;
 import quest.server.auth.Principals;
 import quest.server.config.ApiException;
 import quest.server.config.Json;
@@ -64,7 +65,7 @@ public class AttendanceRequestsController {
     @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = NewAttendanceRequest.class)))
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = AttendanceRequestView.class)))
     public String createAttendanceRequest(@AuthenticationPrincipal Principals.User caller, @RequestBody String body) {
-        var request = decode(body, NewAttendanceRequest.Companion.serializer(), "Send {\"type\": \"REMOTE_DAY\"|\"CORRECTION\", \"date\": \"yyyy-MM-dd\", \"reason\": \"…\"}.");
+        var request = decode(body, NewAttendanceRequest.Companion.serializer(), "Send {\"type\": \"REMOTE_DAY\"|\"CORRECTION\"|\"LEAVE\"|\"PERMISSION\", \"date\": \"yyyy-MM-dd\", \"reason\": \"…\"}.");
         return json.encodeShared(requests.create(caller, request), AttendanceRequestView.Companion.serializer());
     }
 
@@ -81,8 +82,11 @@ public class AttendanceRequestsController {
     @PreAuthorize("@permit.has('attendance.requests.decide')")
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = AttendanceRequestList.class)))
     public String attendanceRequestsToDecide(@AuthenticationPrincipal Principals.User caller,
-                                             @RequestParam(required = false) String status) {
-        return json.encodeShared(requests.toDecide(caller, status), AttendanceRequestList.Companion.serializer());
+                                             @RequestParam(required = false) String status,
+                                             @RequestParam(required = false) String type,
+                                             @RequestParam(required = false) String staff,
+                                             @RequestParam(required = false) String month) {
+        return json.encodeShared(requests.toDecide(caller, status, type, staff, month), AttendanceRequestList.Companion.serializer());
     }
 
     @PostMapping(value = "/attendance/requests/{id}/approve", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -92,11 +96,22 @@ public class AttendanceRequestsController {
         return json.encodeShared(requests.approve(caller, id), AttendanceRequestView.Companion.serializer());
     }
 
+    /**
+     * Feature 34: the body is <strong>optional</strong> and carries the rejection's reason
+     * ({@link quest.api.staff.RejectRequest}). It is mandatory for a leave and a permission (400 without one) and
+     * ignored where feature 18 never asked for it — which is what keeps the released Android build's bare
+     * <strong>Reject</strong> button, which posts no body and no content type at all, working on a remote day and a
+     * correction. That is also why no `consumes` is declared here: declaring one would answer 415 to that button.
+     */
     @PostMapping(value = "/attendance/requests/{id}/reject", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@permit.has('attendance.requests.decide')")
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(required = false, content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = RejectRequest.class)))
     @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = AttendanceRequestView.class)))
-    public String rejectAttendanceRequest(@AuthenticationPrincipal Principals.User caller, @PathVariable String id) {
-        return json.encodeShared(requests.reject(caller, id), AttendanceRequestView.Companion.serializer());
+    public String rejectAttendanceRequest(@AuthenticationPrincipal Principals.User caller, @PathVariable String id,
+                                          @RequestBody(required = false) String body) {
+        String reason = body == null || body.isBlank() ? null
+                : decode(body, RejectRequest.Companion.serializer(), "Send {\"reason\": \"…\"}.").getReason();
+        return json.encodeShared(requests.reject(caller, id, reason), AttendanceRequestView.Companion.serializer());
     }
 
     // ---------------------------------------------------------------- the Admin

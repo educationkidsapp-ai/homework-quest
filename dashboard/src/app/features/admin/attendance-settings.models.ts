@@ -26,6 +26,19 @@ export const RADIUS_MIN = 50;
 export const RADIUS_MAX = 500;
 const MINUTES_MAX = 600;
 
+/** Feature 34: the five leave types, in the order the spec names them. */
+export const LEAVE_TYPES = ['ANNUAL', 'SICK', 'EMERGENCY', 'UNPAID', 'OTHER'] as const;
+export type LeaveType = (typeof LEAVE_TYPES)[number];
+
+/** Who decides: the direct manager alone, or the manager and then the Admin. */
+export const LEAVE_CHAINS = ['MANAGER', 'MANAGER_THEN_ADMIN'] as const;
+export type LeaveChain = (typeof LEAVE_CHAINS)[number];
+
+/** `AttendanceSettingsService`'s own bounds, so the card refuses what the server would. */
+export const PERMISSION_MAX_DEFAULT = 180;
+export const PERMISSION_MAX_LIMIT = 600;
+export const LEAVE_DAYS_MAX = 365;
+
 export interface ScheduleDraft {
   readonly category: Category;
   readonly weekdays: readonly string[];
@@ -34,6 +47,32 @@ export interface ScheduleDraft {
   readonly ramadanStart: string;
   readonly ramadanEnd: string;
 }
+
+/** One leave type as the Leave card edits it. An empty `documentAfterDays` is "no document rule". */
+export interface LeaveTypeDraft {
+  readonly type: LeaveType;
+  readonly enabled: boolean;
+  readonly documentAfterDays: string;
+}
+
+/**
+ * Feature 34's leave rules inside the page's one draft: the types, the yearly balance per type and
+ * category, the approval chain and the longest permission in a day.
+ *
+ * The balances are a flat map keyed `TYPE:CATEGORY` rather than a grid of rows, because that is
+ * what the grid of inputs writes into and what the PUT's list is built from. An empty string is
+ * **no balance** — the pair is left out of the request, which is how the server deletes it, and is
+ * how unpaid and other leave stay unlimited.
+ */
+export interface LeaveDraft {
+  readonly chain: LeaveChain;
+  readonly permissionMax: string;
+  readonly types: readonly LeaveTypeDraft[];
+  readonly balances: Readonly<Record<string, string>>;
+}
+
+/** The key one cell of the balances grid writes. */
+export const balanceKey = (type: string, category: string): string => `${type}:${category}`;
 
 export interface HolidayDraft {
   readonly name: string;
@@ -59,6 +98,7 @@ export interface SettingsDraft {
   readonly ramadanTo: string;
   readonly schedules: readonly ScheduleDraft[];
   readonly holidays: readonly HolidayDraft[];
+  readonly leave: LeaveDraft;
 }
 
 /** Translation keys under `admin.attendanceSettings.error.`, by field. */
@@ -69,6 +109,31 @@ const isCategory = (value: string | undefined): value is Category =>
 
 export const isNotifyPolicy = (value: string | undefined): value is NotifyPolicy =>
   (NOTIFY_POLICIES as readonly string[]).includes(value ?? '');
+
+export const isLeaveChain = (value: string | undefined): value is LeaveChain =>
+  (LEAVE_CHAINS as readonly string[]).includes(value ?? '');
+
+function leaveDraftOf(settings: AttendanceSettings): LeaveDraft {
+  const saved = settings.leaveTypes ?? [];
+  const balances: Record<string, string> = {};
+  for (const balance of settings.leaveBalances ?? [])
+    if (balance.type && balance.category && balance.yearlyDays != null)
+      balances[balanceKey(balance.type, balance.category)] = String(balance.yearlyDays);
+  return {
+    chain: isLeaveChain(settings.leaveChain) ? settings.leaveChain : 'MANAGER',
+    permissionMax: String(settings.permissionMaxMinutes ?? PERMISSION_MAX_DEFAULT),
+    // A type the school has never touched is offered — the server's own default.
+    types: LEAVE_TYPES.map((type) => {
+      const one = saved.find((setting) => setting.type === type);
+      return {
+        type,
+        enabled: one?.enabled ?? true,
+        documentAfterDays: one?.documentAfterDays == null ? '' : String(one.documentAfterDays),
+      };
+    }),
+    balances,
+  };
+}
 
 export function draftOf(settings: AttendanceSettings): SettingsDraft {
   const saved = settings.schedules ?? [];
@@ -101,6 +166,7 @@ export function draftOf(settings: AttendanceSettings): SettingsDraft {
       from: h.from ?? '',
       to: h.to ?? '',
     })),
+    leave: leaveDraftOf(settings),
   };
 }
 
@@ -150,6 +216,20 @@ export function errorsOf(draft: SettingsDraft): DraftErrors {
     if (ramadan && ramadanHours && !before(s.ramadanStart, s.ramadanEnd))
       errors[`ramadanHours.${i}`] = 'startBeforeEnd';
   });
+  const permissionMax = whole(draft.leave.permissionMax);
+  if (permissionMax === null || permissionMax < 1 || permissionMax > PERMISSION_MAX_LIMIT)
+    errors['leave.permissionMax'] = 'permissionMax';
+  draft.leave.types.forEach((type) => {
+    if (type.documentAfterDays === '') return;
+    const days = whole(type.documentAfterDays);
+    if (days === null || days < 0 || days > LEAVE_DAYS_MAX) errors[`leave.document.${type.type}`] = 'leaveDays';
+  });
+  for (const [key, value] of Object.entries(draft.leave.balances)) {
+    if (value.trim() === '') continue;
+    const days = whole(value);
+    if (days === null || days < 0 || days > LEAVE_DAYS_MAX) errors[`leave.balance.${key}`] = 'leaveDays';
+  }
+
   draft.holidays.forEach((h, i) => {
     if (h.name.trim() === '' || h.name.trim().length > 80) errors[`holidayName.${i}`] = 'holidayName';
     if (h.from === '' || h.to === '' || h.to < h.from) errors[`holidayDates.${i}`] = 'holidayDates';
@@ -185,6 +265,23 @@ export function requestOf(draft: SettingsDraft): UpdateAttendanceSettingsRequest
         : {}),
     })),
     holidays: draft.holidays.map((h) => ({ name: h.name.trim(), from: h.from, to: h.to })),
+    leaveChain: draft.leave.chain,
+    permissionMaxMinutes: Number(draft.leave.permissionMax),
+    // All five, always: a type the request leaves out keeps what it had.
+    leaveTypes: draft.leave.types.map((type) => ({
+      type: type.type,
+      enabled: type.enabled,
+      ...(type.documentAfterDays.trim() === ''
+        ? {}
+        : { documentAfterDays: Number(type.documentAfterDays) }),
+    })),
+    // Only the pairs that have a balance: a pair left out is the one the server deletes.
+    leaveBalances: LEAVE_TYPES.flatMap((type) =>
+      CATEGORIES.flatMap((category) => {
+        const value = (draft.leave.balances[balanceKey(type, category)] ?? '').trim();
+        return value === '' ? [] : [{ type, category, yearlyDays: Number(value) }];
+      }),
+    ),
   };
 }
 

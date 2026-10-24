@@ -232,6 +232,19 @@ object AttendanceLink {
     const val APPROVED = "approved"
     const val REJECTED = "rejected"
 
+    /**
+     * Feature 34: leave and permission reuse `attendance.request` and `attendance.decision` with these four types and
+     * the same [REQUEST] parameter, which is all `PushMessages.decidableRequestId` reads — so the Android push's
+     * **Approve** and **Reject** buttons work on a leave without a new app build. [STAGE] says which step of the
+     * school's chain a pending request waits for (`quest.api.staff.RequestStage`), so the Admin's notice at the
+     * second step is not collapsed onto the manager's.
+     */
+    const val REQUEST_LEAVE = "leave_request"
+    const val REQUEST_PERMISSION = "permission_request"
+    const val DECIDED_LEAVE = "leave_decided"
+    const val DECIDED_PERMISSION = "permission_decided"
+    const val STAGE = "stage"
+
     /** The query parameters of [link], decoded; empty when it has none. */
     fun params(link: String?): Map<String, String> {
         val query = link?.substringAfter('?', "") ?: return emptyMap()

@@ -4,12 +4,33 @@
 >
   <div class="requests" data-hq-attendance-requests>
     <div class="requests__bar">
-      <hq-tabs
-        variant="chips"
-        [tabs]="tabs()"
-        [(selected)]="which"
-        [label]="'attendanceRequests.tab.label' | transloco"
-      />
+      <div class="requests__filters" data-hq-filters>
+        <hq-select
+          [label]="'attendanceRequests.filter.status' | transloco"
+          [options]="statusOptions()"
+          [value]="filter().status"
+          (valueChange)="setFilter({ status: $event })"
+        />
+        <hq-select
+          [label]="'attendanceRequests.filter.type' | transloco"
+          [options]="typeOptions()"
+          [value]="filter().type"
+          (valueChange)="setFilter({ type: $event })"
+        />
+        <hq-select
+          [label]="'attendanceRequests.filter.staff' | transloco"
+          [options]="employeeOptions()"
+          [value]="filter().staff"
+          (valueChange)="setFilter({ staff: $event })"
+        />
+        <hq-input
+          type="month"
+          [label]="'attendanceRequests.filter.month' | transloco"
+          [hint]="'attendanceRequests.filter.monthHint' | transloco"
+          [value]="filter().month"
+          (valueChange)="setFilter({ month: $event })"
+        />
+      </div>
       @if (canCorrect()) {
         <hq-button variant="primary" (pressed)="openAdd()">
           {{ 'attendanceRequests.add.open' | transloco }}
@@ -31,7 +52,7 @@
           [rows]="rows()"
           [columns]="columns()"
           [cellTemplate]="cell"
-          [overflowTemplate]="which() === 'pending' ? decide : null"
+          [overflowTemplate]="decide"
           [trackBy]="trackRequest"
           [isSelected]="isHighlighted"
           [label]="'attendanceRequests.title' | transloco"
@@ -39,7 +60,7 @@
           <hq-empty-state
             table-empty
             [message]="
-              (which() === 'pending' ? 'attendanceRequests.empty.pending' : 'attendanceRequests.empty.decided')
+              (pendingOnly() ? 'attendanceRequests.empty.pending' : 'attendanceRequests.empty.decided')
                 | transloco
             "
           />
@@ -58,16 +79,21 @@
         {{ typeLabel(row) }}
       }
       @case ('date') {
-        {{ row.date }}
+        {{ dateLabel(row) }}
       }
       @case ('times') {
-        {{ timesLabel(row.checkIn, row.checkOut) }}
+        {{ amountLabel(row) }}
         @if (originalLabel(row); as was) {
           <span class="hq-muted requests__asked">{{ was }}</span>
         }
       }
       @case ('reason') {
         {{ row.reason }}
+        @if (row.rejectReason) {
+          <span class="hq-muted requests__asked">
+            {{ 'attendanceRequests.rejectedBecause' | transloco: { reason: row.rejectReason } }}
+          </span>
+        }
         @if (row.attachment) {
           <hq-button
             variant="quiet"
@@ -81,6 +107,11 @@
       }
       @case ('status') {
         {{ statusLabel(row) }}
+        @if (isWaitingForAdmin(row)) {
+          <span class="requests__stage" data-hq-stage>
+            {{ 'attendanceRequests.waitingForAdmin' | transloco }}
+          </span>
+        }
         @if (decidedLabel(row); as by) {
           <span class="hq-muted requests__asked">{{ by }}</span>
         }
@@ -89,20 +120,45 @@
   </ng-template>
 
   <ng-template #decide let-row>
-    <div class="requests__decide">
-      <hq-button
-        variant="primary"
-        [loading]="deciding() === row.id"
-        [disabled]="deciding() !== null"
-        (pressed)="approve(row)"
-      >
-        {{ 'attendanceRequests.approve' | transloco }}
-      </hq-button>
-      <hq-button variant="quiet" [disabled]="deciding() !== null" (pressed)="reject(row)">
-        {{ 'attendanceRequests.reject' | transloco }}
-      </hq-button>
-    </div>
+    @if (row.status === 'PENDING') {
+      <div class="requests__decide">
+        <hq-button
+          variant="primary"
+          [loading]="deciding() === row.id"
+          [disabled]="deciding() !== null"
+          (pressed)="approve(row)"
+        >
+          {{ 'attendanceRequests.approve' | transloco }}
+        </hq-button>
+        <hq-button variant="quiet" [disabled]="deciding() !== null" (pressed)="openReject(row)">
+          {{ 'attendanceRequests.reject' | transloco }}
+        </hq-button>
+      </div>
+    }
   </ng-template>
+
+  <hq-dialog
+    [(open)]="rejectOpen"
+    [title]="'attendanceRequests.rejectDialog.title' | transloco"
+    [confirmLabel]="'attendanceRequests.rejectDialog.confirm' | transloco"
+    (confirmed)="confirmReject()"
+  >
+    <p class="hq-muted">
+      {{
+        (reasonRequired() ? 'attendanceRequests.rejectDialog.needed' : 'attendanceRequests.rejectDialog.optional')
+          | transloco: { name: rejecting()?.staffName ?? '' }
+      }}
+    </p>
+    <hq-textarea
+      [label]="'attendanceRequests.rejectDialog.reason' | transloco"
+      [required]="reasonRequired()"
+      [maxLength]="300"
+      [placeholder]="'attendanceRequests.rejectDialog.reasonPlaceholder' | transloco"
+      [error]="rejectError()"
+      [value]="rejectReason()"
+      (valueChange)="rejectReason.set($event)"
+    />
+  </hq-dialog>
 
   <hq-dialog
     [(open)]="addOpen"
@@ -114,7 +170,7 @@
     <hq-select
       [label]="'attendanceRequests.add.staff' | transloco"
       [required]="true"
-      [options]="staffOptions()"
+      [options]="addStaffOptions()"
       [value]="addStaff()"
       (valueChange)="addStaff.set($event)"
     />

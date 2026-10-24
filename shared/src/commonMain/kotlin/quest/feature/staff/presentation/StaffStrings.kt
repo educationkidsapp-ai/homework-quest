@@ -1,6 +1,9 @@
 package quest.feature.staff.presentation
 
 import androidx.compose.runtime.staticCompositionLocalOf
+import quest.api.staff.AttendanceRequestView
+import quest.api.staff.LeavePreview
+import quest.api.staff.LeaveTypeBalance
 
 /**
  * Feature 13: the staff side's own copy, in English and Arabic.
@@ -127,6 +130,46 @@ data class StaffStrings(
     val attDecisionApproved: String,
     val attDecisionRejected: String,
     val attRemoteDay: String,
+    // ---- feature 34: leave and permission requests
+    val requestLeave: String,
+    val requestPermission: String,
+    val myBalance: String,
+    val requestFromDate: String,
+    val requestToDate: String,
+    val requestFromTime: String,
+    val requestToTime: String,
+    val requestAttachRequired: String,
+    val permissionLimit: String,
+    val leaveTypeNames: Map<String, String>,
+    val stageNames: Map<String, String>,
+    val categoryNames: Map<String, String>,
+    val chainNames: Map<String, String>,
+    val leaveDaysLabel: String,
+    val permissionMinutesLabel: String,
+    val rejectionReason: String,
+    val cancelRequest: String,
+    val rejectNeedsReason: String,
+    val balanceYear: String,
+    val noBalance: String,
+    val allowanceUsed: String,
+    val remainingDays: String,
+    val noAllowance: String,
+    val documentAfterDays: String,
+    val previewCounting: String,
+    val previewNone: String,
+    val previewDays: String,
+    val previewAfter: String,
+    val previewUnlimited: String,
+    val previewDocument: String,
+    val requestRangeInvalid: String,
+    val requestDocumentNeeded: String,
+    val requestTimeRangeInvalid: String,
+    val requestPermissionTooLong: String,
+    val requestOverBalance: String,
+    val requestOverlaps: String,
+    val requestCancelled: String,
+    val attRequestLeave: String,
+    val attRequestPermission: String,
     // ---- feature 19: chat office hours
     val afterHoursSection: String,
     val afterHoursLabel: String,
@@ -187,6 +230,43 @@ data class StaffStrings(
 
     /** Feature 18's wire words in her language; an unknown one is shown as it came. */
     fun correctionKindName(wire: String): String = correctionKindNames[wire.uppercase()] ?: wire
+
+    /** Feature 34's wire words, the same way: a type, a step of the chain, her category and the school's chain. */
+    fun leaveTypeName(wire: String): String = leaveTypeNames[wire.uppercase()] ?: wire
+    fun stageName(wire: String): String = stageNames[wire.uppercase()] ?: wire
+    fun categoryName(wire: String): String = categoryNames[wire.uppercase()] ?: wire
+    fun chainName(wire: String): String = chainNames[wire.uppercase()] ?: wire
+
+    /**
+     * Feature 34: which day or days a request is about — one date, a range for a leave, and the two times of a
+     * permission. Built here rather than in a row, so the separator and the order follow the language.
+     */
+    fun requestWhen(request: AttendanceRequestView): String = when {
+        request.fromTime != null && request.toTime != null -> "${request.date} ${request.fromTime}–${request.toTime}"
+        request.toDate != null && request.toDate != request.date -> "${request.date} → ${request.toDate}"
+        else -> request.date
+    }
+
+    /** One row of "رصيدي / My balance": the allowance and what is used of it, or that the type has no balance. */
+    fun balanceLine(row: LeaveTypeBalance): String =
+        row.allowanceDays?.let {
+            allowanceUsed.replace("{allowance}", it.toString()).replace("{used}", row.usedDays.toString())
+        } ?: noAllowance
+
+    /**
+     * Feature 34: the line under the leave form — the school days the range uses, what that leaves of her balance
+     * and whether the document rule asks for a file. Nothing is counted here: every number is the server's own
+     * `GET /staff/attendance/leave/preview`.
+     */
+    fun previewLine(preview: LeavePreview?, previewing: Boolean): String {
+        if (previewing) return previewCounting
+        preview ?: return previewNone
+        return buildString {
+            append(previewDays.replace("{n}", preview.days.toString()))
+            append(preview.remainingAfter?.let { previewAfter.replace("{n}", it.toString()) } ?: previewUnlimited)
+            if (preview.documentRequired) append(previewDocument)
+        }
+    }
     fun requestTypeName(wire: String): String = requestTypeNames[wire.uppercase()] ?: wire
     fun requestStatusName(wire: String): String = requestStatusNames[wire.uppercase()] ?: wire
 
@@ -200,6 +280,13 @@ data class StaffStrings(
         RequestMessage.DateNotPast -> requestDateNotPast
         RequestMessage.DateNotFuture -> requestDateNotFuture
         RequestMessage.TimeNeeded -> requestTimeNeeded
+        RequestMessage.RangeInvalid -> requestRangeInvalid
+        RequestMessage.DocumentNeeded -> requestDocumentNeeded
+        RequestMessage.TimeRangeInvalid -> requestTimeRangeInvalid
+        RequestMessage.PermissionTooLong -> requestPermissionTooLong
+        RequestMessage.OverBalance -> requestOverBalance
+        RequestMessage.Overlaps -> requestOverlaps
+        RequestMessage.Cancelled -> requestCancelled
     }
 
     /**
@@ -312,7 +399,7 @@ data class StaffStrings(
             nextMonth = "Next month",
             statusNames = mapOf(
                 "ON_TIME" to "On time", "LATE" to "Late", "ABSENT" to "Absent", "DAY_OFF" to "Day off",
-                "HOLIDAY" to "Holiday", "UPCOMING" to "—",
+                "HOLIDAY" to "Holiday", "UPCOMING" to "—", "ON_LEAVE" to "On leave",
             ),
             modeNames = mapOf(
                 "onsite" to "On site", "remote" to "Remote", "device" to "Device", "correction" to "Correction",
@@ -343,8 +430,14 @@ data class StaffStrings(
                 "FORGOT_CHECK_IN" to "I forgot to check in", "FORGOT_CHECK_OUT" to "I forgot to check out",
                 "PHONE_PROBLEM" to "A problem with the phone",
             ),
-            requestTypeNames = mapOf("REMOTE_DAY" to "Remote day", "CORRECTION" to "Correction"),
-            requestStatusNames = mapOf("PENDING" to "Waiting for a decision", "APPROVED" to "Approved", "REJECTED" to "Rejected"),
+            requestTypeNames = mapOf(
+                "REMOTE_DAY" to "Remote day", "CORRECTION" to "Correction", "LEAVE" to "Leave",
+                "PERMISSION" to "Permission",
+            ),
+            requestStatusNames = mapOf(
+                "PENDING" to "Waiting for a decision", "APPROVED" to "Approved", "REJECTED" to "Rejected",
+                "CANCELLED" to "Withdrawn",
+            ),
             approve = "Approve",
             reject = "Reject",
             approved = "Approved",
@@ -363,6 +456,51 @@ data class StaffStrings(
             attDecisionApproved = "Your request for {date} was approved",
             attDecisionRejected = "Your request for {date} was rejected",
             attRemoteDay = "Remote working day: {date}",
+            requestLeave = "Request leave",
+            requestPermission = "Request permission",
+            myBalance = "My balance",
+            requestFromDate = "From (YYYY-MM-DD)",
+            requestToDate = "To (YYYY-MM-DD)",
+            requestFromTime = "From (HH:mm)",
+            requestToTime = "To (HH:mm)",
+            requestAttachRequired = "A photo or a PDF (required for this leave)",
+            permissionLimit = "A permission is at most {n} minutes.",
+            leaveTypeNames = mapOf(
+                "ANNUAL" to "Annual", "SICK" to "Sick", "EMERGENCY" to "Emergency", "UNPAID" to "Unpaid",
+                "OTHER" to "Other",
+            ),
+            stageNames = mapOf("MANAGER" to "With your manager", "ADMIN" to "With the administration"),
+            categoryNames = mapOf("TEACHER" to "Teacher", "ADMINISTRATIVE" to "Administrative", "WORKER" to "Staff member"),
+            chainNames = mapOf(
+                "MANAGER" to "Your manager decides.",
+                "MANAGER_THEN_ADMIN" to "Your manager decides, then the administration.",
+            ),
+            leaveDaysLabel = "{n} days",
+            permissionMinutesLabel = "{n} minutes",
+            rejectionReason = "Reason: {reason}",
+            cancelRequest = "Cancel the request",
+            rejectNeedsReason = "Open to add a reason",
+            balanceYear = "{year} · {category}",
+            noBalance = "Your school has not set a leave balance yet.",
+            allowanceUsed = "{allowance} days a year · {used} used",
+            remainingDays = "{n} left",
+            noAllowance = "No balance on this type",
+            documentAfterDays = "Longer than {n} days needs a document.",
+            previewCounting = "Counting the days…",
+            previewNone = "Choose the days to see what they use.",
+            previewDays = "{n} working days of yours",
+            previewAfter = " · {n} days left after this",
+            previewUnlimited = " · no balance on this type",
+            previewDocument = " · a document is required",
+            requestRangeInvalid = "The last day is before the first.",
+            requestDocumentNeeded = "This leave needs a photo or a PDF.",
+            requestTimeRangeInvalid = "The end has to be after the start.",
+            requestPermissionTooLong = "That is longer than your school allows in one day.",
+            requestOverBalance = "That is more than your balance for this type.",
+            requestOverlaps = "You already have a request for one of those days.",
+            requestCancelled = "Your request was withdrawn.",
+            attRequestLeave = "{name} asks for leave on {date}",
+            attRequestPermission = "{name} asks for a permission on {date}",
             afterHoursSection = "Alerts after hours",
             afterHoursLabel = "Receive alerts after hours",
             afterHoursHint = "Off: parent messages after hours arrive silently, with a summary in the morning.",
@@ -480,7 +618,7 @@ data class StaffStrings(
             nextMonth = "الشهر التالي",
             statusNames = mapOf(
                 "ON_TIME" to "في الوقت", "LATE" to "متأخر", "ABSENT" to "غائب", "DAY_OFF" to "يوم عطلة",
-                "HOLIDAY" to "عطلة رسمية", "UPCOMING" to "—",
+                "HOLIDAY" to "عطلة رسمية", "UPCOMING" to "—", "ON_LEAVE" to "إجازة",
             ),
             modeNames = mapOf(
                 "onsite" to "في المدرسة", "remote" to "عن بُعد", "device" to "جهاز", "correction" to "تصحيح",
@@ -512,10 +650,13 @@ data class StaffStrings(
                 "FORGOT_CHECK_OUT" to "نسيت تسجيل الانصراف",
                 "PHONE_PROBLEM" to "مشكلة في الجوال",
             ),
-            requestTypeNames = mapOf("REMOTE_DAY" to "يوم عن بعد", "CORRECTION" to "تصحيح"),
+            requestTypeNames = mapOf(
+                "REMOTE_DAY" to "يوم عن بعد", "CORRECTION" to "تصحيح", "LEAVE" to "إجازة",
+                "PERMISSION" to "استئذان",
+            ),
             requestStatusNames = mapOf(
                 "PENDING" to "بانتظار القرار", "APPROVED" to "تمت الموافقة",
-                "REJECTED" to "مرفوض",
+                "REJECTED" to "مرفوض", "CANCELLED" to "ملغى",
             ),
             approve = "موافقة",
             reject = "رفض",
@@ -535,6 +676,51 @@ data class StaffStrings(
             attDecisionApproved = "تمت الموافقة على طلبك ليوم {date}",
             attDecisionRejected = "تم رفض طلبك ليوم {date}",
             attRemoteDay = "يوم عمل عن بعد: {date}",
+            requestLeave = "طلب إجازة",
+            requestPermission = "طلب استئذان",
+            myBalance = "رصيدي",
+            requestFromDate = "من (سنة-شهر-يوم)",
+            requestToDate = "إلى (سنة-شهر-يوم)",
+            requestFromTime = "من (HH:mm)",
+            requestToTime = "إلى (HH:mm)",
+            requestAttachRequired = "صورة أو ملف PDF (مطلوب لهذه الإجازة)",
+            permissionLimit = "مدة الاستئذان لا تزيد على {n} دقيقة.",
+            leaveTypeNames = mapOf(
+                "ANNUAL" to "سنوية", "SICK" to "مرضية", "EMERGENCY" to "اضطرارية", "UNPAID" to "بدون راتب",
+                "OTHER" to "أخرى",
+            ),
+            stageNames = mapOf("MANAGER" to "عند مديرك", "ADMIN" to "عند الإدارة"),
+            categoryNames = mapOf("TEACHER" to "معلّم", "ADMINISTRATIVE" to "إداري", "WORKER" to "موظف"),
+            chainNames = mapOf(
+                "MANAGER" to "القرار لمديرك المباشر.",
+                "MANAGER_THEN_ADMIN" to "القرار لمديرك المباشر ثم الإدارة.",
+            ),
+            leaveDaysLabel = "{n} يوم",
+            permissionMinutesLabel = "{n} دقيقة",
+            rejectionReason = "السبب: {reason}",
+            cancelRequest = "إلغاء الطلب",
+            rejectNeedsReason = "افتح التطبيق لإضافة سبب الرفض",
+            balanceYear = "{year} · {category}",
+            noBalance = "لم تحدّد مدرستك أرصدة الإجازات بعد.",
+            allowanceUsed = "{allowance} يوم في السنة · استُخدم {used}",
+            remainingDays = "المتبقي {n}",
+            noAllowance = "لا رصيد لهذا النوع",
+            documentAfterDays = "ما زاد على {n} يوم يحتاج مستندًا.",
+            previewCounting = "جارٍ حساب الأيام…",
+            previewNone = "اختر الأيام لمعرفة ما تستهلكه.",
+            previewDays = "{n} من أيام عملك",
+            previewAfter = " · يتبقى {n} يوم بعدها",
+            previewUnlimited = " · لا رصيد لهذا النوع",
+            previewDocument = " · المستند مطلوب",
+            requestRangeInvalid = "آخر يوم قبل أول يوم.",
+            requestDocumentNeeded = "هذه الإجازة تحتاج صورة أو ملف PDF.",
+            requestTimeRangeInvalid = "وقت النهاية يجب أن يكون بعد وقت البداية.",
+            requestPermissionTooLong = "المدة أطول من المسموح في اليوم.",
+            requestOverBalance = "المدة أكثر من رصيدك لهذا النوع.",
+            requestOverlaps = "لديك طلب على أحد هذه الأيام.",
+            requestCancelled = "تم إلغاء طلبك.",
+            attRequestLeave = "{name} يطلب إجازة يوم {date}",
+            attRequestPermission = "{name} يطلب استئذانًا يوم {date}",
             afterHoursSection = "الإشعارات خارج الدوام",
             afterHoursLabel = "استقبال الإشعارات خارج الدوام",
             afterHoursHint = "عند الإيقاف: تصلك رسائل أولياء الأمور خارج الدوام بصمت، مع ملخص في الصباح.",

@@ -27,12 +27,14 @@ class AttendanceDays {
     }
 
     /**
-     * Feature 18: re-evaluate {@code date} from its record as it stands now and write the row. A holiday or a day off
-     * has no row and gets none. Answers the statuses, or {@link AttendanceRules.Day#NONE} on a day nothing is expected.
+     * Feature 18: re-evaluate {@code date} from its record as it stands now and write the row. A holiday, a day off
+     * or — feature 34 — a day of approved leave has no row and gets none, which is also how approving a leave for a
+     * day that was already recorded clears the late or absent it carried. Answers the statuses, or
+     * {@link AttendanceRules.Day#NONE} on a day nothing is expected.
      */
     AttendanceRules.Day recompute(String schoolId, AttendanceStaff.Employee employee, LocalDate date, Instant now) {
-        var expected = schedules.expected(schoolId, category(schoolId, employee), date);
-        if (expected.kind() != ScheduleResolver.Kind.WORK) return AttendanceRules.Day.NONE;
+        var expected = schedules.expected(schoolId, category(schoolId, employee), date, employee.kind(), employee.id());
+        if (expected.kind() != ScheduleResolver.Kind.WORK) { clear(schoolId, employee, date); return AttendanceRules.Day.NONE; }
         var record = checkIns.findOneBySchoolIdAndStaffKindAndStaffIdAndDay(schoolId, employee.kind(), employee.id(), date).orElse(null);
         var day = AttendanceRules.evaluate(expected, settings.alerts(schoolId).thresholds(), date, calendar.of(schoolId).zone(),
                 record == null ? null : record.getCheckInAt(), record == null ? null : record.getCheckOutAt(), now);
@@ -45,7 +47,7 @@ class AttendanceDays {
         var row = days.findOneBySchoolIdAndStaffKindAndStaffIdAndDay(schoolId, employee.kind(), employee.id(), date).orElse(null);
         if (row != null && Objects.equals(row.getLateMinutes(), day.lateMinutes()) && row.isNotArrived() == day.notArrived()
                 && row.isAbsent() == day.absent() && Objects.equals(row.getEarlyLeaveMinutes(), day.earlyLeaveMinutes())
-                && row.isMissingCheckout() == day.missingCheckout()) return;
+                && row.isMissingCheckout() == day.missingCheckout() && row.getExcusedMinutes() == day.excusedMinutes()) return;
         if (row == null) {
             row = new StaffAttendanceDayEntity();
             row.setId(UUID.randomUUID().toString()); row.setSchoolId(schoolId);
@@ -53,8 +55,19 @@ class AttendanceDays {
         }
         row.setLateMinutes(day.lateMinutes()); row.setNotArrived(day.notArrived()); row.setAbsent(day.absent());
         row.setEarlyLeaveMinutes(day.earlyLeaveMinutes()); row.setMissingCheckout(day.missingCheckout());
+        row.setExcusedMinutes(day.excusedMinutes());                             // feature 34: a permission's minutes
         row.setUpdatedAt(now);
         days.save(row);
+    }
+
+    /**
+     * Feature 34: a day that stops expecting anything — approved leave, or a holiday the Admin has just declared —
+     * loses the row it had, so the late or the absent it carried is gone from feature 25's numbers as well as from
+     * the board, which re-evaluates on read. Nothing to delete is the normal case.
+     */
+    private void clear(String schoolId, AttendanceStaff.Employee employee, LocalDate date) {
+        days.findOneBySchoolIdAndStaffKindAndStaffIdAndDay(schoolId, employee.kind(), employee.id(), date)
+                .ifPresent(days::delete);
     }
 
     /** Her category: the one an Admin set on her profile (feature 14), or her role's default. */

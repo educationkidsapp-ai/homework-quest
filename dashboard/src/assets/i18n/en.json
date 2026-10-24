@@ -486,7 +486,9 @@
         "ramadanDates": "Enter both Ramadan dates, or neither.",
         "ramadanOrder": "The first Ramadan date must be on or before the last.",
         "holidayName": "Give the holiday a name (up to 80 characters).",
-        "holidayDates": "The first day must be on or before the last."
+        "holidayDates": "The first day must be on or before the last.",
+        "leaveDays": "Enter 0 to {{max}} days, or leave it empty.",
+        "permissionMax": "Enter 1 to {{limit}} minutes."
       },
       "materialDeadline": {
         "title": "Teaching material deadline",
@@ -498,6 +500,33 @@
         "remindHint": "A teacher with anything still missing is reminded once.",
         "remindError": "Between {{min}} and {{max}} hours.",
         "zone": "Read in the school's time zone ({{zone}})."
+      },
+      "leave": {
+        "title": "Leave",
+        "hint": "What your staff may ask for, how much of it a year, and who approves it.",
+        "types": "Leave types",
+        "type": {
+          "ANNUAL": "Annual",
+          "SICK": "Sick",
+          "EMERGENCY": "Emergency",
+          "UNPAID": "Unpaid",
+          "OTHER": "Other"
+        },
+        "documentHint": "Days. Empty means no document is ever needed.",
+        "noDocument": "No document",
+        "balances": "Yearly balance, in days",
+        "balancesHint": "Per type and staff category. Leave a box empty for no limit.",
+        "noBalance": "No limit",
+        "cell": "{{type}} leave, {{category}}",
+        "chain": "Who approves",
+        "chainHint": "A request for a past day always waits for the Admin.",
+        "permissionMax": "Longest permission in a day",
+        "permissionMaxHint": "Minutes. Three hours by default.",
+        "chainOption": {
+          "MANAGER": "The direct manager",
+          "MANAGER_THEN_ADMIN": "The direct manager, then the Admin"
+        },
+        "documentFor": "Document needed after, {{type}}"
       }
     },
     "attendanceFields": {
@@ -733,6 +762,10 @@
         "childEvaluations": {
           "name": "Child evaluations",
           "what": "Each teacher evaluates every child she teaches a few times a year, the leaders track and review it, and the parents read it in words."
+        },
+        "staffLeave": {
+          "name": "Leave and permission requests",
+          "what": "Staff ask for leave or a short permission from the app, their manager decides, and attendance counts those days as excused."
         }
       }
     }
@@ -820,8 +853,8 @@
     "noDays": "No register was kept in this range."
   },
   "attendanceRequests": {
-    "title": "Attendance requests",
-    "subtitle": "The remote days and corrections your people ask for.",
+    "title": "Requests",
+    "subtitle": "The leave, permissions, remote days and corrections your people ask for.",
     "loading": "Loading requests...",
     "tab": {
       "label": "Which requests",
@@ -838,7 +871,9 @@
     },
     "type": {
       "REMOTE_DAY": "Remote day",
-      "CORRECTION": "Correction"
+      "CORRECTION": "Correction",
+      "LEAVE": "Leave",
+      "PERMISSION": "Permission"
     },
     "kind": {
       "FORGOT_CHECK_IN": "Forgot to check in",
@@ -848,7 +883,8 @@
     "status": {
       "PENDING": "Pending",
       "APPROVED": "Approved",
-      "REJECTED": "Rejected"
+      "REJECTED": "Rejected",
+      "CANCELLED": "Cancelled"
     },
     "checkIn": "In {{time}}",
     "checkOut": "Out {{time}}",
@@ -878,6 +914,31 @@
       "reasonRequired": "A reason is required.",
       "save": "Save correction",
       "saved": "The correction was saved."
+    },
+    "filter": {
+      "status": "Status",
+      "type": "Request type",
+      "staff": "Employee",
+      "month": "Month",
+      "monthHint": "Every month unless you pick one.",
+      "anyStatus": "Any status",
+      "anyType": "Any kind",
+      "anyStaff": "Everyone"
+    },
+    "range": "{{from}} to {{to}}",
+    "days": "{{days}} days",
+    "window": "{{from}}–{{to}}",
+    "minutes": "{{minutes}} minutes",
+    "waitingForAdmin": "Waiting for the Admin",
+    "rejectedBecause": "Reason: {{reason}}",
+    "rejectDialog": {
+      "title": "Reject this request",
+      "needed": "{{name}} will read this reason, so it is required.",
+      "optional": "{{name}} will read this reason if you give one.",
+      "reason": "Reason for rejecting",
+      "reasonPlaceholder": "Why the request is refused",
+      "reasonRequired": "A reason is required.",
+      "confirm": "Reject the request"
     }
   },
   "band": {
@@ -1093,10 +1154,10 @@
       "released": "Released"
     },
     "level": {
-      "label": "Level",
       "1": "Level 1 — same as the book",
       "2": "Level 2 — think",
       "3": "Level 3 — challenge",
+      "label": "Level",
       "mixed": "Mixed — questions from all three",
       "hint": "One level only. Every child sits the same paper, with no hints and no numbers on screen."
     },
@@ -1927,7 +1988,7 @@
     "childrenParents": "Children & parents",
     "manager": "Manager",
     "attendanceSettings": "Attendance settings",
-    "attendanceRequests": "Attendance requests",
+    "attendanceRequests": "Requests",
     "floors": "Floors",
     "floorSupervisors": "Floor supervisors",
     "documents": "Document reader",
@@ -3181,7 +3242,8 @@
       "ABSENT": "Absent",
       "UPCOMING": "Not started yet",
       "OFF": "Day off",
-      "HOLIDAY": "Holiday"
+      "HOLIDAY": "Holiday",
+      "ON_LEAVE": "On leave"
     },
     "lateBy": "{{minutes}} min",
     "mode": {
@@ -3204,7 +3266,10 @@
       "absentDays": "Absent days",
       "earlyLeaveMinutes": "Early leave minutes",
       "missingCheckOuts": "Missing check-outs",
-      "corrections": "Corrections"
+      "corrections": "Corrections",
+      "leaveDays": "Leave days",
+      "permissionCount": "Permissions",
+      "excusedMinutes": "Excused minutes"
     },
     "day": {
       "title": "Employee's day",
@@ -3247,7 +3312,15 @@
       "DAY_OFF": "Day off",
       "HOLIDAY": "Holiday",
       "UPCOMING": "—",
-      "LEAVE": "Leave"
+      "LEAVE": "Leave",
+      "ON_LEAVE": "On leave"
+    },
+    "leave": {
+      "year": "Year",
+      "balancesCsv": "Balances CSV",
+      "balancesXlsx": "Balances Excel",
+      "requestsCsv": "Requests CSV",
+      "requestsXlsx": "Requests Excel"
     }
   },
   "floor": {

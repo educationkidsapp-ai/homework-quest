@@ -33,6 +33,8 @@ fun NavGraphBuilder.staffGraph(nav: NavHostController) {
             StaffHomeRoute(
                 onMessages = { nav.navigate(Routes.StaffMessages) },
                 onMyRecord = { nav.navigate(Routes.StaffMyRecord) },
+                onMyBalance = { nav.navigate(Routes.StaffMyBalance) },
+                onMyRequests = { nav.navigate(Routes.StaffMyRequests) },
                 onNotifications = { nav.navigate(Routes.StaffNotifications) },
                 onAccount = { nav.navigate(Routes.StaffAccount) },
                 onParentSide = { nav.toParentSide() },
@@ -79,6 +81,16 @@ fun NavGraphBuilder.staffGraph(nav: NavHostController) {
     composable<Routes.StaffMyRecord> {
         StaffGuard(nav) {
             StaffMyRecordRoute(onBack = { nav.popBackStack() })
+        }
+    }
+    composable<Routes.StaffMyBalance> {
+        StaffGuard(nav) {
+            StaffMyBalanceRoute(onBack = { nav.popBackStack() })
+        }
+    }
+    composable<Routes.StaffMyRequests> {
+        StaffGuard(nav) {
+            StaffMyRequestsRoute(onBack = { nav.popBackStack() })
         }
     }
     composable<Routes.StaffVoiceAnnouncement> {

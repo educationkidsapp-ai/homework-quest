@@ -1,10 +1,12 @@
 /* hq-flag: none (shell) — routed through `areaRoutes`, whose four `attendance-requests` rows
-   carry `FLAGS.staffAttendance`; the server's controller is behind the same key. */
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+   carry `FLAGS.staffAttendance`; the server's controller is behind the same key. Feature 34's
+   leave and permission rows ride on the same route and the same `attendance.requests.decide`, so
+   they are not gated again here: with `staffLeave` off the server simply never writes one. */
+import { ChangeDetectionStrategy, Component, computed, inject, linkedSignal, signal } from '@angular/core';
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
-import { forkJoin, map, of } from 'rxjs';
+import { type Observable, map, of } from 'rxjs';
 import {
   AttendanceRequestsApi,
   StaffAttendanceSettingsApi,
@@ -20,7 +22,6 @@ import { MediaService } from '../../core/media/media.service';
 import { PermissionService } from '../../core/permissions/permission.service';
 import {
   type SelectOption,
-  type Tab,
   type TableColumn,
   ButtonComponent,
   CardComponent,
@@ -31,20 +32,37 @@ import {
   SelectComponent,
   SkeletonComponent,
   TableComponent,
-  TabsComponent,
+  TextareaComponent,
 } from '../../ui';
-
-type Which = 'pending' | 'decided';
 
 /** The three kinds a correction can be, in the order the staff app offers them. */
 const CORRECTION_KINDS: readonly string[] = ['FORGOT_CHECK_IN', 'FORGOT_CHECK_OUT', 'PHONE_PROBLEM'];
 
+/** Every request type, in the order the filter offers them. */
+const TYPES: readonly string[] = ['LEAVE', 'PERMISSION', 'REMOTE_DAY', 'CORRECTION'];
+
+/** Every status a request can reach. `PENDING` is the one the screen opens on. */
+const STATUSES: readonly string[] = ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'];
+
+/** The two types a rejection must give a reason for (feature 34; the server answers 400 without). */
+const REASON_REQUIRED: readonly string[] = ['LEAVE', 'PERMISSION'];
+
 /** Octet-stream rather than a guess: the server's `type` is what the tab is pointed at. */
 const FALLBACK_TYPE = 'application/octet-stream';
 
+/** The four filters, as the one query the screen asks. */
+interface RequestFilter {
+  readonly status: string;
+  readonly type: string;
+  readonly staff: string;
+  readonly month: string;
+}
+
+const DEFAULT_FILTER: RequestFilter = { status: 'PENDING', type: '', staff: '', month: '' };
+
 /**
- * **Attendance requests** (feature 18, `docs/features/18-remote-days-corrections.md`) — the
- * remote days and the corrections the viewer's direct reports ask for, and her decision on each.
+ * **Requests** (feature 18, widened by feature 34) — the leave, permissions, remote days and
+ * corrections the viewer's direct reports ask for, and her decision on each.
  *
  * **One screen in four areas.** `GET /attendance/requests` is not namespaced by role: the server
  * answers every caller with the requests *she* decides — her direct reports, or all of them for
@@ -52,26 +70,32 @@ const FALLBACK_TYPE = 'application/octet-stream';
  * read the same route and see different rows. There is nothing to vary by role in the component
  * but the Admin's "Add correction", which is gated on `attendance.correction.write`.
  *
- * **Two tabs, three statuses.** Pending is the one that matters and is the tab she lands on;
- * Decided is the record, and it is the two decided statuses fetched together, newest decision
- * first, because "approved" and "rejected" are one question answered two ways.
+ * **Four filters, one list.** Feature 18's two tabs were a status filter with two settings; the
+ * screen now asks the server for a status (Pending by default, which is the tab she used to land
+ * on), a type, an employee and a month, and the list is sorted oldest-first while it is the
+ * pending one — the request that has waited longest is the one to answer — and newest-decision
+ * first once it is not.
  *
- * **No confirmation, and no toast.** Approving is not destructive and the spec's two-tap rule is
- * the point of the screen: the buttons disable while the request is in flight and the row moves
- * to Decided when the server has agreed. A refusal is a red band — `conflict` (409, somebody
- * decided it first) in her own words, everything else in the server's.
+ * **A rejection needs a reason** for a leave or a permission, so Reject opens a dialog rather
+ * than posting straight away. For a remote day or a correction the reason is optional, and the
+ * released Android build's bare Reject still posts none at all.
+ *
+ * **No confirmation for Approve, and no toast.** Approving is not destructive and the spec's
+ * two-tap rule is the point of the screen: the buttons disable while the request is in flight and
+ * the row leaves the list when the server has agreed. A refusal is a red band — `conflict` (409,
+ * somebody decided it first) in her own words, everything else in the server's.
  */
 @Component({
   selector: 'hq-attendance-requests-page',
   imports: [
     PageComponent,
     CardComponent,
-    TabsComponent,
     TableComponent,
     ButtonComponent,
     DialogComponent,
     InputComponent,
     SelectComponent,
+    TextareaComponent,
     EmptyStateComponent,
     SkeletonComponent,
     TranslocoPipe,
@@ -92,7 +116,7 @@ export class AttendanceRequestsPage {
   /** `attendance.correction.write` is the Admin's alone (`permissions.json`). */
   protected readonly canCorrect = computed(() => this.permissions.can('attendance.correction.write'));
 
-  protected readonly which = signal<Which>('pending');
+  protected readonly filter = signal<RequestFilter>(DEFAULT_FILTER);
 
   /**
    * The request a notification named (`?request=`), highlighted in the list rather than opened:
@@ -103,57 +127,86 @@ export class AttendanceRequestsPage {
     { initialValue: '' },
   );
 
-  protected readonly requests = rxResource<readonly AttendanceRequestView[], Which>({
-    params: () => this.which(),
+  protected readonly requests = rxResource<readonly AttendanceRequestView[], RequestFilter>({
+    params: () => this.filter(),
+    // Empty is "any": the generated client leaves an undefined parameter out of the query.
     stream: ({ params }) =>
-      params === 'pending'
-        ? this.api.attendanceRequestsToDecide('PENDING').pipe(map((list) => list.requests ?? []))
-        : forkJoin([
-            this.api.attendanceRequestsToDecide('APPROVED'),
-            this.api.attendanceRequestsToDecide('REJECTED'),
-          ]).pipe(
-            map(([approved, rejected]) =>
-              [...(approved.requests ?? []), ...(rejected.requests ?? [])].sort(
-                (a, b) => (b.decidedAt ?? b.createdAt) - (a.decidedAt ?? a.createdAt),
-              ),
-            ),
-          ),
+      this.api
+        .attendanceRequestsToDecide(
+          params.status || undefined,
+          params.type || undefined,
+          params.staff || undefined,
+          params.month || undefined,
+        )
+        .pipe(map((list) => list.requests ?? [])),
     defaultValue: [],
   });
 
-  /** Oldest first while they are pending: the one that has waited longest is the one to answer. */
+  protected readonly pendingOnly = computed(() => this.filter().status === 'PENDING');
+
   protected readonly rows = computed<readonly AttendanceRequestView[]>(() =>
-    this.which() === 'pending'
+    this.pendingOnly()
       ? [...this.requests.value()].sort((a, b) => a.createdAt - b.createdAt)
-      : this.requests.value(),
+      : [...this.requests.value()].sort(
+          (a, b) => (b.decidedAt ?? b.createdAt) - (a.decidedAt ?? a.createdAt),
+        ),
   );
 
   protected readonly deciding = signal<string | null>(null);
 
-  protected readonly tabs = computed<readonly Tab<Which>[]>(() => {
+  // ---- the filters ----------------------------------------------------------------------------
+
+  protected setFilter(patch: Partial<RequestFilter>): void {
+    this.filter.update((current) => ({ ...current, ...patch }));
+  }
+
+  protected readonly statusOptions = computed<readonly SelectOption[]>(() => {
     this.lang();
     return [
-      {
-        id: 'pending',
-        label: this.t('attendanceRequests.tab.pending'),
-        ...(this.which() === 'pending' && this.rows().length > 0 ? { badge: this.rows().length } : {}),
-      },
-      { id: 'decided', label: this.t('attendanceRequests.tab.decided') },
+      { value: '', label: this.t('attendanceRequests.filter.anyStatus') },
+      ...STATUSES.map((status) => ({ value: status, label: this.t(`attendanceRequests.status.${status}`) })),
     ];
+  });
+
+  protected readonly typeOptions = computed<readonly SelectOption[]>(() => {
+    this.lang();
+    return [
+      { value: '', label: this.t('attendanceRequests.filter.anyType') },
+      ...TYPES.map((type) => ({ value: type, label: this.t(`attendanceRequests.type.${type}`) })),
+    ];
+  });
+
+  /**
+   * The employees the screen has seen, as the employee filter offers them.
+   *
+   * Taken from the rows rather than from the staff directory: `/admin/staff/attendance-profiles`
+   * is the Admin's read, and this screen belongs to every direct manager. The list is the union of
+   * every answer so far, so narrowing to one employee does not shrink the choice to her alone.
+   */
+  protected readonly staffOptions = linkedSignal<readonly AttendanceRequestView[], readonly SelectOption[]>({
+    source: () => this.requests.value(),
+    computation: (rows, previous) => {
+      const byValue = new Map((previous?.value ?? []).map((option) => [option.value, option]));
+      for (const row of rows) byValue.set(row.staff, { value: row.staff, label: row.staffName });
+      return [...byValue.values()].sort((a, b) => String(a.label).localeCompare(String(b.label)));
+    },
+  });
+
+  protected readonly employeeOptions = computed<readonly SelectOption[]>(() => {
+    this.lang();
+    return [{ value: '', label: this.t('attendanceRequests.filter.anyStaff') }, ...this.staffOptions()];
   });
 
   protected readonly columns = computed<readonly TableColumn<AttendanceRequestView>[]>(() => {
     this.lang();
-    const columns: TableColumn<AttendanceRequestView>[] = [
-      { key: 'staffName', header: this.t('attendanceRequests.column.staff'), width: '20%' },
-      { key: 'type', header: this.t('attendanceRequests.column.type'), width: '18%' },
-      { key: 'date', header: this.t('attendanceRequests.column.date'), width: '14%' },
+    return [
+      { key: 'staffName', header: this.t('attendanceRequests.column.staff'), width: '18%' },
+      { key: 'type', header: this.t('attendanceRequests.column.type'), width: '16%' },
+      { key: 'date', header: this.t('attendanceRequests.column.date'), width: '16%' },
       { key: 'times', header: this.t('attendanceRequests.column.times'), width: '16%' },
       { key: 'reason', header: this.t('attendanceRequests.column.reason') },
+      { key: 'status', header: this.t('attendanceRequests.column.status'), width: '16%' },
     ];
-    return this.which() === 'pending'
-      ? columns
-      : [...columns, { key: 'status', header: this.t('attendanceRequests.column.status'), width: '18%' }];
   });
 
   protected trackRequest = (row: AttendanceRequestView): string => row.id;
@@ -161,11 +214,47 @@ export class AttendanceRequestsPage {
 
   // ---- labels ---------------------------------------------------------------------------------
 
+  /** "Leave · Sick", "Correction · Forgot to check in", or the bare type. */
   protected typeLabel(row: AttendanceRequestView): string {
     this.lang();
     const type = this.t(`attendanceRequests.type.${row.type}`);
-    const kind = row.correctionKind ? this.t(`attendanceRequests.kind.${row.correctionKind}`) : '';
-    return kind === '' ? type : `${type} · ${kind}`;
+    const detail = row.leaveType
+      ? this.t(`admin.attendanceSettings.leave.type.${row.leaveType}`)
+      : row.correctionKind
+        ? this.t(`attendanceRequests.kind.${row.correctionKind}`)
+        : '';
+    return detail === '' ? type : `${type} · ${detail}`;
+  }
+
+  /** A leave's range, or the one day everything else is about. */
+  protected dateLabel(row: AttendanceRequestView): string {
+    this.lang();
+    return row.toDate && row.toDate !== row.date
+      ? this.t('attendanceRequests.range', { from: row.date, to: row.toDate })
+      : row.date;
+  }
+
+  /**
+   * What the row is worth: the days a leave uses, the window and minutes of a permission, or
+   * feature 18's claimed check-in and check-out.
+   */
+  protected amountLabel(row: AttendanceRequestView): string {
+    this.lang();
+    if (row.type === 'LEAVE')
+      return row.days === undefined
+        ? this.t('attendanceRequests.none')
+        : this.t('attendanceRequests.days', { days: row.days });
+    if (row.type === 'PERMISSION') {
+      const window =
+        row.fromTime && row.toTime
+          ? this.t('attendanceRequests.window', { from: row.fromTime, to: row.toTime })
+          : '';
+      const minutes =
+        row.minutes === undefined ? '' : this.t('attendanceRequests.minutes', { minutes: row.minutes });
+      const parts = [window, minutes].filter((part) => part !== '');
+      return parts.length === 0 ? this.t('attendanceRequests.none') : parts.join(' · ');
+    }
+    return this.timesLabel(row.checkIn, row.checkOut);
   }
 
   /** "In 07:40 · Out 14:10", or the sentence that says she claimed no time at all. */
@@ -188,6 +277,14 @@ export class AttendanceRequestsPage {
   protected statusLabel(row: AttendanceRequestView): string {
     this.lang();
     return this.t(`attendanceRequests.status.${row.status}`);
+  }
+
+  /**
+   * The second step of the two-step chain: her manager has said yes and the Admin has not. Shown
+   * only while the request is still pending — a decided row's stage is history.
+   */
+  protected isWaitingForAdmin(row: AttendanceRequestView): boolean {
+    return row.status === 'PENDING' && row.stage === 'ADMIN';
   }
 
   protected decidedLabel(row: AttendanceRequestView): string | null {
@@ -214,24 +311,57 @@ export class AttendanceRequestsPage {
   // ---- the decision ---------------------------------------------------------------------------
 
   protected approve(row: AttendanceRequestView): void {
-    this.decide(row, true);
+    if (this.deciding() !== null) return;
+    this.send(row.id, this.api.approveAttendanceRequest(row.id));
   }
 
-  protected reject(row: AttendanceRequestView): void {
-    this.decide(row, false);
+  protected readonly rejecting = signal<AttendanceRequestView | null>(null);
+  protected readonly rejectOpen = signal(false);
+  protected readonly rejectReason = signal('');
+  protected readonly rejectTouched = signal(false);
+
+  /** A leave and a permission need the reason; the older two may be rejected without one. */
+  protected readonly reasonRequired = computed(() =>
+    REASON_REQUIRED.includes(this.rejecting()?.type ?? ''),
+  );
+
+  protected readonly rejectError = computed(() =>
+    this.rejectTouched() && this.reasonRequired() && this.rejectReason().trim() === ''
+      ? this.t('attendanceRequests.rejectDialog.reasonRequired')
+      : null,
+  );
+
+  protected openReject(row: AttendanceRequestView): void {
+    if (this.deciding() !== null) return;
+    this.rejecting.set(row);
+    this.rejectReason.set('');
+    this.rejectTouched.set(false);
+    this.rejectOpen.set(true);
+  }
+
+  /** The reason the employee will read, so an empty one stops the post rather than the server. */
+  protected confirmReject(): void {
+    const row = this.rejecting();
+    if (row === null) return;
+    this.rejectTouched.set(true);
+    const reason = this.rejectReason().trim();
+    if (this.reasonRequired() && reason === '') return;
+    this.rejectOpen.set(false);
+    this.send(
+      row.id,
+      reason === ''
+        ? this.api.rejectAttendanceRequest(row.id)
+        : this.api.rejectAttendanceRequest(row.id, { reason }),
+    );
   }
 
   /**
-   * The row leaves the list the moment the server has agreed — it is no longer pending, and the
-   * other tab is where it now belongs. Nothing is written locally before the answer: a decision
-   * that failed must not look taken.
+   * The row leaves the list the moment the server has agreed — it is no longer pending, and
+   * another filter is where it now belongs. Nothing is written locally before the answer: a
+   * decision that failed must not look taken.
    */
-  private decide(row: AttendanceRequestView, approve: boolean): void {
-    if (this.deciding() !== null) return;
-    this.deciding.set(row.id);
-    const call = approve
-      ? this.api.approveAttendanceRequest(row.id)
-      : this.api.rejectAttendanceRequest(row.id);
+  private send(id: string, call: Observable<unknown>): void {
+    this.deciding.set(id);
     call.subscribe({
       next: () => {
         this.deciding.set(null);
@@ -255,7 +385,7 @@ export class AttendanceRequestsPage {
   protected readonly opening = signal<string | null>(null);
 
   /**
-   * The photo or PDF that came with a correction, in a tab of its own.
+   * The photo or PDF that came with a correction or a sick leave, in a tab of its own.
    *
    * `GET /media/attachments/{id}` needs the bearer, so the bytes come through the generated
    * client and the tab is reserved inside the click (`core/download`) — a tab opened after the
@@ -302,7 +432,7 @@ export class AttendanceRequestsPage {
     defaultValue: [],
   });
 
-  protected readonly staffOptions = computed<readonly SelectOption[]>(() =>
+  protected readonly addStaffOptions = computed<readonly SelectOption[]>(() =>
     this.staff.value().map((profile) => ({
       value: `${profile.kind ?? ''}:${profile.id ?? ''}`,
       label: profile.fullName ?? '',

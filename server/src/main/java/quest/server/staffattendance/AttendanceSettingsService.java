@@ -49,19 +49,26 @@ public class AttendanceSettingsService {
     static final LocalTime DIGEST_DEFAULT = LocalTime.of(7, 30);
     static final LocalTime START_DEFAULT = LocalTime.of(7, 0), END_DEFAULT = LocalTime.of(14, 0);
     static final int MAX_HOLIDAYS = 100, MAX_HOLIDAY_NAME = 80;
+    /** Feature 34: the spec's defaults — the direct manager alone decides, and a permission is at most three hours. */
+    static final String LEAVE_CHAIN_DEFAULT = "MANAGER";
+    static final int PERMISSION_MAX_DEFAULT = 180, PERMISSION_MAX_LIMIT = 600, BALANCE_DAYS_MAX = 365,
+            DOCUMENT_AFTER_DAYS_MAX = 365;
     private static final DateTimeFormatter HH_MM = DateTimeFormatter.ofPattern("HH:mm");
     /** The order the page shows and stores working days in: the Gulf week starts on Sunday. */
     private static final List<DayOfWeek> WEEK_ORDER = List.of(DayOfWeek.SUNDAY, DayOfWeek.MONDAY, DayOfWeek.TUESDAY,
             DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY);
 
     private final AttendanceSettingsRepository settings; private final WorkScheduleRepository schedules;
-    private final AttendanceHolidayRepository holidays; private final TenantContext tenant;
+    private final AttendanceHolidayRepository holidays; private final LeaveTypeRepository leaveTypes;
+    private final LeaveBalanceRepository leaveBalances; private final TenantContext tenant;
     private final SchoolCalendar calendar; private final AuditService audit; private final Clock clock;
 
     public AttendanceSettingsService(AttendanceSettingsRepository settings, WorkScheduleRepository schedules,
-                                     AttendanceHolidayRepository holidays, TenantContext tenant, SchoolCalendar calendar,
+                                     AttendanceHolidayRepository holidays, LeaveTypeRepository leaveTypes,
+                                     LeaveBalanceRepository leaveBalances, TenantContext tenant, SchoolCalendar calendar,
                                      AuditService audit, Clock clock) {
-        this.settings = settings; this.schedules = schedules; this.holidays = holidays; this.tenant = tenant;
+        this.settings = settings; this.schedules = schedules; this.holidays = holidays; this.leaveTypes = leaveTypes;
+        this.leaveBalances = leaveBalances; this.tenant = tenant;
         this.calendar = calendar; this.audit = audit; this.clock = clock;
     }
 
@@ -80,6 +87,9 @@ public class AttendanceSettingsService {
         row.setDirectorNotify(policy(request.directorNotify(), "directorNotify"));
         row.setAdminNotify(policy(request.adminNotify(), "adminNotify"));
         row.setDigestTime(request.digestTime() == null ? DIGEST_DEFAULT : time(request.digestTime(), "digestTime"));
+        // Feature 34's Leave card: the chain, the permission limit, the types and the balances per category.
+        row.setLeaveChain(chain(request.leaveChain()));
+        row.setPermissionMaxMinutes(permissionMax(request.permissionMaxMinutes()));
 
         var byCategory = validSchedules(request.schedules());
         var holidayRows = validHolidays(request.holidays());
@@ -96,6 +106,7 @@ public class AttendanceSettingsService {
         holidays.flush();
         for (var holiday : holidayRows) { holiday.setId(UUID.randomUUID().toString()); holiday.setSchoolId(schoolId); }
         holidays.saveAll(holidayRows);
+        saveLeaveSettings(schoolId, request, row.getUpdatedAt());
         audit.record(caller.userId(), "attendance.settings.update", "school", schoolId, schoolId,
                 Map.of("radiusMeters", row.getRadiusMeters(), "holidays", holidayRows.size()));
         return read(schoolId);
@@ -153,11 +164,125 @@ public class AttendanceSettingsService {
         List<AttendanceHoliday> holidayDtos = holidays.findBySchoolIdOrderByFromDateAsc(schoolId).stream()
                 .map(h -> new AttendanceHoliday(h.getName(), h.getFromDate().toString(), h.getToDate().toString())).toList();
         String zone = calendar.of(schoolId).zone().getId();
+        var leave = leave(schoolId);
+        List<StaffAttendanceDto.LeaveTypeSetting> typeDtos = StaffAttendanceDto.LEAVE_TYPES.stream()
+                .map(t -> new StaffAttendanceDto.LeaveTypeSetting(t, leave.enabled(t), leave.documentAfterDays(t))).toList();
+        List<StaffAttendanceDto.LeaveBalanceSetting> balanceDtos = leaveBalances.findBySchoolIdOrderByLeaveTypeAscCategoryAsc(schoolId)
+                .stream().map(b -> new StaffAttendanceDto.LeaveBalanceSetting(b.getLeaveType(), b.getCategory(), b.getYearlyDays())).toList();
         if (row == null) return new AttendanceSettings(null, null, RADIUS_DEFAULT, GRACE_DEFAULT, NOT_ARRIVED_DEFAULT,
-                MISSING_CHECK_OUT_DEFAULT, "DIGEST", "DIGEST", HH_MM.format(DIGEST_DEFAULT), zone, scheduleDtos, holidayDtos);
+                MISSING_CHECK_OUT_DEFAULT, "DIGEST", "DIGEST", HH_MM.format(DIGEST_DEFAULT), zone, scheduleDtos, holidayDtos,
+                LEAVE_CHAIN_DEFAULT, PERMISSION_MAX_DEFAULT, typeDtos, balanceDtos);
         return new AttendanceSettings(row.getLatitude(), row.getLongitude(), row.getRadiusMeters(), row.getGraceMinutes(),
                 row.getNotArrivedMinutes(), row.getMissingCheckOutMinutes(), row.getDirectorNotify(), row.getAdminNotify(),
-                HH_MM.format(row.getDigestTime()), zone, scheduleDtos, holidayDtos);
+                HH_MM.format(row.getDigestTime()), zone, scheduleDtos, holidayDtos,
+                leave.chain(), leave.permissionMaxMinutes(), typeDtos, balanceDtos);
+    }
+
+    // ---------------------------------------------------------------- feature 34: the leave rules
+
+    /**
+     * Feature 34's rules for one school, as everything that decides a leave or a permission reads them: the approval
+     * chain, the longest permission in one day, which types the school offers with their document rule, and the
+     * yearly allowance per type and category. A type with no row is offered with no document rule; a (type, category)
+     * with no balance row has <strong>no balance</strong> and is never refused for being over budget.
+     */
+    public record LeaveRules(String chain, int permissionMaxMinutes, Map<String, Boolean> enabled,
+                             Map<String, Integer> documents, Map<String, Integer> allowances) {
+        public boolean enabled(String type) { return enabled.getOrDefault(type, Boolean.TRUE); }
+        public Integer documentAfterDays(String type) { return documents.get(type); }
+        /** The yearly allowance in days, or null when that type has no balance for that category. */
+        public Integer allowance(String type, String category) { return allowances.get(type + ":" + category); }
+        public boolean twoStep() { return "MANAGER_THEN_ADMIN".equals(chain); }
+    }
+
+    public LeaveRules leave(String schoolId) {
+        var row = settings.findOneBySchoolId(schoolId).orElse(null);
+        var enabled = new LinkedHashMap<String, Boolean>();
+        var documents = new LinkedHashMap<String, Integer>();
+        for (var t : leaveTypes.findBySchoolIdOrderByLeaveTypeAsc(schoolId)) {
+            enabled.put(t.getLeaveType(), t.isEnabled());
+            if (t.getDocumentAfterDays() != null) documents.put(t.getLeaveType(), t.getDocumentAfterDays());
+        }
+        var allowances = new LinkedHashMap<String, Integer>();
+        for (var b : leaveBalances.findBySchoolIdOrderByLeaveTypeAscCategoryAsc(schoolId))
+            allowances.put(b.getLeaveType() + ":" + b.getCategory(), b.getYearlyDays());
+        return new LeaveRules(row == null || row.getLeaveChain() == null ? LEAVE_CHAIN_DEFAULT : row.getLeaveChain(),
+                row == null || row.getPermissionMaxMinutes() == null ? PERMISSION_MAX_DEFAULT : row.getPermissionMaxMinutes(),
+                enabled, documents, allowances);
+    }
+
+    /**
+     * The Leave card's two tables, replaced as a whole like the holidays: a type the request leaves out keeps what it
+     * had, because the page always sends all five, and a balance it leaves out is deleted, which is how the Admin
+     * takes a balance away again.
+     */
+    private void saveLeaveSettings(String schoolId, UpdateAttendanceSettingsRequest request, Instant now) {
+        if (request.leaveTypes() != null) for (var t : request.leaveTypes()) {
+            String type = leaveType(t.type());
+            var existing = leaveTypes.findOneBySchoolIdAndLeaveType(schoolId, type).orElseGet(Entities.LeaveTypeEntity::new);
+            if (existing.getId() == null) { existing.setId(UUID.randomUUID().toString()); existing.setSchoolId(schoolId); existing.setLeaveType(type); }
+            existing.setEnabled(t.enabled());
+            existing.setDocumentAfterDays(days(t.documentAfterDays(), "documentAfterDays", DOCUMENT_AFTER_DAYS_MAX));
+            existing.setUpdatedAt(now);
+            leaveTypes.save(existing);
+        }
+        if (request.leaveBalances() == null) return;
+        var wanted = new LinkedHashMap<String, Integer>();
+        for (var b : request.leaveBalances()) {
+            String type = leaveType(b.type()), category = category(b.category());
+            Integer value = days(b.yearlyDays(), "yearlyDays", BALANCE_DAYS_MAX);
+            if (value == null) throw ApiException.badRequest("yearlyDays is 0–" + BALANCE_DAYS_MAX + " days.");
+            if (wanted.put(type + ":" + category, value) != null)
+                throw ApiException.badRequest("The balance of " + type + " for " + category + " appears twice.");
+        }
+        for (var existing : leaveBalances.findBySchoolIdOrderByLeaveTypeAscCategoryAsc(schoolId)) {
+            Integer value = wanted.remove(existing.getLeaveType() + ":" + existing.getCategory());
+            if (value == null) { leaveBalances.delete(existing); continue; }
+            existing.setYearlyDays(value); existing.setUpdatedAt(now);
+            leaveBalances.save(existing);
+        }
+        for (var entry : wanted.entrySet()) {
+            var row = new Entities.LeaveBalanceEntity();
+            String[] key = entry.getKey().split(":", 2);
+            row.setId(UUID.randomUUID().toString()); row.setSchoolId(schoolId);
+            row.setLeaveType(key[0]); row.setCategory(key[1]); row.setYearlyDays(entry.getValue()); row.setUpdatedAt(now);
+            leaveBalances.save(row);
+        }
+    }
+
+    static String leaveType(String value) {
+        String type = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+        if (!StaffAttendanceDto.LEAVE_TYPES.contains(type))
+            throw ApiException.badRequest("type is one of " + StaffAttendanceDto.LEAVE_TYPES + ".");
+        return type;
+    }
+
+    private static String category(String value) {
+        String category = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+        if (!StaffAttendanceDto.CATEGORIES.contains(category))
+            throw ApiException.badRequest("category is one of " + StaffAttendanceDto.CATEGORIES + ".");
+        return category;
+    }
+
+    private static String chain(String value) {
+        if (value == null) return LEAVE_CHAIN_DEFAULT;
+        String chain = value.trim().toUpperCase(Locale.ROOT);
+        if (!StaffAttendanceDto.LEAVE_CHAINS.contains(chain))
+            throw ApiException.badRequest("leaveChain is one of " + StaffAttendanceDto.LEAVE_CHAINS + ".");
+        return chain;
+    }
+
+    private static int permissionMax(Integer value) {
+        int minutes = value == null ? PERMISSION_MAX_DEFAULT : value;
+        if (minutes < 1 || minutes > PERMISSION_MAX_LIMIT)
+            throw ApiException.badRequest("permissionMaxMinutes is between 1 and " + PERMISSION_MAX_LIMIT + " minutes.");
+        return minutes;
+    }
+
+    private static Integer days(Integer value, String field, int max) {
+        if (value == null) return null;
+        if (value < 0 || value > max) throw ApiException.badRequest(field + " is 0–" + max + " days.");
+        return value;
     }
 
     private static WorkSchedule dto(WorkScheduleEntity s) {

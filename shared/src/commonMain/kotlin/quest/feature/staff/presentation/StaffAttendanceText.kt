@@ -27,7 +27,12 @@ fun attendanceText(kind: String, link: String?, s: StaffStrings): Pair<String, S
         AttendanceLink.ALERT_MISSING_CHECKOUT -> s.attTitle to alert(s.attMissingCheckout)
         AttendanceLink.REQUEST_REMOTE_DAY -> s.attTitle to about(s.attRequestRemoteDay)
         AttendanceLink.REQUEST_CORRECTION -> s.attTitle to about(s.attRequestCorrection)
-        AttendanceLink.DECIDED_REMOTE_DAY, AttendanceLink.DECIDED_CORRECTION ->
+        // Feature 34: the same two kinds, with their own four types; a decision reads the same words whatever it was
+        // about, because what she wants to know is whether her day was granted.
+        AttendanceLink.REQUEST_LEAVE -> s.attTitle to about(s.attRequestLeave)
+        AttendanceLink.REQUEST_PERMISSION -> s.attTitle to about(s.attRequestPermission)
+        AttendanceLink.DECIDED_REMOTE_DAY, AttendanceLink.DECIDED_CORRECTION,
+        AttendanceLink.DECIDED_LEAVE, AttendanceLink.DECIDED_PERMISSION ->
             s.attTitle to about(if (p[AttendanceLink.DECISION] == AttendanceLink.REJECTED) s.attDecisionRejected else s.attDecisionApproved)
         AttendanceLink.REMOTE_DAY -> s.attTitle to about(s.attRemoteDay)
         AttendanceLink.DIGEST -> {

@@ -53,7 +53,7 @@ public class AttendanceBoardService {
     private final StaffAttendanceProfileRepository profiles; private final ScheduleResolver schedules;
     private final AttendanceSettingsService settings; private final DirectManagerResolver managers;
     private final CheckInService records; private final StaffAttendanceRepository manualMarks;
-    private final StaffAttendanceDayRepository days;
+    private final StaffAttendanceDayRepository days; private final Excuses excuses;
     private final TenantContext tenant; private final SchoolCalendar calendar; private final Clock clock;
 
     public AttendanceBoardService(BoardScope scope, StaffCheckInRepository checkIns, StaffCheckInAttemptRepository attempts,
@@ -61,11 +61,11 @@ public class AttendanceBoardService {
                                   ScheduleResolver schedules, AttendanceSettingsService settings,
                                   DirectManagerResolver managers, CheckInService records,
                                   StaffAttendanceRepository manualMarks, StaffAttendanceDayRepository days,
-                                  TenantContext tenant, SchoolCalendar calendar, Clock clock) {
+                                  Excuses excuses, TenantContext tenant, SchoolCalendar calendar, Clock clock) {
         this.scope = scope; this.checkIns = checkIns; this.attempts = attempts; this.alerts = alerts;
         this.profiles = profiles; this.schedules = schedules; this.settings = settings; this.managers = managers;
-        this.records = records; this.manualMarks = manualMarks; this.days = days; this.tenant = tenant;
-        this.calendar = calendar; this.clock = clock;
+        this.records = records; this.manualMarks = manualMarks; this.days = days; this.excuses = excuses;
+        this.tenant = tenant; this.calendar = calendar; this.clock = clock;
     }
 
     // ---------------------------------------------------------------- GET /staff-attendance/board
@@ -81,11 +81,13 @@ public class AttendanceBoardService {
         var categories = categories(schoolId);
         var byStaff = new HashMap<String, StaffCheckInEntity>();
         for (var row : checkIns.findBySchoolIdAndDay(schoolId, today)) byStaff.put(BoardScope.key(row.getStaffKind(), row.getStaffId()), row);
+        var excused = excuses.ofSchool(schoolId, today, today);                  // feature 34, in one query
 
         var rows = new ArrayList<BoardRow>();
         for (var e : view.employees()) {
             String category = category(categories, e);
-            var expected = schedules.expected(schoolId, category, today);
+            var expected = ScheduleResolver.excused(schedules.expected(schoolId, category, today),
+                    Excuses.from(excused.getOrDefault(BoardScope.key(e.kind(), e.id()), List.of()), today));
             var row = byStaff.get(BoardScope.key(e.kind(), e.id()));
             Instant in = row == null ? null : row.getCheckInAt(), out = row == null ? null : row.getCheckOutAt();
             var day = AttendanceRules.evaluate(expected, thresholds, today, zone, in, out, now);
@@ -126,6 +128,7 @@ public class AttendanceBoardService {
         return switch (expected.kind()) {
             case HOLIDAY -> StaffAttendanceDto.HOLIDAY;
             case DAY_OFF -> StaffAttendanceDto.OFF;
+            case LEAVE -> StaffAttendanceDto.ON_LEAVE;                           // feature 34: never NOT_ARRIVED
             case WORK -> {
                 if (now.isBefore(date.atTime(expected.start()).atZone(zone).toInstant())) yield StaffAttendanceDto.UPCOMING;
                 yield day.absent() ? StaffAttendanceDto.ABSENT : StaffAttendanceDto.NOT_ARRIVED;
@@ -227,21 +230,25 @@ public class AttendanceBoardService {
         for (var row : checkIns.findBySchoolIdAndDayBetween(schoolId, ym.atDay(1), ym.atEndOfMonth()))
             byStaff.computeIfAbsent(BoardScope.key(row.getStaffKind(), row.getStaffId()), k -> new HashMap<>()).put(row.getDay(), row);
 
+        var monthExcuses = excuses.ofSchool(schoolId, ym.atDay(1), ym.atEndOfMonth());    // feature 34, in one query
+
         var rows = new ArrayList<ReportRow>();
         for (var e : view.employees()) {
             String category = category(categories, e);
             var mine = byStaff.getOrDefault(BoardScope.key(e.kind(), e.id()), Map.of());
+            var hers = monthExcuses.getOrDefault(BoardScope.key(e.kind(), e.id()), List.of());
             var days = new ArrayList<DayInput>();
             for (LocalDate d = ym.atDay(1); !d.isAfter(ym.atEndOfMonth()) && !d.isAfter(today); d = d.plusDays(1)) {
                 var row = mine.get(d);
-                days.add(new DayInput(d, schedules.expected(schoolId, category, d),
+                days.add(new DayInput(d, ScheduleResolver.excused(schedules.expected(schoolId, category, d), Excuses.from(hers, d)),
                         row == null ? null : row.getCheckInAt(), row == null ? null : row.getCheckOutAt(),
                         row == null ? null : row.getMode()));
             }
             var t = totals(days, thresholds, zone, now);
             rows.add(new ReportRow(e.kind(), e.id(), e.fullName(), category, academies(schoolId, e), t.workingDays(),
                     t.presentOnsite(), t.presentRemote(), t.lateCount(), t.lateMinutes(), t.absentDays(),
-                    t.earlyLeaveMinutes(), t.missingCheckOuts(), t.corrections()));
+                    t.earlyLeaveMinutes(), t.missingCheckOuts(), t.corrections(),
+                    t.leaveDays(), t.permissionCount(), t.excusedMinutes()));
         }
         return new AttendanceReport(ym.format(YYYY_MM), view.scope(), rows);
     }
@@ -250,20 +257,29 @@ public class AttendanceBoardService {
     record DayInput(LocalDate date, ScheduleResolver.Expected expected, Instant checkIn, Instant checkOut, String mode) {}
 
     record Totals(int workingDays, int presentOnsite, int presentRemote, int lateCount, int lateMinutes, int absentDays,
-                  int earlyLeaveMinutes, int missingCheckOuts, int corrections) {}
+                  int earlyLeaveMinutes, int missingCheckOuts, int corrections,
+                  int leaveDays, int permissionCount, int excusedMinutes) {}
 
     /**
      * The month's totals: each working day evaluated by {@link AttendanceRules#evaluate} at {@code now}, then added
      * up. Holidays and days off are not working days and count for nothing. A day still in progress counts what it has
      * reached so far — she is not absent at 09:00, and her missing check-out is not missing before the threshold.
      * A record of mode `correction` (feature 18) counts as present onsite and as a correction.
+     *
+     * <p>Feature 34: a day of approved leave is <strong>not</strong> a working day — she owes nothing and is never
+     * absent on it — and it is counted in {@code leaveDays} instead. A permission is counted once per window, and the
+     * minutes it excused are added up, so payroll reads "two hours excused" rather than "two hours late".
      */
     static Totals totals(List<DayInput> days, AttendanceRules.Thresholds thresholds, ZoneId zone, Instant now) {
         int working = 0, onsite = 0, remote = 0, lateCount = 0, lateMinutes = 0, absent = 0, early = 0, missing = 0, corrections = 0;
+        int leaveDays = 0, permissions = 0, excused = 0;
         for (var d : days) {
+            if (d.expected().kind() == ScheduleResolver.Kind.LEAVE) { leaveDays++; continue; }
             if (d.expected().kind() != ScheduleResolver.Kind.WORK) continue;
             working++;
+            permissions += d.expected().permissions().size();
             var day = AttendanceRules.evaluate(d.expected(), thresholds, d.date(), zone, d.checkIn(), d.checkOut(), now);
+            excused += day.excusedMinutes();
             if (d.checkIn() != null) {
                 if (CheckInMode.REMOTE.equals(d.mode())) remote++; else onsite++;
                 if (CheckInMode.CORRECTION.equals(d.mode())) corrections++;
@@ -272,7 +288,8 @@ public class AttendanceBoardService {
             if (day.earlyLeaveMinutes() != null) early += day.earlyLeaveMinutes();
             if (day.missingCheckout()) missing++;
         }
-        return new Totals(working, onsite, remote, lateCount, lateMinutes, absent, early, missing, corrections);
+        return new Totals(working, onsite, remote, lateCount, lateMinutes, absent, early, missing, corrections,
+                leaveDays, permissions, excused);
     }
 
     // ---------------------------------------------------------------- helpers
