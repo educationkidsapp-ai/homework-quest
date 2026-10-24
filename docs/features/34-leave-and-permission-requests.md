@@ -1,8 +1,21 @@
 # Feature 34 — Leave and permission requests
 
-**Status:** Draft · **Area:** mobile app (staff), dashboard, server · **Depends on:** 14 (settings, categories,
+**Status:** Done · **Area:** mobile app (staff), dashboard, server · **Depends on:** 14 (settings, categories,
 direct manager), 16 (statuses), 17 (monthly report), 18 (requests and push actions) ·
 **Feature switch:** `staffLeave` (on by default, D30; needs `staffAttendance`)
+
+
+**Leftovers:**
+- **No in-app list of requests to decide.** Managers decide from the push or the dashboard. Rejecting a leave or a
+  permission needs a reason, so the push's bare **Reject** cannot do it: the notification turns into "Open to add a
+  reason" and the manager rejects from the dashboard.
+- **Dates and times are typed** in the app forms, as in feature 18; there is no date or time picker yet.
+- **A leave that spans New Year counts against the year it starts in.** The longest leave is 180 days.
+- **The monthly report counts days up to today**, like every other column, so approved leave later in the current
+  month appears as those days pass.
+- **No dashboard screenshots or end-to-end tests** for the Leave card and the Requests page (their specs cover them).
+- **The Leave card saves with the Attendance settings page**, because all its fields belong to the same settings
+  record.
 
 ## Goal
 
