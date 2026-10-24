@@ -1,5 +1,6 @@
 package quest.feature.push.domain
 
+import quest.api.dto.AttendanceLink
 import quest.api.dto.BroadcastKind
 import quest.api.dto.Child
 import quest.api.dto.ChatThread
@@ -146,7 +147,7 @@ class NotificationRouter(
      */
     /** Feature 16: an attendance reminder, alert or digest, when a staff member is signed in to read it. */
     private fun staffAttendance(tap: NotificationTap): Destination? =
-        if (isAttendance(tap.kind) && staffSignedIn()) Destination.StaffAttendance(attendanceTarget(tap.kind)) else null
+        if (isAttendance(tap.kind) && staffSignedIn()) Destination.StaffAttendance(attendanceTarget(tap.kind, tap.link)) else null
 
     /** Her thread, when the tap names one she is on. Null means "not a staff tap", not "gone". */
     private suspend fun staffConversation(tap: NotificationTap): Destination? {
@@ -255,11 +256,19 @@ const val ATTENDANCE_DECISION = "attendance.decision"
 const val ATTENDANCE_REQUEST = "attendance.request"
 
 /** Where an `attendance.*` tap takes a staff member. */
-enum class StaffAttendanceTarget { HOME, NOTIFICATIONS, MY_RECORD }
+enum class StaffAttendanceTarget { HOME, NOTIFICATIONS, MY_RECORD, MY_REQUESTS }
 
-fun attendanceTarget(kind: String?): StaffAttendanceTarget = when (kind) {
-    ATTENDANCE_REMINDER -> StaffAttendanceTarget.HOME
-    ATTENDANCE_DECISION -> StaffAttendanceTarget.MY_RECORD
+/**
+ * Feature 18 decided by the kind alone; feature 34 has to read the link too. A decision on a **leave** or a
+ * **permission** opens "طلباتي / My requests", where the rejection's reason and Cancel are, while a decision on a
+ * correction still opens her record, where the corrected day is.
+ */
+fun attendanceTarget(kind: String?, link: String? = null): StaffAttendanceTarget = when {
+    kind == ATTENDANCE_REMINDER -> StaffAttendanceTarget.HOME
+    kind == ATTENDANCE_DECISION -> when (AttendanceLink.params(link)[AttendanceLink.TYPE]) {
+        AttendanceLink.DECIDED_LEAVE, AttendanceLink.DECIDED_PERMISSION -> StaffAttendanceTarget.MY_REQUESTS
+        else -> StaffAttendanceTarget.MY_RECORD
+    }
     else -> StaffAttendanceTarget.NOTIFICATIONS
 }
 

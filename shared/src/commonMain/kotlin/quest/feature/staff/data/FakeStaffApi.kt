@@ -31,7 +31,18 @@ import quest.api.dashboard.ManagementGradeGroup
 import quest.api.dto.Subject
 import quest.api.dashboard.WeekLessonStatus
 import quest.api.staff.AttendanceRequestList
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.plus
 import quest.api.staff.AttendanceRequestStatus
+import quest.api.staff.AttendanceRequestType
+import quest.api.staff.LeaveChain
+import quest.api.staff.LeavePreview
+import quest.api.staff.LeaveType
+import quest.api.staff.LeaveTypeBalance
+import quest.api.staff.MyLeaveBalance
+import quest.api.staff.RequestStage
 import quest.api.staff.AttendanceRequestView
 import quest.api.staff.CheckInDay
 import quest.api.staff.CheckInMode
@@ -229,6 +240,16 @@ class FakeStaffApi(private val delayMillis: Long = 250) : StaffGateway, VoiceAnn
             correctionKind = request.correctionKind, checkIn = request.checkIn, checkOut = request.checkOut,
             attachment = request.attachmentId?.let { AttachmentRef(id = it, type = "image/jpeg", name = "proof.jpg", sizeBytes = 0) },
             createdAt = Today.epochMillis(),
+            // Feature 34: a leave carries its type, its range and the days it uses; a permission its two times.
+            leaveType = request.leaveType,
+            toDate = request.toDate,
+            fromTime = request.fromTime,
+            toTime = request.toTime,
+            days = request.toDate?.let { to -> workingDays(request.date, to).size },
+            minutes = request.fromTime?.let { from ->
+                request.toTime?.let { to -> minutesOfDay(to) - minutesOfDay(from) }
+            },
+            stage = RequestStage.MANAGER,
         )
         requests.add(0, view)
         return view
@@ -242,17 +263,101 @@ class FakeStaffApi(private val delayMillis: Long = 250) : StaffGateway, VoiceAnn
     }
 
     override suspend fun approveAttendanceRequest(id: String): AttendanceRequestView = decide(id, AttendanceRequestStatus.APPROVED)
-    override suspend fun rejectAttendanceRequest(id: String): AttendanceRequestView = decide(id, AttendanceRequestStatus.REJECTED)
 
-    private suspend fun decide(id: String, status: String): AttendanceRequestView {
+    override suspend fun rejectAttendanceRequest(id: String): AttendanceRequestView = rejectAttendanceRequest(id, null)
+
+    /**
+     * Feature 34: a leave or a permission may not be rejected without a reason — 400, exactly as the server answers
+     * the Android shade's bare Reject, so the app's own fallback can be exercised with no server at all.
+     */
+    override suspend fun rejectAttendanceRequest(id: String, reason: String?): AttendanceRequestView {
+        val row = requests.firstOrNull { it.id == id }
+        val leaveKind = row?.type == AttendanceRequestType.LEAVE || row?.type == AttendanceRequestType.PERMISSION
+        if (leaveKind && reason.isNullOrBlank()) throw ApiException(ApiError(ApiError.BAD_REQUEST, "A rejection needs a reason."))
+        return decide(id, AttendanceRequestStatus.REJECTED, reason)
+    }
+
+    /** Feature 34: the author withdraws her own request while nobody has decided it. */
+    override suspend fun cancelAttendanceRequest(id: String): AttendanceRequestView =
+        decide(id, AttendanceRequestStatus.CANCELLED, decider = null)
+
+    override suspend fun myLeaveBalance(): MyLeaveBalance {
+        net()
+        val used = requests.filter { it.status == AttendanceRequestStatus.APPROVED }
+            .groupBy { it.leaveType }
+            .mapValues { (_, rows) -> rows.sumOf { it.days ?: 0 } }
+        return MyLeaveBalance(
+            year = Today.date().year,
+            category = "TEACHER",
+            chain = LeaveChain.MANAGER,
+            permissionMaxMinutes = 180,
+            types = LeaveType.ALL.map { type ->
+                val allowance = ALLOWANCES[type]
+                LeaveTypeBalance(
+                    type = type,
+                    enabled = true,
+                    documentAfterDays = if (type == LeaveType.SICK) 2 else null,
+                    allowanceDays = allowance,
+                    usedDays = used[type] ?: 0,
+                    remainingDays = allowance?.let { it - (used[type] ?: 0) },
+                )
+            },
+        )
+    }
+
+    override suspend fun leavePreview(leaveType: String, from: String, to: String): LeavePreview {
+        net()
+        val dates = workingDays(from, to)
+        val balance = myLeaveBalance().types.first { it.type == leaveType }
+        return LeavePreview(
+            leaveType = leaveType, from = from, to = to, days = dates.size, dates = dates,
+            allowanceDays = balance.allowanceDays, usedDays = balance.usedDays, remainingDays = balance.remainingDays,
+            remainingAfter = balance.remainingDays?.let { it - dates.size },
+            documentRequired = balance.documentAfterDays?.let { dates.size > it } == true,
+        )
+    }
+
+    /** Friday and Saturday are the pilot school's weekend, so the fake's "school days" skip them. */
+    private fun workingDays(from: String, to: String): List<String> {
+        val first = runCatching { LocalDate.parse(from) }.getOrNull() ?: return emptyList()
+        val last = runCatching { LocalDate.parse(to) }.getOrNull() ?: return emptyList()
+        if (last < first) return emptyList()
+        val days = mutableListOf<String>()
+        var day = first
+        while (day <= last) {
+            if (day.dayOfWeek != DayOfWeek.FRIDAY && day.dayOfWeek != DayOfWeek.SATURDAY) days += day.toString()
+            day = day.plus(1, DateTimeUnit.DAY)
+        }
+        return days
+    }
+
+    private fun minutesOfDay(clock: String): Int {
+        val parts = clock.split(":")
+        return ((parts.getOrNull(0)?.toIntOrNull() ?: 0) * 60) + (parts.getOrNull(1)?.toIntOrNull() ?: 0)
+    }
+
+    private suspend fun decide(
+        id: String,
+        status: String,
+        reason: String? = null,
+        decider: String? = "Mr Adel",
+    ): AttendanceRequestView {
         net()
         val index = requests.indexOfFirst { it.id == id }
         if (index < 0) throw ApiException(ApiError(ApiError.NOT_FOUND, "request"))
         if (requests[index].status != AttendanceRequestStatus.PENDING) throw ApiException(ApiError("conflict", "already decided"))
-        val decided = requests[index].copy(status = status, decidedBy = "Mr Adel", decidedAt = Today.epochMillis())
+        val decided = requests[index].copy(
+            status = status,
+            decidedBy = decider,
+            decidedAt = Today.epochMillis(),
+            stage = null,
+            rejectReason = reason,
+        )
         requests[index] = decided
         return decided
     }
+
+
 
     // ---------------------------------------------------------------- feature 22: voice note to announcement
 
@@ -362,6 +467,9 @@ class FakeStaffApi(private val delayMillis: Long = 250) : StaffGateway, VoiceAnn
     private suspend fun net() { if (delayMillis > 0) delay(delayMillis) }
 
     private companion object {
+        /** Feature 34: what the fake school gives a teacher a year; unpaid and other have no balance, as the spec says. */
+        val ALLOWANCES = mapOf(LeaveType.ANNUAL to 21, LeaveType.SICK to 10, LeaveType.EMERGENCY to 5)
+
         const val ME = "staff-me"
         const val PARENT_THREAD = "fake-thread-parent"
         const val STAFF_THREAD = "fake-thread-staff"

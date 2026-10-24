@@ -37,11 +37,20 @@ import quest.api.staff.AttendanceRequestStatus
 import quest.api.staff.AttendanceRequestType
 import quest.api.staff.AttendanceRequestView
 import quest.api.staff.CorrectionKind
+import quest.api.staff.LeaveChain
+import quest.api.staff.LeavePreview
+import quest.api.staff.LeaveType
+import quest.api.staff.LeaveTypeBalance
+import quest.api.staff.MyLeaveBalance
+import quest.api.staff.RequestStage
 import quest.feature.staff.presentation.AttendanceRequestsContract
 import quest.feature.staff.presentation.CheckInCardContent
 import quest.feature.staff.presentation.CheckInContract
 import quest.feature.staff.presentation.CheckInMessage
+import quest.feature.staff.presentation.MyBalanceContract
 import quest.feature.staff.presentation.MyRecordContract
+import quest.feature.staff.presentation.StaffMyBalanceScreen
+import quest.feature.staff.presentation.StaffMyRequestsScreen
 import quest.feature.staff.presentation.StaffMyRecordScreen
 import quest.feature.staff.presentation.StaffAccountContract
 import quest.feature.staff.presentation.StaffAccountScreen
@@ -262,6 +271,106 @@ class StaffScreensScreenshotTest {
                 month, staff, onPreviousMonth = {}, onNextMonth = {},
                 requests = requests, parentStrings = strings, today = "2026-10-14",
             )
+        }
+    }
+
+    /**
+     * Feature 34: the leave form with the days it uses and the balance it leaves, the permission form, "رصيدي" and
+     * "طلباتي" — each in English, Arabic and the dark theme, which is where the new words and chips are read.
+     */
+    @Test fun staffLeaveAndPermission() {
+        val balance = MyLeaveBalance(
+            year = 2026, category = "TEACHER", chain = LeaveChain.MANAGER_THEN_ADMIN, permissionMaxMinutes = 180,
+            types = listOf(
+                LeaveTypeBalance(LeaveType.ANNUAL, allowanceDays = 21, usedDays = 3, remainingDays = 18),
+                LeaveTypeBalance(LeaveType.SICK, documentAfterDays = 2, allowanceDays = 10, usedDays = 1, remainingDays = 9),
+                LeaveTypeBalance(LeaveType.EMERGENCY, allowanceDays = 5, usedDays = 0, remainingDays = 5),
+                LeaveTypeBalance(LeaveType.UNPAID),
+            ),
+        )
+        val leaveForm = AttendanceRequestsContract.State(
+            loading = false,
+            balance = balance,
+            form = AttendanceRequestsContract.Form(
+                type = AttendanceRequestType.LEAVE, date = "2026-10-20", toDate = "2026-10-22",
+                leaveType = LeaveType.ANNUAL, reason = "A family trip",
+            ),
+            preview = LeavePreview(
+                leaveType = LeaveType.ANNUAL, from = "2026-10-20", to = "2026-10-22", days = 3,
+                dates = listOf("2026-10-20", "2026-10-21", "2026-10-22"),
+                allowanceDays = 21, usedDays = 3, remainingDays = 18, remainingAfter = 15,
+            ),
+        )
+        val permissionForm = AttendanceRequestsContract.State(
+            loading = false,
+            balance = balance,
+            form = AttendanceRequestsContract.Form(
+                type = AttendanceRequestType.PERMISSION, date = "2026-10-20",
+                fromTime = "07:00", toTime = "09:00", reason = "A clinic appointment",
+            ),
+        )
+        val myRequests = AttendanceRequestsContract.State(
+            loading = false,
+            requests = listOf(
+                AttendanceRequestView(
+                    id = "r-1", type = AttendanceRequestType.LEAVE, status = AttendanceRequestStatus.PENDING,
+                    staff = "USER:u-1", staffName = "Ms Noor", date = "2026-10-20", toDate = "2026-10-22",
+                    leaveType = LeaveType.ANNUAL, days = 3, reason = "A family trip",
+                    stage = RequestStage.MANAGER, createdAt = 0L,
+                ),
+                AttendanceRequestView(
+                    id = "r-2", type = AttendanceRequestType.PERMISSION, status = AttendanceRequestStatus.REJECTED,
+                    staff = "USER:u-1", staffName = "Ms Noor", date = "2026-10-13", fromTime = "07:00",
+                    toTime = "09:00", minutes = 120, reason = "A clinic appointment",
+                    decidedBy = "Mr Adel", decidedAt = 1L, rejectReason = "Two classes are uncovered that morning.",
+                    createdAt = 0L,
+                ),
+                AttendanceRequestView(
+                    id = "r-3", type = AttendanceRequestType.LEAVE, status = AttendanceRequestStatus.CANCELLED,
+                    staff = "USER:u-1", staffName = "Ms Noor", date = "2026-10-05", toDate = "2026-10-05",
+                    leaveType = LeaveType.SICK, days = 1, reason = "A cold that passed", createdAt = 0L,
+                ),
+            ),
+        )
+        val balanceState = MyBalanceContract.State(loading = false, balance = balance)
+
+        listOf("f34-01-leave-form-en" to StaffStrings.en, "f34-01b-leave-form-ar" to StaffStrings.ar).forEach { (name, s) ->
+            shot(name, s, dark = false, title = { it.requestLeave }) { staff, _ ->
+                CheckInCardContent(
+                    beforeArrival, staff, onTap = {}, onRationaleAccepted = {}, onRationaleDismissed = {},
+                    onMyRecord = {}, requests = leaveForm,
+                )
+            }
+        }
+        shot("f34-01c-leave-form-dark", StaffStrings.en, dark = true, title = { it.requestLeave }) { staff, _ ->
+            CheckInCardContent(
+                beforeArrival, staff, onTap = {}, onRationaleAccepted = {}, onRationaleDismissed = {},
+                onMyRecord = {}, requests = leaveForm,
+            )
+        }
+        listOf("f34-02-permission-form-en" to StaffStrings.en, "f34-02b-permission-form-ar" to StaffStrings.ar).forEach { (name, s) ->
+            shot(name, s, dark = false, title = { it.requestPermission }) { staff, _ ->
+                CheckInCardContent(
+                    beforeArrival, staff, onTap = {}, onRationaleAccepted = {}, onRationaleDismissed = {},
+                    onMyRecord = {}, requests = permissionForm,
+                )
+            }
+        }
+        listOf("f34-03-balance-en" to StaffStrings.en, "f34-03b-balance-ar" to StaffStrings.ar).forEach { (name, s) ->
+            shot(name, s, dark = false, title = { it.myBalance }) { staff, _ ->
+                StaffMyBalanceScreen(balanceState, staff)
+            }
+        }
+        shot("f34-03c-balance-dark", StaffStrings.en, dark = true, title = { it.myBalance }) { staff, _ ->
+            StaffMyBalanceScreen(balanceState, staff)
+        }
+        listOf("f34-04-my-requests-en" to StaffStrings.en, "f34-04b-my-requests-ar" to StaffStrings.ar).forEach { (name, s) ->
+            shot(name, s, dark = false, title = { it.myRequests }) { staff, strings ->
+                StaffMyRequestsScreen(myRequests, staff, strings)
+            }
+        }
+        shot("f34-04c-my-requests-dark", StaffStrings.en, dark = true, title = { it.myRequests }) { staff, strings ->
+            StaffMyRequestsScreen(myRequests, staff, strings)
         }
     }
 

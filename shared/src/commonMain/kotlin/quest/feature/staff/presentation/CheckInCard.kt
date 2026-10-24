@@ -33,7 +33,7 @@ import quest.feature.school.presentation.FeatureGate
  * is ever taken, and never again.
  */
 @Composable
-fun CheckInCard(onMyRecord: () -> Unit) {
+fun CheckInCard(onMyRecord: () -> Unit, onMyBalance: () -> Unit = {}, onMyRequests: () -> Unit = {}) {
     FeatureGate(Flags.STAFF_ATTENDANCE) {
         val vm: CheckInViewModel = koinViewModel()
         val state by vm.state.collectAsStateWithLifecycle()
@@ -48,6 +48,8 @@ fun CheckInCard(onMyRecord: () -> Unit) {
             onRationaleAccepted = { vm.dispatch(CheckInContract.Intent.RationaleAccepted) },
             onRationaleDismissed = { vm.dispatch(CheckInContract.Intent.RationaleDismissed) },
             onMyRecord = onMyRecord,
+            onMyBalance = onMyBalance,
+            onMyRequests = onMyRequests,
             requests = requests,
             onRequests = requestsVm::dispatch,
         )
@@ -63,6 +65,9 @@ fun CheckInCardContent(
     onRationaleAccepted: () -> Unit,
     onRationaleDismissed: () -> Unit,
     onMyRecord: () -> Unit,
+    /** Feature 34: "رصيدي" and "طلباتي", their own screens behind `staffLeave`. */
+    onMyBalance: () -> Unit = {},
+    onMyRequests: () -> Unit = {},
     /** Feature 18: the remote-day request's own state, and null-safe defaults so a screenshot draws the card alone. */
     requests: AttendanceRequestsContract.State = AttendanceRequestsContract.State(loading = false),
     onRequests: (AttendanceRequestsContract.Intent) -> Unit = {},
@@ -112,6 +117,26 @@ fun CheckInCardContent(
                 }
                 TextButton(onClick = { onRequests(AttendanceRequestsContract.Intent.OpenRemoteDay) }) {
                     Text(strings.requestRemoteDay, color = quest.ui.design.DashboardTokens.accentInk)
+                }
+            }
+            // Feature 34: leave, permission, her balance and her requests — each one tap from this card, so every
+            // one of them is the two taps the spec asks for from the staff home.
+            FeatureGate(Flags.STAFF_LEAVE) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                    TextButton(onClick = { onRequests(AttendanceRequestsContract.Intent.OpenLeave) }) {
+                        Text(strings.requestLeave, color = quest.ui.design.DashboardTokens.accentInk)
+                    }
+                    TextButton(onClick = { onRequests(AttendanceRequestsContract.Intent.OpenPermission) }) {
+                        Text(strings.requestPermission, color = quest.ui.design.DashboardTokens.accentInk)
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                    TextButton(onClick = onMyBalance) {
+                        Text(strings.myBalance, color = quest.ui.design.DashboardTokens.accentInk)
+                    }
+                    TextButton(onClick = onMyRequests) {
+                        Text(strings.myRequests, color = quest.ui.design.DashboardTokens.accentInk)
+                    }
                 }
             }
             if (requests.form == null) {

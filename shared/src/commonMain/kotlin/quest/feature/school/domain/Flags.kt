@@ -89,11 +89,19 @@ object Flags {
      */
     const val CHILD_EVALUATIONS = "childEvaluations"
 
+    /**
+     * Feature 34: leave and permission requests. It rides **beside** [STAFF_ATTENDANCE], as the server's routes do —
+     * a school without check-in has no attendance for a leave to excuse — so both have to be on before the two
+     * buttons, "رصيدي / My balance" and "طلباتي / My requests" appear. The server answers 404 to the leave routes
+     * while it is off.
+     */
+    const val STAFF_LEAVE = "staffLeave"
+
     /** Every key this app gates on. */
     val used = listOf(
         RETELL_RECORDING, OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, CERTIFICATES, LEVEL_THREE, CHAT, ANNOUNCEMENTS,
         EXAMS, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, VOICE_ANNOUNCEMENT, PARENT_EVENING_CARD, LANGUAGE_BRIDGE,
-        CHILD_TEAM, CLASS_CHANNEL, CHILD_EVALUATIONS,
+        CHILD_TEAM, CLASS_CHANNEL, CHILD_EVALUATIONS, STAFF_LEAVE,
     )
 
     /** True when the platform defines [key] at all — the contract's `DEFAULT_FLAGS` is the list of what exists. */

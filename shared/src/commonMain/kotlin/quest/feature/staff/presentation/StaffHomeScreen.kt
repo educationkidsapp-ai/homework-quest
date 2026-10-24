@@ -37,6 +37,8 @@ import quest.ui.design.Dimens
 fun StaffHomeRoute(
     onMessages: () -> Unit,
     onMyRecord: () -> Unit,
+    onMyBalance: () -> Unit,
+    onMyRequests: () -> Unit,
     onNotifications: () -> Unit,
     onAccount: () -> Unit,
     onParentSide: () -> Unit,
@@ -65,7 +67,7 @@ fun StaffHomeRoute(
             canVoiceAnnounce = profile?.canVoiceAnnounce == true,
             onMessages = onMessages,
             onVoiceAnnouncement = onVoiceAnnouncement,
-            today = { CheckInCard(onMyRecord = onMyRecord) },
+            today = { CheckInCard(onMyRecord = onMyRecord, onMyBalance = onMyBalance, onMyRequests = onMyRequests) },
             switch = { SideSwitch(onSwitched = { onParentSide() }) },
         )
     }
