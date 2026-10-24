@@ -30,8 +30,15 @@ public final class StructureDto {
     /** How a grade is called in one academy: the word plus `grade + offset` (British Year *n* = grade *n − 1*). */
     public record GradeNaming(String style, int offset, String wordEn, String wordAr) {}
 
-    /** A member of staff on the structure: who she is, not what she may do. */
-    public record StaffRef(String userId, String name, String email) {}
+    /**
+     * A member of staff on the structure: who she is, not what she may do.
+     *
+     * <p><strong>The names in this file are the OpenAPI schema names</strong> — springdoc takes a record's simple
+     * name — so the generic ones carry the `Structure` prefix and match `quest.api.dashboard.Structure.kt` exactly.
+     * Without it this record silently replaced `StaffAttendanceDto.StaffRef(kind, id)` in `server/openapi.json` and
+     * broke the generated client of feature 14's Attendance settings page.
+     */
+    public record StructureStaffRef(String userId, String name, String email) {}
 
     public record AcademySubject(String subject, String nameEn, String nameAr, boolean ministry) {}
 
@@ -63,7 +70,7 @@ public final class StructureDto {
     }
 
     public record Academy(String academyKey, String nameEn, String nameAr, String curriculumType, GradeNaming naming,
-                          StaffRef director, GradingScheme scheme, List<AcademySubject> subjects,
+                          StructureStaffRef director, GradingScheme scheme, List<AcademySubject> subjects,
                           List<AcademyTerm> terms) {}
 
     public record UpdateAcademyRequest(String nameEn, String nameAr, String curriculumType, String gradeStyle,
@@ -78,17 +85,18 @@ public final class StructureDto {
     // ---------------------------------------------------------------- the tree
 
     /** A (class, subject) slot. `teacher` is null when nobody teaches it — the empty spots are half the point. */
-    public record SubjectSlot(String subject, String nameEn, String nameAr, StaffRef teacher, List<StaffRef> coordinators) {}
+    public record StructureSubjectSlot(String subject, String nameEn, String nameAr, StructureStaffRef teacher,
+                                       List<StructureStaffRef> coordinators) {}
 
-    public record ClassNode(String classId, String name, int grade, int children, List<StaffRef> floorSupervisors,
-                            List<SubjectSlot> subjects) {}
+    public record StructureClassNode(String classId, String name, int grade, int children,
+                                     List<StructureStaffRef> floorSupervisors, List<StructureSubjectSlot> subjects) {}
 
-    public record GradeNode(int grade, String labelEn, String labelAr, List<ClassNode> classes) {}
+    public record StructureGradeNode(int grade, String labelEn, String labelAr, List<StructureClassNode> classes) {}
 
-    public record AcademyNode(Academy academy, List<GradeNode> grades) {}
+    public record StructureAcademyNode(Academy academy, List<StructureGradeNode> grades) {}
 
     /** `GET /admin/structure`: academy → grades → classes → teachers per subject, in one read. */
-    public record StructureTreeView(List<AcademyNode> academies) {}
+    public record StructureTreeView(List<StructureAcademyNode> academies) {}
 
     // ---------------------------------------------------------------- moving a teacher
 
@@ -99,7 +107,8 @@ public final class StructureDto {
     public record MoveAssignmentRequest(String fromClassId, String fromSubject, String toClassId, String toSubject,
                                         Boolean replace) {}
 
-    public record MoveAssignmentResult(String classId, String subject, StaffRef teacher, StaffRef replaced) {}
+    public record MoveAssignmentResult(String classId, String subject, StructureStaffRef teacher,
+                                       StructureStaffRef replaced) {}
 
     // ---------------------------------------------------------------- bulk tools
 
@@ -125,8 +134,9 @@ public final class StructureDto {
      * director and coordinators who will see it, and its grading scheme.
      */
     public record MoveClassPreview(String classId, String name, String fromAcademyKey, String toAcademyKey,
-                                   int children, List<SubjectSlot> droppedAssignments, StaffRef fromDirector,
-                                   StaffRef toDirector, List<StaffRef> fromCoordinators, List<StaffRef> toCoordinators,
+                                   int children, List<StructureSubjectSlot> droppedAssignments,
+                                   StructureStaffRef fromDirector, StructureStaffRef toDirector,
+                                   List<StructureStaffRef> fromCoordinators, List<StructureStaffRef> toCoordinators,
                                    GradingScheme fromScheme, GradingScheme toScheme, int releasedResults,
                                    int rebandedResults) {}
 

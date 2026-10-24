@@ -70,7 +70,7 @@ public class StructureBulk {
         if (from.getId().equals(to.getId()) && fromSubject.equals(toSubject))
             throw ApiException.badRequest("that assignment is already there");
 
-        StructureDto.StaffRef replaced = null;
+        StructureDto.StructureStaffRef replaced = null;
         var holder = scope.assignmentOn(to.getId(), toSubject).orElse(null);
         if (holder != null && !holder.getId().equals(source.getId())) {
             if (!Boolean.TRUE.equals(body.replace())) {
@@ -168,13 +168,13 @@ public class StructureBulk {
         var source = academyService.require(schoolId, fromKey);
 
         var taught = scope.assignmentsOn(section.getId());
-        var dropped = new ArrayList<StructureDto.SubjectSlot>();
+        var dropped = new ArrayList<StructureDto.StructureSubjectSlot>();
         var subjects = new ArrayList<String>();
         for (var assignment : taught) {
             String subject = AcademyService.key(assignment.getSubject());
             subjects.add(subject);
             if (!academyService.offers(schoolId, target.getAcademyKey(), subject))
-                dropped.add(new StructureDto.SubjectSlot(subject, subject, subject,
+                dropped.add(new StructureDto.StructureSubjectSlot(subject, subject, subject,
                         academyService.staff(schoolId, assignment.getTeacherId()), List.of()));
         }
         var before = schemes.of(schoolId, fromKey);

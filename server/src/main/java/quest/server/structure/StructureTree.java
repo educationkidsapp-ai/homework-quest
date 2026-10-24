@@ -61,21 +61,21 @@ public class StructureTree {
         var coordinators = coordinatorsBySubject(schoolId);
         boolean withFloors = flags.isOn(schoolId, quest.server.flags.FlagKeys.FLOOR_SUPERVISOR);
 
-        var out = new ArrayList<StructureDto.AcademyNode>(rows.size());
+        var out = new ArrayList<StructureDto.StructureAcademyNode>(rows.size());
         for (var academy : rows) {
             var offered = academyService.subjects(schoolId, academy.getAcademyKey());
-            var grades = new ArrayList<StructureDto.GradeNode>();
+            var grades = new ArrayList<StructureDto.StructureGradeNode>();
             for (int grade : gradesOf(academy.getAcademyKey())) {
-                var nodes = new ArrayList<StructureDto.ClassNode>();
+                var nodes = new ArrayList<StructureDto.StructureClassNode>();
                 for (var section : sections) {
                     if (!academy.getAcademyKey().equals(AcademyService.key(section.getCurriculum())) || section.getGrade() != grade) continue;
                     nodes.add(classNode(schoolId, section, offered, byClass.getOrDefault(section.getId(), List.of()),
                             coordinators, roster.getOrDefault(section.getId(), 0), withFloors));
                 }
-                grades.add(new StructureDto.GradeNode(grade, AcademyService.labelEn(academy, grade),
+                grades.add(new StructureDto.StructureGradeNode(grade, AcademyService.labelEn(academy, grade),
                         AcademyService.labelAr(academy, grade), List.copyOf(nodes)));
             }
-            out.add(new StructureDto.AcademyNode(academyService.view(schoolId, academy), List.copyOf(grades)));
+            out.add(new StructureDto.StructureAcademyNode(academyService.view(schoolId, academy), List.copyOf(grades)));
         }
         return new StructureDto.StructureTreeView(List.copyOf(out));
     }
@@ -86,14 +86,14 @@ public class StructureTree {
      * not on the academy's list is still drawn, after the offered ones: hiding a real assignment would hide the very
      * thing a class move is about.
      */
-    private StructureDto.ClassNode classNode(String schoolId, ClassEntity section,
+    private StructureDto.StructureClassNode classNode(String schoolId, ClassEntity section,
                                              List<StructureDto.AcademySubject> offered,
                                              List<TeachingAssignmentEntity> assignments,
-                                             Map<String, List<StructureDto.StaffRef>> coordinators,
+                                             Map<String, List<StructureDto.StructureStaffRef>> coordinators,
                                              int children, boolean withFloors) {
         var bySubject = new LinkedHashMap<String, TeachingAssignmentEntity>();
         for (var a : assignments) bySubject.putIfAbsent(AcademyService.key(a.getSubject()), a);
-        var slots = new ArrayList<StructureDto.SubjectSlot>();
+        var slots = new ArrayList<StructureDto.StructureSubjectSlot>();
         var seen = new LinkedHashSet<String>();
         for (var subject : offered) {
             seen.add(subject.subject());
@@ -103,28 +103,28 @@ public class StructureTree {
         for (var entry : bySubject.entrySet())
             if (seen.add(entry.getKey()))
                 slots.add(slot(schoolId, entry.getKey(), entry.getKey(), entry.getKey(), entry.getValue(), coordinators));
-        var supervisors = new ArrayList<StructureDto.StaffRef>();
+        var supervisors = new ArrayList<StructureDto.StructureStaffRef>();
         if (withFloors)
             for (String userId : floors.supervisorsOfSection(schoolId, section.getId())) {
                 var ref = academyService.staff(schoolId, userId);
                 if (ref != null) supervisors.add(ref);
             }
-        return new StructureDto.ClassNode(section.getId(), section.getName(), section.getGrade(), children,
+        return new StructureDto.StructureClassNode(section.getId(), section.getName(), section.getGrade(), children,
                 List.copyOf(supervisors), List.copyOf(slots));
     }
 
-    private StructureDto.SubjectSlot slot(String schoolId, String subject, String nameEn, String nameAr,
+    private StructureDto.StructureSubjectSlot slot(String schoolId, String subject, String nameEn, String nameAr,
                                           TeachingAssignmentEntity assignment,
-                                          Map<String, List<StructureDto.StaffRef>> coordinators) {
-        return new StructureDto.SubjectSlot(subject, nameEn, nameAr,
+                                          Map<String, List<StructureDto.StructureStaffRef>> coordinators) {
+        return new StructureDto.StructureSubjectSlot(subject, nameEn, nameAr,
                 assignment == null ? null : academyService.staff(schoolId, assignment.getTeacherId()),
                 coordinators.getOrDefault(subject, List.of()));
     }
 
     /** The coordinators per subject: a `staff_scopes` row with a subject, whose `curriculum` null means both. */
     @Transactional(readOnly = true)
-    public Map<String, List<StructureDto.StaffRef>> coordinatorsBySubject(String schoolId) {
-        var out = new LinkedHashMap<String, List<StructureDto.StaffRef>>();
+    public Map<String, List<StructureDto.StructureStaffRef>> coordinatorsBySubject(String schoolId) {
+        var out = new LinkedHashMap<String, List<StructureDto.StructureStaffRef>>();
         for (var row : scopes.findBySchoolIdOrderByUserIdAsc(schoolId)) {
             if (row.getSubject() == null) continue;
             var ref = academyService.staff(schoolId, row.getUserId());
@@ -136,8 +136,8 @@ public class StructureTree {
 
     /** The coordinators of one academy, for a class move's "who will see it" list. */
     @Transactional(readOnly = true)
-    public List<StructureDto.StaffRef> coordinatorsOf(String schoolId, String academyKey, List<String> subjects) {
-        var out = new ArrayList<StructureDto.StaffRef>();
+    public List<StructureDto.StructureStaffRef> coordinatorsOf(String schoolId, String academyKey, List<String> subjects) {
+        var out = new ArrayList<StructureDto.StructureStaffRef>();
         for (var row : scopes.findBySchoolIdOrderByUserIdAsc(schoolId)) {
             if (row.getSubject() == null) continue;
             if (row.getCurriculum() != null && !academyKey.equals(AcademyService.key(row.getCurriculum()))) continue;

@@ -162,10 +162,10 @@ public class AcademyService {
     public static String labelAr(AcademyEntity row, int grade) { return row.getGradeWordAr() + " " + (grade + row.getGradeOffset()); }
 
     /** A member of staff by id, or null — the tree draws an empty spot rather than refusing. */
-    public StructureDto.StaffRef staff(String schoolId, String userId) {
+    public StructureDto.StructureStaffRef staff(String schoolId, String userId) {
         if (userId == null) return null;
         return users.findById(userId).filter(u -> schoolId.equals(u.getSchoolId()))
-                .map(u -> new StructureDto.StaffRef(u.getId(), u.getDisplayName() == null ? u.getEmail() : u.getDisplayName(), u.getEmail()))
+                .map(u -> new StructureDto.StructureStaffRef(u.getId(), u.getDisplayName() == null ? u.getEmail() : u.getDisplayName(), u.getEmail()))
                 .orElse(null);
     }
 

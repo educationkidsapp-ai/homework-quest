@@ -61,7 +61,13 @@ data class GradeNaming(
     val wordAr: String = "الصف",
 )
 
-/** A member of staff on the structure: who she is, not what she may do. */
+/**
+ * A member of staff on the structure: who she is, not what she may do.
+ *
+ * The generic names in this file carry the `Structure` prefix and are **identical to the server's record names**,
+ * which are the OpenAPI schema names the Angular client is generated from. Without the prefix this one collided with
+ * feature 14's `StaffRef(kind, id)` in `server/openapi.json`.
+ */
 @Serializable
 data class StructureStaffRef(val userId: String, val name: String, val email: String? = null)
 
@@ -185,7 +191,7 @@ data class StructureAcademyNode(val academy: Academy, val grades: List<Structure
 
 /** `GET /admin/structure`: academy → grades → classes → teachers per subject, in one read. */
 @Serializable
-data class StructureTree(val academies: List<StructureAcademyNode> = emptyList())
+data class StructureTreeView(val academies: List<StructureAcademyNode> = emptyList())
 
 /**
  * `PUT /admin/structure/assignments` — the drag. The teacher moved is whoever holds the source slot, so the request

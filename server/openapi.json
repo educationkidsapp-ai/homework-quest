@@ -10,7 +10,7 @@
             "type" : "string"
           },
           "director" : {
-            "$ref" : "#/components/schemas/StaffRef"
+            "$ref" : "#/components/schemas/StructureStaffRef"
           },
           "nameAr" : {
             "type" : "string"
@@ -33,20 +33,6 @@
           "terms" : {
             "items" : {
               "$ref" : "#/components/schemas/AcademyTerm"
-            },
-            "type" : "array"
-          }
-        },
-        "type" : "object"
-      },
-      "AcademyNode" : {
-        "properties" : {
-          "academy" : {
-            "$ref" : "#/components/schemas/Academy"
-          },
-          "grades" : {
-            "items" : {
-              "$ref" : "#/components/schemas/GradeNode"
             },
             "type" : "array"
           }
@@ -2163,37 +2149,6 @@
           }
         },
         "required" : [ "code" ],
-        "type" : "object"
-      },
-      "ClassNode" : {
-        "properties" : {
-          "children" : {
-            "format" : "int32",
-            "type" : "integer"
-          },
-          "classId" : {
-            "type" : "string"
-          },
-          "floorSupervisors" : {
-            "items" : {
-              "$ref" : "#/components/schemas/StaffRef"
-            },
-            "type" : "array"
-          },
-          "grade" : {
-            "format" : "int32",
-            "type" : "integer"
-          },
-          "name" : {
-            "type" : "string"
-          },
-          "subjects" : {
-            "items" : {
-              "$ref" : "#/components/schemas/SubjectSlot"
-            },
-            "type" : "array"
-          }
-        },
         "type" : "object"
       },
       "ClassStudent" : {
@@ -4713,27 +4668,6 @@
         },
         "type" : "object"
       },
-      "GradeNode" : {
-        "properties" : {
-          "classes" : {
-            "items" : {
-              "$ref" : "#/components/schemas/ClassNode"
-            },
-            "type" : "array"
-          },
-          "grade" : {
-            "format" : "int32",
-            "type" : "integer"
-          },
-          "labelAr" : {
-            "type" : "string"
-          },
-          "labelEn" : {
-            "type" : "string"
-          }
-        },
-        "type" : "object"
-      },
       "GradeStats" : {
         "properties" : {
           "attendanceRate" : {
@@ -6095,13 +6029,13 @@
             "type" : "string"
           },
           "replaced" : {
-            "$ref" : "#/components/schemas/StaffRef"
+            "$ref" : "#/components/schemas/StructureStaffRef"
           },
           "subject" : {
             "type" : "string"
           },
           "teacher" : {
-            "$ref" : "#/components/schemas/StaffRef"
+            "$ref" : "#/components/schemas/StructureStaffRef"
           }
         },
         "type" : "object"
@@ -6117,7 +6051,7 @@
           },
           "droppedAssignments" : {
             "items" : {
-              "$ref" : "#/components/schemas/SubjectSlot"
+              "$ref" : "#/components/schemas/StructureSubjectSlot"
             },
             "type" : "array"
           },
@@ -6126,12 +6060,12 @@
           },
           "fromCoordinators" : {
             "items" : {
-              "$ref" : "#/components/schemas/StaffRef"
+              "$ref" : "#/components/schemas/StructureStaffRef"
             },
             "type" : "array"
           },
           "fromDirector" : {
-            "$ref" : "#/components/schemas/StaffRef"
+            "$ref" : "#/components/schemas/StructureStaffRef"
           },
           "fromScheme" : {
             "$ref" : "#/components/schemas/GradingScheme"
@@ -6152,12 +6086,12 @@
           },
           "toCoordinators" : {
             "items" : {
-              "$ref" : "#/components/schemas/StaffRef"
+              "$ref" : "#/components/schemas/StructureStaffRef"
             },
             "type" : "array"
           },
           "toDirector" : {
-            "$ref" : "#/components/schemas/StaffRef"
+            "$ref" : "#/components/schemas/StructureStaffRef"
           },
           "toScheme" : {
             "$ref" : "#/components/schemas/GradingScheme"
@@ -8658,13 +8592,10 @@
       },
       "StaffRef" : {
         "properties" : {
-          "email" : {
+          "id" : {
             "type" : "string"
           },
-          "name" : {
-            "type" : "string"
-          },
-          "userId" : {
+          "kind" : {
             "type" : "string"
           }
         },
@@ -8858,11 +8789,114 @@
         "required" : [ "characters", "genre", "problem", "resolution", "setting", "title" ],
         "type" : "object"
       },
+      "StructureAcademyNode" : {
+        "properties" : {
+          "academy" : {
+            "$ref" : "#/components/schemas/Academy"
+          },
+          "grades" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StructureGradeNode"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "StructureClassNode" : {
+        "properties" : {
+          "children" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "floorSupervisors" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StructureStaffRef"
+            },
+            "type" : "array"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "subjects" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StructureSubjectSlot"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "StructureGradeNode" : {
+        "properties" : {
+          "classes" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StructureClassNode"
+            },
+            "type" : "array"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "labelAr" : {
+            "type" : "string"
+          },
+          "labelEn" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "StructureStaffRef" : {
+        "properties" : {
+          "email" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "userId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "StructureSubjectSlot" : {
+        "properties" : {
+          "coordinators" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StructureStaffRef"
+            },
+            "type" : "array"
+          },
+          "nameAr" : {
+            "type" : "string"
+          },
+          "nameEn" : {
+            "type" : "string"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "teacher" : {
+            "$ref" : "#/components/schemas/StructureStaffRef"
+          }
+        },
+        "type" : "object"
+      },
       "StructureTreeView" : {
         "properties" : {
           "academies" : {
             "items" : {
-              "$ref" : "#/components/schemas/AcademyNode"
+              "$ref" : "#/components/schemas/StructureAcademyNode"
             },
             "type" : "array"
           }
@@ -8958,29 +8992,6 @@
           },
           "title" : {
             "type" : "string"
-          }
-        },
-        "type" : "object"
-      },
-      "SubjectSlot" : {
-        "properties" : {
-          "coordinators" : {
-            "items" : {
-              "$ref" : "#/components/schemas/StaffRef"
-            },
-            "type" : "array"
-          },
-          "nameAr" : {
-            "type" : "string"
-          },
-          "nameEn" : {
-            "type" : "string"
-          },
-          "subject" : {
-            "type" : "string"
-          },
-          "teacher" : {
-            "$ref" : "#/components/schemas/StaffRef"
           }
         },
         "type" : "object"
