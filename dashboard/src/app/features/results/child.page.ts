@@ -79,6 +79,9 @@ export class ChildPage {
   protected readonly name = computed(() => this.report.value().name ?? '');
   protected readonly className = computed(() => this.report.value().className ?? '');
   protected readonly levels = computed(() => levelsOf(this.report.value()));
+
+  /** Feature 36: her class's academy grading scheme, which is what names a band on her page. */
+  protected readonly scheme = computed(() => this.report.value().scheme ?? null);
   protected readonly trend = computed(() => this.report.value().trend ?? []);
   protected readonly comments = computed(() => commentsOf(this.report.value()));
   protected readonly work = computed(() => workOf(this.report.value()));

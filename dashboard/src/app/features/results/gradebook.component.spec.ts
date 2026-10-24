@@ -80,7 +80,36 @@ async function settle(): Promise<void> {
   TestBed.tick();
 }
 
-async function renderGradebook(flags: Record<string, boolean> = { gradebook: true, openStopMarking: true }) {
+/**
+ * Feature 36: the same gradebook, read by a class whose academy has a letter scheme of its own.
+ * `band` is unchanged (it still colours the square); `bandLabel` is the academy's band key, and
+ * `scheme` is where its words live.
+ */
+const LETTERED: Gradebook = {
+  ...BOOK,
+  scheme: {
+    academyKey: 'british',
+    kind: 'LETTER',
+    custom: true,
+    bands: [
+      { band: 'C', lower: 0, nameEn: 'C', nameAr: 'مقبول' },
+      { band: 'A*', lower: 85, nameEn: 'A*', nameAr: 'ممتاز مرتفع' },
+    ],
+  },
+  children: (BOOK.children ?? []).map((child) => ({
+    ...child,
+    bandLabel: child.childId === 'ch-1' ? 'A*' : 'C',
+    cells: (child.cells ?? []).map((cell) => ({
+      ...cell,
+      bandLabel: child.childId === 'ch-1' ? 'A*' : 'C',
+    })),
+  })),
+};
+
+async function renderGradebook(
+  flags: Record<string, boolean> = { gradebook: true, openStopMarking: true },
+  book: Gradebook = BOOK,
+) {
   await renderHq(GradebookComponent, {
     providers,
     inputs: { classId: 'c-1a', className: '1A British' },
@@ -97,7 +126,7 @@ async function renderGradebook(flags: Record<string, boolean> = { gradebook: tru
   backend.expectOne('/schools/school-a/flags').flush(flags);
   await settle();
 
-  backend.expectOne((request) => request.url === '/teacher/classes/c-1a/gradebook').flush(BOOK);
+  backend.expectOne((request) => request.url === '/teacher/classes/c-1a/gradebook').flush(book);
   await settle();
   return backend;
 }
@@ -135,6 +164,19 @@ describe('the gradebook grid', () => {
     const amina = cellOf('Amina Al Amin');
     expect(amina.getAllByText('Ex').length).toBeGreaterThan(0);
     expect(amina.getAllByText('Exceeding').length).toBeGreaterThan(0);
+    expect(amina.getAllByText('90').length).toBeGreaterThan(0);
+  });
+
+  /**
+   * Feature 36's acceptance criterion: with no scheme the squares read exactly as they did (the
+   * test above), and with a letter scheme they read the academy's own letters instead.
+   */
+  it("shows the academy's own band words when it has a scheme of its own", async () => {
+    await renderGradebook({ gradebook: true, openStopMarking: true }, LETTERED);
+
+    const amina = cellOf('Amina Al Amin');
+    expect(amina.getAllByText('A*').length).toBeGreaterThan(0);
+    expect(amina.queryByText('Exceeding')).toBeNull();
     expect(amina.getAllByText('90').length).toBeGreaterThan(0);
   });
 

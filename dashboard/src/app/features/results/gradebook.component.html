@@ -121,7 +121,13 @@
                       (click)="edit(row, cell)"
                     >
                       @if (cell.attempted) {
-                        <hq-level-band [square]="true" [band]="cell.band" [score]="cell.score" />
+                        <hq-level-band
+                          [square]="true"
+                          [band]="cell.band"
+                          [bandKey]="cell.bandLabel"
+                          [scheme]="scheme()"
+                          [score]="cell.score"
+                        />
                         @if (cell.overridden) {
                           <span class="gb__auto">{{ cell.autoScore }}</span>
                         }
@@ -140,7 +146,7 @@
               }
               <td class="gb__average">
                 <strong>{{ score(row.average) }}</strong>
-                <hq-level-band [band]="row.band" />
+                <hq-level-band [band]="row.band" [bandKey]="row.bandLabel" [scheme]="scheme()" />
                 @if (row.trend) {
                   <span class="gb__trend" [attr.data-trend]="row.trend">
                     <span aria-hidden="true">{{ trendGlyph(row) }}</span>

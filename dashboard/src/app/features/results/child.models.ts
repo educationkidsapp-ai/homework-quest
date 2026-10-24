@@ -17,6 +17,8 @@ import type { Trend } from './gradebook.models';
 export interface LevelRow {
   readonly subject: string;
   readonly band: Band | null;
+  /** Feature 36: the band key of the academy's own scheme, drawn in its words when it has one. */
+  readonly bandLabel: string | null;
   readonly levelScore: number | null;
   readonly trend: Trend;
   readonly lessons: number;
@@ -26,6 +28,7 @@ export function levelsOf(report: ChildReport): readonly LevelRow[] {
   return (report.levels ?? []).map((level: ChildLevel) => ({
     subject: level.subject ?? '',
     band: bandOf(level.band),
+    bandLabel: level.bandLabel ?? null,
     levelScore: level.levelScore ?? null,
     trend: trendOf(level.trend),
     lessons: level.lessons ?? 0,

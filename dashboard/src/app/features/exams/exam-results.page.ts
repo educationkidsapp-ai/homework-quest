@@ -179,6 +179,9 @@ export class ExamResultsPage {
 
   protected readonly rows = computed(() => childRows(this.results.value()));
 
+  /** Feature 36: the class's academy grading scheme, which is what names a band on this page. */
+  protected readonly scheme = computed(() => this.results.value().scheme ?? null);
+
   protected readonly columns = computed<readonly TableColumn<ChildRow>[]>(() => {
     this.lang();
     return [

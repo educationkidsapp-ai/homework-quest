@@ -28,6 +28,7 @@ import {
   type TableColumn,
 } from '../../ui';
 import { CURRICULA, GRADES, isCurriculum, type Curriculum } from '../lessons/lessons.models';
+import { GradeLabelPipe } from '../../core/structure/grade-label.pipe';
 import { byCourseThenName, isSectionName, type AdminClass, type ClassRow } from './admin.models';
 
 interface Pending {
@@ -64,6 +65,7 @@ interface Pending {
     CdkMenu,
     CdkMenuItem,
     CdkMenuTrigger,
+    GradeLabelPipe,
     TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -88,7 +90,9 @@ export class ClassesPage {
 
   // ---- EduManage KPI Metrics ----
   protected readonly totalSections = computed(() => this.sections.value().length);
-  protected readonly activeSections = computed(() => this.sections.value().filter((s) => s.active !== false).length);
+  protected readonly activeSections = computed(
+    () => this.sections.value().filter((s) => s.active !== false).length,
+  );
   protected readonly totalStudents = computed(() =>
     this.sections.value().reduce((acc, s) => acc + (s.children ?? 0), 0),
   );
@@ -329,6 +333,9 @@ export class ClassesPage {
         curriculum: this.courseWord(section.curriculum),
         grade: section.grade ?? 0,
       }),
+      academy: this.courseWord(section.curriculum),
+      academyKey: section.curriculum ?? '',
+      grade: section.grade ?? 0,
       name: section.name ?? '',
       joinCode: section.joinCode ?? '',
       children: section.children ?? 0,

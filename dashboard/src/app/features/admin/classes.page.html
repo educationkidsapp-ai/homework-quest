@@ -162,7 +162,9 @@
         {{ row.name }}
       }
       @case ('course') {
-        {{ row.course }}
+        <!-- Feature 36: "British · Year 2" where that academy says so, "British · Grade 1" where
+             it has no naming of its own — which is the string this cell always showed. -->
+        {{ row.academy }} · {{ row.grade | hqGradeLabel: row.academyKey }}
       }
       @case ('joinCode') {
         <span class="classes__code">

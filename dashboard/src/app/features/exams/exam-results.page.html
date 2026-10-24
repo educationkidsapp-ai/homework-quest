@@ -324,7 +324,7 @@
     }
     @case ('band') {
       @if (handed(row)) {
-        <hq-level-band [band]="row.band" />
+        <hq-level-band [band]="row.band" [bandKey]="row.bandLabel" [scheme]="scheme()" />
       } @else {
         <span class="hq-muted" aria-hidden="true">–</span>
       }
