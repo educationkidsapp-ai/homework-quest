@@ -52,6 +52,8 @@ const ROWS: BoardRow[] = [
   row('u-lina', 'Lina Lead', 'PRESENT', { checkIn: '07:00', mode: 'onsite', noCheckOut: true }),
   row('u-rami', 'Rami Remote', 'REMOTE', { checkIn: '07:02', mode: 'remote' }),
   row('u-nour', 'Nour', 'NOT_ARRIVED'),
+  // Feature 34: a day of approved leave, which no card counts and which is never absent.
+  row('u-sara', 'Sara Leave', 'ON_LEAVE'),
   {
     ...row('w-walid', 'Walid Worker', 'ABSENT', { academies: [] }),
     kind: 'WORKER',
@@ -227,6 +229,16 @@ describe('Staff attendance board', () => {
     expect(names()).toHaveLength(ROWS.length);
   });
 
+  it('calls a day of approved leave "On leave", and counts it on no card', async () => {
+    await renderBoard();
+
+    const sara = screen.getAllByRole('row').find((r) => r.textContent?.includes('Sara Leave'))!;
+    expect(sara).toHaveTextContent('On leave');
+    // Feature 34: never absent, never "not arrived".
+    expect(sara).not.toHaveTextContent('Absent');
+    expect(filterRows(ROWS, { ...NO_FILTER, status: 'ON_LEAVE' }).map((r) => r.id)).toEqual(['u-sara']);
+  });
+
   it('tells a teacher who leads nobody so, rather than drawing an empty table', async () => {
     await renderBoard({
       ...BOARD,
@@ -236,6 +248,109 @@ describe('Staff attendance board', () => {
     });
     expect(screen.getByText('Nobody reports to you yet')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+});
+
+describe('the monthly report and feature 34', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    // jsdom has neither, and `saveFile` is what the export buttons end in.
+    URL.createObjectURL = vi.fn(() => 'blob:report');
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  /** One employee's month, with feature 34's three new totals. */
+  const REPORT = {
+    month: '2026-10',
+    scope: 'SCHOOL',
+    rows: [
+      {
+        kind: 'USER',
+        id: 'u-tala',
+        fullName: 'تالا المعلمة',
+        category: 'TEACHER',
+        academies: ['british'],
+        workingDays: 20,
+        presentOnsite: 16,
+        presentRemote: 1,
+        lateCount: 2,
+        lateMinutes: 35,
+        absentDays: 0,
+        earlyLeaveMinutes: 0,
+        missingCheckOuts: 1,
+        corrections: 1,
+        leaveDays: 3,
+        permissionCount: 2,
+        excusedMinutes: 150,
+      },
+    ],
+  };
+
+  async function renderReport(leaveOn = true) {
+    const rendered = await renderHq(AttendanceBoardPage, {
+      providers: [
+        ...providers,
+        { provide: FlagService, useValue: { isOn: () => leaveOn, ready: () => true } },
+      ],
+    });
+    const backend = TestBed.inject(HttpTestingController);
+    TestBed.tick();
+    backend.expectOne('/staff-attendance/board').flush(BOARD);
+    await settle(rendered);
+
+    screen.getByRole('tab', { name: 'Monthly report' }).click();
+    await settle(rendered);
+    const report = backend.expectOne((request) => request.url === '/staff-attendance/report');
+    const month = report.request.params.get('month') ?? '';
+    report.flush(REPORT);
+    await settle(rendered);
+    return { rendered, backend, month };
+  }
+
+  it('shows the leave days, the permissions and the excused minutes beside the old totals', async () => {
+    await renderReport();
+
+    const headers = screen.getAllByRole('columnheader').map((cell) => cell.textContent?.trim());
+    expect(headers).toContain('Leave days');
+    expect(headers).toContain('Permissions');
+    expect(headers).toContain('Excused minutes');
+    const row = screen.getAllByRole('row')[1]!;
+    expect(row).toHaveTextContent('150');
+  });
+
+  it('exports the balances by year and the requests by month, each as CSV and as Excel', async () => {
+    const { rendered, backend, month } = await renderReport();
+    const year = month.slice(0, 4);
+
+    screen.getByRole('button', { name: 'Balances CSV' }).click();
+    await settle(rendered);
+    const balances = backend.expectOne(`/staff-attendance/leave/balances.csv?year=${year}`);
+    expect(balances.request.method).toBe('GET');
+    balances.flush('name,annual\n');
+    await settle(rendered);
+
+    screen.getByRole('button', { name: 'Balances Excel' }).click();
+    await settle(rendered);
+    backend.expectOne(`/staff-attendance/leave/balances.xlsx?year=${year}`).flush(new Blob(['x']));
+    await settle(rendered);
+
+    screen.getByRole('button', { name: 'Requests CSV' }).click();
+    await settle(rendered);
+    backend.expectOne(`/staff-attendance/leave/requests.csv?month=${month}`).flush('name,type\n');
+    await settle(rendered);
+
+    screen.getByRole('button', { name: 'Requests Excel' }).click();
+    await settle(rendered);
+    backend.expectOne(`/staff-attendance/leave/requests.xlsx?month=${month}`).flush(new Blob(['x']));
+  });
+
+  it('offers neither leave export while staffLeave is off', async () => {
+    await renderReport(false);
+
+    expect(screen.queryByRole('button', { name: 'Balances CSV' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Requests Excel' })).not.toBeInTheDocument();
+    // The monthly report's own two exports are feature 17's and stay.
+    expect(screen.getByRole('button', { name: 'Export CSV' })).toBeInTheDocument();
   });
 });
 

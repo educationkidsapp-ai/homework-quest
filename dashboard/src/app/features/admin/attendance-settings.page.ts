@@ -43,6 +43,7 @@ import {
   previewRadius,
   requestOf,
 } from './attendance-settings.models';
+import { LeaveCardComponent } from './leave-card.component';
 import { MaterialDeadlineCardComponent } from './material-deadline-card.component';
 import { RemoteStudyDaysCardComponent } from './remote-study-days-card.component';
 
@@ -93,6 +94,7 @@ const EMPTY_SETTINGS: AttendanceSettings = {};
     SkeletonComponent,
     RemoteStudyDaysCardComponent,
     MaterialDeadlineCardComponent,
+    LeaveCardComponent,
     TranslocoPipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,

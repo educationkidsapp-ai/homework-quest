@@ -8,8 +8,31 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--hq-space-12);
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
+}
+
+.requests__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--hq-space-12);
+  flex: 1 1 auto;
+
+  > * {
+    flex: 1 1 10rem;
+  }
+}
+
+/* The two-step chain's second step: her manager said yes, the Admin has not yet. */
+.requests__stage {
+  display: inline-block;
+  margin-block-start: var(--hq-space-4);
+  padding: 0 var(--hq-space-8);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-info-ink);
+  color: var(--hq-color-info-ink);
+  background: var(--hq-color-info-soft);
+  font-size: var(--hq-text-note);
 }
 
 /* A second line inside a cell: when she asked, the times that were there before. */

@@ -94,6 +94,55 @@
       </div>
     </div>
 
+    <!-- Feature 34: the two leave reports, each in both formats. Balances are counted by calendar
+         year, requests by the month above; absent while `staffLeave` is off. -->
+    @if (leaveEnabled()) {
+      <div class="board__filters" data-hq-leave-exports>
+        <hq-input
+          type="number"
+          [label]="'staffBoard.leave.year' | transloco"
+          [min]="'2000'"
+          [max]="'2100'"
+          [value]="year()"
+          (valueChange)="year.set($event)"
+        />
+        <div class="board__exports">
+          <hq-button
+            variant="secondary"
+            [disabled]="exporting()"
+            (pressed)="exportLeaveBalances(false)"
+            data-hq-leave-balances-csv
+          >
+            {{ 'staffBoard.leave.balancesCsv' | transloco }}
+          </hq-button>
+          <hq-button
+            variant="secondary"
+            [disabled]="exporting()"
+            (pressed)="exportLeaveBalances(true)"
+            data-hq-leave-balances-xlsx
+          >
+            {{ 'staffBoard.leave.balancesXlsx' | transloco }}
+          </hq-button>
+          <hq-button
+            variant="secondary"
+            [disabled]="exporting()"
+            (pressed)="exportLeaveRequests(false)"
+            data-hq-leave-requests-csv
+          >
+            {{ 'staffBoard.leave.requestsCsv' | transloco }}
+          </hq-button>
+          <hq-button
+            variant="secondary"
+            [disabled]="exporting()"
+            (pressed)="exportLeaveRequests(true)"
+            data-hq-leave-requests-xlsx
+          >
+            {{ 'staffBoard.leave.requestsXlsx' | transloco }}
+          </hq-button>
+        </div>
+      </div>
+    }
+
     @if (report.isLoading()) {
       <hq-skeleton [loading]="true" [lines]="6" [label]="'staffBoard.loading' | transloco" />
     } @else if (report.error()) {

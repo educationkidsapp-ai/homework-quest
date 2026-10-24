@@ -99,6 +99,11 @@
   &[data-result='RECORDED'] {
     color: var(--hq-color-success-ink);
   }
+
+  /* Feature 34: excused, which is neither good news nor bad. */
+  &[data-status='ON_LEAVE'] {
+    color: var(--hq-color-info-ink);
+  }
 }
 
 .board__flag {
@@ -162,6 +167,10 @@
 
   &[data-status='ON_TIME'] {
     background: var(--hq-color-success-soft);
+  }
+
+  &[data-status='ON_LEAVE'] {
+    background: var(--hq-color-info-soft);
   }
 }
 
