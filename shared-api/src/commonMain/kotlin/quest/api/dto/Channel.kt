@@ -27,6 +27,10 @@ import kotlinx.serialization.Serializable
  * the one-to-one thread the parent already has with her, absent until one exists — **Message** then starts it over
  * the ordinary `POST /children/{id}/chat/threads/{staffId}/messages`. [canMessage] is false for a row she may read
  * but not write to; the clients hide the button rather than letting a send be refused.
+ *
+ * Feature 33 adds [latestEvaluation] to a teacher's row: the newest evaluation of this child she has written that
+ * the parent may read — approved, of a released round — and `null` on every other row. It is **defaulted**, so a
+ * client built before feature 33 decodes a row that carries it, and an older server's row decodes here.
  */
 @Serializable
 data class TeamMember(
@@ -37,7 +41,16 @@ data class TeamMember(
     val officeHours: OfficeHoursStatus? = null,
     val threadId: String? = null,
     val canMessage: Boolean = true,
+    val latestEvaluation: TeamLatestEvaluation? = null,
 )
+
+/**
+ * Feature 33: "Latest evaluation" on a teacher's row of "My child's team" — the round it belongs to, in both
+ * languages, and the subject it is about. Released and approved data only, and **no rating, no state and no
+ * reviewer**: the words themselves are read on the evaluations screen ([ParentEvaluation]).
+ */
+@Serializable
+data class TeamLatestEvaluation(val roundName: String, val roundNameAr: String, val subject: String)
 
 /**
  * One post in a class channel. Written by a teacher of the section (or its homeroom teacher) and read by the parents

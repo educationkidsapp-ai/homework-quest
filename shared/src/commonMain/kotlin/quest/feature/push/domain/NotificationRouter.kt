@@ -57,6 +57,18 @@ sealed interface Destination {
      * channel is one page per class, opened at its newest end, which is where the post she was told about is.
      */
     data object ClassChannel : Destination
+    /**
+     * Feature 33: `evaluation.released` — the parent's "Teacher evaluations" page for the child the row names
+     * (`/children/{id}/evaluations`). There is no page per evaluation: the round, the subject and the teacher are all
+     * on the one page, and the router has already made her the current child.
+     */
+    data object ChildEvaluations : Destination
+    /**
+     * Feature 33: `evaluation.reminder` and `evaluation.returned` — a teacher's own notices, which name no thread and
+     * no child. The app has no evaluations screen on the staff side (she writes them on the dashboard), so they open
+     * her notifications, where the notice itself says what is missing or what came back.
+     */
+    data object StaffNotices : Destination
     /** `exam.published` (or any `…/map` link): the child's home, where the exam's card is — title and window, never the paper. */
     data object ExamCard : Destination
     /** The parent's Progress page — an `…/progress` link that names no exam. */
@@ -102,6 +114,9 @@ class NotificationRouter(
         // Feature 25: the morning brief is pushed to a leader's staff devices. It names no child and no thread, and
         // its link is "/", so without this it fell through to the parent road and the PIN she has none for.
         if (tap.kind == MORNING_BRIEF && staffSignedIn()) return Destination.StaffHome
+        // Feature 33: the reminder and the returned evaluation are a teacher's own notices. Without a staff session
+        // they fall through to the parent road, exactly as every other staff kind does.
+        if (isEvaluationStaffKind(tap.kind) && staffSignedIn()) return Destination.StaffNotices
         val childId = tap.childId ?: childOf(tap.link)
         val child = childId?.let { select(it) }
         if (childId != null && child == null) return Destination.Notifications(tap.notificationId, gone = true)
@@ -117,6 +132,9 @@ class NotificationRouter(
             // Feature 32: the channel of the class the child the row names is in. Without her there is no channel to
             // open — the route is `/children/{id}/channel` — so it falls back to the row on the Notifications tab.
             CHANNEL_POST -> if (child != null) Destination.ClassChannel else notifications(tap)
+            // Feature 33: the evaluations of the child the row names. Without her there is no page to open — the
+            // route is `/children/{id}/evaluations` — so it falls back to the row on the Notifications tab.
+            EVALUATION_RELEASED -> if (child != null) Destination.ChildEvaluations else notifications(tap)
             "announcement.posted", "question.sent" -> notifications(tap)
             else -> byLink(tap, child)                  // a kind still to come: its link decides
         }
@@ -144,6 +162,7 @@ class NotificationRouter(
         LinkShape.BROADCAST -> broadcast(tap, child)
         LinkShape.MAP -> Destination.ExamCard
         LinkShape.PROGRESS -> Destination.Progress
+        LinkShape.EVALUATIONS -> if (child != null) Destination.ChildEvaluations else notifications(tap)
         LinkShape.ANNOUNCEMENT, LinkShape.TEACHER_QUESTION, LinkShape.OTHER -> notifications(tap)
     }
 
@@ -265,7 +284,23 @@ const val MORNING_BRIEF = "morning.brief"
  * parent side exactly as every other kind does.
  */
 fun isStaffOnlyKind(kind: String?): Boolean =
-    isAttendance(kind) || kind == CHAT_AFTER_HOURS_SUMMARY || kind == MORNING_BRIEF
+    isAttendance(kind) || kind == CHAT_AFTER_HOURS_SUMMARY || kind == MORNING_BRIEF || isEvaluationStaffKind(kind)
+
+/**
+ * Feature 33: `NotificationKind.EVALUATION_REMINDER` — the round's deadline is near and she still has evaluations to
+ * write — and `NotificationKind.EVALUATION_RETURNED`, one sent back to her with a comment. Both are a teacher's, and
+ * neither names a child or a thread.
+ */
+const val EVALUATION_REMINDER = "evaluation.reminder"
+const val EVALUATION_RETURNED = "evaluation.returned"
+
+fun isEvaluationStaffKind(kind: String?): Boolean = kind == EVALUATION_REMINDER || kind == EVALUATION_RETURNED
+
+/**
+ * Feature 33: `NotificationKind.EVALUATION_RELEASED` — the teachers' evaluations of one child are ready to read,
+ * linking `/children/{id}/evaluations`. A parent's kind, always about a child, so it goes through the parent gate.
+ */
+const val EVALUATION_RELEASED = "evaluation.released"
 
 /**
  * Feature 28: `NotificationKind.EVENING_CARD` — today's card about one child, linking

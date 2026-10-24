@@ -164,6 +164,28 @@ enum class NotificationKind {
      * row and one push per parent per post, whatever the number of her children in that class ([ChannelPost]).
      */
     @SerialName("channel.post") CHANNEL_POST,
+
+    /**
+     * Feature 33, to a teacher inside the round's reminder window: some of her children's evaluations are still
+     * missing. [NotificationView.link] carries `quest.api.dashboard.EvaluationLink` — the round and how many rows
+     * are missing — so both clients word the row in her language. Once per teacher and round.
+     */
+    @SerialName("evaluation.reminder") EVALUATION_REMINDER,
+
+    /**
+     * Feature 33, to the teacher who wrote it: a leader sent one evaluation back with a comment, so she may edit it
+     * and submit it again. [NotificationView.lessonId] is the evaluation's id and [NotificationView.link] carries
+     * the round ([quest.api.dashboard.EvaluationLink]); the comment itself is read on the evaluation.
+     */
+    @SerialName("evaluation.returned") EVALUATION_RETURNED,
+
+    /**
+     * Feature 33 (parents only): the teachers' evaluations of [NotificationView.childId] are ready to read — the
+     * round was released, or an evaluation of a released round has just been approved. [NotificationView.link] is
+     * `/children/{childId}/evaluations`. One row and one push per parent per child, and the row carries no rating,
+     * no state and no reviewer, exactly as [ParentEvaluation] carries none.
+     */
+    @SerialName("evaluation.released") EVALUATION_RELEASED,
 }
 
 /**

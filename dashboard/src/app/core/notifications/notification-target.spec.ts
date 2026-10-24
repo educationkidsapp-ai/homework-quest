@@ -316,4 +316,28 @@ describe('MG2a — where a notification sends its reader', () => {
     });
     expect(target(bare, 'TEACHER')).toBe('/teacher/my-materials');
   });
+
+  /**
+   * Feature 33: the evaluation reminder and the return. Both are written as one link for
+   * everybody — `/notifications?evaluation=<reminder|returned>&round=…` — and only a teacher has
+   * a screen that can write an evaluation, so hers is the only bell either row opens a screen
+   * from. The round travels with it: the link names the round whose evaluations are waiting,
+   * which is not necessarily the one her page would open on by itself.
+   */
+  it('sends an evaluation reminder and a return to her own evaluations page, with the round', () => {
+    for (const kind of [
+      NotificationViewKindEnum.EVALUATION_REMINDER,
+      NotificationViewKindEnum.EVALUATION_RETURNED,
+    ]) {
+      const item = row(kind, { link: '/notifications?evaluation=reminder&round=r-1&missing=4' });
+      expect(target(item, 'TEACHER')).toBe('/teacher/evaluations?round=r-1');
+      for (const role of ['ADMIN', 'MANAGERIAL', 'COORDINATOR', 'FLOOR_SUPERVISOR'] as Role[])
+        expect(target(item, role)).toBe('/notifications');
+      expect(target(item, null)).toBe('/notifications');
+      // No round on the link: her page opens on the round the server calls current.
+      expect(target(row(kind, { link: '/notifications?evaluation=returned' }), 'TEACHER')).toBe(
+        '/teacher/evaluations',
+      );
+    }
+  });
 });

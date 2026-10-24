@@ -217,6 +217,27 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.teachingMaterials,
         permission: 'materials.board',
       },
+      // Feature 33: the leaders' tracking board over the children's evaluations — the same
+      // teachers this leader's Staff attendance and teaching-material boards show her, because
+      // `GET /evaluations/board` is scoped by feature 17's own `BoardScope` too. The path is
+      // `evaluation-tracking` and not `evaluations`, because in the **teacher's** area that name
+      // is already her own page, and one id may not mean two screens in one rail.
+      {
+        id: 'evaluation-board',
+        path: 'evaluation-tracking',
+        labelKey: 'nav.evaluationBoard',
+        flag: FLAGS.childEvaluations,
+        permission: 'evaluations.board',
+      },
+      // Feature 33: the rounds themselves — their names, their deadline, their reminder window,
+      // and the one-way Release to the parents. `evaluations.rounds` is the Admin's alone.
+      {
+        id: 'evaluation-rounds',
+        path: 'evaluation-rounds',
+        labelKey: 'nav.evaluationRounds',
+        flag: FLAGS.childEvaluations,
+        permission: 'evaluations.rounds',
+      },
       // D13: while `multiSchool` is off there is one school, it is the Admin's own, and these
       // three screens have nothing to show — the rail hides them and the router refuses them,
       // rather than offering a list of one and a switcher that switches to itself.
@@ -423,6 +444,18 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.teachingMaterials,
         permission: 'materials.self',
       },
+      // Feature 33: her own "Evaluations / تقييم الطلاب" — one row per child of every class and
+      // subject she teaches, for the round the Admin opened. The path is **`evaluations`** and
+      // nothing else: `evaluation.reminder` and `evaluation.returned` both resolve to
+      // `/teacher/evaluations?round=…` (`core/notifications/notification-target.ts`), so the bell
+      // and this row cannot be renamed apart. `evaluations.self` is the teacher's alone.
+      {
+        id: 'evaluations',
+        path: 'evaluations',
+        labelKey: 'nav.myEvaluations',
+        flag: FLAGS.childEvaluations,
+        permission: 'evaluations.self',
+      },
       // Feature 17: the leaders' board and monthly report. Every teacher and coordinator holds
       // `attendance.board` because any of them may be named someone's direct manager; the server
       // answers each only the people she leads, and an empty board says she leads nobody.
@@ -442,6 +475,18 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         labelKey: 'nav.materials',
         flag: FLAGS.teachingMaterials,
         permission: 'materials.board',
+      },
+      // Feature 33: the leaders' tracking board over the children's evaluations — the same
+      // teachers this leader's Staff attendance and teaching-material boards show her, because
+      // `GET /evaluations/board` is scoped by feature 17's own `BoardScope` too. The path is
+      // `evaluation-tracking` and not `evaluations`, because in the **teacher's** area that name
+      // is already her own page, and one id may not mean two screens in one rail.
+      {
+        id: 'evaluation-board',
+        path: 'evaluation-tracking',
+        labelKey: 'nav.evaluationBoard',
+        flag: FLAGS.childEvaluations,
+        permission: 'evaluations.board',
       },
     ],
   },
@@ -498,6 +543,18 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         labelKey: 'nav.materials',
         flag: FLAGS.teachingMaterials,
         permission: 'materials.board',
+      },
+      // Feature 33: the leaders' tracking board over the children's evaluations — the same
+      // teachers this leader's Staff attendance and teaching-material boards show her, because
+      // `GET /evaluations/board` is scoped by feature 17's own `BoardScope` too. The path is
+      // `evaluation-tracking` and not `evaluations`, because in the **teacher's** area that name
+      // is already her own page, and one id may not mean two screens in one rail.
+      {
+        id: 'evaluation-board',
+        path: 'evaluation-tracking',
+        labelKey: 'nav.evaluationBoard',
+        flag: FLAGS.childEvaluations,
+        permission: 'evaluations.board',
       },
       // Feature 18: her direct reports' requests. Not `readOnly` — deciding them is the one thing
       // in the whole `/management` namespace she does by tapping a button, and the row carries
@@ -716,6 +773,18 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         flag: FLAGS.teachingMaterials,
         permission: 'materials.board',
       },
+      // Feature 33: the leaders' tracking board over the children's evaluations — the same
+      // teachers this leader's Staff attendance and teaching-material boards show her, because
+      // `GET /evaluations/board` is scoped by feature 17's own `BoardScope` too. The path is
+      // `evaluation-tracking` and not `evaluations`, because in the **teacher's** area that name
+      // is already her own page, and one id may not mean two screens in one rail.
+      {
+        id: 'evaluation-board',
+        path: 'evaluation-tracking',
+        labelKey: 'nav.evaluationBoard',
+        flag: FLAGS.childEvaluations,
+        permission: 'evaluations.board',
+      },
     ],
   },
   // Feature 20 (`docs/features/20-floor-supervisor-role.md`): the floor supervisor's area. She
@@ -783,6 +852,18 @@ export const AREAS: Readonly<Record<Role, Area>> = {
         labelKey: 'nav.materials',
         flag: FLAGS.teachingMaterials,
         permission: 'materials.board',
+      },
+      // Feature 33: the leaders' tracking board over the children's evaluations — the same
+      // teachers this leader's Staff attendance and teaching-material boards show her, because
+      // `GET /evaluations/board` is scoped by feature 17's own `BoardScope` too. The path is
+      // `evaluation-tracking` and not `evaluations`, because in the **teacher's** area that name
+      // is already her own page, and one id may not mean two screens in one rail.
+      {
+        id: 'evaluation-board',
+        path: 'evaluation-tracking',
+        labelKey: 'nav.evaluationBoard',
+        flag: FLAGS.childEvaluations,
+        permission: 'evaluations.board',
       },
     ],
   },

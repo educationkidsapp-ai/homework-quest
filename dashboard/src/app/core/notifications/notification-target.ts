@@ -180,6 +180,20 @@ export function notificationTarget(item: NotificationView, role: Role | null): N
       const week = paramOf(link, 'week');
       return { path: '/teacher/my-materials', queryParams: week === null ? null : { week } };
     }
+    // Feature 33: "some of your children's evaluations are still missing" and "one evaluation was sent
+    // back to you". `EvaluationReminderJob` and the review both write
+    // `/notifications?evaluation=<reminder|returned>&round=…` — one link for everybody, because neither
+    // has a role to write for — so this is where it becomes a route. **Her own** evaluations page and
+    // nobody else's: `evaluations.self` is the teacher's alone, and `/teacher/evaluations` is the only
+    // screen that can write an evaluation, so either row in any other bell stays on the notifications
+    // page, which can always show the row itself. The round travels with it; the number still missing
+    // does not, because the page counts its own rows.
+    case NotificationViewKindEnum.EVALUATION_REMINDER:
+    case NotificationViewKindEnum.EVALUATION_RETURNED: {
+      if (role !== 'TEACHER') return INBOX;
+      const round = paramOf(link, 'round');
+      return { path: '/teacher/evaluations', queryParams: round === null ? null : { round } };
+    }
     default:
       return INBOX;
   }

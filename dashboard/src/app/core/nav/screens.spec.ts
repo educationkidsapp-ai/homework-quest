@@ -104,6 +104,10 @@ describe('the screen table', () => {
       // Feature 31: the leaders' board over the weekly teaching material, behind
       // `teachingMaterials` — the same teachers her Staff attendance board shows.
       'materials',
+      // Feature 33: the tracking board over the children's evaluations, then the rounds
+      // themselves — the board is in the five areas the attendance board is in, the rounds hers.
+      'evaluation-board',
+      'evaluation-rounds',
       // D13: `schools` keeps its label and its `multiSchool` flag — the rail hides it at runtime,
       // and the table is what it is hidden from.
       'schools',
@@ -243,9 +247,13 @@ describe('the screen table', () => {
       'manager',
       // Feature 31: her own teaching material, and the board of the people she leads.
       'my-materials',
+      // Feature 33: her own evaluations of the children she teaches, at the path the bell links to.
+      'evaluations',
       // Feature 17: the board of the people she is direct manager of.
       'staff-attendance',
       'materials',
+      // Feature 33: the tracking board over the evaluations of the people she leads.
+      'evaluation-board',
     ]);
     expect(navScreens('TEACHER').map(({ link }) => link)).toEqual([
       '/teacher/week',
@@ -257,8 +265,10 @@ describe('the screen table', () => {
       '/teacher/coordinators',
       '/teacher/manager',
       '/teacher/my-materials',
+      '/teacher/evaluations',
       '/teacher/staff-attendance',
       '/teacher/materials',
+      '/teacher/evaluation-tracking',
     ]);
     // Both are the chooser for a conversation, so both carry what the chat routes carry.
     for (const id of ['coordinators', 'manager']) {
@@ -324,6 +334,8 @@ describe('the screen table', () => {
       'staff-attendance',
       // Feature 31: their teaching material, the same people and the same scope.
       'materials',
+      // Feature 33: and their children's evaluations, in that same scope.
+      'evaluation-board',
     ]);
     expect(navScreens('COORDINATOR').map(({ link }) => link)).toEqual([
       '/coordinator',
@@ -340,6 +352,7 @@ describe('the screen table', () => {
       '/coordinator/announcements',
       '/coordinator/staff-attendance',
       '/coordinator/materials',
+      '/coordinator/evaluation-tracking',
     ]);
     // R7: all three carry the flag their server routes carry, so a school without chat has none
     // of them — in the rail or at the URL.
@@ -397,7 +410,8 @@ describe('the screen table', () => {
           key === 'broadcast.read' ||
           key === 'attendance.requests.decide' ||
           key === 'attendance.board' ||
-          key === 'materials.board',
+          key === 'materials.board' ||
+          key === 'evaluations.board',
       ),
     ).toBe(true);
     const requests = AREAS.COORDINATOR.screens.find((screen) => screen.id === 'attendance-requests');
@@ -424,6 +438,8 @@ describe('the screen table', () => {
       'staff-attendance',
       // Feature 31: her department's teaching material, in her attendance board's own scope.
       'materials',
+      // Feature 33: and her department's child evaluations, in that same scope.
+      'evaluation-board',
       // Feature 18: the requests her direct reports are waiting on — the one row of hers that is
       // not read-only.
       'attendance-requests',
@@ -502,6 +518,8 @@ describe('the screen table', () => {
       'attendance-requests',
       // Feature 31: the teaching material of the teachers of her floors' classes.
       'materials',
+      // Feature 33: and their children's evaluations.
+      'evaluation-board',
     ]);
     expect(navScreens('FLOOR_SUPERVISOR').map(({ link }) => link)).toEqual([
       '/floor',
@@ -510,6 +528,7 @@ describe('the screen table', () => {
       '/floor/staff-attendance',
       '/floor/attendance-requests',
       '/floor/materials',
+      '/floor/evaluation-tracking',
     ]);
 
     // Her own three rows carry her own flag and her own keys; the two shared screens carry the
@@ -549,7 +568,8 @@ describe('the screen table', () => {
           key.startsWith('floor.') ||
           key === 'attendance.board' ||
           key === 'attendance.requests.decide' ||
-          key === 'materials.board',
+          key === 'materials.board' ||
+          key === 'evaluations.board',
       ),
     ).toBe(true);
     // D5: no Complaints row at all — `permissions.json` gives her no key for one.
@@ -616,6 +636,51 @@ describe('the screen table', () => {
       'teachingMaterials',
       'materials.self',
       'nav.myMaterials',
+    ]);
+  });
+
+  /**
+   * Feature 33. Three rows and one switch: **her own** evaluations (`evaluations.self`, the
+   * teacher's alone), the **tracking board** over everyone's, in the same five areas the
+   * attendance board is in, and the Admin's **rounds** (`evaluations.rounds`, hers alone).
+   *
+   * The teacher's path is asserted to be exactly `evaluations`, because
+   * `core/notifications/notification-target.ts` resolves both `evaluation.reminder` and
+   * `evaluation.returned` to `/teacher/evaluations?round=…`: renaming the row would break the
+   * bell silently, and this is the assertion that says so out loud.
+   */
+  it('puts the evaluation board in every area that has the attendance board, behind one flag', () => {
+    const boards = ROLES.map((role) => AREAS[role].screens.find((screen) => screen.id === 'evaluation-board'));
+    expect(boards.map((row) => row?.path)).toEqual(ROLES.map(() => 'evaluation-tracking'));
+    for (const row of boards)
+      expect([row?.flag, row?.permission, row?.labelKey]).toEqual([
+        'childEvaluations',
+        'evaluations.board',
+        'nav.evaluationBoard',
+      ]);
+
+    // Her own page is the teacher's alone, at the path the bell links to.
+    const mine = ROLES.filter((role) => AREAS[role].screens.some((screen) => screen.id === 'evaluations'));
+    expect(mine).toEqual(['TEACHER']);
+    const row = AREAS.TEACHER.screens.find((screen) => screen.id === 'evaluations');
+    expect([row?.path, row?.flag, row?.permission, row?.labelKey]).toEqual([
+      'evaluations',
+      'childEvaluations',
+      'evaluations.self',
+      'nav.myEvaluations',
+    ]);
+
+    // The rounds are the Admin's alone, behind the same switch and her own key.
+    const rounds = ROLES.filter((role) =>
+      AREAS[role].screens.some((screen) => screen.id === 'evaluation-rounds'),
+    );
+    expect(rounds).toEqual(['ADMIN']);
+    const admin = AREAS.ADMIN.screens.find((screen) => screen.id === 'evaluation-rounds');
+    expect([admin?.path, admin?.flag, admin?.permission, admin?.labelKey]).toEqual([
+      'evaluation-rounds',
+      'childEvaluations',
+      'evaluations.rounds',
+      'nav.evaluationRounds',
     ]);
   });
 });

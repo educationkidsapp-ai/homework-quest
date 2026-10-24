@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
 import quest.api.ApiException
+import quest.api.dto.TeamLatestEvaluation
 import quest.api.dto.TeamMember
 import quest.core.mvi.MviEffect
 import quest.core.mvi.MviIntent
@@ -114,6 +115,8 @@ class ChildTeamViewModel(
 fun ChildTeamRoute(
     onBack: () -> Unit,
     onMessage: (TeamMember) -> Unit,
+    /** Feature 33: "Latest evaluation" on a teacher's row — the evaluations page, where the words themselves are. */
+    onLatestEvaluation: () -> Unit = {},
 ) {
     val vm: ChildTeamViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -125,7 +128,7 @@ fun ChildTeamRoute(
     FeatureGate(Flags.CHAT) {
         FeatureGate(Flags.CHILD_TEAM) {
             ParentShell(title = { it.teamChannel.teamTitle }, onBack = onBack) { strings ->
-                ChildTeamScreen(state = state, strings = strings, onMessage = onMessage)
+                ChildTeamScreen(state = state, strings = strings, onMessage = onMessage, onLatestEvaluation = onLatestEvaluation)
             }
         }
     }
@@ -136,6 +139,7 @@ fun ChildTeamScreen(
     state: ChildTeamContract.State,
     strings: Strings,
     onMessage: (TeamMember) -> Unit = {},
+    onLatestEvaluation: () -> Unit = {},
 ) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState())
@@ -163,7 +167,7 @@ fun ChildTeamScreen(
 
         state.groups.forEach { (group, rows) ->
             SectionTitle(headingOf(group, strings))
-            rows.forEach { member -> TeamMemberCard(member, strings, onMessage) }
+            rows.forEach { member -> TeamMemberCard(member, strings, onMessage, onLatestEvaluation) }
         }
         Spacer(Modifier.height(Dimens.s16))
     }
@@ -190,11 +194,20 @@ fun officeHoursLine(member: TeamMember, strings: Strings): String? {
 
 /** One person: her name, her role and subjects, when she answers, and Message. */
 @Composable
-private fun TeamMemberCard(member: TeamMember, strings: Strings, onMessage: (TeamMember) -> Unit) {
+private fun TeamMemberCard(
+    member: TeamMember,
+    strings: Strings,
+    onMessage: (TeamMember) -> Unit,
+    onLatestEvaluation: () -> Unit = {},
+) {
     val label = staffLabel(staffRoleOf(member.role), member.subjects, className = null, strings = strings)
     val hours = officeHoursLine(member, strings)
+    // Feature 33: only a teacher's row carries one, and only where something is released to read. It is a card of its
+    // own under hers rather than one inside it, so a screen reader reaches the link — the row above clears its own
+    // descendants' semantics to read as one sentence.
+    val latest = member.latestEvaluation
     ParentCard(
-        modifier = Modifier.fillMaxWidth().padding(bottom = Dimens.s8)
+        modifier = Modifier.fillMaxWidth().padding(bottom = if (latest != null) Dimens.s4 else Dimens.s8)
             .clearAndSetSemantics {
                 contentDescription = listOfNotNull(member.name, label, hours).joinToString(", ")
             },
@@ -226,4 +239,25 @@ private fun TeamMemberCard(member: TeamMember, strings: Strings, onMessage: (Tea
             }
         }
     }
+    if (latest != null) {
+        FeatureGate(Flags.CHILD_EVALUATIONS) {
+            ParentCard(
+                modifier = Modifier.fillMaxWidth().padding(bottom = Dimens.s8)
+                    .clearAndSetSemantics {
+                        contentDescription = "${strings.evaluations.latest}, ${latestLine(latest, strings)}"
+                    },
+                onClick = onLatestEvaluation,
+            ) {
+                Text(strings.evaluations.latest, style = MaterialTheme.typography.labelMedium, color = DashboardTokens.inkSoft)
+                Spacer(Modifier.height(Dimens.s4))
+                Text(latestLine(latest, strings), style = MaterialTheme.typography.bodyMedium, color = DashboardTokens.ink)
+            }
+        }
+    }
+}
+
+/** "Term 1 — mid-term · math", the round in the parent's language and the subject it is about. */
+fun latestLine(latest: TeamLatestEvaluation, strings: Strings): String {
+    val round = if (strings.isRtl) latest.roundNameAr.ifBlank { latest.roundName } else latest.roundName.ifBlank { latest.roundNameAr }
+    return listOf(round, latest.subject).filter { it.isNotBlank() }.joinToString(" · ")
 }

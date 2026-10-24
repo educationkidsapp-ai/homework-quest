@@ -38,7 +38,11 @@ import quest.feature.parent.domain.ReleasedResultsUseCase
 import quest.feature.parent.domain.SkillReport
 import quest.feature.parent.domain.epochToDate
 import quest.core.platform.Today
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import quest.core.text.isolate
+import quest.feature.school.domain.Flags
+import quest.feature.school.presentation.FeatureGate
 import quest.core.text.longDate
 import quest.ui.design.DashboardPill
 import quest.ui.design.DashboardPillVariant
@@ -73,16 +77,21 @@ class ProgressViewModel(
 }
 
 @Composable
-fun ProgressRoute(focusExam: String? = null, onBack: () -> Unit) {
+fun ProgressRoute(focusExam: String? = null, onBack: () -> Unit, onEvaluations: () -> Unit = {}) {
     val vm: ProgressViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
     LaunchedEffect(vm) { vm.dispatch(ProgressContract.Intent.Load) }
-    ParentShell(title = { it.progress }, onBack = onBack) { s -> ProgressScreen(state, s, focusExam) }
+    ParentShell(title = { it.progress }, onBack = onBack) { s -> ProgressScreen(state, s, focusExam, onEvaluations) }
 }
 
 /** Screen 21: bands and words, never a percentage. */
 @Composable
-fun ProgressScreen(state: ProgressContract.State, s: Strings, focusExam: String? = null) {
+fun ProgressScreen(
+    state: ProgressContract.State,
+    s: Strings,
+    focusExam: String? = null,
+    onEvaluations: () -> Unit = {},
+) {
     Column(
         Modifier
             .fillMaxSize()
@@ -153,7 +162,28 @@ fun ProgressScreen(state: ProgressContract.State, s: Strings, focusExam: String?
                 )
             }
         }
+        // Feature 33: the teachers' evaluations, in words. Its own gate, so a school that does not release them to
+        // parents never learns the page exists.
+        FeatureGate(Flags.CHILD_EVALUATIONS) {
+            Spacer(Modifier.height(16.dp))
+            EvaluationsRow(s, onEvaluations)
+        }
+
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+/** The way in to "Teacher evaluations" — one tap from Progress, where a parent already looks for how her child does. */
+@Composable
+private fun EvaluationsRow(s: Strings, onOpen: () -> Unit) {
+    ParentCard(
+        modifier = Modifier.fillMaxWidth()
+            .clearAndSetSemantics { contentDescription = "${s.evaluations.title}, ${s.evaluations.rowSubtitle}" },
+        onClick = onOpen,
+    ) {
+        Text(s.evaluations.title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), color = DashboardTokens.ink)
+        Spacer(Modifier.height(4.dp))
+        Text(s.evaluations.rowSubtitle, style = MaterialTheme.typography.bodySmall, color = DashboardTokens.inkSoft)
     }
 }
 

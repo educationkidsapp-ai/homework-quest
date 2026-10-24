@@ -45,6 +45,9 @@ describe('the nav switch', () => {
       'staff-attendance',
       // Feature 31: the teaching-material board, a school screen for the same reason.
       'materials',
+      // Feature 33: the evaluation board and the rounds behind it, school screens too.
+      'evaluation-board',
+      'evaluation-rounds',
       'messages',
       'complaints',
       // Feature 22: the one screen all three staff roles read, hers at last — it is a school

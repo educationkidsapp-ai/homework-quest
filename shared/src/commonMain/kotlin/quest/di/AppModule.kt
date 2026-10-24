@@ -46,6 +46,9 @@ import quest.feature.team.presentation.ChildTeamViewModel
 import quest.feature.channel.data.ClassChannelRepositoryImpl
 import quest.feature.channel.domain.ClassChannelRepository
 import quest.feature.channel.presentation.ClassChannelViewModel
+import quest.feature.evaluations.data.ChildEvaluationsRepositoryImpl
+import quest.feature.evaluations.domain.ChildEvaluationsRepository
+import quest.feature.evaluations.presentation.ChildEvaluationsViewModel
 import quest.feature.complaints.data.ComplaintsRepositoryImpl
 import quest.feature.complaints.domain.ComplaintsRepository
 import quest.feature.complaints.presentation.ComplaintViewModel
@@ -328,6 +331,9 @@ val teamChannelModule = module {
     single<ClassChannelRepository> { ClassChannelRepositoryImpl(get()) }
     viewModel { ChildTeamViewModel(get(), get()) }
     viewModel { ClassChannelViewModel(get(), get()) }
+    // Feature 33: the parent's read of what her child's teachers wrote.
+    single<ChildEvaluationsRepository> { ChildEvaluationsRepositoryImpl(get()) }
+    viewModel { ChildEvaluationsViewModel(get(), get()) }
 }
 
 /** M8: B6's complaints — their own conversations and their own tab, apart from Messages. */

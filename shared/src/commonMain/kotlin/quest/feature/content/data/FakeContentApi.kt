@@ -330,6 +330,9 @@ class FakeContentApi(
             quest.api.dto.TeamMember(
                 staffId = staffId, name = name, role = role, subjects = subjects, officeHours = hours,
                 threadId = fakeMessages["$childId:$staffId"]?.takeIf { it.isNotEmpty() }?.let { "th-$childId-$staffId" },
+                // Feature 33: only a teacher's row carries one, and only where something is released to read.
+                latestEvaluation = fakeEvaluations(childId).firstOrNull { it.teacherId == staffId }
+                    ?.let { quest.api.dto.TeamLatestEvaluation(it.roundName, it.roundNameAr, it.subject) },
             )
         // Feature 19: one teacher is in her office hours and one is not, so both lines can be read in the demo.
         val open = quest.api.dto.OfficeHoursStatus(open = true, today = "2026-10-21")
@@ -342,6 +345,55 @@ class FakeContentApi(
             member("fs-huda", "Ms. Huda", quest.api.dto.ChatPeerRole.FLOOR_SUPERVISOR, null, open),
             member("mg-nour", "Ms. Nour", quest.api.dto.ChatPeerRole.MANAGERIAL, null, closed),
         )
+    }
+
+    /**
+     * Feature 33: two rounds of released, approved evaluations — newest first, then by subject, which is the order
+     * the server answers in — so the demo page reads as the real one does: two headings, a teacher per subject, four
+     * word chips and the three paragraphs. **No rating and no state**, because the parent's shape has none.
+     */
+    private fun fakeEvaluations(childId: String): List<quest.api.dto.ParentEvaluation> {
+        if (childId != MAYA) return emptyList()
+        fun criteria(participation: String, effort: String, behaviour: String, understanding: String) = listOf(
+            quest.api.dto.EvaluationCriterion("participation", participation),
+            quest.api.dto.EvaluationCriterion("effort", effort),
+            quest.api.dto.EvaluationCriterion("behaviour", behaviour),
+            quest.api.dto.EvaluationCriterion("understanding", understanding),
+        )
+        return listOf(
+            quest.api.dto.ParentEvaluation(
+                roundId = "rd-2", roundName = "Term 1 — mid-term", roundNameAr = "الفصل الأول — منتصف الفصل",
+                subject = "english", teacherId = "t-noor", teacherName = "Ms. Noor",
+                criteria = criteria("good", "excellent", "excellent", "good"),
+                comment = "Maya reads aloud with real confidence now and helps the pair beside her.",
+                goingWell = "Reading aloud, and listening when somebody else reads.",
+                nextStep = "Writing a full sentence without being asked for one.",
+                releasedAt = "2026-10-18T09:00:00Z",
+            ),
+            quest.api.dto.ParentEvaluation(
+                roundId = "rd-2", roundName = "Term 1 — mid-term", roundNameAr = "الفصل الأول — منتصف الفصل",
+                subject = "math", teacherId = "t-sara", teacherName = "Ms. Sara",
+                criteria = criteria("excellent", "good", "excellent", "developing"),
+                comment = "She counts in twos without help and is beginning to see why it works.",
+                goingWell = "Counting on, and explaining her answer out loud.",
+                nextStep = "Taking away across ten — we will practise it with the number line.",
+                releasedAt = "2026-10-18T09:00:00Z",
+            ),
+            quest.api.dto.ParentEvaluation(
+                roundId = "rd-1", roundName = "Term 1 — start", roundNameAr = "الفصل الأول — البداية",
+                subject = "math", teacherId = "t-sara", teacherName = "Ms. Sara",
+                criteria = criteria("good", "good", "excellent", "needsSupport"),
+                comment = "A settled, cheerful start to the year.",
+                goingWell = "Settling into the class and joining in.",
+                nextStep = "Numbers above twenty, which we have only just begun.",
+                releasedAt = "2026-09-20T09:00:00Z",
+            ),
+        )
+    }
+
+    override suspend fun childEvaluations(childId: String): List<quest.api.dto.ParentEvaluation> {
+        net()
+        return fakeEvaluations(childId)
     }
 
     /** The posts this parent has not read yet; cleared by [markChannelRead], as the server's read mark does. */
@@ -512,6 +564,7 @@ class FakeContentApi(
         // M8: B6's two complaint kinds a parent receives, linked to the complaint's own page.
         NotificationView("nt-cp-msg", NotificationKind.COMPLAINT_MESSAGE, "Ms. Nour replied to your complaint", "Thank you for telling us. I am checking the route with the transport team today.", "/children/$MAYA/complaints/cp-bus", lessonId = "cp-bus", createdAt = 1_758_465_000_000L, childId = MAYA),
         NotificationView("nt-cp-status", NotificationKind.COMPLAINT_STATUS, "Your complaint was resolved", "Homework is too long every night", "/children/$MAYA/complaints/cp-homework", lessonId = "cp-homework", createdAt = 1_758_455_000_000L, childId = MAYA),
+        NotificationView("nt-eval", NotificationKind.EVALUATION_RELEASED, "The teachers' evaluations are ready", "Term 1 — mid-term", "/children/$MAYA/evaluations", createdAt = 1_758_447_000_000L, childId = MAYA),
         NotificationView("nt-channel", NotificationKind.CHANNEL_POST, "Class channel: Ms. Noor", "This week's reading worksheet is attached. It is due on Thursday.", "/children/$MAYA/channel", createdAt = 1_758_445_000_000L, childId = MAYA),
         NotificationView("nt-msg", NotificationKind.CHAT_MESSAGE, "Message from Ms. Sara", "Maya did very well today.", "/children/$MAYA/chat/t-sara", createdAt = 1_758_450_000_000L, childId = MAYA),
         NotificationView("nt-hw", NotificationKind.HOMEWORK_PUBLISHED, "New homework", "Counting by 2s", "/children/$MAYA/map", lessonId = "l1", createdAt = 1_758_440_000_000L, childId = MAYA),

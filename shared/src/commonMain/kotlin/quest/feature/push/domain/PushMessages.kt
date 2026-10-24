@@ -132,7 +132,7 @@ private val OPEN = Regex("[?&]open=([^&#]+)")
 private val THREAD = Regex("[?&]thread=([^&#]+)")
 
 /** The app paths B4's contract writes on a row and a push (`ebbab61`), and B6's complaint path. */
-enum class LinkShape { CHAT, COMPLAINT, BROADCAST, ANNOUNCEMENT, TEACHER_QUESTION, MAP, PROGRESS, OTHER }
+enum class LinkShape { CHAT, COMPLAINT, BROADCAST, ANNOUNCEMENT, TEACHER_QUESTION, MAP, PROGRESS, EVALUATIONS, OTHER }
 
 private val SHAPES = listOf(
     Regex("^/children/[^/]+/chat/[^/?#]+$") to LinkShape.CHAT,
@@ -142,6 +142,8 @@ private val SHAPES = listOf(
     Regex("^/children/[^/]+/teacher-questions/[^/?#]+$") to LinkShape.TEACHER_QUESTION,
     Regex("^/children/[^/]+/map$") to LinkShape.MAP,
     Regex("^/children/[^/]+/progress$") to LinkShape.PROGRESS,
+    // Feature 33: the teachers' evaluations of that child, all on one page.
+    Regex("^/children/[^/]+/evaluations$") to LinkShape.EVALUATIONS,
 )
 
 fun linkShape(link: String?): LinkShape = link?.trim()?.let { path -> SHAPES.firstOrNull { it.first.matches(path) }?.second } ?: LinkShape.OTHER

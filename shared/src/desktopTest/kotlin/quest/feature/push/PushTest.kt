@@ -376,6 +376,15 @@ class PushTest {
         NotificationTap("channel.post", "/children/c1/channel", "nt-13", childId = "c1", collapseKey = "channel:ch-4") to { r ->
             assertEquals(PushNavigator.Step.Parent(Routes.ClassChannel), r, "her class's channel, where the post is")
         },
+        // Feature 33: the teachers' evaluations of that child are ready. There is no page per evaluation — the round,
+        // the subject and the teacher are all on the one page — so the tap opens it on the child the row names.
+        NotificationTap("evaluation.released", "/children/c1/evaluations", "nt-14", childId = "c1", collapseKey = "evaluation:rd-2") to { r ->
+            assertEquals(PushNavigator.Step.Parent(Routes.ChildEvaluations), r, "her evaluations page, where the words are")
+        },
+        // A build that does not know the kind still follows the link's shape to the same page.
+        NotificationTap("evaluation.something", "/children/c1/evaluations", "nt-15", childId = "c1") to { r ->
+            assertEquals(PushNavigator.Step.Parent(Routes.ChildEvaluations), r, "the link's shape decides")
+        },
         NotificationTap("something.new", null, "nt-11", childId = "c1") to { r ->
             assertEquals(PushNavigator.Step.Parent(Routes.Broadcasts(focusRow = "nt-11")), r, "unknown: the Notifications page, that row highlighted")
         },

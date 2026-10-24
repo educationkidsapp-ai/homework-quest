@@ -1,0 +1,215 @@
+<hq-page [title]="'nav.evaluationBoard' | transloco" [subtitle]="'evaluations.board.subtitle' | transloco">
+  <div class="evaluations__toolbar">
+    @if (roundOptions().length > 0) {
+      <hq-select
+        [label]="'evaluations.roundLabel' | transloco"
+        [options]="roundOptions()"
+        [value]="pickedRound()"
+        (valueChange)="pickRound($event)"
+      />
+    }
+    <hq-button variant="secondary" data-hq-export-csv [disabled]="exporting()" (pressed)="exportCsv()">
+      {{ 'evaluations.board.csv' | transloco }}
+    </hq-button>
+  </div>
+
+  @if (board.isLoading() && !board.hasValue()) {
+    <hq-skeleton [loading]="true" [lines]="6" [label]="'evaluations.loading' | transloco" />
+  } @else if (board.error()) {
+    <hq-card>
+      <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco" [dismissible]="false">
+        {{ 'band.unreachable' | transloco }}
+      </hq-band>
+      <hq-button variant="secondary" (pressed)="board.reload()">{{ 'ui.retry' | transloco }}</hq-button>
+    </hq-card>
+  } @else if (noRounds()) {
+    <hq-empty-state
+      data-hq-no-rounds
+      [message]="'evaluations.board.noRounds' | transloco"
+      [detail]="'evaluations.board.noRoundsDetail' | transloco"
+    />
+  } @else if (leadsNobody()) {
+    <hq-empty-state
+      data-hq-leads-nobody
+      [message]="'evaluations.board.leadsNobody' | transloco"
+      [detail]="'evaluations.board.leadsNobodyDetail' | transloco"
+    />
+  } @else {
+    <div class="evaluations" data-hq-evaluation-board>
+      <p class="evaluations__due" data-hq-due>
+        <span class="evaluations__round-name">{{ roundLabel() }}</span>
+        <span class="hq-muted">{{ dueLabel() }}</span>
+      </p>
+
+      <ul class="evaluations__counts" [attr.aria-label]="'evaluations.countsLabel' | transloco">
+        @for (card of cards; track card) {
+          <li class="evaluations__count" [attr.data-hq-count]="card">
+            <span class="evaluations__number" [attr.data-status]="card">{{ count(card) }}</span>
+            <span>{{ 'evaluations.card.' + card | transloco }}</span>
+          </li>
+        }
+      </ul>
+
+      @if (failure(); as message) {
+        <hq-band
+          variant="error"
+          [open]="true"
+          [title]="'band.failed' | transloco"
+          (dismissed)="failure.set(null)"
+        >
+          {{ message }}
+        </hq-band>
+      }
+
+      <hq-table
+        [rows]="rows()"
+        [columns]="columns()"
+        [cellTemplate]="teacherCell"
+        [expandedTemplate]="children"
+        [isExpanded]="isOpen"
+        [trackBy]="trackTeacher"
+        [label]="'evaluations.board.tableLabel' | transloco"
+      >
+        <hq-empty-state table-empty [message]="'evaluations.board.empty' | transloco" />
+      </hq-table>
+    </div>
+  }
+</hq-page>
+
+<ng-template #teacherCell let-row let-column="column">
+  @switch (column.key) {
+    @case ('fullName') {
+      <button
+        type="button"
+        class="hq-linkbutton"
+        data-hq-teacher
+        [attr.aria-expanded]="isOpen(row)"
+        (click)="toggle(row)"
+      >
+        {{ row.fullName }}
+      </button>
+    }
+    @default {
+      {{ countsOf(row, column.key) }}
+    }
+  }
+</ng-template>
+
+<ng-template #children let-teacher>
+  <div class="evaluations__teacher" [attr.data-hq-teacher-rows]="teacher.teacherId">
+    @if (loading() === teacher.teacherId) {
+      <hq-skeleton [loading]="true" [lines]="3" [label]="'evaluations.loading' | transloco" />
+    } @else {
+      <hq-table
+        [rows]="rowsOf(teacher)"
+        [columns]="rowColumns()"
+        [cellTemplate]="rowCell"
+        [trackBy]="trackRow"
+        [label]="'evaluations.board.rowsLabel' | transloco: { name: teacher.fullName }"
+      >
+        <hq-empty-state table-empty [message]="'evaluations.board.noRows' | transloco" />
+      </hq-table>
+    }
+  </div>
+</ng-template>
+
+<ng-template #rowCell let-row let-column="column">
+  @switch (column.key) {
+    @case ('childName') {
+      {{ row.childName ?? '—' }}
+    }
+    @case ('className') {
+      {{ row.className ?? '—' }}
+    }
+    @case ('subject') {
+      {{ subjectLabel(row.subject) }}
+    }
+    @case ('status') {
+      <span class="evaluations__status" [attr.data-status]="statusOf(row)">
+        {{ statusLabel(statusOf(row)) }}
+      </span>
+      @if (row.submittedAt) {
+        <span class="hq-muted evaluations__at">{{ at(row.submittedAt) }}</span>
+      }
+    }
+    @case ('ratings') {
+      {{ ratingsLabel(row) }}
+    }
+    @case ('review') {
+      {{ reviewLabel(row) }}
+    }
+    @case ('act') {
+      @if (canReview(row)) {
+        <hq-button variant="primary" data-hq-approve (pressed)="review(row, 'APPROVE')">
+          {{ 'evaluations.approve' | transloco }}
+        </hq-button>
+        <hq-button variant="secondary" data-hq-return (pressed)="review(row, 'RETURN')">
+          {{ 'evaluations.return' | transloco }}
+        </hq-button>
+      } @else {
+        <span class="hq-muted" data-hq-no-decision>
+          {{ 'evaluations.nothingToDecide' | transloco }}
+        </span>
+      }
+    }
+  }
+</ng-template>
+
+<hq-dialog
+  [open]="dialogOpen()"
+  (openChange)="onDialog($event)"
+  [title]="reviewTitle()"
+  [confirmLabel]="confirmLabel()"
+  [confirmDisabled]="!valid() || saving()"
+  [confirmReason]="valid() ? null : ('evaluations.needComment' | transloco)"
+  [loading]="saving()"
+  (confirmed)="confirmReview()"
+>
+  @if (reviewing(); as row) {
+    <div class="editor">
+      <p class="editor__child">
+        {{ row.childName }} · {{ row.className }} · {{ subjectLabel(row.subject) }}
+      </p>
+
+      @if (failure(); as message) {
+        <hq-band variant="error" [open]="true" [title]="'band.failed' | transloco" [dismissible]="false">
+          {{ message }}
+        </hq-band>
+      }
+
+      <dl class="editor__summary" data-hq-summary>
+        @for (criterion of criteria; track criterion) {
+          <div>
+            <dt>{{ criterionLabel(criterion) }}</dt>
+            <dd>{{ row[criterion] ?? '—' }}</dd>
+          </div>
+        }
+        <div>
+          <dt>{{ 'evaluations.comment' | transloco }}</dt>
+          <dd>{{ row.comment || '—' }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'evaluations.goingWell' | transloco }}</dt>
+          <dd>{{ row.goingWell || '—' }}</dd>
+        </div>
+        <div>
+          <dt>{{ 'evaluations.nextStep' | transloco }}</dt>
+          <dd>{{ row.nextStep || '—' }}</dd>
+        </div>
+      </dl>
+
+      <p class="hq-muted">{{ 'evaluations.reviewOnce' | transloco }}</p>
+
+      <hq-textarea
+        [label]="'evaluations.reviewComment' | transloco"
+        [rows]="3"
+        [required]="returning()"
+        [value]="comment()"
+        (valueChange)="comment.set($event)"
+        [hint]="
+          (returning() ? 'evaluations.returnCommentHint' : 'evaluations.approveCommentHint') | transloco
+        "
+      />
+    </div>
+  }
+</hq-dialog>

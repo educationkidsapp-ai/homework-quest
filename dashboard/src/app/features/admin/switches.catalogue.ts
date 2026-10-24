@@ -52,6 +52,7 @@ export const SWITCH_GROUPS: readonly SwitchGroup[] = [
       { key: 'chatOfficeHours', id: 'chatOfficeHours', feature: 19, needs: ['chat'] },
       { key: 'floorSupervisor', id: 'floorSupervisor', feature: 20, noteKey: 'needsLatestApp' },
       { key: 'teachingMaterials', id: 'teachingMaterials', feature: 31 },
+      { key: 'childEvaluations', id: 'childEvaluations', feature: 33 },
     ],
   },
   {

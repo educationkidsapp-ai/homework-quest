@@ -567,6 +567,47 @@
         "floorsHint": "Her floors are assigned on the Floors page, together with the classes on them."
       }
     },
+    "rounds": {
+      "title": "Evaluation rounds",
+      "subtitle": "The few times a year every teacher evaluates each child she teaches.",
+      "loading": "Loading evaluation rounds",
+      "empty": "No evaluation round yet.",
+      "emptyDetail": "Create one, and every teacher is given a row for each child she teaches.",
+      "create": "New round",
+      "createTitle": "New evaluation round",
+      "editTitle": "Edit this round",
+      "edit": "Edit",
+      "release": "Release to parents",
+      "releaseTitle": "Release {{name}} to the parents?",
+      "releaseWarning": "Every approved evaluation of this round becomes readable by the children's parents, and each parent is told once. This cannot be undone, and the round can no longer be edited.",
+      "releaseWarningShort": "This cannot be undone.",
+      "releasedBy": "Released by {{name}}, {{at}}",
+      "notReleased": "Not released",
+      "anAdmin": "an administrator",
+      "lockedByRelease": "Released — no longer editable",
+      "alreadyReleased": "This round has already been released to the parents. Create a new one instead.",
+      "at": "{{at}} ({{zone}})",
+      "hoursBefore": "{{hours}} h before",
+      "formReason": "Write both names and a whole deadline first.",
+      "column": {
+        "name": "Round",
+        "opensOn": "Opens",
+        "dueAt": "Deadline",
+        "remind": "Reminder",
+        "released": "Parents"
+      },
+      "form": {
+        "nameEn": "Name in English",
+        "nameAr": "Name in Arabic",
+        "opensOn": "Opens on",
+        "opensOnHint": "Blank means today.",
+        "dueDate": "Deadline date",
+        "dueTime": "Deadline time",
+        "zoneHint": "In the school's own time zone ({{zone}}).",
+        "remind": "Remind this many hours before",
+        "remindHint": "Each teacher with evaluations still missing is reminded once."
+      }
+    },
     "switches": {
       "title": "Feature switches",
       "subtitle": "Turn a feature on for the school. Every feature is off until you turn it on here.",
@@ -688,6 +729,10 @@
         "classChannel": {
           "name": "Class channel",
           "what": "Each class has one channel: its teachers post what the whole class needs to know, with pictures and files, and every parent of the class reads it. Parents do not post there and never see each other; each post has Reply privately."
+        },
+        "childEvaluations": {
+          "name": "Child evaluations",
+          "what": "Each teacher evaluates every child she teaches a few times a year, the leaders track and review it, and the parents read it in words."
         }
       }
     }
@@ -1888,6 +1933,9 @@
     "documents": "Document reader",
     "myMaterials": "My teaching material",
     "materials": "Teaching material",
+    "myEvaluations": "Evaluations",
+    "evaluationBoard": "Evaluation tracking",
+    "evaluationRounds": "Evaluation rounds",
     "featureSwitches": "Feature switches"
   },
   "notifications": {
@@ -3383,5 +3431,101 @@
     "comment": "Comment",
     "commentHint": "What the teacher should know. Optional.",
     "alreadyReviewed": "Somebody has already reviewed this row. Reload the page to see their comment."
+  },
+  "evaluations": {
+    "teacher": {
+      "subtitle": "What you write about each child you teach, for this round, for the parent to read.",
+      "tableLabel": "{{class}} · {{subject}}",
+      "empty": "Nothing is expected from you in this round.",
+      "emptyDetail": "Rows appear here for every child of every class and subject you are assigned to.",
+      "noChildren": "No children in this class yet.",
+      "noRounds": "No evaluation round has been opened yet.",
+      "noRoundsDetail": "When the school opens a round, the children you teach appear here."
+    },
+    "board": {
+      "subtitle": "Who has written her children's evaluations for this round, and what she wrote.",
+      "tableLabel": "Evaluations by teacher",
+      "rowsLabel": "{{name}}'s evaluations",
+      "noRows": "No evaluations for this teacher in this round.",
+      "empty": "No teachers to show for this round.",
+      "csv": "Download CSV",
+      "noRounds": "No evaluation round has been opened yet.",
+      "noRoundsDetail": "When the school opens a round, every teacher you lead appears here.",
+      "leadsNobody": "Nobody reports to you yet.",
+      "leadsNobodyDetail": "When an employee is given you as her direct manager, her evaluations appear here."
+    },
+    "roundLabel": "Round",
+    "loading": "Loading evaluations",
+    "countsLabel": "Evaluations at a glance",
+    "dueAt": "Due {{at}} ({{zone}})",
+    "card": {
+      "onTime": "On time",
+      "late": "Late",
+      "missing": "Missing",
+      "returned": "Sent back",
+      "approved": "Approved"
+    },
+    "status": {
+      "ON_TIME": "On time",
+      "LATE": "Late",
+      "MISSING": "Not written",
+      "RETURNED": "Sent back",
+      "APPROVED": "Approved"
+    },
+    "column": {
+      "child": "Child",
+      "class": "Class",
+      "subject": "Subject",
+      "status": "Status",
+      "ratings": "Ratings",
+      "review": "Review",
+      "teacher": "Teacher"
+    },
+    "criterion": {
+      "participation": "Participation",
+      "effort": "Effort",
+      "behaviour": "Behaviour",
+      "understanding": "Understanding"
+    },
+    "word": {
+      "excellent": "Excellent",
+      "good": "Good",
+      "developing": "Developing",
+      "needsSupport": "Needs support"
+    },
+    "rating": "{{word}} ({{rating}})",
+    "write": "Write",
+    "fix": "Fix and send again",
+    "lockedBySubmit": "Submitted — ask a leader to send it back",
+    "editorTitle": "Evaluate this child",
+    "ratingsLegend": "Rate all four, highest first",
+    "ratePlaceholder": "Choose a rating",
+    "needAll": "Rate all four criteria and write a comment first.",
+    "comment": "Comment",
+    "commentHint": "What the parent should know, in plain words. Required.",
+    "goingWell": "Going well",
+    "goingWellHint": "One thing the child does well. Optional.",
+    "nextStep": "Next step",
+    "nextStepHint": "One thing to work on next. Optional.",
+    "saveDraft": "Save draft",
+    "submit": "Submit",
+    "returnedTitle": "A leader sent this back",
+    "returnedBy": "Sent back by {{name}}, {{at}}",
+    "approvedBy": "Approved by {{name}}, {{at}}",
+    "aLeader": "a leader",
+    "already_submitted": "This evaluation has been submitted; ask your leader to send it back before changing it.",
+    "already_approved": "This evaluation has been approved and can no longer be changed.",
+    "approve": "Approve",
+    "approveTitle": "Approve this evaluation",
+    "approveCommentHint": "A note for the teacher. Optional.",
+    "return": "Send back",
+    "returnTitle": "Send this evaluation back",
+    "returnCommentHint": "What the teacher should change. Required.",
+    "needComment": "Write what the teacher should change first.",
+    "reviewComment": "Comment",
+    "reviewOnce": "An evaluation is decided once, and only an approved one ever reaches the parent.",
+    "nothingToDecide": "Nothing to decide yet",
+    "already_reviewed": "Somebody has already decided on this evaluation. Reload the page to see the decision.",
+    "not_submitted": "That evaluation has not been submitted yet."
   }
 }

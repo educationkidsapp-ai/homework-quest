@@ -327,6 +327,20 @@ class OpenApiContractTest extends ApiTestSupport {
             "/teacher/materials", "/teacher/materials/attachments", "/teacher/materials/{classId}/{subject}",
             "/materials/board", "/materials/board.csv", "/materials/{id}/review", "/admin/material-settings");
 
+    /**
+     * Feature 33 (`quest.api.dashboard.ChildEvaluations` and `quest.api.dto.ParentEvaluation`): the teacher's own
+     * evaluations, the leaders' tracking board with its CSV and its one review, the Admin's rounds, and the parent's
+     * one read. Behind the `childEvaluations` flag at run time and still in the document, for the reason every
+     * flagged area is.
+     */
+    static final List<String> CHILD_EVALUATIONS_API = List.of(
+            "/teacher/evaluations", "/teacher/evaluations/{roundId}/{classId}/{subject}/{childId}",
+            "/teacher/evaluations/{roundId}/{classId}/{subject}/{childId}/submit",
+            "/evaluations/board", "/evaluations/board.csv", "/evaluations/board/{teacherId}",
+            "/evaluations/{id}/review",
+            "/admin/evaluation-rounds", "/admin/evaluation-rounds/{id}", "/admin/evaluation-rounds/{id}/release",
+            "/children/{id}/evaluations");
+
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */
     static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings",
             "/schools/logo", "/classes/lookup", "/schools/{id}/logo");
@@ -357,6 +371,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(LANGUAGE_BRIDGE_API);
         assertThat(paths).containsAll(SMART_HINTS_API);
         assertThat(paths).containsAll(TEACHING_MATERIALS_API);
+        assertThat(paths).containsAll(CHILD_EVALUATIONS_API);
         // MH1: the upload and the download of a broadcast attachment — the app and the dashboard both call them.
         assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}", "/media/attachments", "/media/attachments/{id}", "/media/chat-attachments",
                 "/children/{id}/chat/attachments");

@@ -1508,6 +1508,78 @@
         },
         "type" : "object"
       },
+      "ChildEvaluationRow" : {
+        "properties" : {
+          "behaviour" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "childId" : {
+            "type" : "string"
+          },
+          "childName" : {
+            "type" : "string"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "className" : {
+            "type" : "string"
+          },
+          "comment" : {
+            "type" : "string"
+          },
+          "effort" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "evaluationId" : {
+            "type" : "string"
+          },
+          "goingWell" : {
+            "type" : "string"
+          },
+          "nextStep" : {
+            "type" : "string"
+          },
+          "participation" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "reviewComment" : {
+            "type" : "string"
+          },
+          "reviewedAt" : {
+            "type" : "string"
+          },
+          "reviewedBy" : {
+            "type" : "string"
+          },
+          "reviewedByName" : {
+            "type" : "string"
+          },
+          "roundId" : {
+            "type" : "string"
+          },
+          "state" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "submittedAt" : {
+            "type" : "string"
+          },
+          "understanding" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "ChildLevel" : {
         "properties" : {
           "band" : {
@@ -2705,6 +2777,27 @@
         "required" : [ "email", "fullName", "scopes" ],
         "type" : "object"
       },
+      "CreateEvaluationRoundRequest" : {
+        "properties" : {
+          "dueAt" : {
+            "type" : "string"
+          },
+          "nameAr" : {
+            "type" : "string"
+          },
+          "nameEn" : {
+            "type" : "string"
+          },
+          "opensOn" : {
+            "type" : "string"
+          },
+          "remindHoursBefore" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "CreateExamRequest" : {
         "properties" : {
           "closesAt" : {
@@ -3325,6 +3418,128 @@
             "type" : "string"
           },
           "month" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "EvaluationBoard" : {
+        "properties" : {
+          "counts" : {
+            "$ref" : "#/components/schemas/EvaluationCounts"
+          },
+          "round" : {
+            "$ref" : "#/components/schemas/EvaluationRound"
+          },
+          "rounds" : {
+            "items" : {
+              "$ref" : "#/components/schemas/EvaluationRound"
+            },
+            "type" : "array"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/EvaluationBoardRow"
+            },
+            "type" : "array"
+          },
+          "scope" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "EvaluationBoardRow" : {
+        "properties" : {
+          "counts" : {
+            "$ref" : "#/components/schemas/EvaluationCounts"
+          },
+          "fullName" : {
+            "type" : "string"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ChildEvaluationRow"
+            },
+            "type" : "array"
+          },
+          "teacherId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "EvaluationCounts" : {
+        "properties" : {
+          "approved" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "late" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "missing" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "onTime" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "returned" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "EvaluationCriterion" : {
+        "properties" : {
+          "criterion" : {
+            "type" : "string"
+          },
+          "word" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "criterion", "word" ],
+        "type" : "object"
+      },
+      "EvaluationRound" : {
+        "properties" : {
+          "dueAt" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "nameAr" : {
+            "type" : "string"
+          },
+          "nameEn" : {
+            "type" : "string"
+          },
+          "opensOn" : {
+            "type" : "string"
+          },
+          "released" : {
+            "type" : "boolean"
+          },
+          "releasedAt" : {
+            "type" : "string"
+          },
+          "releasedBy" : {
+            "type" : "string"
+          },
+          "releasedByName" : {
+            "type" : "string"
+          },
+          "remindHoursBefore" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "timeZone" : {
             "type" : "string"
           }
         },
@@ -5676,7 +5891,7 @@
             "type" : "string"
           },
           "kind" : {
-            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message", "attendance.reminder", "attendance.alert", "attendance.digest", "attendance.request", "attendance.decision", "attendance.remote_day", "chat.after_hours_summary", "morning.brief", "evening.card", "material.reminder", "channel.post" ],
+            "enum" : [ "lesson.needs_skills", "lesson.ready", "lesson.failed", "teacher.message", "broadcast.posted", "chat.message", "exam.released", "homework.published", "exam.published", "announcement.posted", "question.sent", "complaint.status", "complaint.new", "complaint.message", "attendance.reminder", "attendance.alert", "attendance.digest", "attendance.request", "attendance.decision", "attendance.remote_day", "chat.after_hours_summary", "morning.brief", "evening.card", "material.reminder", "channel.post", "evaluation.reminder", "evaluation.returned", "evaluation.released" ],
             "type" : "string"
           },
           "lessonId" : {
@@ -5910,6 +6125,48 @@
           }
         },
         "required" : [ "bodyEn", "id", "publishedAt" ],
+        "type" : "object"
+      },
+      "ParentEvaluation" : {
+        "properties" : {
+          "comment" : {
+            "type" : "string"
+          },
+          "criteria" : {
+            "items" : {
+              "$ref" : "#/components/schemas/EvaluationCriterion"
+            },
+            "type" : "array"
+          },
+          "goingWell" : {
+            "type" : "string"
+          },
+          "nextStep" : {
+            "type" : "string"
+          },
+          "releasedAt" : {
+            "type" : "string"
+          },
+          "roundId" : {
+            "type" : "string"
+          },
+          "roundName" : {
+            "type" : "string"
+          },
+          "roundNameAr" : {
+            "type" : "string"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "teacherId" : {
+            "type" : "string"
+          },
+          "teacherName" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "criteria", "releasedAt", "roundId", "roundName", "roundNameAr", "subject", "teacherId", "teacherName" ],
         "type" : "object"
       },
       "ParentPanel" : {
@@ -6671,6 +6928,17 @@
         "required" : [ "cue", "stage" ],
         "type" : "object"
       },
+      "ReviewEvaluationRequest" : {
+        "properties" : {
+          "comment" : {
+            "type" : "string"
+          },
+          "decision" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "ReviewMaterialRequest" : {
         "properties" : {
           "comment" : {
@@ -6733,6 +7001,36 @@
               "$ref" : "#/components/schemas/SaveAttendanceItem"
             },
             "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "SaveChildEvaluationRequest" : {
+        "properties" : {
+          "behaviour" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "comment" : {
+            "type" : "string"
+          },
+          "effort" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "goingWell" : {
+            "type" : "string"
+          },
+          "nextStep" : {
+            "type" : "string"
+          },
+          "participation" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "understanding" : {
+            "format" : "int32",
+            "type" : "integer"
           }
         },
         "type" : "object"
@@ -8359,6 +8657,29 @@
         },
         "type" : "object"
       },
+      "TeacherEvaluations" : {
+        "properties" : {
+          "counts" : {
+            "$ref" : "#/components/schemas/EvaluationCounts"
+          },
+          "round" : {
+            "$ref" : "#/components/schemas/EvaluationRound"
+          },
+          "rounds" : {
+            "items" : {
+              "$ref" : "#/components/schemas/EvaluationRound"
+            },
+            "type" : "array"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ChildEvaluationRow"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
       "TeacherIsland" : {
         "properties" : {
           "answered" : {
@@ -8896,10 +9217,28 @@
         },
         "type" : "object"
       },
+      "TeamLatestEvaluation" : {
+        "properties" : {
+          "roundName" : {
+            "type" : "string"
+          },
+          "roundNameAr" : {
+            "type" : "string"
+          },
+          "subject" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "roundName", "roundNameAr", "subject" ],
+        "type" : "object"
+      },
       "TeamMember" : {
         "properties" : {
           "canMessage" : {
             "type" : "boolean"
+          },
+          "latestEvaluation" : {
+            "$ref" : "#/components/schemas/TeamLatestEvaluation"
           },
           "name" : {
             "type" : "string"
@@ -9308,6 +9647,27 @@
             "maxLength" : 30,
             "minLength" : 0,
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UpdateEvaluationRoundRequest" : {
+        "properties" : {
+          "dueAt" : {
+            "type" : "string"
+          },
+          "nameAr" : {
+            "type" : "string"
+          },
+          "nameEn" : {
+            "type" : "string"
+          },
+          "opensOn" : {
+            "type" : "string"
+          },
+          "remindHoursBefore" : {
+            "format" : "int32",
+            "type" : "integer"
           }
         },
         "type" : "object"
@@ -11325,6 +11685,115 @@
           }
         },
         "tags" : [ "Coordinators" ]
+      }
+    },
+    "/admin/evaluation-rounds" : {
+      "get" : {
+        "operationId" : "evaluationRounds",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/EvaluationRound"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Evaluation rounds" ]
+      },
+      "post" : {
+        "operationId" : "createEvaluationRound",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateEvaluationRoundRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EvaluationRound"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Evaluation rounds" ]
+      }
+    },
+    "/admin/evaluation-rounds/{id}" : {
+      "put" : {
+        "operationId" : "updateEvaluationRound",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateEvaluationRoundRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EvaluationRound"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Evaluation rounds" ]
+      }
+    },
+    "/admin/evaluation-rounds/{id}/release" : {
+      "post" : {
+        "operationId" : "releaseEvaluationRound",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EvaluationRound"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Evaluation rounds" ]
       }
     },
     "/admin/flags" : {
@@ -15159,6 +15628,35 @@
         "tags" : [ "Chat" ]
       }
     },
+    "/children/{id}/evaluations" : {
+      "get" : {
+        "operationId" : "childEvaluations",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ParentEvaluation"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Child evaluations" ]
+      }
+    },
     "/children/{id}/evening-card" : {
       "get" : {
         "operationId" : "eveningCard",
@@ -16401,6 +16899,128 @@
           }
         },
         "tags" : [ "Coordinator" ]
+      }
+    },
+    "/evaluations/board" : {
+      "get" : {
+        "operationId" : "evaluationBoard",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "round",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EvaluationBoard"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Child evaluation board" ]
+      }
+    },
+    "/evaluations/board.csv" : {
+      "get" : {
+        "operationId" : "evaluationBoardCsv",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "round",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "text/csv" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Child evaluation board" ]
+      }
+    },
+    "/evaluations/board/{teacherId}" : {
+      "get" : {
+        "operationId" : "teacherEvaluationBoard",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "teacherId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "round",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EvaluationBoard"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Child evaluation board" ]
+      }
+    },
+    "/evaluations/{id}/review" : {
+      "post" : {
+        "operationId" : "reviewEvaluation",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReviewEvaluationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChildEvaluationRow"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Child evaluation board" ]
       }
     },
     "/floor/chat/peers" : {
@@ -20803,6 +21423,190 @@
         "tags" : [ "Chat" ]
       }
     },
+    "/teacher/evaluations" : {
+      "get" : {
+        "operationId" : "myEvaluations",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "round",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TeacherEvaluations"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Child evaluations" ]
+      }
+    },
+    "/teacher/evaluations/{roundId}/{classId}/{subject}/{childId}" : {
+      "get" : {
+        "operationId" : "myEvaluation",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "roundId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "subject",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "childId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChildEvaluationRow"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Child evaluations" ]
+      },
+      "put" : {
+        "operationId" : "saveEvaluation",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "roundId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "subject",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "childId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SaveChildEvaluationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChildEvaluationRow"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Child evaluations" ]
+      }
+    },
+    "/teacher/evaluations/{roundId}/{classId}/{subject}/{childId}/submit" : {
+      "post" : {
+        "operationId" : "submitEvaluation",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "roundId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "classId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "subject",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "childId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SaveChildEvaluationRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChildEvaluationRow"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Child evaluations" ]
+      }
+    },
     "/teacher/exams/{id}" : {
       "get" : {
         "operationId" : "exam",
@@ -22778,6 +23582,9 @@
     "description" : "A teacher's weekly teaching material, per class and subject",
     "name" : "Teaching material"
   }, {
+    "description" : "A teacher's evaluation of each child she teaches, per round",
+    "name" : "Child evaluations"
+  }, {
     "description" : "A floor supervisor's view of the classes, staff and children of her floors",
     "name" : "Floor supervisor"
   }, {
@@ -22849,6 +23656,9 @@
   }, {
     "description" : "Notes a coordinator posts to the parents of the classes in her scope",
     "name" : "Coordinator announcements"
+  }, {
+    "description" : "The Admin's evaluation rounds, and the one release to the parents",
+    "name" : "Evaluation rounds"
   }, {
     "description" : "Teacher profile, lesson chooser options, calendar and students",
     "name" : "Teacher"
@@ -22927,6 +23737,9 @@
   }, {
     "description" : "Per-school white label (§3)",
     "name" : "Themes"
+  }, {
+    "description" : "Who has evaluated her children, and the review of what she wrote",
+    "name" : "Child evaluation board"
   }, {
     "description" : "The weekly plan, announcements and events: composing them and the feeds that receive them",
     "name" : "Broadcasts"

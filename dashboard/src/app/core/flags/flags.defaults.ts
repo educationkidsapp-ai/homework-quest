@@ -68,4 +68,6 @@ export const DEFAULT_FLAGS: Readonly<Record<string, boolean>> = {
   // V55 (feature 32). Both also need `chat`, which the services check beside them.
   childTeam: true,
   classChannel: true,
+  // V56 (feature 33).
+  childEvaluations: true,
 };

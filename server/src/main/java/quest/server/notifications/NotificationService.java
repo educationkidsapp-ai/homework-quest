@@ -132,7 +132,8 @@ public class NotificationService {
             case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS,
                  COMPLAINT_NEW, COMPLAINT_MESSAGE, ATTENDANCE_REMINDER, ATTENDANCE_ALERT, ATTENDANCE_DIGEST,
                  ATTENDANCE_REQUEST, ATTENDANCE_DECISION, ATTENDANCE_REMOTE_DAY,
-                 CHAT_AFTER_HOURS_SUMMARY, MORNING_BRIEF, EVENING_CARD, MATERIAL_REMINDER, CHANNEL_POST
+                 CHAT_AFTER_HOURS_SUMMARY, MORNING_BRIEF, EVENING_CARD, MATERIAL_REMINDER, CHANNEL_POST,
+                 EVALUATION_REMINDER, EVALUATION_RETURNED, EVALUATION_RELEASED
                  -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         String name = lesson.getTitle() == null || lesson.getTitle().isBlank() ? "Your lesson" : lesson.getTitle().trim();
@@ -143,7 +144,8 @@ public class NotificationService {
             case TEACHER_MESSAGE, BROADCAST_POSTED, CHAT_MESSAGE, EXAM_RELEASED, HOMEWORK_PUBLISHED, EXAM_PUBLISHED, ANNOUNCEMENT_POSTED, QUESTION_SENT, COMPLAINT_STATUS,
                  COMPLAINT_NEW, COMPLAINT_MESSAGE, ATTENDANCE_REMINDER, ATTENDANCE_ALERT, ATTENDANCE_DIGEST,
                  ATTENDANCE_REQUEST, ATTENDANCE_DECISION, ATTENDANCE_REMOTE_DAY,
-                 CHAT_AFTER_HOURS_SUMMARY, MORNING_BRIEF, EVENING_CARD, MATERIAL_REMINDER, CHANNEL_POST
+                 CHAT_AFTER_HOURS_SUMMARY, MORNING_BRIEF, EVENING_CARD, MATERIAL_REMINDER, CHANNEL_POST,
+                 EVALUATION_REMINDER, EVALUATION_RETURNED, EVALUATION_RELEASED
                  -> throw new IllegalStateException(key(kind) + " is not a lesson transition");
         };
         try {
@@ -418,6 +420,38 @@ public class NotificationService {
                         "Class channel: " + (named ? author : "your child's teacher"), cue(bodyEn),
                         "/children/" + kid.getId() + "/channel", "channel:" + postId)
                         .arabic("قناة الصف: " + (named ? author : "معلمة طفلك"), cue(bodyAr == null || bodyAr.isBlank() ? bodyEn : bodyAr)), true));
+            push.toParents(told);
+        });
+    }
+
+    /**
+     * Feature 33: the teachers' evaluations of these children are ready for their parents to read — the Admin
+     * released the round, or one evaluation of a released round has just been approved. One row and one push
+     * <strong>per parent per child</strong>: a parent with two children hears about each of them, because each
+     * child's evaluations are her own, and the link is the child the row names.
+     *
+     * <p><strong>Once</strong>, by V31's unique `once_key` (`recipient|kind|entity|child`) rather than by a read, so
+     * a release re-run, a second instance, or a round released and released again tells nobody twice. {@code entityId}
+     * is what "once" means here: the <em>round</em> on release — one row per parent per child, whatever the number
+     * of approved evaluations behind it — and the <em>evaluation</em> for one approved after the release, which is
+     * news of its own and is therefore told once more.
+     *
+     * <p>The row carries no rating, no state and no reviewer, exactly as {@link quest.api.dto.ParentEvaluation}
+     * carries none: it says the evaluations are ready and links to the screen that words them.
+     */
+    public void parentsOfEvaluations(String schoolId, List<quest.server.children.Entities.ChildEntity> kids, String entityId) {
+        if (kids.isEmpty() || entityId == null) return;
+        afterCommit(entityId + " (evaluation.released)", () -> {
+            var told = new ArrayList<ParentPush.Delivery>();
+            for (var kid : kids) {
+                if (kid.getParentId() == null) continue;
+                String who = kid.getName() == null || kid.getName().isBlank() ? "your child" : kid.getName().trim();
+                String whoAr = kid.getName() == null || kid.getName().isBlank() ? "طفلك" : kid.getName().trim();
+                add(told, tell(schoolId, kid.getParentId(), kid.getId(), new Note(NotificationKind.EVALUATION_RELEASED, entityId,
+                        "Teacher evaluations ready", who + "'s teachers have written their evaluations.",
+                        "/children/" + kid.getId() + "/evaluations", "evaluation:" + entityId)
+                        .arabic("تقييمات المعلمات جاهزة", "كتبت معلمات " + whoAr + " تقييماتهن."), true));
+            }
             push.toParents(told);
         });
     }

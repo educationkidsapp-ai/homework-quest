@@ -146,7 +146,6 @@ val screensWithoutGates = setOf(
     "parent/presentation/CalendarScreen.kt",
     "parent/presentation/LessonPanelScreen.kt",
     "parent/presentation/PinScreen.kt",
-    "parent/presentation/ProgressScreen.kt",
 )
 
 val checkFeatureGates by tasks.registering {

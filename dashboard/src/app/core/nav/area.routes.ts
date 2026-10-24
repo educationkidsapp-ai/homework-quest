@@ -142,6 +142,16 @@ function componentFor(screen: Screen, role: Role) {
     return import('../../features/materials/my-materials.page').then((m) => m.MyMaterialsPage);
   if (screen.id === 'materials')
     return import('../../features/materials/material-board.page').then((m) => m.MaterialBoardPage);
+  // Feature 33: her own evaluations, the leaders' tracking board, and the Admin's rounds. The
+  // board is one component for all five areas for the same reason the material board is —
+  // `GET /evaluations/board` answers every leader her own scope — so `evaluation-board` is in
+  // `SHARED_WITH_TEACHER` below rather than copied under `supervisorComponentFor`.
+  if (screen.id === 'evaluations')
+    return import('../../features/evaluations/my-evaluations.page').then((m) => m.MyEvaluationsPage);
+  if (screen.id === 'evaluation-board')
+    return import('../../features/evaluations/evaluation-board.page').then((m) => m.EvaluationBoardPage);
+  if (screen.id === 'evaluation-rounds')
+    return import('../../features/admin/evaluation-rounds.page').then((m) => m.EvaluationRoundsPage);
   // The Admin's Children & parents — admission, and the parent login it mints. The *manager's*
   // `children` row is her department's read-only directory and never reaches here
   // (`supervisorComponentFor` takes MANAGERIAL first).
@@ -203,6 +213,8 @@ const SHARED_WITH_TEACHER = new Set([
   // `GET /materials/board` answers every leader her own scope, so a copy of the screen under
   // `supervisorComponentFor` would read the same route twice.
   'materials',
+  // Feature 33: and so is the evaluation-tracking board, for that same reason.
+  'evaluation-board',
 ]);
 
 /** Feature 20: the screen ids `/floor/**` answers with a component of its own. */

@@ -100,6 +100,9 @@ class IsolationTest extends ApiTestSupport {
     @Autowired quest.server.materials.MaterialSubmissionRepository materialSubmissions;
     @Autowired quest.server.materials.MaterialReminderRepository materialReminders;
     @Autowired quest.server.chat.ClassChannelRepository classChannels;
+    @Autowired quest.server.evaluations.EvaluationRoundRepository evaluationRounds;
+    @Autowired quest.server.evaluations.ChildEvaluationRepository childEvaluations;
+    @Autowired quest.server.evaluations.EvaluationReminderRepository evaluationReminders;
     @Autowired quest.server.chat.ChannelReadRepository channelReads;
 
     @BeforeEach void seedTwoSchools() {
@@ -1070,6 +1073,54 @@ class IsolationTest extends ApiTestSupport {
             channelReads.deleteById("iso-channel-read-b");
             classChannels.deleteById("iso-channel-map-b");
             chatThreads.deleteById("iso-channel-b");
+        }
+    }
+
+    /**
+     * Feature 33's three tenant tables. A round is one school's decision, what a teacher wrote about a child is that
+     * school's business, and the reminders it has sent are its own: a principal of A reads none of B's rows, and
+     * naming B's own round, teacher or child outright does not help her — the filter is on the query, not on the
+     * argument.
+     */
+    @Test void feature_33s_child_evaluation_tables_stay_in_their_school() {
+        var round = new quest.server.evaluations.Entities.EvaluationRoundEntity();
+        round.setId("iso-round-b"); round.setSchoolId(B); round.setNameEn("B's round"); round.setNameAr("دورة ب");
+        round.setOpensOn(LocalDate.of(2026, 11, 1)); round.setDueAt(Instant.now()); round.setRemindHoursBefore(24);
+        round.setCreatedAt(Instant.now()); round.setUpdatedAt(Instant.now());
+        evaluationRounds.save(round);
+        var evaluation = new quest.server.evaluations.Entities.ChildEvaluationEntity();
+        evaluation.setId("iso-evaluation-b"); evaluation.setSchoolId(B); evaluation.setRoundId("iso-round-b");
+        evaluation.setTeacherId("teacher-b"); evaluation.setClassId(CLASS_B); evaluation.setSubject("math");
+        evaluation.setChildId("iso-child-b"); evaluation.setState("APPROVED");
+        evaluation.setComment("B's own words"); evaluation.setSubmittedAt(Instant.now());
+        evaluation.setCreatedAt(Instant.now()); evaluation.setUpdatedAt(Instant.now());
+        childEvaluations.save(evaluation);
+        var reminder = new quest.server.evaluations.Entities.EvaluationReminderEntity();
+        reminder.setId("iso-evaluation-reminder-b"); reminder.setSchoolId(B); reminder.setRoundId("iso-round-b");
+        reminder.setTeacherId("teacher-b"); reminder.setSentAt(Instant.now());
+        evaluationReminders.save(reminder);
+        try {
+            tenant.set("MANAGERIAL", A, null);
+            assertThat(evaluationRounds.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(evaluationRounds.findOneBySchoolIdAndId(B, "iso-round-b")).as("nor by naming B outright").isEmpty();
+            assertThat(evaluationRounds.findBySchoolIdOrderByDueAtDesc(B)).isEmpty();
+            assertThat(childEvaluations.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(childEvaluations.findBySchoolIdAndRoundId(B, "iso-round-b")).isEmpty();
+            assertThat(childEvaluations.findOneBySchoolIdAndId(B, "iso-evaluation-b")).isEmpty();
+            assertThat(childEvaluations.findOneBySchoolIdAndRoundIdAndTeacherIdAndClassIdAndSubjectAndChildId(
+                    B, "iso-round-b", "teacher-b", CLASS_B, "math", "iso-child-b")).isEmpty();
+            assertThat(evaluationReminders.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(evaluationReminders.findBySchoolIdAndRoundId(B, "iso-round-b")).isEmpty();
+            tenant.set("MANAGERIAL", B, null);
+            assertThat(evaluationRounds.findOneBySchoolIdAndId(B, "iso-round-b")).isPresent();
+            assertThat(childEvaluations.findBySchoolIdAndRoundId(B, "iso-round-b"))
+                    .extracting(quest.server.evaluations.Entities.ChildEvaluationEntity::getId).containsExactly("iso-evaluation-b");
+            assertThat(evaluationReminders.findBySchoolIdAndRoundId(B, "iso-round-b")).hasSize(1);
+        } finally {
+            tenant.clear();
+            evaluationReminders.deleteById("iso-evaluation-reminder-b");
+            childEvaluations.deleteById("iso-evaluation-b");
+            evaluationRounds.deleteById("iso-round-b");
         }
     }
 }

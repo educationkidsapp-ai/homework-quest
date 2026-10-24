@@ -244,6 +244,8 @@ data class Strings(
     val translate: quest.feature.translate.presentation.TranslateStrings = quest.feature.translate.presentation.TranslateStrings.en,
     /** Feature 32: the child's team page and her class's channel, both opened from the Messages tab. */
     val teamChannel: TeamChannelStrings = TeamChannelStrings.en,
+    /** Feature 33: the teachers' evaluations of the child, in words — the page, its sections and the scale. */
+    val evaluations: EvaluationStrings = EvaluationStrings.en,
 ) {
     fun accuracy(words: String) = accuracyWords[words] ?: words
 
@@ -450,6 +452,7 @@ data class Strings(
             officeHours = OfficeHoursWords.ar,
             translate = quest.feature.translate.presentation.TranslateStrings.ar,
             teamChannel = TeamChannelStrings.ar,
+            evaluations = EvaluationStrings.ar,
         )
 
         fun forLanguage(code: String) = if (code == "ar") ar else en
@@ -581,6 +584,80 @@ data class TeamChannelStrings(
             showEarlier = "إظهار المنشورات الأقدم",
             postRemoved = "تم حذف هذا المنشور",
             channelUpdate = "قناة الصف",
+        )
+    }
+}
+
+/**
+ * Feature 33: the teachers' evaluations of one child, as a parent reads them.
+ *
+ * The scale is **four words and no number** — the server already turned the teacher's rating into one of
+ * [quest.api.dto.EvaluationWord]'s keys — so this table is the only place the four points are spelled, in either
+ * language. [criteria] and [words] are keyed by the contract's own keys, and a key this build does not know is drawn
+ * as it arrived rather than hidden, exactly as an unknown score band is.
+ */
+data class EvaluationStrings(
+    /** The page's title, the Progress row and the Notifications tab all read the same two words. */
+    val title: String,
+    val rowSubtitle: String,
+    val empty: String,
+    /** Feature 32's teacher row: the link down to this page, with the round and the subject under it. */
+    val latest: String,
+    /** The one way a parent answers an evaluation: her ordinary one-to-one thread with that teacher. */
+    val replyPrivately: String,
+    val comment: String,
+    val goingWell: String,
+    val nextStep: String,
+    val criteria: Map<String, String>,
+    val words: Map<String, String>,
+) {
+    fun criterion(key: String) = criteria[key] ?: key
+    fun word(key: String) = words[key] ?: key
+
+    companion object {
+        val en = EvaluationStrings(
+            title = "Teacher evaluations",
+            rowSubtitle = "What your child's teachers wrote about her",
+            empty = "Your child's teachers have not shared an evaluation yet.",
+            latest = "Latest evaluation",
+            replyPrivately = "Reply privately",
+            comment = "What the teacher wrote",
+            goingWell = "Going well",
+            nextStep = "Next step",
+            criteria = mapOf(
+                "participation" to "Participation",
+                "effort" to "Effort",
+                "behaviour" to "Behaviour",
+                "understanding" to "Understanding",
+            ),
+            words = mapOf(
+                "excellent" to "Excellent",
+                "good" to "Good",
+                "developing" to "Developing",
+                "needsSupport" to "Needs support",
+            ),
+        )
+        val ar = EvaluationStrings(
+            title = "تقييمات المعلمات",
+            rowSubtitle = "ما كتبته معلّمات طفلك عنه",
+            empty = "لم تشارك معلّمات طفلك أي تقييم بعد.",
+            latest = "أحدث تقييم",
+            replyPrivately = "رد خاص",
+            comment = "ما كتبته المعلّمة",
+            goingWell = "ما يسير على خير",
+            nextStep = "الخطوة التالية",
+            criteria = mapOf(
+                "participation" to "المشاركة",
+                "effort" to "الاجتهاد",
+                "behaviour" to "السلوك",
+                "understanding" to "الفهم",
+            ),
+            words = mapOf(
+                "excellent" to "ممتاز",
+                "good" to "جيد",
+                "developing" to "في تطوّر",
+                "needsSupport" to "يحتاج إلى دعم",
+            ),
         )
     }
 }
