@@ -377,6 +377,8 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "childEvaluations" to true,
     // Feature 34: leave and permission requests, their approval and their effect on attendance (V57).
     "staffLeave" to true,
+    // Feature 36: the Admin models the school as academies, grades, classes and assignments in one tree (V58).
+    "schoolStructure" to true,
 )
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */

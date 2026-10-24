@@ -16,4 +16,10 @@ import org.springframework.transaction.annotation.Transactional;
 public interface StaffScopeRepository extends JpaRepository<Entities.StaffScopeEntity, String> {
     List<Entities.StaffScopeEntity> findBySchoolIdAndUserIdOrderBySubjectAscCurriculumAsc(String schoolId, String userId);
     List<Entities.StaffScopeEntity> findBySchoolIdAndUserIdInOrderBySubjectAscCurriculumAsc(String schoolId, List<String> userIds);
+
+    /**
+     * Every scope row of one school — feature 36's structure tree, which draws each academy's director and the
+     * coordinators of every subject and would otherwise pay a query per member of staff.
+     */
+    List<Entities.StaffScopeEntity> findBySchoolIdOrderByUserIdAsc(String schoolId);
 }

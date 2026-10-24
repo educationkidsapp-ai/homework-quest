@@ -94,9 +94,9 @@ public final class ExamDto {
      * always written and nothing has ever read, which the #106 review asked to be either read or dropped.
      */
     public record ExamChildResult(String childId, String name, String state, int score, int maxScore, Integer percent,
-                                  String band, Integer answered, Integer total, Integer secondsTaken, Long startedAt,
-                                  Long lastSeenAt, Long submittedAt, int needsMarking, boolean reopened,
-                                  String comment) {}
+                                  String band, String bandLabel, Integer answered, Integer total, Integer secondsTaken,
+                                  Long startedAt, Long lastSeenAt, Long submittedAt, int needsMarking,
+                                  boolean reopened, String comment) {}
 
     /** One column of the distribution chart: how many children landed in each of §7's four bands. */
     public record ExamBand(String band, int children) {}
@@ -115,6 +115,7 @@ public final class ExamDto {
     public record ExamResults(String examId, String title, String classId, String className, String subject,
                               String date, ExamSettings settings, boolean released, Long releasedAt, int roster,
                               int sat, int submitted, int absent, Integer classAverage, int needsMarking,
+                              quest.server.structure.StructureDto.GradingScheme scheme,
                               List<ExamBand> distribution, List<ExamQuestion> questions,
                               List<ExamChildResult> children, List<ExamChildResult> absentees) {}
 

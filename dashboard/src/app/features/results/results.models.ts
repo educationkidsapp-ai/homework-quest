@@ -74,6 +74,8 @@ export interface ResultRow {
   readonly teacherScore: number | null;
   readonly score: number | null;
   readonly band: Band | null;
+  /** Feature 36: the band key of the class's academy scheme, when it has one of its own. */
+  readonly bandLabel: string | null;
   readonly needsMarking: number;
   /** The teacher's lesson-level comment — the one a parent reads after release. */
   readonly comment: string;
@@ -113,6 +115,7 @@ export function resultRows(results: LessonResults): readonly ResultRow[] {
       teacherScore: child.teacherScore ?? null,
       score: child.score ?? null,
       band: bandOf(child.band),
+      bandLabel: child.bandLabel ?? null,
       needsMarking: child.needsMarking ?? 0,
       comment: child.comment ?? '',
       stops: stops.map((stop) => {

@@ -293,6 +293,8 @@ export interface ChildRow {
   readonly answered: number;
   readonly total: number;
   readonly band: Band | null;
+  /** Feature 36: the band key of the class's academy scheme, when it has one of its own. */
+  readonly bandLabel: string | null;
   readonly secondsTaken: number | null;
   readonly submittedAt: number | null;
   readonly needsMarking: number;
@@ -323,6 +325,7 @@ export function childRows(results: ExamResults): readonly ChildRow[] {
       answered: child.answered ?? 0,
       total: child.total ?? 0,
       band: bandOf(child.band),
+      bandLabel: child.bandLabel ?? null,
       secondsTaken: child.secondsTaken ?? null,
       submittedAt: child.submittedAt ?? null,
       needsMarking: child.needsMarking ?? 0,

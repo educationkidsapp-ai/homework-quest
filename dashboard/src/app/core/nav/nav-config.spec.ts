@@ -28,6 +28,9 @@ describe('the nav switch', () => {
       // behind `floorSupervisor` at runtime; this switch is about the school *surfaces* and takes
       // neither with it.
       'floors',
+      // Feature 36: the structure tree, behind `schoolStructure` at runtime and unaffected by
+      // this switch for the same reason the two rows above it are.
+      'structure',
       'teachers',
       'coordinators',
       'managers',

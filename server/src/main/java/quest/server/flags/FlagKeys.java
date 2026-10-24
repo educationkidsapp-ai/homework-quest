@@ -167,6 +167,15 @@ public final class FlagKeys {
      */
     public static final String STAFF_LEAVE = "staffLeave";
 
+    /**
+     * Feature 36: the Admin models the school as academies — the British and American departments, each with its own
+     * names, curriculum type, grade naming, grading scheme, terms, subjects and director — and reads one visual tree
+     * of who is responsible for what (every `/admin/structure` route). Seeded by V58. With it off nothing is lost: an
+     * academy without a grading scheme reads exactly today's four bands
+     * ({@link quest.server.structure.GradingSchemes#DEFAULT}).
+     */
+    public static final String SCHOOL_STRUCTURE = "schoolStructure";
+
     public static final List<String> ALL = List.of(
             LESSONS_PDF, LESSONS_SLIDES, LESSONS_IMAGES, LESSONS_MANUAL, LEVELS_THREE, RETELL_RECORDING,
             OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, COMPLAINTS, ANNOUNCEMENTS, TEACHER_QUESTIONS,
@@ -174,5 +183,5 @@ public final class FlagKeys {
             MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST,
             CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, FLOOR_SUPERVISOR, TODAY_HOME,
             VOICE_ANNOUNCEMENT, REMOTE_STUDY_DAYS, MORNING_BRIEF, DOCUMENT_READER, COMPLAINT_TRIAGE, PARENT_EVENING_CARD, LANGUAGE_BRIDGE, SMART_HINTS,
-            TEACHING_MATERIALS, CHILD_TEAM, CLASS_CHANNEL, CHILD_EVALUATIONS, STAFF_LEAVE);
+            TEACHING_MATERIALS, CHILD_TEAM, CLASS_CHANNEL, CHILD_EVALUATIONS, STAFF_LEAVE, SCHOOL_STRUCTURE);
 }

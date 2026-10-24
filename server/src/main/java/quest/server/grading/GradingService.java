@@ -72,17 +72,31 @@ public class GradingService {
     private final quest.server.tenancy.ClassRepository classes; private final String publicUrl;
     private final quest.server.exams.ExamSettingsRepository examSettings; private final quest.server.content.SkillRepository skills;
     private final quest.server.notifications.NotificationService notifications;
+    /** Feature 36: which band a score is shown in, per academy. {@link quest.server.structure.GradingSchemes#DEFAULT} is today's four. */
+    private final quest.server.structure.GradingSchemes schemes;
 
     public GradingService(TeacherScope scope, LessonRepository lessons, PlayRepository plays, LessonStore store,
                           ChildRepository children, ChildService childService, AttemptRepository attempts,
                           TeacherMarkRepository marks, ChildMediaRepository media,
                           quest.server.tenancy.ClassRepository classes, QuestProperties props,
                           quest.server.exams.ExamSettingsRepository examSettings, quest.server.content.SkillRepository skills,
-                          quest.server.notifications.NotificationService notifications) {
+                          quest.server.notifications.NotificationService notifications,
+                          quest.server.structure.GradingSchemes schemes) {
         this.scope = scope; this.lessons = lessons; this.plays = plays; this.store = store; this.children = children;
         this.childService = childService; this.attempts = attempts; this.marks = marks; this.media = media;
         this.classes = classes; this.publicUrl = props.publicUrl() == null ? "" : props.publicUrl();
         this.examSettings = examSettings; this.skills = skills; this.notifications = notifications;
+        this.schemes = schemes;
+    }
+
+    /**
+     * The grading scheme a section's results are read in: its academy's, or feature 36's default, which is exactly
+     * today's four bands. The academy key is the section's own `curriculum` column — the academy <em>is</em> that key
+     * (feature 36) — so this never takes a key from a request.
+     */
+    private quest.server.structure.GradingSchemes.Scheme schemeOf(ClassEntity section) {
+        return section == null ? quest.server.structure.GradingSchemes.DEFAULT
+                               : schemes.of(section.getSchoolId(), section.getCurriculum());
     }
 
     // ---------------------------------------------------------------- results (§7, step 9)
@@ -90,6 +104,7 @@ public class GradingService {
     public GradingDto.LessonResults results(Principals.User caller, String lessonId) {
         var lesson = scope.requireLesson(caller, lessonId);
         var section = lesson.getClassId() == null ? null : classes.findById(lesson.getClassId()).orElse(null);
+        var scheme = schemeOf(section);
         var stopsByLevel = stopsByLevel(List.of(lesson)).getOrDefault(lessonId, Map.of());
         var lessonAttempts = attempts.findByLessonId(lessonId);
         var roster = rosterFor(lesson, lessonAttempts);
@@ -146,7 +161,8 @@ public class GradingService {
             if (score.score() != null) { sum += score.score(); scored++; }
             rows.add(new GradingDto.ChildResult(child.getId(), child.getName(), child.getClassId(), score.attempted(),
                     score.levelReached(), score.scoredLevel(), score.autoScore(), score.teacherScore(), score.score(),
-                    score.band(), score.starsEarned(), score.starsTotal(), score.answered(), score.total(),
+                    score.band(), scheme.keyFor(score.score() == null ? null : (double) score.score()),
+                    score.starsEarned(), score.starsTotal(), score.answered(), score.total(),
                     score.completion(), score.needsMarking(), lessonRow == null ? null : lessonRow.getComment(), stops));
         }
         // B3: a column is markable when any child's answer in it waits for a mark — on an exam, an exit-ticket question
@@ -159,7 +175,7 @@ public class GradingService {
                 section == null ? null : section.getName(), lesson.getSubject(), lesson.getDate().toString(),
                 lesson.getType(), lesson.getReleasedAt() != null,
                 lesson.getReleasedAt() == null ? null : lesson.getReleasedAt().toEpochMilli(),
-                scored == 0 ? null : (int) Math.round(sum / scored), played, needsMarking,
+                scored == 0 ? null : (int) Math.round(sum / scored), played, needsMarking, scheme.view(),
                 markable, List.copyOf(rows));
     }
 
@@ -219,6 +235,7 @@ public class GradingService {
     public GradingDto.Gradebook gradebook(Principals.User caller, String classId, String from, String to,
                                           CoordinatorScope.Subjects subjects) {
         var section = scope.requireClass(caller, classId);
+        var scheme = schemeOf(section);
         LocalDate end = parse(to, LocalDate.now()), start = parse(from, end.minusDays(DEFAULT_WINDOW_DAYS));
         if (end.isBefore(start)) throw ApiException.badRequest("to must not be before from");
         if (start.plusDays(MAX_WINDOW_DAYS).isBefore(end)) throw ApiException.badRequest("the window must be at most " + MAX_WINDOW_DAYS + " days");
@@ -264,7 +281,8 @@ public class GradingService {
                 // re-send would take the teacher's line to the parent off the report on every score override.
                 var lessonRow = mine.get(Entities.TeacherMarkEntity.LESSON);
                 cells.add(new GradingDto.GradebookCell(l.getId(), score.attempted(), score.autoScore(),
-                        score.teacherScore(), score.score(), score.band(), score.needsMarking() > 0,
+                        score.teacherScore(), score.score(), score.band(),
+                        scheme.keyFor(score.score() == null ? null : (double) score.score()), score.needsMarking() > 0,
                         lessonRow == null ? null : lessonRow.getComment()));
             }
             // §7's "a per-child average column": the plain mean of the scored cells of the window she asked for, so
@@ -275,7 +293,7 @@ public class GradingService {
             java.util.Collections.reverse(newestFirst);
             rows.add(new GradingDto.GradebookChild(child.getId(), child.getName(),
                     average == null ? null : (int) Math.round(average), average == null ? null : Bands.band(average),
-                    Bands.trend(newestFirst), List.copyOf(cells)));
+                    scheme.keyFor(average), Bands.trend(newestFirst), List.copyOf(cells)));
         }
 
         var columns = published.stream().map(l -> {
@@ -287,7 +305,7 @@ public class GradingService {
         }).toList();
         return new GradingDto.Gradebook(section.getId(), section.getName(),
                 subjects.label() == null ? scope.subjectOf(caller, section) : subjects.label(),
-                start.toString(), end.toString(), columns, List.copyOf(rows), needsMarking);
+                start.toString(), end.toString(), scheme.view(), columns, List.copyOf(rows), needsMarking);
     }
 
     // ---------------------------------------------------------------- the child page (§7)
@@ -306,6 +324,9 @@ public class GradingService {
         var child = childService.scoped(childId);
         requireTeaches(caller, child);
         var section = child.getClassId() == null ? null : classes.findById(child.getClassId()).orElse(null);
+        // Feature 36: her class's academy decides the words her bands are shown in; a child with no section yet
+        // reads her own `curriculum`, which is the academy key too.
+        var scheme = section != null ? schemeOf(section) : schemes.of(child.getSchoolId(), child.getCurriculum());
         // §7 rolls a level **per subject**, so the window has to be per subject too: slicing the section's lessons
         // to the last ten before grouping would leave each subject of a three-subject class three or four scores,
         // which is below `Bands.TREND_POINTS` and answers "no trend" for a child who plainly has one. The read is
@@ -331,7 +352,8 @@ public class GradingService {
             // only. Named `levelScore` rather than `average` because it is not the mean of anything on screen.
             var levelScore = Bands.average(values, exams);
             levels.add(new GradingDto.ChildLevel(subject, levelScore == null ? null : Bands.band(levelScore),
-                    Bands.trend(values), levelScore == null ? null : (int) Math.round(levelScore), values.size()));
+                    scheme.keyFor(levelScore), Bands.trend(values),
+                    levelScore == null ? null : (int) Math.round(levelScore), values.size()));
         });
 
         // The chart is every point a level rests on, oldest first — so a three-subject class draws three full lines
@@ -361,7 +383,7 @@ public class GradingService {
                 .toList();
         var skillBands = skillsOf(child, cap(published, TREND_LESSONS));
         return new GradingDto.ChildReport(child.getId(), child.getName(), child.getClassId(),
-                section == null ? null : section.getName(), child.getAvatarColor(),
+                section == null ? null : section.getName(), child.getAvatarColor(), scheme.view(),
                 List.copyOf(levels), trend, comments, work,
                 skillBands.stream().filter(s -> GOING_WELL.equals(s.band())).toList(),
                 skillBands.stream().filter(s -> NEEDS_ANOTHER_LOOK.equals(s.band()))
@@ -678,6 +700,45 @@ public class GradingService {
     // ---------------------------------------------------------------- shared batching
 
     /** A lesson with one child's score on it, so the child page can sort and group without recomputing. */
+    /**
+     * Every <strong>released</strong> score of one section, in no particular order — feature 36's "how many results
+     * will show a different band" count, which is what the Admin is asked to confirm before a grading scheme is
+     * changed or a class is moved to another academy.
+     *
+     * <p>Released is `lessons.released_at` — the one-way door §7 puts in front of a parent — and an exam counts
+     * exactly like a homework here, because `release` is the same toggle on both. The arithmetic is {@link Scoring}'s
+     * own, so the number the confirmation names is the number the gradebook will show. Three statements for the
+     * whole class, like every other read here; a section with nothing released answers an empty list.
+     */
+    @Transactional(readOnly = true)
+    public List<Double> releasedScores(String classId) {
+        var released = lessons.findByClassIdInAndStatusOrderByDateAsc(List.of(classId), "published").stream()
+                .filter(l -> l.getReleasedAt() != null).toList();
+        if (released.isEmpty()) return List.of();
+        var roster = children.findByClassIdAndDeletedAtIsNullOrderByNameAsc(classId);
+        if (roster.isEmpty()) return List.of();
+        var ids = released.stream().map(LessonEntity::getId).toList();
+        var stopsByLesson = stopsByLevel(released);
+        var byChildLesson = new HashMap<String, Map<String, List<AttemptEntity>>>();
+        for (var a : attempts.findByChildIdInAndLessonIdIn(roster.stream().map(ChildEntity::getId).toList(), ids))
+            byChildLesson.computeIfAbsent(a.getChildId(), k -> new HashMap<>())
+                    .computeIfAbsent(a.getLessonId(), k -> new ArrayList<>()).add(a);
+        var marksByChild = marksByChild(marks.findByLessonIdIn(ids));
+        var out = new ArrayList<Double>();
+        for (var child : roster) {
+            var childMarks = marksByChild.getOrDefault(child.getId(), Map.of());
+            var byLesson = byChildLesson.getOrDefault(child.getId(), Map.of());
+            for (var lesson : released) {
+                var perStop = perStop(childMarks, lesson.getId());
+                var score = Scoring.of(child.getId(), lesson.getId(), stopsByLesson.getOrDefault(lesson.getId(), Map.of()),
+                        byLesson.getOrDefault(lesson.getId(), List.of()), stopMarks(perStop), lessonMark(perStop),
+                        quest.server.exams.ExamPlays.isExam(lesson));
+                if (score.score() != null) out.add((double) score.score());
+            }
+        }
+        return List.copyOf(out);
+    }
+
     private record Scored(LessonEntity lesson, Scoring.Score score) {}
 
     private List<Scored> scoresOf(ChildEntity child, List<LessonEntity> published) {

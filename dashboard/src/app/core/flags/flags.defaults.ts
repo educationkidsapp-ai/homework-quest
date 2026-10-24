@@ -72,4 +72,6 @@ export const DEFAULT_FLAGS: Readonly<Record<string, boolean>> = {
   childEvaluations: true,
   // V57 (feature 34).
   staffLeave: true,
+  // V58 (feature 36).
+  schoolStructure: true,
 };

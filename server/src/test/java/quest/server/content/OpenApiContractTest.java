@@ -348,6 +348,20 @@ class OpenApiContractTest extends ApiTestSupport {
             "/admin/evaluation-rounds", "/admin/evaluation-rounds/{id}", "/admin/evaluation-rounds/{id}/release",
             "/children/{id}/evaluations");
 
+    /**
+     * Feature 36 (`quest.api.dashboard.Structure`): the Admin's academies, the one structure tree, the drag that moves
+     * a teacher and the three bulk tools. Behind the `schoolStructure` flag at run time and still in the document,
+     * for the reason every flagged area is: `server/openapi.json` describes the API the server can serve rather than
+     * what one school has switched on.
+     */
+    static final List<String> SCHOOL_STRUCTURE_API = List.of(
+            "/admin/structure", "/admin/structure/academies", "/admin/structure/academies/{key}",
+            "/admin/structure/academies/{key}/subjects", "/admin/structure/academies/{key}/terms",
+            "/admin/structure/academies/{key}/grading-scheme", "/admin/structure/assignments",
+            "/admin/structure/next-year/preview", "/admin/structure/next-year/apply",
+            "/admin/structure/grade-names",
+            "/admin/structure/classes/{id}/move/preview", "/admin/structure/classes/{id}/move/apply");
+
     /** Public and unauthenticated (§3, §4, §6 screen 1, §A): read before anyone has a token. */
     static final List<String> PUBLIC_API = List.of("/schools/{id}/flags", "/schools/{id}/theme", "/platform-settings",
             "/schools/logo", "/classes/lookup", "/schools/{id}/logo");
@@ -379,6 +393,7 @@ class OpenApiContractTest extends ApiTestSupport {
         assertThat(paths).containsAll(SMART_HINTS_API);
         assertThat(paths).containsAll(TEACHING_MATERIALS_API);
         assertThat(paths).containsAll(CHILD_EVALUATIONS_API);
+        assertThat(paths).containsAll(SCHOOL_STRUCTURE_API);
         // MH1: the upload and the download of a broadcast attachment — the app and the dashboard both call them.
         assertThat(paths).contains("/media/pages/{id}", "/media/child/{id}", "/media/attachments", "/media/attachments/{id}", "/media/chat-attachments",
                 "/children/{id}/chat/attachments");

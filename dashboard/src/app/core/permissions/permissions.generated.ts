@@ -75,6 +75,7 @@ export const WRITE_PERMISSIONS: ReadonlySet<string> = new Set([
   'staff.app',
   'staff.translate',
   'stop.write',
+  'structure.manage',
   'teacher.chat',
   'teacher.complaints',
   'teacher.lesson.copy',

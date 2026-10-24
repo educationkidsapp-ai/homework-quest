@@ -246,7 +246,7 @@
         <strong data-hq-score>{{ score(row.score) }}</strong>
       }
       @case ('band') {
-        <hq-level-band [band]="row.band" />
+        <hq-level-band [band]="row.band" [bandKey]="row.bandLabel" [scheme]="scheme()" />
       }
     }
   }

@@ -1,0 +1,215 @@
+:host {
+  display: block;
+}
+
+.structure__retry {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-start: var(--hq-space-16);
+}
+
+/* The tree and the panel side by side on a desk, stacked on anything narrower. */
+.structure__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--hq-space-16);
+  align-items: start;
+}
+
+@media (min-width: 60rem) {
+  .structure__layout {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  }
+}
+
+.structure__tree {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-4);
+}
+
+.structure__node {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-4);
+}
+
+/* Logical padding, so the indent is on the reading side in Arabic too. */
+.structure__children {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-4);
+  padding-inline-start: var(--hq-space-16);
+  border-inline-start: var(--hq-size-rule-thin) solid var(--hq-color-line);
+  margin-inline-start: var(--hq-space-8);
+}
+
+.structure__row {
+  display: flex;
+  align-items: center;
+  gap: var(--hq-space-8);
+  min-block-size: var(--hq-size-touch-target);
+}
+
+.structure__twisty {
+  background: none;
+  border: var(--hq-size-rule-thin) solid var(--hq-color-line);
+  border-radius: var(--hq-radius-xs);
+  color: var(--hq-color-ink);
+  cursor: pointer;
+  font-size: var(--hq-text-theme-sm);
+  line-height: 1;
+  inline-size: var(--hq-size-icon-button);
+  min-block-size: var(--hq-size-icon-button);
+}
+
+.structure__label {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--hq-space-8);
+  background: none;
+  border: var(--hq-size-rule-thin) solid transparent;
+  border-radius: var(--hq-radius-control);
+  color: var(--hq-color-ink);
+  cursor: pointer;
+  padding: var(--hq-space-4) var(--hq-space-8);
+  text-align: start;
+}
+
+.structure__label:hover {
+  background: var(--hq-color-hover);
+}
+
+.structure__label--selected {
+  border-color: var(--hq-color-accent);
+  background: var(--hq-color-accent-soft);
+  color: var(--hq-color-accent-on-soft);
+}
+
+.structure__row--academy .structure__name {
+  font-size: var(--hq-text-title-sm);
+  font-weight: var(--hq-text-weight-semibold);
+}
+
+.structure__row--grade .structure__name {
+  font-weight: var(--hq-text-weight-medium);
+}
+
+.structure__meta {
+  color: var(--hq-color-ink-muted);
+  font-size: var(--hq-text-theme-xs);
+}
+
+/* An empty spot is what she came for: it is marked in words and in colour, never colour alone. */
+.structure__meta--empty {
+  color: var(--hq-color-error-ink);
+  font-weight: var(--hq-text-weight-medium);
+}
+
+.structure__slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hq-space-8);
+  padding-inline-start: var(--hq-space-24);
+}
+
+.structure__slot {
+  display: flex;
+  align-items: center;
+  gap: var(--hq-space-8);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-line);
+  border-radius: var(--hq-radius-control);
+  padding: var(--hq-space-4) var(--hq-space-8);
+  min-block-size: var(--hq-size-touch-target);
+}
+
+.structure__slot--empty {
+  border-color: var(--hq-color-error-rule);
+  background: var(--hq-color-error-soft);
+}
+
+.structure__slot.cdk-drop-list-dragging,
+.structure__slot.cdk-drop-list-receiving {
+  border-color: var(--hq-color-accent);
+}
+
+.structure__subject {
+  color: var(--hq-color-ink-muted);
+  font-size: var(--hq-text-theme-xs);
+}
+
+.structure__subject-key {
+  align-self: center;
+  color: var(--hq-color-ink-muted);
+  font-family: var(--hq-font-family-mono);
+  font-size: var(--hq-text-theme-xs);
+}
+
+.structure__chip {
+  background: var(--hq-color-surface-raised);
+  border: var(--hq-size-rule-thin) solid var(--hq-color-line);
+  border-radius: var(--hq-radius-pill);
+  cursor: grab;
+  font-size: var(--hq-text-theme-xs);
+  padding: var(--hq-space-badge);
+}
+
+.structure__chip--empty {
+  background: none;
+  border-style: dashed;
+  color: var(--hq-color-error-ink);
+  cursor: default;
+}
+
+.structure__chip.cdk-drag-dragging {
+  box-shadow: var(--hq-shadow-drag);
+}
+
+.structure__panel {
+  position: sticky;
+  inset-block-start: var(--hq-space-16);
+}
+
+.structure__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--hq-space-8);
+  margin-block-start: var(--hq-space-16);
+}
+
+.structure__grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--hq-space-8);
+  padding-block: var(--hq-space-8);
+  border-block-end: var(--hq-size-rule-thin) solid var(--hq-color-divider);
+}
+
+.structure__note {
+  color: var(--hq-color-ink-muted);
+  font-size: var(--hq-text-theme-sm);
+  margin: 0 0 var(--hq-space-8);
+}
+
+.structure__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hq-space-4);
+  margin: 0;
+  padding-inline-start: var(--hq-space-24);
+  font-size: var(--hq-text-theme-sm);
+}
+
+.structure__list-item--graduating {
+  color: var(--hq-color-ink-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .structure__chip {
+    transition: none;
+  }
+}

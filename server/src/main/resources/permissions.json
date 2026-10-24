@@ -159,6 +159,8 @@
     "evaluations.self": ["TEACHER"],
     "evaluations.board": ["ADMIN", "MANAGERIAL", "COORDINATOR", "FLOOR_SUPERVISOR", "TEACHER"],
     "evaluations.rounds": ["ADMIN"],
+
+    "structure.manage": ["ADMIN"],
     "home.today": ["ADMIN", "MANAGERIAL"],
     "brief.read": ["ADMIN", "MANAGERIAL"]
   },
@@ -340,6 +342,19 @@
     { "method": "POST", "path": "/admin/evaluation-rounds", "permission": "evaluations.rounds" },
     { "method": "PUT", "path": "/admin/evaluation-rounds/{id}", "permission": "evaluations.rounds" },
     { "method": "POST", "path": "/admin/evaluation-rounds/{id}/release", "permission": "evaluations.rounds" },
+
+    { "method": "GET", "path": "/admin/structure", "permission": "structure.manage" },
+    { "method": "GET", "path": "/admin/structure/academies", "permission": "structure.manage" },
+    { "method": "PUT", "path": "/admin/structure/academies/{key}", "permission": "structure.manage" },
+    { "method": "PUT", "path": "/admin/structure/academies/{key}/subjects", "permission": "structure.manage" },
+    { "method": "PUT", "path": "/admin/structure/academies/{key}/terms", "permission": "structure.manage" },
+    { "method": "PUT", "path": "/admin/structure/academies/{key}/grading-scheme", "permission": "structure.manage" },
+    { "method": "PUT", "path": "/admin/structure/assignments", "permission": "structure.manage" },
+    { "method": "POST", "path": "/admin/structure/next-year/preview", "permission": "structure.manage" },
+    { "method": "POST", "path": "/admin/structure/next-year/apply", "permission": "structure.manage" },
+    { "method": "PUT", "path": "/admin/structure/grade-names", "permission": "structure.manage" },
+    { "method": "POST", "path": "/admin/structure/classes/{id}/move/preview", "permission": "structure.manage" },
+    { "method": "POST", "path": "/admin/structure/classes/{id}/move/apply", "permission": "structure.manage" },
 
     { "method": "GET", "path": "/admin/teachers", "permission": "teacher.read" },
     { "method": "POST", "path": "/admin/teachers", "permission": "teacher.manage" },

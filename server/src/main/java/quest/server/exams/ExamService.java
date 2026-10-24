@@ -221,7 +221,7 @@ public class ExamService {
             var row = rows.get(child.childId());
             var state = stateOf(child, row);
             var result = new ExamDto.ExamChildResult(child.childId(), child.name(), state, child.starsEarned(),
-                    child.starsTotal(), child.score(), child.band(), child.answered(), paperStops,
+                    child.starsTotal(), child.score(), child.band(), child.bandLabel(), child.answered(), paperStops,
                     row == null ? null : row.getSecondsTaken(),
                     row == null ? null : row.getStartedAt().toEpochMilli(),
                     row == null ? null : row.getLastSeenAt().toEpochMilli(),
@@ -243,7 +243,7 @@ public class ExamService {
                 lesson.getSubject(), lesson.getDate().toString(), dto(lesson, exam),
                 lesson.getReleasedAt() != null, lesson.getReleasedAt() == null ? null : lesson.getReleasedAt().toEpochMilli(),
                 base.children().size(), sat, submitted, absentees.size(),
-                scored == 0 ? null : (int) Math.round(sum / scored), needsMarking,
+                scored == 0 ? null : (int) Math.round(sum / scored), needsMarking, base.scheme(),
                 distribution, difficulty(base), List.copyOf(results), List.copyOf(absentees));
     }
 

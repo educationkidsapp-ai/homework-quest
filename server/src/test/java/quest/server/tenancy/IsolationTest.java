@@ -106,6 +106,11 @@ class IsolationTest extends ApiTestSupport {
     @Autowired quest.server.staffattendance.LeaveBalanceRepository leaveBalances;
     @Autowired quest.server.evaluations.EvaluationReminderRepository evaluationReminders;
     @Autowired quest.server.chat.ChannelReadRepository channelReads;
+    @Autowired quest.server.structure.AcademyRepository academyRows;
+    @Autowired quest.server.structure.AcademySubjectRepository academySubjects;
+    @Autowired quest.server.structure.AcademyTermRepository academyTerms;
+    @Autowired quest.server.structure.GradingSchemeRepository gradingSchemes;
+    @Autowired quest.server.structure.GradingBandRepository gradingBands;
 
     @BeforeEach void seedTwoSchools() {
         school(A, "Alpha Academy", "SCHLAA"); school(B, "Beta School", "SCHLBB");
@@ -1157,6 +1162,63 @@ class IsolationTest extends ApiTestSupport {
             tenant.clear();
             leaveBalances.deleteById("iso-leave-balance-b");
             leaveTypes.deleteById("iso-leave-type-b");
+        }
+    }
+
+    /** Feature 36: the academies, their subjects, their terms and their grading schemes stay in their school. */
+    @Test void feature_36s_school_structure_tables_stay_in_their_school() {
+        var academy = new quest.server.structure.Entities.AcademyEntity();
+        academy.setId("iso-academy-b"); academy.setSchoolId(B); academy.setAcademyKey("british");
+        academy.setNameEn("B's British"); academy.setNameAr("بريطاني ب"); academy.setCurriculumType("BRITISH");
+        academy.setGradeStyle("YEAR"); academy.setGradeOffset(1); academy.setGradeWordEn("Year"); academy.setGradeWordAr("السنة");
+        academy.setCreatedAt(Instant.now()); academy.setUpdatedAt(Instant.now());
+        academyRows.save(academy);
+        var subject = new quest.server.structure.Entities.AcademySubjectEntity();
+        subject.setId("iso-academy-subject-b"); subject.setSchoolId(B); subject.setAcademyKey("british");
+        subject.setSubjectKey("math"); subject.setNameEn("Maths"); subject.setNameAr("الرياضيات");
+        subject.setMinistry(false); subject.setPosition(0); subject.setCreatedAt(Instant.now());
+        academySubjects.save(subject);
+        var term = new quest.server.structure.Entities.AcademyTermEntity();
+        term.setId("iso-academy-term-b"); term.setSchoolId(B); term.setAcademyKey("british");
+        term.setSchoolYear("2026/2027"); term.setNameEn("Term 1"); term.setNameAr("الفصل الأول");
+        term.setStartsOn(LocalDate.of(2026, 9, 1)); term.setEndsOn(LocalDate.of(2026, 12, 20));
+        term.setCreatedAt(Instant.now());
+        academyTerms.save(term);
+        var scheme = new quest.server.structure.Entities.GradingSchemeEntity();
+        scheme.setId("iso-scheme-b"); scheme.setSchoolId(B); scheme.setAcademyKey("british"); scheme.setKind("LETTER");
+        scheme.setCreatedAt(Instant.now()); scheme.setUpdatedAt(Instant.now());
+        gradingSchemes.save(scheme);
+        var band = new quest.server.structure.Entities.GradingBandEntity();
+        band.setId("iso-band-b"); band.setSchoolId(B); band.setSchemeId("iso-scheme-b"); band.setBandKey("U");
+        band.setLowerBound(0); band.setNameEn("Ungraded"); band.setNameAr("غير مصنّف"); band.setPosition(0);
+        band.setCreatedAt(Instant.now());
+        gradingBands.save(band);
+        try {
+            tenant.set("MANAGERIAL", A, null);
+            assertThat(academyRows.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(academyRows.findBySchoolIdAndAcademyKey(B, "british")).as("nor by naming B outright").isEmpty();
+            assertThat(academyRows.findBySchoolIdOrderByAcademyKeyAsc(B)).isEmpty();
+            assertThat(academySubjects.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(academySubjects.findBySchoolIdAndAcademyKeyOrderByPositionAscSubjectKeyAsc(B, "british")).isEmpty();
+            assertThat(academyTerms.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(academyTerms.findBySchoolIdAndAcademyKeyOrderBySchoolYearAscStartsOnAsc(B, "british")).isEmpty();
+            assertThat(gradingSchemes.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(gradingSchemes.findBySchoolIdAndAcademyKey(B, "british")).isEmpty();
+            assertThat(gradingBands.findAll()).noneMatch(r -> B.equals(r.getSchoolId()));
+            assertThat(gradingBands.findBySchoolIdAndSchemeIdOrderByLowerBoundAsc(B, "iso-scheme-b")).isEmpty();
+            tenant.set("MANAGERIAL", B, null);
+            assertThat(academyRows.findBySchoolIdAndAcademyKey(B, "british")).isPresent();
+            assertThat(academySubjects.findBySchoolIdAndAcademyKeyOrderByPositionAscSubjectKeyAsc(B, "british")).hasSize(1);
+            assertThat(academyTerms.findBySchoolIdAndAcademyKeyOrderBySchoolYearAscStartsOnAsc(B, "british")).hasSize(1);
+            assertThat(gradingSchemes.findBySchoolIdAndAcademyKey(B, "british")).isPresent();
+            assertThat(gradingBands.findBySchoolIdAndSchemeIdOrderByLowerBoundAsc(B, "iso-scheme-b")).hasSize(1);
+        } finally {
+            tenant.clear();
+            gradingBands.deleteById("iso-band-b");
+            gradingSchemes.deleteById("iso-scheme-b");
+            academyTerms.deleteById("iso-academy-term-b");
+            academySubjects.deleteById("iso-academy-subject-b");
+            academyRows.deleteById("iso-academy-b");
         }
     }
 }

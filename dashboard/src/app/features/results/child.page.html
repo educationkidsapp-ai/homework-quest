@@ -14,7 +14,7 @@
           <hq-card class="child__level">
             <span class="child__level-subject">{{ subjectLabel(level) }}</span>
             <span class="child__level-band">
-              <hq-level-band [band]="level.band" />
+              <hq-level-band [band]="level.band" [bandKey]="level.bandLabel" [scheme]="scheme()" />
               @if (level.trend) {
                 <span class="child__trend" [attr.data-trend]="level.trend">
                   <span aria-hidden="true">{{ trendGlyph(level) }}</span>

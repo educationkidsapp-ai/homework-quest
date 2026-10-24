@@ -115,6 +115,9 @@ function componentFor(screen: Screen, role: Role) {
   ) {
     return import('../../features/admin/staff-accounts.page').then((m) => m.StaffAccountsPage);
   }
+  // Feature 36: the School structure tree, its side panel and its three bulk tools.
+  if (screen.id === 'structure')
+    return import('../../features/admin/structure.page').then((m) => m.StructurePage);
   // Feature 20: the floors themselves — their classes and the supervisors over them.
   if (screen.id === 'floors') return import('../../features/admin/floors.page').then((m) => m.FloorsPage);
   if (screen.id === 'workers') return import('../../features/admin/workers.page').then((m) => m.WorkersPage);
