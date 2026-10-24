@@ -58,7 +58,11 @@ public class GradingExports {
             row.add(child.scoredLevel() == 0 ? null : child.scoredLevel()); row.add(child.levelReached());
             row.add(child.answered()); row.add(child.total());
             row.add(child.completion()); row.add(child.starsEarned() + "/" + child.starsTotal());
-            row.add(child.autoScore()); row.add(child.teacherScore()); row.add(child.score()); row.add(child.band());
+            // Feature 36: the Band column prints the academy scheme's own word. With no scheme set that is
+            // `GradingSchemes.DEFAULT`, whose names are today's four words exactly, so a school that never opens the
+            // School structure screen gets byte-identical files.
+            row.add(child.autoScore()); row.add(child.teacherScore()); row.add(child.score());
+            row.add(results.scheme() == null ? child.band() : results.scheme().nameOf(child.bandLabel()));
             row.add(child.needsMarking()); row.add(child.comment());
             for (var stop : results.stops()) {
                 var mine = child.stops().stream().filter(s -> s.stopId().equals(stop.stopId())).findFirst().orElse(null);
@@ -86,7 +90,9 @@ public class GradingExports {
             var row = new java.util.ArrayList<Object>();
             row.add(child.name());
             for (var cell : child.cells()) row.add(cell.needsMarking() && cell.score() == null ? "needs marking" : cell.score());
-            row.add(child.average()); row.add(child.band()); row.add(child.trend());
+            row.add(child.average());
+            row.add(book.scheme() == null ? child.band() : book.scheme().nameOf(child.bandLabel()));
+            row.add(child.trend());
             rows.add(row);
         }
         var average = new java.util.ArrayList<Object>();

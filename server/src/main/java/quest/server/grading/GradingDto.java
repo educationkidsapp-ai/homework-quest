@@ -95,13 +95,14 @@ public final class GradingDto {
      */
     public record ChildResult(String childId, String name, String classId, boolean attempted, int levelReached,
                               int scoredLevel, Integer autoScore, Integer teacherScore, Integer score, String band,
-                              int starsEarned, int starsTotal, int answered, int total, int completion,
-                              int needsMarking, String comment, List<ChildStopResult> stops) {}
+                              String bandLabel, int starsEarned, int starsTotal, int answered, int total,
+                              int completion, int needsMarking, String comment, List<ChildStopResult> stops) {}
 
     /** `GET /teacher/lessons/{id}/results`. `classAverage` is over the children who have a score. */
     public record LessonResults(String lessonId, String title, String classId, String className, String subject,
                                 String date, String type, boolean released, Long releasedAt, Integer classAverage,
-                                int played, int needsMarking, List<ResultStop> stops, List<ChildResult> children) {}
+                                int played, int needsMarking, quest.server.structure.StructureDto.GradingScheme scheme,
+                                List<ResultStop> stops, List<ChildResult> children) {}
 
     // ---------------------------------------------------------------- gradebook (§7)
 
@@ -118,7 +119,7 @@ public final class GradingDto {
      * quietly take it off the parent's report every time a teacher corrected a score.
      */
     public record GradebookCell(String lessonId, boolean attempted, Integer autoScore, Integer teacherScore,
-                                Integer score, String band, boolean needsMarking, String comment) {}
+                                Integer score, String band, String bandLabel, boolean needsMarking, String comment) {}
 
     /**
      * One row: a child, her cells in the same order as `lessons`, and §7's per-child average column.
@@ -127,12 +128,13 @@ public final class GradingDto {
      * nothing weighted, nothing dropped — so a teacher who adds the row up by hand gets the same number. `band`
      * colours that average. The rolling, weighted measure is `ChildLevel.levelScore` on the child page.
      */
-    public record GradebookChild(String childId, String name, Integer average, String band, String trend,
-                                 List<GradebookCell> cells) {}
+    public record GradebookChild(String childId, String name, Integer average, String band, String bandLabel,
+                                 String trend, List<GradebookCell> cells) {}
 
     /** `GET /teacher/classes/{id}/gradebook?from&to`. */
     public record Gradebook(String classId, String className, String subject, String from, String to,
-                            List<GradebookLesson> lessons, List<GradebookChild> children, int needsMarking) {}
+                            quest.server.structure.StructureDto.GradingScheme scheme, List<GradebookLesson> lessons,
+                            List<GradebookChild> children, int needsMarking) {}
 
     // ---------------------------------------------------------------- the child page (§7)
 
@@ -143,7 +145,8 @@ public final class GradingDto {
      * exam twice and looks at the newest ten only, because §7 asks where a child <em>is</em> rather than what her
      * marks add up to. The mean of a column is {@link GradebookChild#average}.
      */
-    public record ChildLevel(String subject, String band, String trend, Integer levelScore, int lessons) {}
+    public record ChildLevel(String subject, String band, String bandLabel, String trend, Integer levelScore,
+                             int lessons) {}
 
     /** One point of the score chart, oldest first, so the dashboard plots it without sorting. */
     public record ChildTrendPoint(String lessonId, String title, String date, String subject, Integer score,
@@ -169,6 +172,7 @@ public final class GradingDto {
 
     /** `GET /teacher/children/{id}`: band and trend per subject, the chart, the comments and the saved work. */
     public record ChildReport(String childId, String name, String classId, String className, String avatarColor,
-                              List<ChildLevel> levels, List<ChildTrendPoint> trend, List<ChildComment> comments,
-                              List<ChildWork> work, List<ChildSkill> goingWell, List<ChildSkill> needsAnotherLook) {}
+                              quest.server.structure.StructureDto.GradingScheme scheme, List<ChildLevel> levels,
+                              List<ChildTrendPoint> trend, List<ChildComment> comments, List<ChildWork> work,
+                              List<ChildSkill> goingWell, List<ChildSkill> needsAnotherLook) {}
 }

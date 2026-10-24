@@ -1,6 +1,98 @@
 {
   "components" : {
     "schemas" : {
+      "Academy" : {
+        "properties" : {
+          "academyKey" : {
+            "type" : "string"
+          },
+          "curriculumType" : {
+            "type" : "string"
+          },
+          "director" : {
+            "$ref" : "#/components/schemas/StaffRef"
+          },
+          "nameAr" : {
+            "type" : "string"
+          },
+          "nameEn" : {
+            "type" : "string"
+          },
+          "naming" : {
+            "$ref" : "#/components/schemas/GradeNaming"
+          },
+          "scheme" : {
+            "$ref" : "#/components/schemas/GradingScheme"
+          },
+          "subjects" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AcademySubject"
+            },
+            "type" : "array"
+          },
+          "terms" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AcademyTerm"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "AcademyNode" : {
+        "properties" : {
+          "academy" : {
+            "$ref" : "#/components/schemas/Academy"
+          },
+          "grades" : {
+            "items" : {
+              "$ref" : "#/components/schemas/GradeNode"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "AcademySubject" : {
+        "properties" : {
+          "ministry" : {
+            "type" : "boolean"
+          },
+          "nameAr" : {
+            "type" : "string"
+          },
+          "nameEn" : {
+            "type" : "string"
+          },
+          "subject" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "AcademyTerm" : {
+        "properties" : {
+          "endsOn" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "nameAr" : {
+            "type" : "string"
+          },
+          "nameEn" : {
+            "type" : "string"
+          },
+          "schoolYear" : {
+            "type" : "string"
+          },
+          "startsOn" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "AcceptInviteRequest" : {
         "properties" : {
           "displayName" : {
@@ -1585,6 +1677,9 @@
           "band" : {
             "type" : "string"
           },
+          "bandLabel" : {
+            "type" : "string"
+          },
           "lessons" : {
             "format" : "int32",
             "type" : "integer"
@@ -1643,6 +1738,9 @@
             },
             "type" : "array"
           },
+          "scheme" : {
+            "$ref" : "#/components/schemas/GradingScheme"
+          },
           "trend" : {
             "items" : {
               "$ref" : "#/components/schemas/ChildTrendPoint"
@@ -1672,6 +1770,9 @@
             "type" : "integer"
           },
           "band" : {
+            "type" : "string"
+          },
+          "bandLabel" : {
             "type" : "string"
           },
           "childId" : {
@@ -2062,6 +2163,37 @@
           }
         },
         "required" : [ "code" ],
+        "type" : "object"
+      },
+      "ClassNode" : {
+        "properties" : {
+          "children" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "floorSupervisors" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StaffRef"
+            },
+            "type" : "array"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "subjects" : {
+            "items" : {
+              "$ref" : "#/components/schemas/SubjectSlot"
+            },
+            "type" : "array"
+          }
+        },
         "type" : "object"
       },
       "ClassStudent" : {
@@ -3591,6 +3723,9 @@
           "band" : {
             "type" : "string"
           },
+          "bandLabel" : {
+            "type" : "string"
+          },
           "childId" : {
             "type" : "string"
           },
@@ -3761,6 +3896,9 @@
           "sat" : {
             "format" : "int32",
             "type" : "integer"
+          },
+          "scheme" : {
+            "$ref" : "#/components/schemas/GradingScheme"
           },
           "settings" : {
             "$ref" : "#/components/schemas/ExamSettings"
@@ -4504,6 +4642,98 @@
         },
         "type" : "object"
       },
+      "GradeLabel" : {
+        "properties" : {
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "labelAr" : {
+            "type" : "string"
+          },
+          "labelEn" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "GradeNamesRequest" : {
+        "properties" : {
+          "academyKey" : {
+            "type" : "string"
+          },
+          "offset" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "style" : {
+            "type" : "string"
+          },
+          "wordAr" : {
+            "type" : "string"
+          },
+          "wordEn" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "GradeNamesResult" : {
+        "properties" : {
+          "academyKey" : {
+            "type" : "string"
+          },
+          "grades" : {
+            "items" : {
+              "$ref" : "#/components/schemas/GradeLabel"
+            },
+            "type" : "array"
+          },
+          "naming" : {
+            "$ref" : "#/components/schemas/GradeNaming"
+          }
+        },
+        "type" : "object"
+      },
+      "GradeNaming" : {
+        "properties" : {
+          "offset" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "style" : {
+            "type" : "string"
+          },
+          "wordAr" : {
+            "type" : "string"
+          },
+          "wordEn" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "GradeNode" : {
+        "properties" : {
+          "classes" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ClassNode"
+            },
+            "type" : "array"
+          },
+          "grade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "labelAr" : {
+            "type" : "string"
+          },
+          "labelEn" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "GradeStats" : {
         "properties" : {
           "attendanceRate" : {
@@ -4581,6 +4811,9 @@
             "format" : "int32",
             "type" : "integer"
           },
+          "scheme" : {
+            "$ref" : "#/components/schemas/GradingScheme"
+          },
           "subject" : {
             "type" : "string"
           },
@@ -4600,6 +4833,9 @@
             "type" : "integer"
           },
           "band" : {
+            "type" : "string"
+          },
+          "bandLabel" : {
             "type" : "string"
           },
           "comment" : {
@@ -4629,6 +4865,9 @@
             "type" : "integer"
           },
           "band" : {
+            "type" : "string"
+          },
+          "bandLabel" : {
             "type" : "string"
           },
           "cells" : {
@@ -4675,6 +4914,44 @@
             "type" : "string"
           },
           "type" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "GradingBand" : {
+        "properties" : {
+          "band" : {
+            "type" : "string"
+          },
+          "lower" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "nameAr" : {
+            "type" : "string"
+          },
+          "nameEn" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "GradingScheme" : {
+        "properties" : {
+          "academyKey" : {
+            "type" : "string"
+          },
+          "bands" : {
+            "items" : {
+              "$ref" : "#/components/schemas/GradingBand"
+            },
+            "type" : "array"
+          },
+          "custom" : {
+            "type" : "boolean"
+          },
+          "kind" : {
             "type" : "string"
           }
         },
@@ -5099,6 +5376,9 @@
           "releasedAt" : {
             "format" : "int64",
             "type" : "integer"
+          },
+          "scheme" : {
+            "$ref" : "#/components/schemas/GradingScheme"
           },
           "stops" : {
             "items" : {
@@ -5789,6 +6069,110 @@
         "required" : [ "emoji", "text" ],
         "type" : "object"
       },
+      "MoveAssignmentRequest" : {
+        "properties" : {
+          "fromClassId" : {
+            "type" : "string"
+          },
+          "fromSubject" : {
+            "type" : "string"
+          },
+          "replace" : {
+            "type" : "boolean"
+          },
+          "toClassId" : {
+            "type" : "string"
+          },
+          "toSubject" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "MoveAssignmentResult" : {
+        "properties" : {
+          "classId" : {
+            "type" : "string"
+          },
+          "replaced" : {
+            "$ref" : "#/components/schemas/StaffRef"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "teacher" : {
+            "$ref" : "#/components/schemas/StaffRef"
+          }
+        },
+        "type" : "object"
+      },
+      "MoveClassPreview" : {
+        "properties" : {
+          "children" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "classId" : {
+            "type" : "string"
+          },
+          "droppedAssignments" : {
+            "items" : {
+              "$ref" : "#/components/schemas/SubjectSlot"
+            },
+            "type" : "array"
+          },
+          "fromAcademyKey" : {
+            "type" : "string"
+          },
+          "fromCoordinators" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StaffRef"
+            },
+            "type" : "array"
+          },
+          "fromDirector" : {
+            "$ref" : "#/components/schemas/StaffRef"
+          },
+          "fromScheme" : {
+            "$ref" : "#/components/schemas/GradingScheme"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "rebandedResults" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "releasedResults" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "toAcademyKey" : {
+            "type" : "string"
+          },
+          "toCoordinators" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StaffRef"
+            },
+            "type" : "array"
+          },
+          "toDirector" : {
+            "$ref" : "#/components/schemas/StaffRef"
+          },
+          "toScheme" : {
+            "$ref" : "#/components/schemas/GradingScheme"
+          }
+        },
+        "type" : "object"
+      },
+      "MoveClassRequest" : {
+        "properties" : {
+          "toAcademyKey" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "MoveLessonRequest" : {
         "properties" : {
           "date" : {
@@ -5873,6 +6257,78 @@
           }
         },
         "required" : [ "date", "reason", "type" ],
+        "type" : "object"
+      },
+      "NextYearClass" : {
+        "properties" : {
+          "children" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "fromClassId" : {
+            "type" : "string"
+          },
+          "fromGrade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "graduating" : {
+            "type" : "boolean"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "toGrade" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "toLabelAr" : {
+            "type" : "string"
+          },
+          "toLabelEn" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "NextYearPreview" : {
+        "properties" : {
+          "academyKey" : {
+            "type" : "string"
+          },
+          "carryChildren" : {
+            "type" : "boolean"
+          },
+          "childrenMoved" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "classes" : {
+            "items" : {
+              "$ref" : "#/components/schemas/NextYearClass"
+            },
+            "type" : "array"
+          },
+          "classesCreated" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "graduating" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "NextYearRequest" : {
+        "properties" : {
+          "academyKey" : {
+            "type" : "string"
+          },
+          "carryChildren" : {
+            "type" : "boolean"
+          }
+        },
         "type" : "object"
       },
       "NotificationView" : {
@@ -7048,6 +7504,45 @@
         "required" : [ "marks" ],
         "type" : "object"
       },
+      "SaveSchemeRequest" : {
+        "properties" : {
+          "bands" : {
+            "items" : {
+              "$ref" : "#/components/schemas/GradingBand"
+            },
+            "type" : "array"
+          },
+          "confirm" : {
+            "type" : "boolean"
+          },
+          "kind" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "SaveSubjectsRequest" : {
+        "properties" : {
+          "subjects" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AcademySubject"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "SaveTermsRequest" : {
+        "properties" : {
+          "terms" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AcademyTerm"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
       "School" : {
         "properties" : {
           "children" : {
@@ -8163,10 +8658,13 @@
       },
       "StaffRef" : {
         "properties" : {
-          "id" : {
+          "email" : {
             "type" : "string"
           },
-          "kind" : {
+          "name" : {
+            "type" : "string"
+          },
+          "userId" : {
             "type" : "string"
           }
         },
@@ -8360,6 +8858,17 @@
         "required" : [ "characters", "genre", "problem", "resolution", "setting", "title" ],
         "type" : "object"
       },
+      "StructureTreeView" : {
+        "properties" : {
+          "academies" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AcademyNode"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
       "StudentMedia" : {
         "properties" : {
           "createdAt" : {
@@ -8449,6 +8958,29 @@
           },
           "title" : {
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "SubjectSlot" : {
+        "properties" : {
+          "coordinators" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StaffRef"
+            },
+            "type" : "array"
+          },
+          "nameAr" : {
+            "type" : "string"
+          },
+          "nameEn" : {
+            "type" : "string"
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "teacher" : {
+            "$ref" : "#/components/schemas/StaffRef"
           }
         },
         "type" : "object"
@@ -9570,6 +10102,36 @@
           }
         },
         "required" : [ "candidates", "question" ],
+        "type" : "object"
+      },
+      "UpdateAcademyRequest" : {
+        "properties" : {
+          "curriculumType" : {
+            "type" : "string"
+          },
+          "directorId" : {
+            "type" : "string"
+          },
+          "gradeOffset" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "gradeStyle" : {
+            "type" : "string"
+          },
+          "gradeWordAr" : {
+            "type" : "string"
+          },
+          "gradeWordEn" : {
+            "type" : "string"
+          },
+          "nameAr" : {
+            "type" : "string"
+          },
+          "nameEn" : {
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "UpdateAttendanceSettingsRequest" : {
@@ -14005,6 +14567,387 @@
           }
         },
         "tags" : [ "Admin lessons" ]
+      }
+    },
+    "/admin/structure" : {
+      "get" : {
+        "operationId" : "structure",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StructureTreeView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "School structure" ]
+      }
+    },
+    "/admin/structure/academies" : {
+      "get" : {
+        "operationId" : "structureAcademies",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/Academy"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "School structure" ]
+      }
+    },
+    "/admin/structure/academies/{key}" : {
+      "put" : {
+        "operationId" : "updateStructureAcademy",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "key",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateAcademyRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Academy"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "School structure" ]
+      }
+    },
+    "/admin/structure/academies/{key}/grading-scheme" : {
+      "put" : {
+        "operationId" : "saveStructureScheme",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "key",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SaveSchemeRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GradingScheme"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "School structure" ]
+      }
+    },
+    "/admin/structure/academies/{key}/subjects" : {
+      "put" : {
+        "operationId" : "saveStructureSubjects",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "key",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SaveSubjectsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AcademySubject"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "School structure" ]
+      }
+    },
+    "/admin/structure/academies/{key}/terms" : {
+      "put" : {
+        "operationId" : "saveStructureTerms",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "key",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SaveTermsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AcademyTerm"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "School structure" ]
+      }
+    },
+    "/admin/structure/assignments" : {
+      "put" : {
+        "operationId" : "moveStructureAssignment",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MoveAssignmentRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MoveAssignmentResult"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "School structure" ]
+      }
+    },
+    "/admin/structure/classes/{id}/move/apply" : {
+      "post" : {
+        "operationId" : "applyStructureClassMove",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "confirm",
+          "required" : false,
+          "schema" : {
+            "default" : false,
+            "type" : "boolean"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MoveClassRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MoveClassPreview"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "School structure" ]
+      }
+    },
+    "/admin/structure/classes/{id}/move/preview" : {
+      "post" : {
+        "operationId" : "previewStructureClassMove",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MoveClassRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MoveClassPreview"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "School structure" ]
+      }
+    },
+    "/admin/structure/grade-names" : {
+      "put" : {
+        "operationId" : "renameStructureGrades",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/GradeNamesRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GradeNamesResult"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "School structure" ]
+      }
+    },
+    "/admin/structure/next-year/apply" : {
+      "post" : {
+        "operationId" : "applyStructureNextYear",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/NextYearRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/NextYearPreview"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "School structure" ]
+      }
+    },
+    "/admin/structure/next-year/preview" : {
+      "post" : {
+        "operationId" : "previewStructureNextYear",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/NextYearRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/NextYearPreview"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "School structure" ]
       }
     },
     "/admin/teachers" : {
@@ -23573,6 +24516,9 @@
     }
   },
   "tags" : [ {
+    "description" : "The Admin's academies, the structure tree and the bulk tools",
+    "name" : "School structure"
+  }, {
     "description" : "Who handed in their teaching material, and its review",
     "name" : "Teaching material board"
   }, {

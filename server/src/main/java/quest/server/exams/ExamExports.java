@@ -39,7 +39,11 @@ public class ExamExports {
         for (var child : results.children()) {
             var row = new ArrayList<Object>();
             row.add(child.name()); row.add(child.state());
-            row.add(child.score()); row.add(child.maxScore()); row.add(child.percent()); row.add(child.band());
+            // Feature 36: the band column prints the academy scheme's own word for the band. With no scheme set
+            // that is `GradingSchemes.DEFAULT`, whose names are today's four words exactly, so this file is
+            // byte-identical for a school that never opens the School structure screen.
+            row.add(child.score()); row.add(child.maxScore()); row.add(child.percent());
+            row.add(results.scheme() == null ? child.band() : results.scheme().nameOf(child.bandLabel()));
             row.add(child.secondsTaken() == null ? null : duration(child.secondsTaken()));
             row.add(child.submittedAt() == null ? null : java.time.Instant.ofEpochMilli(child.submittedAt()).toString());
             row.add(child.needsMarking()); row.add(child.reopened() ? "yes" : "no"); row.add(child.comment());
@@ -48,7 +52,9 @@ public class ExamExports {
         var summary = new ArrayList<Object>();
         summary.add("Class average"); summary.add(null); summary.add(null); summary.add(null);
         summary.add(results.classAverage());
-        summary.add(results.classAverage() == null ? null : quest.server.grading.Bands.band(results.classAverage()));
+        summary.add(results.classAverage() == null ? null
+                : results.scheme() == null ? quest.server.grading.Bands.band(results.classAverage())
+                                           : results.scheme().nameFor((double) results.classAverage()));
         summary.add(null); summary.add(null); summary.add(results.needsMarking()); summary.add(null); summary.add(null);
         rows.add(summary);
         return rows;

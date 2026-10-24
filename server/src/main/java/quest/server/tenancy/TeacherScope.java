@@ -174,6 +174,39 @@ public class TeacherScope {
                 .orElseGet(() -> section.getSubject() == null || section.getSubject().isBlank() ? null : section.getSubject());
     }
 
+    // ---------------------------------------------------------------- feature 36: moving an assignment
+
+    /**
+     * The assignment on one (section, subject), or empty — what feature 36's drag picks up and what it checks the
+     * target slot for before it drops.
+     */
+    public java.util.Optional<TeachingAssignmentEntity> assignmentOn(String classId, String subject) {
+        return assignments.findByClassIdAndSubject(classId, normalise(subject));
+    }
+
+    /**
+     * Moves one assignment to another (section, subject) — the Admin's drag on the structure tree (feature 36).
+     *
+     * <p>It lives here rather than in `quest.server.structure` because this class is the only place allowed to touch
+     * `teaching_assignments` at all (`TeacherScopeArchitectureTest`), and because a moved assignment is precisely a
+     * change to what a teacher reaches: after this call her 403s and her lesson list follow the new row with no
+     * second rule to keep in step. The caller has already resolved both sections, so the ids here are rows of the
+     * school, never request parameters.
+     */
+    public TeachingAssignmentEntity moveAssignment(TeachingAssignmentEntity source, String toClassId, String toSubject) {
+        source.setClassId(toClassId); source.setSubject(normalise(toSubject));
+        return assignments.save(source);
+    }
+
+    /**
+     * Takes one assignment away: the teacher a drag replaced, and a subject a class's new academy does not offer.
+     *
+     * <p>Flushed, because `teaching_assignments` is unique on (class, subject) and the very next statement of a
+     * replace is the moved row arriving in that slot — Hibernate would otherwise order the insert before the delete
+     * and the database would refuse a move the API had accepted.
+     */
+    public void removeAssignment(TeachingAssignmentEntity row) { assignments.delete(row); assignments.flush(); }
+
     /** A section of the caller's school, or 404: a legacy pre-V7 row is not a section and is never reachable. */
     public ClassEntity section(String classId) {
         return classes.findOneById(classId).filter(ClassEntity::isSection).orElseThrow(() -> ApiException.notFound("class"));
