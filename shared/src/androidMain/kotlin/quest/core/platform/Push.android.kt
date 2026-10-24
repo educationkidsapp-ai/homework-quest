@@ -43,6 +43,8 @@ import quest.feature.push.domain.PushRegistration
 import quest.feature.push.domain.PushTokens
 import quest.feature.push.presentation.PushStrings
 import quest.feature.staff.data.StaffAuth
+import quest.feature.staff.domain.ShadeDecision
+import quest.feature.staff.domain.shadeDecision
 import quest.feature.staff.domain.StaffGateway
 import quest.feature.staff.presentation.StaffStrings
 import kotlin.coroutines.resume
@@ -167,7 +169,7 @@ class AndroidPushNotifier(
      * Feature 18: the same notification, replaced by what the decision did — the tag and the id are the ones the
      * request's own notice used, so the row the manager tapped turns into its outcome rather than stacking under it.
      */
-    fun postDecision(tag: String, title: String?, outcome: DecisionOutcome) {
+    fun postDecision(tag: String, title: String?, outcome: DecisionOutcome, link: String? = null) {
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val strings = PushStrings.forLanguage(language())
         val staff = StaffStrings.forLanguage(language())
@@ -176,6 +178,8 @@ class AndroidPushNotifier(
             DecisionOutcome.APPROVED -> staff.approved
             DecisionOutcome.REJECTED -> staff.rejected
             DecisionOutcome.FAILED -> staff.openAppToDecide
+            // Feature 34: the one outcome she can fix herself, and the words say how.
+            DecisionOutcome.REASON_NEEDED -> staff.rejectNeedsReason
         }
         val builder = NotificationCompat.Builder(context, PushChannel.SCHOOL_NEWS.id)
             .setSmallIcon(context.resources.getIdentifier("ic_launcher_monochrome", "drawable", context.packageName).takeIf { it != 0 } ?: context.applicationInfo.icon)
@@ -188,7 +192,8 @@ class AndroidPushNotifier(
         activity?.let {
             val open = PushIntents.put(
                 Intent(ACTION_OPEN).setComponent(it),
-                NotificationTap(ATTENDANCE_REQUEST, link = null, outside = true),
+                // Feature 34: with the request's own link the tap lands on the notice itself rather than a bare list.
+                NotificationTap(ATTENDANCE_REQUEST, link = link, outside = true),
             ).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP) }
             builder.setContentIntent(
                 PendingIntent.getActivity(context, "$tag:decided".hashCode(), open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE),
@@ -204,6 +209,7 @@ class AndroidPushNotifier(
             .putExtra(AttendanceDecisionReceiver.EXTRA_APPROVE, approve)
             .putExtra(AttendanceDecisionReceiver.EXTRA_TAG, notice.tag)
             .putExtra(AttendanceDecisionReceiver.EXTRA_TITLE, notice.title)
+            .putExtra(AttendanceDecisionReceiver.EXTRA_LINK, notice.tap.link)
         return PendingIntent.getBroadcast(
             context,
             "${notice.tag}:${if (approve) "approve" else "reject"}".hashCode(),
@@ -239,8 +245,11 @@ class AndroidPushNotifier(
     }
 }
 
-/** Feature 18: what a decision taken from the shade turned into. */
-enum class DecisionOutcome { APPROVED, REJECTED, FAILED }
+/**
+ * Feature 18: what a decision taken from the shade turned into, now [ShadeDecision] in `commonMain` so feature 34's
+ * fourth outcome — a rejection the server refused for want of a reason — is decided by a tested pure function.
+ */
+typealias DecisionOutcome = ShadeDecision
 
 /**
  * Feature 18: Approve and Reject on an `attendance.request` push. The manager decides without opening the app — the
@@ -256,6 +265,8 @@ class AttendanceDecisionReceiver : BroadcastReceiver(), KoinComponent {
         val approve = intent.getBooleanExtra(EXTRA_APPROVE, false)
         val tag = intent.getStringExtra(EXTRA_TAG) ?: "attendance:request:$requestId"
         val title = intent.getStringExtra(EXTRA_TITLE)
+        // Feature 34: the request's own link, so a rejection that needs a reason reopens the right notice.
+        val link = intent.getStringExtra(EXTRA_LINK)
         val result = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             val notifier = get<AndroidPushNotifier>()
@@ -267,11 +278,10 @@ class AttendanceDecisionReceiver : BroadcastReceiver(), KoinComponent {
                 // An Admin's session knows no school until `/staff/me` answers; the decision routes need the header.
                 if (auth.schoolId.value == null) api.staffMe()
                 if (approve) api.approveAttendanceRequest(requestId) else api.rejectAttendanceRequest(requestId)
-            }.fold(
-                onSuccess = { if (approve) DecisionOutcome.APPROVED else DecisionOutcome.REJECTED },
-                onFailure = { DecisionOutcome.FAILED },
-            )
-            notifier.postDecision(tag, title, outcome)
+            }
+            // Feature 34: the bare Reject above sends no reason, and a leave or a permission may not be rejected
+            // without one, so the 400 becomes "open to add a reason" rather than a flat failure.
+            notifier.postDecision(tag, title, shadeDecision(approve, outcome.exceptionOrNull()), link)
             result.finish()
         }
     }
@@ -281,6 +291,7 @@ class AttendanceDecisionReceiver : BroadcastReceiver(), KoinComponent {
         const val EXTRA_APPROVE = "quest.attendance.approve"
         const val EXTRA_TAG = "quest.attendance.tag"
         const val EXTRA_TITLE = "quest.attendance.title"
+        const val EXTRA_LINK = "quest.attendance.link"
     }
 }
 

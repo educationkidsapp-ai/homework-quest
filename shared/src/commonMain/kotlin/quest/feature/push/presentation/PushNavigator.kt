@@ -67,6 +67,8 @@ class PushNavigator(
                     StaffAttendanceTarget.HOME -> Routes.StaffHome
                     StaffAttendanceTarget.NOTIFICATIONS -> Routes.StaffNotifications
                     StaffAttendanceTarget.MY_RECORD -> Routes.StaffMyRecord
+                    // Feature 34: a leave or a permission decision — her requests, where the reason is.
+                    StaffAttendanceTarget.MY_REQUESTS -> Routes.StaffMyRequests
                 },
             )
             Destination.StaffMessages -> Step.Staff(Routes.StaffMessages)

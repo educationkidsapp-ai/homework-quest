@@ -153,6 +153,7 @@ import quest.feature.staff.domain.CheckInPrefs
 import quest.feature.staff.presentation.AttendanceRequestsViewModel
 import quest.feature.staff.presentation.VoiceAnnouncementViewModel
 import quest.feature.staff.presentation.CheckInViewModel
+import quest.feature.staff.presentation.MyLeaveBalanceViewModel
 import quest.feature.staff.presentation.MyRecordViewModel
 import quest.feature.staff.presentation.StaffAccountViewModel
 import quest.feature.staff.presentation.StaffMessagesViewModel
@@ -461,6 +462,8 @@ fun staffModule(config: ApiConfig): Module = module {
     viewModel { MyRecordViewModel(get()) }
     // Feature 18: her remote-day and correction requests, with M7's staging under the one file a correction carries.
     viewModel { AttendanceRequestsViewModel(get(), get()) }
+    // Feature 34: "رصيدي / My balance". Her requests reuse the view model above, which already holds them.
+    viewModel { MyLeaveBalanceViewModel(get()) }
     // Feature 22: her voice note, the prepared draft and Send. The role gate reads her own `GET /staff/me`.
     viewModel { VoiceAnnouncementViewModel(get(), get<StaffSession>().profile) }
     // Her end of a conversation: the parent's view model, with the `/staff/chat` source under it.

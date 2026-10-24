@@ -45,7 +45,10 @@ import quest.api.staff.CheckInMonth
 import quest.api.staff.CheckInRequest
 import quest.api.staff.CheckInResult
 import quest.api.staff.CheckInToday
+import quest.api.staff.LeavePreview
+import quest.api.staff.MyLeaveBalance
 import quest.api.staff.NewAttendanceRequest
+import quest.api.staff.RejectRequest
 import quest.api.staff.StaffMe
 import quest.api.staff.StaffPreferences
 import quest.core.json.AppJson
@@ -157,6 +160,31 @@ class RemoteStaffApi(
 
     override suspend fun rejectAttendanceRequest(id: String): AttendanceRequestView =
         call { client.post("$baseUrl/attendance/requests/$id/reject") { staffed() } }
+
+    /**
+     * Feature 34: the same route with the reason the server demands for a leave or a permission. The body-less
+     * overload above is kept for the Android shade's Reject button, which posts neither body nor content type.
+     */
+    override suspend fun rejectAttendanceRequest(id: String, reason: String?): AttendanceRequestView =
+        if (reason == null) rejectAttendanceRequest(id)
+        else call {
+            client.post("$baseUrl/attendance/requests/$id/reject") {
+                staffed(); contentType(ContentType.Application.Json); setBody(RejectRequest(reason))
+            }
+        }
+
+    override suspend fun cancelAttendanceRequest(id: String): AttendanceRequestView =
+        call { client.post("$baseUrl/staff/attendance/requests/$id/cancel") { staffed() } }
+
+    override suspend fun myLeaveBalance(): MyLeaveBalance =
+        call { client.get("$baseUrl/staff/attendance/leave/balance") { staffed() } }
+
+    override suspend fun leavePreview(leaveType: String, from: String, to: String): LeavePreview =
+        call {
+            client.get("$baseUrl/staff/attendance/leave/preview") {
+                staffed(); parameter("leaveType", leaveType); parameter("from", from); parameter("to", to)
+            }
+        }
 
     // ---------------------------------------------------------------- feature 22: voice note to announcement
 
