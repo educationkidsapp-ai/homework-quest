@@ -159,6 +159,14 @@ public final class FlagKeys {
      */
     public static final String CHILD_EVALUATIONS = "childEvaluations";
 
+    /**
+     * Feature 34: a member of staff asks for leave or a short permission from the app, her direct manager decides it,
+     * and attendance excuses the days and the minutes (`/staff/attendance/leave/**`, the LEAVE and PERMISSION types of
+     * `/staff/attendance/requests`, `/staff-attendance/leave/**` and the Admin's Leave settings card). Seeded by V57,
+     * and it also needs `staffAttendance`: leave is an answer to a question the attendance board asks.
+     */
+    public static final String STAFF_LEAVE = "staffLeave";
+
     public static final List<String> ALL = List.of(
             LESSONS_PDF, LESSONS_SLIDES, LESSONS_IMAGES, LESSONS_MANUAL, LEVELS_THREE, RETELL_RECORDING,
             OPEN_ANSWER_DRAWING, PARENT_PANEL_ARABIC, COMPLAINTS, ANNOUNCEMENTS, TEACHER_QUESTIONS,
@@ -166,5 +174,5 @@ public final class FlagKeys {
             MULTI_SCHOOL, WEB_PLAYER, GRADEBOOK, OPEN_STOP_MARKING, EXAMS, TEACHER_ROSTER_EDIT, JOIN_BY_LIST,
             CHAT, STAFF_MOBILE_APP, STAFF_ATTENDANCE, CHAT_OFFICE_HOURS, FLOOR_SUPERVISOR, TODAY_HOME,
             VOICE_ANNOUNCEMENT, REMOTE_STUDY_DAYS, MORNING_BRIEF, DOCUMENT_READER, COMPLAINT_TRIAGE, PARENT_EVENING_CARD, LANGUAGE_BRIDGE, SMART_HINTS,
-            TEACHING_MATERIALS, CHILD_TEAM, CLASS_CHANNEL, CHILD_EVALUATIONS);
+            TEACHING_MATERIALS, CHILD_TEAM, CLASS_CHANNEL, CHILD_EVALUATIONS, STAFF_LEAVE);
 }

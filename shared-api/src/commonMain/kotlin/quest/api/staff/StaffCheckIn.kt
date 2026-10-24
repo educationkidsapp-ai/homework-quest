@@ -92,7 +92,10 @@ data class CheckInToday(
     val workDay: Boolean = true,
 )
 
-/** One line of "My record". [status] is `ON_TIME`, `LATE`, `ABSENT`, `DAY_OFF`, `HOLIDAY` or `UPCOMING`. */
+/**
+ * One line of "My record". [status] is `ON_TIME`, `LATE`, `ABSENT`, `DAY_OFF`, `HOLIDAY`, `UPCOMING` or — since
+ * feature 34 — `ON_LEAVE`, a day of approved leave, which is never `ABSENT`.
+ */
 @Serializable
 data class CheckInDay(
     val date: String,

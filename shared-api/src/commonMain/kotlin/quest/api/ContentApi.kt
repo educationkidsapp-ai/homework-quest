@@ -375,6 +375,8 @@ val DEFAULT_FLAGS: Map<String, Boolean> = mapOf(
     "classChannel" to true,
     // Feature 33: teachers evaluate each child they teach, leaders review it and parents read it in words (V56).
     "childEvaluations" to true,
+    // Feature 34: leave and permission requests, their approval and their effect on attendance (V57).
+    "staffLeave" to true,
 )
 
 /** Firebase Authentication on the app (expect/actual), `FakeAuth` while developing. */

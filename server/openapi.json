@@ -536,6 +536,10 @@
           "date" : {
             "type" : "string"
           },
+          "days" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
           "decidedAt" : {
             "format" : "int64",
             "type" : "integer"
@@ -543,8 +547,18 @@
           "decidedBy" : {
             "type" : "string"
           },
+          "fromTime" : {
+            "type" : "string"
+          },
           "id" : {
             "type" : "string"
+          },
+          "leaveType" : {
+            "type" : "string"
+          },
+          "minutes" : {
+            "format" : "int32",
+            "type" : "integer"
           },
           "originalCheckIn" : {
             "type" : "string"
@@ -555,13 +569,25 @@
           "reason" : {
             "type" : "string"
           },
+          "rejectReason" : {
+            "type" : "string"
+          },
           "staff" : {
             "type" : "string"
           },
           "staffName" : {
             "type" : "string"
           },
+          "stage" : {
+            "type" : "string"
+          },
           "status" : {
+            "type" : "string"
+          },
+          "toDate" : {
+            "type" : "string"
+          },
+          "toTime" : {
             "type" : "string"
           },
           "type" : {
@@ -596,6 +622,21 @@
             "format" : "double",
             "type" : "number"
           },
+          "leaveBalances" : {
+            "items" : {
+              "$ref" : "#/components/schemas/LeaveBalanceSetting"
+            },
+            "type" : "array"
+          },
+          "leaveChain" : {
+            "type" : "string"
+          },
+          "leaveTypes" : {
+            "items" : {
+              "$ref" : "#/components/schemas/LeaveTypeSetting"
+            },
+            "type" : "array"
+          },
           "longitude" : {
             "format" : "double",
             "type" : "number"
@@ -605,6 +646,10 @@
             "type" : "integer"
           },
           "notArrivedMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "permissionMaxMinutes" : {
             "format" : "int32",
             "type" : "integer"
           },
@@ -4996,6 +5041,262 @@
         "type" : "object"
       },
       "JsonNode" : { },
+      "LeaveBalanceCell" : {
+        "properties" : {
+          "allowanceDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "remainingDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "usedDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "LeaveBalanceReport" : {
+        "properties" : {
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/LeaveBalanceRow"
+            },
+            "type" : "array"
+          },
+          "scope" : {
+            "type" : "string"
+          },
+          "types" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "year" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "LeaveBalanceRow" : {
+        "properties" : {
+          "academies" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "balances" : {
+            "items" : {
+              "$ref" : "#/components/schemas/LeaveBalanceCell"
+            },
+            "type" : "array"
+          },
+          "category" : {
+            "type" : "string"
+          },
+          "fullName" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "LeaveBalanceSetting" : {
+        "properties" : {
+          "category" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "yearlyDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "LeavePreview" : {
+        "properties" : {
+          "allowanceDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "dates" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "days" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "documentRequired" : {
+            "type" : "boolean"
+          },
+          "from" : {
+            "type" : "string"
+          },
+          "leaveType" : {
+            "type" : "string"
+          },
+          "remainingAfter" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "remainingDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "to" : {
+            "type" : "string"
+          },
+          "usedDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "dates", "days", "documentRequired", "from", "leaveType", "to", "usedDays" ],
+        "type" : "object"
+      },
+      "LeaveRequestReport" : {
+        "properties" : {
+          "month" : {
+            "type" : "string"
+          },
+          "rows" : {
+            "items" : {
+              "$ref" : "#/components/schemas/LeaveRequestRow"
+            },
+            "type" : "array"
+          },
+          "scope" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "LeaveRequestRow" : {
+        "properties" : {
+          "category" : {
+            "type" : "string"
+          },
+          "date" : {
+            "type" : "string"
+          },
+          "days" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "decidedBy" : {
+            "type" : "string"
+          },
+          "decidedOn" : {
+            "type" : "string"
+          },
+          "fromTime" : {
+            "type" : "string"
+          },
+          "fullName" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "leaveType" : {
+            "type" : "string"
+          },
+          "minutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "rejectReason" : {
+            "type" : "string"
+          },
+          "staffId" : {
+            "type" : "string"
+          },
+          "stage" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "toDate" : {
+            "type" : "string"
+          },
+          "toTime" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "LeaveTypeBalance" : {
+        "properties" : {
+          "allowanceDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "documentAfterDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "enabled" : {
+            "type" : "boolean"
+          },
+          "remainingDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "usedDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "enabled", "type", "usedDays" ],
+        "type" : "object"
+      },
+      "LeaveTypeSetting" : {
+        "properties" : {
+          "documentAfterDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "enabled" : {
+            "type" : "boolean"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "LessonFileStatus" : {
         "properties" : {
           "convertErrorCode" : {
@@ -5828,6 +6129,32 @@
         } ],
         "required" : [ "correctIds", "id", "ingredient", "options", "parentTip", "pick", "prompt", "speak", "title", "type" ]
       },
+      "MyLeaveBalance" : {
+        "properties" : {
+          "category" : {
+            "type" : "string"
+          },
+          "chain" : {
+            "type" : "string"
+          },
+          "permissionMaxMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "types" : {
+            "items" : {
+              "$ref" : "#/components/schemas/LeaveTypeBalance"
+            },
+            "type" : "array"
+          },
+          "year" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "category", "chain", "permissionMaxMinutes", "types", "year" ],
+        "type" : "object"
+      },
       "NeedsYouItem" : {
         "properties" : {
           "href" : {
@@ -5865,7 +6192,19 @@
           "date" : {
             "type" : "string"
           },
+          "fromTime" : {
+            "type" : "string"
+          },
+          "leaveType" : {
+            "type" : "string"
+          },
           "reason" : {
+            "type" : "string"
+          },
+          "toDate" : {
+            "type" : "string"
+          },
+          "toTime" : {
             "type" : "string"
           },
           "type" : {
@@ -6686,6 +7025,14 @@
         "required" : [ "platform", "token" ],
         "type" : "object"
       },
+      "RejectRequest" : {
+        "properties" : {
+          "reason" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "ReleaseRequest" : {
         "properties" : {
           "released" : {
@@ -6813,6 +7160,10 @@
             "format" : "int32",
             "type" : "integer"
           },
+          "excusedMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
           "fullName" : {
             "type" : "string"
           },
@@ -6830,7 +7181,15 @@
             "format" : "int32",
             "type" : "integer"
           },
+          "leaveDays" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
           "missingCheckOuts" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "permissionCount" : {
             "format" : "int32",
             "type" : "integer"
           },
@@ -9597,6 +9956,21 @@
             "format" : "double",
             "type" : "number"
           },
+          "leaveBalances" : {
+            "items" : {
+              "$ref" : "#/components/schemas/LeaveBalanceSetting"
+            },
+            "type" : "array"
+          },
+          "leaveChain" : {
+            "type" : "string"
+          },
+          "leaveTypes" : {
+            "items" : {
+              "$ref" : "#/components/schemas/LeaveTypeSetting"
+            },
+            "type" : "array"
+          },
           "longitude" : {
             "format" : "double",
             "type" : "number"
@@ -9606,6 +9980,10 @@
             "type" : "integer"
           },
           "notArrivedMinutes" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "permissionMaxMinutes" : {
             "format" : "int32",
             "type" : "integer"
           },
@@ -14552,6 +14930,27 @@
           "schema" : {
             "type" : "string"
           }
+        }, {
+          "in" : "query",
+          "name" : "type",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "staff",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "month",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -14605,6 +15004,15 @@
             "type" : "string"
           }
         } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RejectRequest"
+              }
+            }
+          }
+        },
         "responses" : {
           "200" : {
             "content" : {
@@ -19684,6 +20092,166 @@
         "tags" : [ "Staff attendance board" ]
       }
     },
+    "/staff-attendance/leave/balances" : {
+      "get" : {
+        "operationId" : "leaveBalances",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "year",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LeaveBalanceReport"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff leave" ]
+      }
+    },
+    "/staff-attendance/leave/balances.csv" : {
+      "get" : {
+        "operationId" : "leaveBalancesCsv",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "year",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "text/csv" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff leave" ]
+      }
+    },
+    "/staff-attendance/leave/balances.xlsx" : {
+      "get" : {
+        "operationId" : "leaveBalancesXlsx",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "year",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff leave" ]
+      }
+    },
+    "/staff-attendance/leave/requests" : {
+      "get" : {
+        "operationId" : "leaveRequests",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "month",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LeaveRequestReport"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff leave" ]
+      }
+    },
+    "/staff-attendance/leave/requests.csv" : {
+      "get" : {
+        "operationId" : "leaveRequestsCsv",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "month",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "text/csv" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff leave" ]
+      }
+    },
+    "/staff-attendance/leave/requests.xlsx" : {
+      "get" : {
+        "operationId" : "leaveRequestsXlsx",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "month",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : {
+                "schema" : {
+                  "format" : "byte",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff leave" ]
+      }
+    },
     "/staff-attendance/report" : {
       "get" : {
         "operationId" : "attendanceReport",
@@ -19854,6 +20422,64 @@
         "tags" : [ "Staff check-in" ]
       }
     },
+    "/staff/attendance/leave/balance" : {
+      "get" : {
+        "operationId" : "myLeaveBalance",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MyLeaveBalance"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff leave" ]
+      }
+    },
+    "/staff/attendance/leave/preview" : {
+      "get" : {
+        "operationId" : "leavePreview",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "leaveType",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LeavePreview"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff leave" ]
+      }
+    },
     "/staff/attendance/month" : {
       "get" : {
         "operationId" : "staffCheckInMonth",
@@ -19922,6 +20548,32 @@
           }
         },
         "tags" : [ "Attendance requests" ]
+      }
+    },
+    "/staff/attendance/requests/{id}/cancel" : {
+      "post" : {
+        "operationId" : "cancelAttendanceRequest",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AttendanceRequestView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "Staff leave" ]
       }
     },
     "/staff/attendance/today" : {
@@ -23599,6 +24251,9 @@
   }, {
     "description" : "Notes a teacher posts to the parents of a class",
     "name" : "Announcements"
+  }, {
+    "description" : "Leave and permission requests, balances and their two reports",
+    "name" : "Staff leave"
   }, {
     "description" : "Coordinator accounts and the subjects and tracks they supervise",
     "name" : "Coordinators"

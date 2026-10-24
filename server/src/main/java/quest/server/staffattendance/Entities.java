@@ -34,6 +34,9 @@ public final class Entities {
         @Column(name = "director_notify", nullable = false) private String directorNotify;
         @Column(name = "admin_notify", nullable = false) private String adminNotify;
         @Column(name = "digest_time", nullable = false) private LocalTime digestTime;
+        // Feature 34 (V57): the approval chain for leave and permission, and the longest permission in one day.
+        @Column(name = "leave_chain") private String leaveChain;
+        @Column(name = "permission_max_minutes") private Integer permissionMaxMinutes;
         @Column(name = "updated_by") private String updatedBy;
         @Column(name = "updated_at", nullable = false) private Instant updatedAt;
         public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
@@ -46,6 +49,8 @@ public final class Entities {
         public String getDirectorNotify() { return directorNotify; } public void setDirectorNotify(String v) { directorNotify = v; }
         public String getAdminNotify() { return adminNotify; } public void setAdminNotify(String v) { adminNotify = v; }
         public LocalTime getDigestTime() { return digestTime; } public void setDigestTime(LocalTime v) { digestTime = v; }
+        public String getLeaveChain() { return leaveChain; } public void setLeaveChain(String v) { leaveChain = v; }
+        public Integer getPermissionMaxMinutes() { return permissionMaxMinutes; } public void setPermissionMaxMinutes(Integer v) { permissionMaxMinutes = v; }
         public String getUpdatedBy() { return updatedBy; } public void setUpdatedBy(String v) { updatedBy = v; }
         public Instant getUpdatedAt() { return updatedAt; } public void setUpdatedAt(Instant v) { updatedAt = v; }
     }
@@ -236,6 +241,8 @@ public final class Entities {
         @Column(nullable = false) private boolean absent;
         @Column(name = "early_leave_minutes") private Integer earlyLeaveMinutes;
         @Column(name = "missing_checkout", nullable = false) private boolean missingCheckout;
+        /** Feature 34 (V57): the lateness and early-leave minutes an approved permission excused that day. */
+        @Column(name = "excused_minutes", nullable = false) private int excusedMinutes;
         @Column(name = "updated_at", nullable = false) private Instant updatedAt;
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
@@ -247,6 +254,7 @@ public final class Entities {
         public boolean isAbsent() { return absent; } public void setAbsent(boolean v) { absent = v; }
         public Integer getEarlyLeaveMinutes() { return earlyLeaveMinutes; } public void setEarlyLeaveMinutes(Integer v) { earlyLeaveMinutes = v; }
         public boolean isMissingCheckout() { return missingCheckout; } public void setMissingCheckout(boolean v) { missingCheckout = v; }
+        public int getExcusedMinutes() { return excusedMinutes; } public void setExcusedMinutes(int v) { excusedMinutes = v; }
         public Instant getUpdatedAt() { return updatedAt; } public void setUpdatedAt(Instant v) { updatedAt = v; }
     }
 
@@ -329,11 +337,28 @@ public final class Entities {
         @Column(name = "created_at", nullable = false) private Instant createdAt;
         @Column(name = "decided_by") private String decidedBy;
         @Column(name = "decided_at") private Instant decidedAt;
+        // Feature 34 (V57): leave and permission on the same table, so one inbox decides every kind of request.
+        @Column(name = "leave_type") private String leaveType;
+        @Column(name = "to_day") private LocalDate toDay;
+        @Column(name = "from_time") private LocalTime fromTime;
+        @Column(name = "to_time") private LocalTime toTime;
+        private Integer days;
+        private Integer minutes;
+        @Column(name = "reject_reason") private String rejectReason;
+        @Column private String stage;
         public String getId() { return id; } public void setId(String v) { id = v; }
         public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
         public String getStaffKind() { return staffKind; } public void setStaffKind(String v) { staffKind = v; }
         public String getStaffId() { return staffId; } public void setStaffId(String v) { staffId = v; }
         public String getType() { return type; } public void setType(String v) { type = v; }
+        public String getLeaveType() { return leaveType; } public void setLeaveType(String v) { leaveType = v; }
+        public LocalDate getToDay() { return toDay; } public void setToDay(LocalDate v) { toDay = v; }
+        public LocalTime getFromTime() { return fromTime; } public void setFromTime(LocalTime v) { fromTime = v; }
+        public LocalTime getToTime() { return toTime; } public void setToTime(LocalTime v) { toTime = v; }
+        public Integer getDays() { return days; } public void setDays(Integer v) { days = v; }
+        public Integer getMinutes() { return minutes; } public void setMinutes(Integer v) { minutes = v; }
+        public String getRejectReason() { return rejectReason; } public void setRejectReason(String v) { rejectReason = v; }
+        public String getStage() { return stage; } public void setStage(String v) { stage = v; }
         public LocalDate getDay() { return day; } public void setDay(LocalDate v) { day = v; }
         public String getCorrectionKind() { return correctionKind; } public void setCorrectionKind(String v) { correctionKind = v; }
         public LocalTime getClaimedCheckIn() { return claimedCheckIn; } public void setClaimedCheckIn(LocalTime v) { claimedCheckIn = v; }
@@ -345,5 +370,48 @@ public final class Entities {
         public Instant getCreatedAt() { return createdAt; } public void setCreatedAt(Instant v) { createdAt = v; }
         public String getDecidedBy() { return decidedBy; } public void setDecidedBy(String v) { decidedBy = v; }
         public Instant getDecidedAt() { return decidedAt; } public void setDecidedAt(Instant v) { decidedAt = v; }
+    }
+
+    /**
+     * Feature 34 (V57): one leave type as this school offers it. No row is the default — offered, with no document
+     * rule — so a school that never opened the Admin's Leave card still has the five types.
+     */
+    @Entity(name = "LeaveTypeEntity") @Table(name = "leave_types")
+    @Filter(name = "school", condition = "school_id = :schoolId")
+    public static class LeaveTypeEntity {
+        @Id private String id;
+        @Column(name = "school_id", nullable = false) private String schoolId;
+        @Column(name = "leave_type", nullable = false) private String leaveType;
+        @Column(nullable = false) private boolean enabled;
+        @Column(name = "document_after_days") private Integer documentAfterDays;
+        @Column(name = "updated_at", nullable = false) private Instant updatedAt;
+        public String getId() { return id; } public void setId(String v) { id = v; }
+        public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
+        public String getLeaveType() { return leaveType; } public void setLeaveType(String v) { leaveType = v; }
+        public boolean isEnabled() { return enabled; } public void setEnabled(boolean v) { enabled = v; }
+        public Integer getDocumentAfterDays() { return documentAfterDays; } public void setDocumentAfterDays(Integer v) { documentAfterDays = v; }
+        public Instant getUpdatedAt() { return updatedAt; } public void setUpdatedAt(Instant v) { updatedAt = v; }
+    }
+
+    /**
+     * Feature 34 (V57): the yearly allowance of one leave type for one staff category, in days. <strong>No row means
+     * no balance</strong>, which is UNPAID and OTHER until the Admin sets one, and nothing is then refused for being
+     * over budget.
+     */
+    @Entity(name = "LeaveBalanceEntity") @Table(name = "leave_balances")
+    @Filter(name = "school", condition = "school_id = :schoolId")
+    public static class LeaveBalanceEntity {
+        @Id private String id;
+        @Column(name = "school_id", nullable = false) private String schoolId;
+        @Column(name = "leave_type", nullable = false) private String leaveType;
+        @Column(nullable = false) private String category;
+        @Column(name = "yearly_days", nullable = false) private int yearlyDays;
+        @Column(name = "updated_at", nullable = false) private Instant updatedAt;
+        public String getId() { return id; } public void setId(String v) { id = v; }
+        public String getSchoolId() { return schoolId; } public void setSchoolId(String v) { schoolId = v; }
+        public String getLeaveType() { return leaveType; } public void setLeaveType(String v) { leaveType = v; }
+        public String getCategory() { return category; } public void setCategory(String v) { category = v; }
+        public int getYearlyDays() { return yearlyDays; } public void setYearlyDays(int v) { yearlyDays = v; }
+        public Instant getUpdatedAt() { return updatedAt; } public void setUpdatedAt(Instant v) { updatedAt = v; }
     }
 }
